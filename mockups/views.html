@@ -5,47 +5,210 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Zen views</title>
 <link rel="stylesheet" href="ui.css" />
+<style>
+/* Empty states fill the slot the content would take, then hand the rest of the screen to what's next. */
+.rest { position: relative; margin-top: 16px; height: 220px; border-radius: 28px; background: var(--chip); padding: 20px; display: flex; flex-direction: column; }
+.rest .lf { position: absolute; top: 18px; right: 18px; color: var(--ink); }
+.rest .t { margin-top: auto; padding-right: 58px; font-size: 24px; line-height: 1.15; font-weight: 600; letter-spacing: -.02em; }
+.rest .s { margin-top: 6px; font-size: 15px; color: var(--muted); font-weight: 500; line-height: 1.35; }
+.say { display: flex; align-items: center; gap: 10px; padding: 13px 16px; border-radius: 99px; border: 1px dashed var(--line); font-size: 15px; font-weight: 500; color: var(--muted); }
+.say + .say { margin-top: 8px; }
+.say svg { flex-shrink: 0; color: var(--ink); }
+.say b { color: var(--ink); font-weight: 600; }
+.wk .nil { height: 150px; border-radius: 10px; border: 1px dashed var(--line); }
+.inl { margin-top: 10px; padding: 14px 16px; border-radius: 22px; background: var(--chip); display: flex; align-items: center; gap: 12px; }
+.inl b { display: block; font-size: 16px; font-weight: 600; }
+.inl small { display: block; margin-top: 2px; font-size: 14px; color: var(--muted); font-weight: 500; }
+/* System notification banner (iOS style), drawn by the OS, not by Zen: only the words are ours. */
+.nt { position: absolute; top: 46px; left: 10px; right: 10px; z-index: 30; display: flex; gap: 10px; padding: 12px 14px; border-radius: 22px; background: rgba(245,245,245,.86); backdrop-filter: blur(20px); color: #111; box-shadow: 0 16px 34px -18px rgba(0,0,0,.45); }
+.nt .ap { flex: none; color: #16181b; width: 36px; height: 36px; border-radius: 9px; background: #fbfaf7; display: grid; place-items: center; box-shadow: inset 0 0 0 .5px rgba(0,0,0,.15); }
+.nt .tx { min-width: 0; flex: 1; font-size: 14px; line-height: 1.3; }
+.nt .tx b { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
+.nt .tx b i { white-space: nowrap; font-style: normal; font-weight: 400; color: #8a8a8a; font-size: 13px; }
+.nt .tx span { display: block; color: #333; }
+.dark .nt { background: rgba(40,40,42,.86); color: #f2f2f2; }
+.dark .nt .tx span { color: #d0d0d0; }
+</style>
 </head>
 <body>
 <div class="head">
   <h1>Day, week, month</h1>
-  <p>Paper white, ink type, hairline circles. Colour lives only in raked sand cards, one palette per type: plan, lecture, exam, assignment, busy. Swipe sideways to switch views; in the day view, pull past the edge for the next day.</p>
-  <nav><a href="logo.html">Logo</a><a href="ready.html">Getting ready</a><a href="settings.html">Settings</a><a href="marks.html">Marks</a></nav>
+  <p>Paper white, ink type, hairline circles. Colour lives only in raked sand cards, one palette per type: plan, lecture, exam, assignment, busy. Swipe sideways to change week or month; in the day view, pull up or down past the edge for the next or previous day. No sheets: menus drop from the button.</p>
+  <nav><a href="logo.html">Logo</a><a href="settings.html">Settings</a><a href="marks.html">Marks</a><a href="widgets.html">Widgets</a><a href="magic.html">Magic</a></nav>
 </div>
 <div class="gallery"></div>
 <script src="ui.js"></script>
 <script>
 const tabs = (on) => `<div class="tabs">${["Ngày", "Tuần", "Tháng"].map((v) => `<span class="${v === on ? "on" : ""}">${v}</span>`).join("")}</div>`;
-const head = (hello, title, n) => `<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-top:6px"><div><div class="hello">${hello}</div><div class="h" style="margin-top:2px">${title}</div><div class="sub">${n}</div></div><span class="o" style="margin-top:2px">${ic(I.gear, 18)}</span></div>`;
+const head = (hello, title, n) => `<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-top:6px"><div><div class="hello">${hello}</div><div class="h" style="margin-top:2px">${title}</div><div class="sub">${n}</div></div><span class="o" style="margin-top:2px">${ic(I.gear, 20)}</span></div>`;
 const row = (tm, title, type, st = "", sub = "") => {
-  const box = type === "plan" || type === "assignment" ? `<span class="ck ${st}">${st ? ic(I.check, 16, 2.4) : ""}</span>` : swatch(type);
-  return `<div class="r ${st ? "done" : ""} ${type === "busy" ? "busy" : ""}">${box}<div class="tx"><b>${title}</b>${sub ? `<small>${sub}</small>` : ""}</div><span class="tm">${tm}</span></div>`;
+  const on = st && st !== "late";
+  const box = type === "plan" || type === "assignment" ? `<span class="ck ${st}">${on ? ic(I.check, 16, 2.4) : ""}</span>` : swatch(type);
+  return `<div class="r ${on ? "done" : st} ${type === "busy" ? "busy" : ""}">${box}<div class="tx"><b>${title}</b>${sub ? `<small>${sub}</small>` : ""}</div><span class="tm">${tm}</span></div>`;
 };
 const next = (type, title, big, small, p) => `<div class="art" style="margin-top:16px;height:220px;padding:20px 20px 18px">${art(type, { w: 264, h: 220, seed: 4, cls: "bgart" })}
   <div class="lab" style="color:#fff;opacity:.85">Tiếp theo</div><div class="t" style="margin-top:10px">${title}</div>
   <div style="position:absolute;left:20px;right:16px;bottom:16px;display:flex;align-items:flex-end;justify-content:space-between"><div class="meter"><span class="cap2" style="--p:${p}"><i></i></span><div><div class="big">${big}</div><div class="small">${small}</div></div></div><span class="glass solid">${ic(I.check, 22, 2.2)}</span></div></div>`;
 const day = (st) => `${head("Thứ hai", "16 tháng 11", "5 việc, 1 tiết học")}${tabs("Ngày")}
   ${next("plan", "Ôn Giải tích", "10 phút", "đến 14:30", "35%")}
-  <div class="lab" style="margin-top:22px">Sau đó</div>
-  <div class="list" style="margin-top:4px">${row("14:30", "Ôn Giải tích", "plan", st)}${row("16:00", "Báo cáo nhóm", "assignment", "", "Hạn 23:59")}${row("17:30", "Cơ sở dữ liệu", "lecture", "", "A2.104")}${row("19:00", "Ăn tối với Minh", "busy")}</div>
-  <div class="lab" style="margin-top:14px">Xong (2) ${ic(I.down, 14)}</div>`;
+  <div class="lab" style="margin-top:28px">Sau đó</div>
+  <div class="list" style="margin-top:6px">${row("14:30", "Ôn Giải tích", "plan", st)}${row("16:00", "Báo cáo nhóm", "assignment", "", "Hạn 23:59")}${row("17:30", "Cơ sở dữ liệu", "lecture", "", "A2.104")}${row("19:00", "Ăn tối với Minh", "busy")}</div>
+  <div class="lab" style="margin-top:20px">Xong (2) ${ic(I.down, 14)}</div>`;
+const edit = `${head("Thứ hai", "16 tháng 11", "5 việc, 1 tiết học")}${tabs("Ngày")}
+  <div class="lab" style="margin-top:28px">Hôm nay</div>
+  <div class="list" style="margin-top:6px">${row("14:30", "Ôn Giải tích", "plan")}
+    <div class="r edit"><span class="ck"></span><div class="tx"><b>Báo cáo nhóm</b><small>Chương 3 và 4. Hỏi Lan file slide.</small></div><span class="tm">16:00</span></div>
+    ${row("17:30", "Cơ sở dữ liệu", "lecture", "", "A2.104")}</div><div class="kb"></div>`;
+const ml = (k, t, cls = "") => `<div class="${cls}">${ic(I[k], 20, 1.9)}<span>${t}</span></div>`;
+const dtop = `<div style="display:flex;justify-content:space-between"><span class="o">${ic(I.back, 20)}</span><span class="o">${ic(I.trash, 20)}</span></div>`;
+// Detail: type tag, title, muted meta lines (not editable), optional LMS content, then the user's own note.
+const dt = (type, from, title, meta, note, lms = "") => `${dtop}
+  <div style="display:flex;align-items:center;gap:10px;margin-top:22px">${swatch(type)}<span class="sub" style="margin:0">${from}</span></div>
+  <div class="h" style="margin-top:14px">${title}</div>
+  <div class="meta">${meta}</div>${lms}
+  <div class="note">${note}</div>`;
+const lmsBody = `<div class="lms"><div class="lab">Nội dung</div><p>Xây dựng trang quản lý sinh viên.</p><ul><li>Có trang danh sách và thêm mới</li><li>Nộp file .zip lên LMS</li></ul></div>`;
+const noteLms = "Hỏi Lan về phần kiểm tra.";
+const detail = dt("assignment", "Từ LMS", "Bài tập lớn: Quản lý sinh viên",
+  ml("clock", `Hạn ${when("2026-11-23", "23:59")}`, "red") + ml("clock", `Làm lúc ${when("2026-11-20", "14:00")}, 90 phút`) + ml("book", "Lập trình Web") + ml("link", `Mở trên LMS ${ic(I.right, 16)}`, "lk"), noteLms, lmsBody);
+const detailLec = (m = "") => dt("lecture", "Từ lịch trường", "Cấu trúc dữ liệu",
+  ml("clock", `${when("2026-11-18", "07:00")} đến 09:30`) + ml("pin", "A2.301") + ml("person", "GV Nguyễn Văn A"), '<span class="note ph">Thêm ghi chú</span>') + m;
+const detailExam = dt("exam", "Từ lịch trường", "Thi Giải tích 2", ml("clock", when("2026-11-27", "08:00")) + ml("pin", "A2.301"), '<span class="note ph">Thêm ghi chú</span>');
+const detailPrep = dt("plan", "Việc của bạn", "Ôn Giải tích 2",
+  ml("clock", `Làm lúc ${when("2026-11-19", "08:00")}, 60 phút`) + ml("book", `Ôn lý thuyết ${ic(I.right, 16)}`, "lk"), "Làm lại bài tập chương 3.");
+const detailRep = (m = "") => dt("plan", "Việc của bạn", "Đọc sách mỗi tối",
+  ml("clock", "20:00, 45 phút") + ml("repeat", "Mỗi ngày"), "Đọc chương đang dở.") + m;
+const detailPlain = dt("plan", "Việc của bạn", "Mua pin cho chuột", ml("clock", `Làm lúc ${when("2026-11-17", "17:00")}`), '<span class="note ph">Thêm ghi chú</span>');
+// Swipe right: a red trash bed shows behind the row as it slides.
+const swipe = (r, on) => (on ? `<div class="sw"><span class="bed">${ic(I.trash, 20, 2)}</span>${r}</div>` : r);
+const lst = (lift = "") => `${head("Thứ tư", "18 tháng 11", "4 việc, 1 tiết học")}${tabs("Ngày")}
+  <div class="lab" style="margin-top:28px">Hôm nay</div>
+  <div class="list" style="margin-top:6px">${swipe(row("07:00", "Cấu trúc dữ liệu", "lecture", "", "A2.301").replace('class="r ', `class="r ${lift} `), lift === "swiping")}${row("14:30", "Ôn Giải tích 2", "plan")}${row("20:00", "Đọc sách mỗi tối", "plan")}</div>`;
+const overlap = `${head("Thứ sáu", "20 tháng 11", "4 việc, 1 bài thi")}${tabs("Ngày")}
+  <div class="lab" style="margin-top:28px">Sáng</div>
+  <div class="list" style="margin-top:6px">${row("08:00", "Thi Giải tích 2", "exam", "", "A2.301")}${row("08:30", "Hẹn nha sĩ", "busy")}</div>
+  <div class="warn"><b>Trùng giờ</b><small>Thi Giải tích 2 vừa về từ trường, đè lên Hẹn nha sĩ.</small>
+    <div class="pills" style="margin-top:12px"><span class="pl sm on">Dời việc mình</span><span class="pl sm">Giữ cả hai</span></div></div>
+  <div class="lab" style="margin-top:26px">Sau đó</div><div class="list" style="margin-top:6px">${row("14:00", "Báo cáo nhóm", "assignment")}</div>`;
+// Fixed-height week column: blocks compress to fit, and past what fits a "+n" chip takes the rest.
+const AREA = 150, GAP = 3, MINH = 16;
+const fit = (bs) => {
+  const cap = Math.floor((AREA + GAP) / (MINH + GAP)); let more = 0, list = bs;
+  if (bs.reduce((a, [, h]) => a + h, 0) + GAP * (bs.length - 1) > AREA) { if (bs.length > cap) { more = bs.length - (cap - 1); list = bs.slice(0, cap - 1); } }
+  const avail = AREA - GAP * (list.length - 1 + (more ? 1 : 0)) - (more ? MINH : 0), sc = Math.min(1, avail / (list.reduce((a, [, h]) => a + h, 0) || 1));
+  return list.map(([t, h], j) => { const hh = Math.max(MINH, Math.floor(h * sc)); return `<span class="b" style="--h:${hh}px">${art(t, { w: 40, h: hh, seed: j * 3 + h })}</span>`; }).join("") + (more ? `<span class="more">+${more}</span>` : "");
+};
+const wk = (cols) => `<div class="wk" style="margin-top:20px">${cols.map(([d, n, bs, hol], i) => `<div class="c"><span class="d ${i === 0 ? "on" : ""}">${d}<i>${n}</i></span>${hol ? `<span class="hb">Tết<br>${hol}</span>` : `<div class="bs">${fit(bs)}</div>`}</div>`).join("")}</div>`;
 const W = [["T2", 16, [["lecture", 46], ["plan", 26], ["assignment", 34]]], ["T3", 17, [["plan", 30], ["exam", 52]]], ["T4", 18, [["lecture", 46], ["plan", 24], ["plan", 24]]], ["T5", 19, [["plan", 34], ["assignment", 28]]], ["T6", 20, [["lecture", 46], ["busy", 38]]], ["T7", 21, [["plan", 28]]], ["CN", 22, []]];
-const week = `${head("Tuần này", "16 đến 22/11", "14 việc, 1 bài thi")}${tabs("Tuần")}
-  <div class="wk" style="margin-top:20px">${W.map(([d, n, bs], i) => `<div class="c"><span class="d ${i === 0 ? "on" : ""}">${d}<i>${n}</i></span>${bs.map(([t, h], j) => `<span class="b" style="--h:${h}px">${art(t, { w: 40, h, seed: i * 3 + j, dir: t === "lecture" || t === "exam" ? "v" : "h" })}</span>`).join("")}</div>`).join("")}</div>
-  <div class="lab" style="margin-top:22px">Thứ ba, 17</div>
-  <div class="list" style="margin-top:4px">${row("08:00", "Ôn Xác suất", "plan")}${row("13:30", "Thi Xác suất", "exam", "", "Trắc nghiệm, B1.201")}</div>`;
+const PK = (n) => Array.from({ length: n }, (_, i) => [["plan", "assignment", "busy", "lecture"][i % 4], 24]);
+const WP = W.map((c, i) => (i === 1 ? ["T3", 17, [["lecture", 46], ...PK(7)]] : i === 3 ? ["T5", 19, PK(12)] : c));
+const wkList = `<div class="lab" style="margin-top:28px">T3, 17/11</div>
+  <div class="list" style="margin-top:6px">${row("08:00", "Ôn Xác suất", "plan")}${row("13:30", "Thi Xác suất", "exam", "", "Trắc nghiệm, B1.201")}</div>`;
+const week = `${head("Tuần này", "16 đến 22/11", "14 việc, 1 bài thi")}${tabs("Tuần")}${wk(W)}${wkList}`;
+const weekPacked = `${head("Tuần này", "16 đến 22/11", "31 việc, 1 bài thi")}${tabs("Tuần")}${wk(WP)}${wkList}`;
 const pick = (d) => [[], ["plan"], ["lecture", "plan"], ["lecture", "plan", "assignment"], ["exam"], ["plan", "plan"], []][d % 7];
 const month = `${head("Năm 2026", "Tháng 11", "42 việc, 3 bài thi")}${tabs("Tháng")}
   <div class="mo" style="margin-top:20px">${["T2", "T3", "T4", "T5", "T6", "T7", "CN"].map((d) => `<span class="w">${d}</span>`).join("")}
   ${Array.from({ length: 35 }, (_, i) => { const d = i - 5, out = d < 1 || d > 30, n = d < 1 ? 26 + i : d > 30 ? d - 30 : d; return `<div class="d ${out ? "out" : ""} ${d === 16 ? "today" : ""} ${d === 19 ? "sel" : ""}"><span>${n}</span><span class="ds">${(out ? [] : pick(d * 5)).map((t) => `<i style="--c:${DOT[t]}"></i>`).join("")}</span></div>`; }).join("")}</div>
-  <div class="lab" style="margin-top:18px">Thứ năm, 19</div>
-  <div class="list" style="margin-top:4px">${row("09:00", "Viết luận Triết", "assignment", "", "Hạn thứ hai")}</div>`;
+  <div class="lab" style="margin-top:24px">T5, 19/11</div>
+  <div class="list" style="margin-top:6px">${row("09:00", "Viết luận Triết", "assignment", "", "Hạn T2 23/11")}</div>`;
+const HW = [["T2", 8, [["plan", 30]], "mùng 3"], ["T3", 9, [], "mùng 4"], ["T4", 10, [], "mùng 5"], ["T5", 11, [["lecture", 46], ["plan", 26]]], ["T6", 12, [["lecture", 46], ["plan", 28]]], ["T7", 13, [["plan", 28]]], ["CN", 14, []]];
+const weekHol = `${head("Tuần này", "8 đến 14/2", "4 việc, 3 ngày Tết")}${tabs("Tuần")}${wk(HW.map(([d, n, bs, h]) => [d, n, bs, h && !bs.length ? h : ""]))}
+  <div class="lab" style="margin-top:28px">T3, 9/2</div>
+  <div class="list" style="margin-top:6px">${row("Cả ngày", "Tết Nguyên đán", "busy", "", "Không xếp việc")}</div>`;
+const monthHol = `${head("Năm 2027", "Tháng 2", "9 việc, 5 ngày Tết")}${tabs("Tháng")}
+  <div class="mo" style="margin-top:20px">${["T2", "T3", "T4", "T5", "T6", "T7", "CN"].map((d) => `<span class="w">${d}</span>`).join("")}
+  ${Array.from({ length: 28 }, (_, i) => { const n = i + 1, hol = n >= 6 && n <= 10; return `<div class="d ${hol ? "hol" : ""} ${n === 8 ? "today" : ""} ${n === 11 ? "sel" : ""}"><span>${n}</span>${hol ? `<span class="ds hl">Tết</span>` : `<span class="ds">${(n < 6 || n > 10 ? pick(n * 5) : []).map((t) => `<i style="--c:${DOT[t]}"></i>`).join("")}</span>`}</div>`; }).join("")}</div>
+  <div class="lab" style="margin-top:24px">T5, 11/2</div>
+  <div class="list" style="margin-top:6px">${row("07:00", "Cấu trúc dữ liệu", "lecture", "", "A2.301")}</div>`;
+const pring = (p) => `<svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" fill="none" stroke="currentColor" stroke-opacity=".3" stroke-width="2"/><circle cx="9" cy="9" r="7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-dasharray="44" stroke-dashoffset="${44 * (1 - p)}" transform="rotate(-90 9 9)"/></svg>`;
+// Vertical pull: down at the top peeks the previous day, up at the bottom peeks the next. Past the threshold the pill turns vermilion with a check.
+const pull = (dir, p, label) => { const done = p >= 1, dy = dir === "down" ? 30 + 34 * p : -(8 + 16 * p);
+  return `<div class="peek ${done ? "done" : ""}" style="${dir === "down" ? "top:56px" : "bottom:150px"}">${done ? ic(I.check, 18, 2.4) : pring(p)}${label}</div><div style="transform:translateY(${dy}px)">${dayAt("Thứ sáu", "13 tháng 11")}</div>`; };
+const dayAt = (hello, title) => `${head(hello, title, "5 việc, 1 tiết học")}${tabs("Ngày")}
+  ${next("plan", "Ôn Giải tích", "10 phút", "đến 14:30", "35%")}
+  <div class="lab" style="margin-top:28px">Sau đó</div>
+  <div class="list" style="margin-top:6px">${row("14:30", "Ôn Giải tích", "plan")}${row("16:00", "Báo cáo nhóm", "assignment", "", "Hạn 23:59")}${row("17:30", "Cơ sở dữ liệu", "lecture", "", "A2.104")}</div>`;
+// Empty states. The rest card takes the art card's 220px slot, so the layout never collapses;
+// below it, whatever comes next (upcoming rows, or example lines to say) fills the space.
+const rest = (lab, t, sub, leaf = "line", h = 220) => `<div class="rest" style="height:${h}px"><span class="lab">${lab}</span><span class="lf">${LOGO(52, leaf)}</span><div class="t">${t}</div><div class="s">${sub}</div></div>`;
+const say = (txt) => `<div class="say">${ic(I.mic, 18, 2)}<span>“<b>${txt}</b>”</span></div>`;
+const dayFree = `${head("Thứ bảy", "21 tháng 11", "Không có việc")}${tabs("Ngày")}
+  ${rest("Hôm nay", "Ngày trống, thở chút", "Không có lịch học hay việc nào. Cứ để trống cũng được.")}
+  <div class="lab" style="margin-top:28px">Sắp tới</div>
+  <div class="list" style="margin-top:6px">${row("07:00", "Cấu trúc dữ liệu", "lecture", "", `${when("2026-11-23")}, A2.301`)}${row("23:59", "Viết luận Triết", "assignment", "", `Hạn ${when("2026-11-23")}`)}${row("08:00", "Thi Giải tích 2", "exam", "", `${when("2026-11-27")}, A2.301`)}</div>`;
+const dayDone = `${head("Thứ hai", "16 tháng 11", "5 việc, xong hết")}${tabs("Ngày")}
+  ${rest("Hôm nay", "Xong hết rồi", "5 việc, 1 tiết học. Phần còn lại của ngày là của bạn.", "color")}
+  <div class="lab" style="margin-top:28px">Ngày mai</div>
+  <div class="list" style="margin-top:6px">${row("08:00", "Ôn Xác suất", "plan")}${row("13:30", "Thi Xác suất", "exam", "", "B1.201")}</div>
+  <div class="lab" style="margin-top:20px">Xong (5) ${ic(I.down, 14)}</div>`;
+const dayFirst = `${head("Chào bạn", "Thứ hai, 16/11", "Chưa có gì")}${tabs("Ngày")}
+  ${rest("Bắt đầu", "Giữ nút và kể tuần này", "Nói như nhắn cho bạn. Zen tự xếp giờ.", "line", 168)}
+  <div class="lab" style="margin-top:22px">Thử nói</div>
+  <div style="margin-top:10px">${say("Mai 9 giờ ôn Giải tích")}${say("T6 nộp báo cáo nhóm")}${say("Tối nào cũng đọc sách")}</div>
+  <div class="lab" style="margin-top:22px"><span>Hoặc lấy lịch từ trường</span>${ic(I.right, 14)}</div>`;
+const weekFree = `${head("Tuần sau", "23 đến 29/11", "Chưa có gì")}${tabs("Tuần")}
+  <div class="wk" style="margin-top:20px">${["T2", "T3", "T4", "T5", "T6", "T7", "CN"].map((d, i) => `<div class="c"><span class="d ${i === 0 ? "on" : ""}">${d}<i>${23 + i}</i></span><div class="nil"></div></div>`).join("")}</div>
+  <div class="inl">${LOGO(34, "line")}<div><b>Tuần trống</b><small>Kể kế hoạch, Zen xếp vào.</small></div></div>
+  <div class="lab" style="margin-top:24px">Tuần này còn</div>
+  <div class="list" style="margin-top:6px">${row("14:00", "Báo cáo nhóm", "assignment", "", when("2026-11-20"))}</div>`;
+const monthFree = `${head("Năm 2026", "Tháng 11", "42 việc, 3 bài thi")}${tabs("Tháng")}
+  <div class="mo" style="margin-top:20px">${["T2", "T3", "T4", "T5", "T6", "T7", "CN"].map((d) => `<span class="w">${d}</span>`).join("")}
+  ${Array.from({ length: 35 }, (_, i) => { const d = i - 5, out = d < 1 || d > 30, n = d < 1 ? 26 + i : d > 30 ? d - 30 : d; return `<div class="d ${out ? "out" : ""} ${d === 16 ? "today" : ""} ${d === 22 ? "sel" : ""}"><span>${n}</span><span class="ds">${(out || d === 22 ? [] : pick(d * 5)).map((t) => `<i style="--c:${DOT[t]}"></i>`).join("")}</span></div>`; }).join("")}</div>
+  <div class="lab" style="margin-top:24px">CN, 22/11</div>
+  <div class="inl">${LOGO(34, "line")}<div><b>Không có việc</b><small>Gần nhất: T2 07:00, Cấu trúc dữ liệu</small></div></div>`;
+// A split assignment: each sitting is its own row with the parent's title, course and deadline; ticking the last one ticks the assignment.
+const BTL = "Bài tập lớn: Quản lý sinh viên", BTLSUB = `Lập trình Web, Hạn ${when("2026-11-23", "23:59")}`;
+const daySit = (st = "") => `${head("Thứ năm", "19 tháng 11", "4 việc, 1 tiết học")}${tabs("Ngày")}
+  ${next("assignment", BTL, "50 phút", "đến 10:30", "20%")}
+  <div class="lab" style="margin-top:28px">Sau đó</div>
+  <div class="list" style="margin-top:6px">${row("09:00", BTL, "assignment", st, BTLSUB)}${row("13:30", "Cấu trúc dữ liệu", "lecture", "", "A2.301")}${row("16:00", BTL, "assignment", "", BTLSUB)}${row("20:00", "Đọc sách mỗi tối", "plan")}</div>
+  <div class="lab" style="margin-top:28px">${when("2026-11-21")}</div>
+  <div class="list" style="margin-top:6px">${row("09:00", BTL, "assignment", "", BTLSUB)}</div>`;
+// Reminder: 10 minutes before a block starts. Title is the task; the line says when, then the deadline (assignment) or room (lecture, exam).
+const nt = (title, body, ago = "bây giờ") => `<div class="nt"><span class="ap">${LOGO(24, "color")}</span><div class="tx"><b>${title}<i>${ago}</i></b><span>${body}</span></div></div>`;
+const gone = (t, s) => chrome(toast(t, s, [["Hoàn tác"]]) + lst());
 mount([
-  { tag: "Day", sub: "Next up is the art card; its circle marks it done. Below, the rest of today. Fixed items wear their type art instead of a checkbox.", html: chrome(day("")) },
+  { tag: "Day", sub: "Next up is the art card; its meter fills continuously as the block runs, not in steps. Its circle marks it done. Below, the rest of today.", html: chrome(day("")) },
+  { tag: "Day, empty", sub: "No blank screen. The rest card takes the art card's slot, with the leaf in outline. Below it, what's coming in the next days, so the screen is still useful.", html: chrome(dayFree) },
+  { tag: "Day, all done", sub: "Everything ticked. The leaf fills in, done rows collapse, and tomorrow moves up to take the space.", html: chrome(dayDone) },
+  { tag: "Day, first launch", sub: "Nothing anywhere yet. The space teaches instead: three lines you could say, dashed like they're waiting to be filled, and the school link below.", html: chrome(dayFirst) },
+  { tag: "Day, listening", sub: "Hold the button: words appear live as you speak, with bars that follow your voice so you know it hears you. The last word is still partial, slightly faded.", html: chrome(`<div class="words">Mai nhắc mình nộp báo cáo<em> nhóm</em></div>${WAVE}`, { dock: "live" }) },
   { tag: "Done", sub: "Tap a circle: it fills black and pops, the row strikes through, haptic success, Undo.", html: chrome(toast("Ôn Giải tích xong", "Còn 3 việc hôm nay", [["Hoàn tác"]]) + day("pop")) },
-  { tag: "Created", sub: "No confirmation. Undo, or take the other good slot.", html: chrome(toast("Báo cáo nhóm", "Th 6 14:00", [["Th 7 09:00", 1], ["Hoàn tác"]]) + day(""), { dock: "think" }) },
-  { tag: "Week", sub: "Today in an ink pill. Blocks are type art; tap a day to see it below.", html: chrome(week) },
-  { tag: "Month", sub: "Today in black, selected outlined, up to three dots.", dark: true, html: chrome(month) },
+  { tag: "Day, missed", sub: "A task whose time has passed without a tick keeps its place, with a vermilion circle and time. No strike-through: it is not done, just late. Tick it, or say when to move it.", html: chrome(`${head("Thứ hai", "16 tháng 11", "5 việc, 1 tiết học")}${tabs("Ngày")}<div class="lab" style="margin-top:28px">Hôm nay</div><div class="list" style="margin-top:6px">${row("09:00", "Đọc chương 2", "plan", "late")}${row("11:00", "Nộp phiếu khảo sát", "assignment", "late", "Hạn 12:00")}${row("16:00", "Báo cáo nhóm", "assignment", "", "Hạn 23:59")}${row("17:30", "Cơ sở dữ liệu", "lecture", "", "A2.104")}</div>`, { time: "14:20" }) },
+  { tag: "Created", sub: "No confirmation. One Undo button; the other good slot is an outline pill left of Undo; title and sub may wrap to two lines. Dates follow the week rule: weekday only this week, plus day/month otherwise.", html: chrome(toast("Báo cáo nhóm", when("2026-11-20", "14:00"), [[when("2026-11-21", "09:00"), 1], ["Hoàn tác"]]) + day(""), { dock: "think" }) },
+  { tag: "Created, many", sub: "One line said several things. The toast counts them, names the first two, and one Undo takes all back. No other-slot offer for a batch.", html: chrome(toast("Đã thêm 5 việc", "Báo cáo nhóm, Gym +3", [["Hoàn tác"]]) + day(""), { dock: "think" }) },
+  { tag: "Created, next week", sub: "Outside the current week the date shows: T6 27/11 14:00.", html: chrome(toast("Báo cáo nhóm", when("2026-11-27", "14:00"), [["Hoàn tác"]]) + day(""), { dock: "think" }) },
+  { tag: "Edit", sub: "Tap a title and it becomes the field, right there. Time is tappable too. Return saves; nothing else on screen changes. Tap the row (not the title or time) for details. Long-press a row for the delete menu.", html: chrome(edit, { dock: null }) },
+  { tag: "Day, pull to previous", sub: "Pull down at the top of the day. A small pill peeks at the edge with a progress ring that fills as you pull.", html: chrome(pull("down", 0.55, "T5, 12/11")) },
+  { tag: "Day, pull past threshold", sub: "Past the threshold the ring becomes a check and the pill turns vermilion; letting go switches to the previous day.", html: chrome(pull("down", 1, "T5, 12/11")) },
+  { tag: "Day, pull to next", sub: "Pull up at the bottom for the next day. Same pill, above the button.", html: chrome(pull("up", 0.55, "T7, 14/11")) },
+  { tag: "Detail, LMS assignment", sub: "Trash replaces the dots. Muted meta lines with icons (due, planned time, course, LMS link), then the LMS content as rich text in a quiet bordered block, then your own note like Apple Notes.", html: chrome(detail, { dock: null }) },
+  { tag: "Detail, lecture", sub: "Lectures lead with room and teacher; the note stays yours. No Lặp lại line: the timetable is just flexible busy time. Trash opens the dropdown (same section: this, this and later, all).", html: chrome(detailLec(menu(DEL)), { dock: null }) },
+  { tag: "Detail, exam", sub: "Exam: time and room as meta, note below.", html: chrome(detailExam, { dock: null }) },
+  { tag: "Detail, exam prep", sub: "A prep task says only what it prepares: Ôn plus the exam format (lý thuyết, thực hành…). The subject is already the title. Tappable, opens the exam.", html: chrome(detailPrep, { dock: null }) },
+  { tag: "Detail, repeating", sub: "Only the user's own repeating task shows a repeat line. It has no end, so just Mỗi ngày. Trash opens the same three-option dropdown.", html: chrome(detailRep(menu(DEL)), { dock: null }) },
+  { tag: "Detail, single task", sub: "Not a series: the trash deletes at once, no menu.", html: chrome(detailPlain, { dock: null }) },
+  { tag: "Row, swipe to delete", sub: "Swipe a row right to left: a red trash bed shows behind it, a light tick at the threshold. A single task goes at once with Undo.", html: chrome(lst("swiping")) },
+  { tag: "Row, swiped series", sub: "A lecture or repeating task springs back and the same three choices drop under the row. Tap outside to cancel.", html: chrome(lst("lift") + menu(DEL, 262, 18)) },
+  { tag: "Row, long-press", sub: "Long-press a lecture or repeating-task row: it lifts and the same dropdown opens beneath it. Nothing to confirm.", html: chrome(lst("lift") + menu(DEL, 262, 18)) },
+  { tag: "Deleted, this one", sub: "Xoá buổi này: gone at once, Undo is the safety net.", html: gone("Đã xoá Cấu trúc dữ liệu", when("2026-11-18", "07:00")) },
+  { tag: "Deleted, this and later", sub: "Xoá buổi này và các buổi sau.", html: gone("Đã xoá Cấu trúc dữ liệu", `Từ ${when("2026-11-18")} trở đi`) },
+  { tag: "Deleted, all", sub: "Xoá tất cả (red in the menu).", html: gone("Đã xoá tất cả Cấu trúc dữ liệu", "Mọi buổi") },
+  { tag: "Deleted, single task", sub: "Plain item: trash, then Undo.", html: gone("Đã xoá Mua pin cho chuột", when("2026-11-17", "17:00")) },
+  { tag: "Day, assignment sittings", sub: "An LMS assignment too big for one sitting is split into blocks the planner places before the deadline. Every block keeps the assignment's title, course and deadline, and opens the same detail. Tick the last block and the assignment is done.", html: chrome(daySit()) },
+  { tag: "Reminder, assignment", sub: "Ten minutes before each block, a system notification: the task, its start, its deadline. When a campus sync moves or ticks a block, its reminder moves or goes with it.", html: chrome(nt(BTL, `Bắt đầu lúc 09:00 · Hạn ${when("2026-11-23", "23:59")}`) + daySit(), { time: "08:50" }) },
+  { tag: "Reminder, lecture", sub: "Lectures and exams name the room instead. Phone-calendar busy blocks get none: their own calendar already reminds.", html: chrome(nt("Cấu trúc dữ liệu", "Bắt đầu lúc 13:30 · A2.301") + daySit(), { time: "13:20" }) },
+  { tag: "Reminder, dark", sub: "Same at night.", dark: true, html: chrome(nt("Đọc sách mỗi tối", "Bắt đầu lúc 20:00") + daySit(), { time: "19:50" }) },
+  { tag: "Overlap", sub: "Campus lands on a time you pinned. A small card under the two rows: move mine, or keep both. Nothing moves until you tap.", html: chrome(overlap) },
+  { tag: "Week", sub: "Today in an ink pill. Fixed-height columns. Swipe sideways for the previous or next week; tap a day to see it below.", html: chrome(week) },
+  { tag: "Week, empty", sub: "Columns keep their height as dashed slots, so the grid reads as room, not as missing. A short inline note, then what's left of this week.", html: chrome(weekFree) },
+  { tag: "Week, packed", sub: "Columns never grow. T3 compresses proportionally; T5 has too many for even the minimum height, so it shows what fits and a +n chip.", html: chrome(weekPacked) },
+  { tag: "Month", sub: "Today in black, selected outlined, up to three dots. Swipe sideways for the previous or next month.", dark: true, html: chrome(month) },
+  { tag: "Month, empty day", sub: "Tap a day with nothing: a small inline note in place of rows, pointing to the nearest thing after it.", html: chrome(monthFree) },
+  { tag: "Week, holiday", sub: "A holiday or all-day busy day is shaded with diagonal stripes and a label. Nothing gets planned there.", html: chrome(weekHol) },
+  { tag: "Month, holiday", sub: "Same stripes behind the date, the day wears its name instead of dots.", html: chrome(monthHol) },
+  { tag: "Day, empty, dark", sub: "Same at night.", dark: true, html: chrome(dayFree) },
   { tag: "Day, dark", sub: "Same view in dark.", dark: true, html: chrome(day(""), { dock: "live" }) },
 ]);
 </script>

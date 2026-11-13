@@ -16,9 +16,10 @@ const I = {
   note: '<path d="M5 4h14v12l-4 4H5Z"/><path d="M15 20v-4h4M9 9h6M9 13h4"/>',
 };
 const TONE = { study: "var(--study)", exercise: "var(--exercise)", chores: "var(--chores)", social: "var(--social)", other: "var(--other)" };
-const CURVE = "M220.5 51.5C220.5 51.5 172.668 65.7587 147.635 89.6235C122.602 113.488 136.249 158.201 104.912 183.517C80.2542 203.436 32.9999 199.5 32.9999 199.5";
-const MARK = (s = 26) => `<svg width="${s}" height="${s}" viewBox="0 0 260 260" fill="none"><path d="${CURVE}" stroke="#fff" stroke-opacity=".55" stroke-width="30" stroke-linecap="round"/><path d="${CURVE}" stroke="#fff" stroke-width="8" stroke-linecap="round" transform="translate(-4 -6)"/></svg>`;
-const STONES = `<svg width="170" height="110" viewBox="0 50 200 118" fill="none"><defs><filter id="rb"><feGaussianBlur stdDeviation="3.5"/></filter></defs><ellipse cx="100" cy="154" rx="84" ry="6" fill="#8A5A00" opacity=".28" filter="url(#rb)"/><g fill="#C99528" stroke="#C99528" stroke-width="12" stroke-linejoin="round"><path d="M14 142A44 44 0 0 1 102 142Z"/><path d="M116 142A34 34 0 0 1 184 142Z"/></g><circle cx="109" cy="74" r="9" fill="#F5C451"/></svg>`;
+// Tea-leaf mark in white (LOGO in ui.js).
+const MARK = (s = 26) => `<svg width="${s}" height="${s}" viewBox="0 0 100 100"><path d="M12 50A38 38 0 0 1 50 12H74V50A38 38 0 0 1 36 88H12Z" fill="#fff"/><circle cx="84" cy="84" r="11" fill="#fff"/></svg>`;
+// Empty / night: the leaf in outline, sun still vermilion (LOGO "line" in art.tsx).
+const STONES = `<svg width="96" height="96" viewBox="0 0 100 100"><path d="M12 50A38 38 0 0 1 50 12H74V50A38 38 0 0 1 36 88H12Z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><circle cx="84" cy="84" r="11" fill="#d9432b"/></svg>`;
 const tails = (n = 9) => `<div class="tail">${Array.from({ length: n }, (_, i) => `<i style="left:${8 + ((i * 37) % 84)}%;top:${10 + ((i * 53) % 80)}%;opacity:${0.25 + (i % 3) * 0.2}"></i>`).join("")}</div>`;
 
 function chrome(inner, { time = "14:20", dock = "idle", grab = true, gear = true } = {}) {

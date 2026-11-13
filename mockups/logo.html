@@ -6,30 +6,69 @@
 <title>Zen logo</title>
 <link rel="stylesheet" href="ui.css" />
 <style>
-.tiles { max-width: 1240px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 20px; }
-.tile { height: 270px; border-radius: 34px; display: grid; place-items: center; position: relative; }
-.tile small { position: absolute; left: 22px; bottom: 18px; font-size: 10.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; opacity: .55; }
-.word { display: flex; align-items: center; gap: 12px; font-size: 44px; font-weight: 600; letter-spacing: -.03em; }
-.icon { width: 132px; height: 132px; border-radius: 30px; display: grid; place-items: center; box-shadow: 0 24px 40px -20px rgba(0,0,0,.45); }
+.concept { max-width: 1240px; margin: 0 auto 44px; }
+.concept h2 { font-size: 19px; font-weight: 600; letter-spacing: -.01em; }
+.concept > p { margin: 6px 0 16px; max-width: 760px; color: #6d7378; line-height: 1.5; font-size: 14px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; }
+.tile { height: 230px; border-radius: 30px; display: grid; place-items: center; position: relative; }
+.tile small { position: absolute; left: 20px; bottom: 16px; font-size: 10.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; opacity: .55; }
+.word { display: flex; align-items: center; gap: 10px; font-size: 40px; font-weight: 600; letter-spacing: -.03em; }
+.icon { width: 112px; height: 112px; border-radius: 26px; display: grid; place-items: center; box-shadow: 0 24px 40px -20px rgba(0,0,0,.45); }
+.state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 6px; padding-bottom: 90px; }
+.state .h { font-size: 24px; margin-top: 22px; }
+.state .sub { max-width: 220px; line-height: 1.45; }
+.state .btn { margin-top: 22px; width: 100%; }
+.state .ghost { margin-top: 10px; font-size: 15px; font-weight: 600; color: var(--muted); }
+
+/* Leaf motion: it floats like a leaf on still water, rocking from its lower tip. */
+.lf .a { transform-box: view-box; transform-origin: 12px 88px; transition: transform .6s cubic-bezier(.3,.7,.2,1); }
+.lf .sun { transform-box: fill-box; transform-origin: center; transition: transform .6s cubic-bezier(.3,.7,.2,1); }
+.lf.load .a { animation: rock 4.2s ease-in-out infinite; }
+.lf.load .sun { animation: sun 4.2s ease-in-out infinite; }
+.lf.err .a { transform: rotate(-24deg); }
+.lf.err .sun { transform: translate(-30px, 12px); }
+@keyframes rock { 50% { transform: rotate(-5deg); } }
+@keyframes sun { 50% { transform: scale(.82); } }
+@media (prefers-reduced-motion: reduce) { .lf.load * { animation: none !important; } }
 </style>
 </head>
 <body>
 <div class="head">
-  <h1>Logo</h1>
-  <p>A vermilion stone with two raked ripples, from the karesansui garden. The inner ring is closed, today; the outer ring stays open where the next day comes in. Mono for small sizes.</p>
+  <h1>Logo · Lá trà</h1>
+  <p>A tea leaf, a square with two opposite corners turned round, and a vermilion sun resting in its open corner. A pause, a cup of tea. The shape stays plain and the motion carries the mood: it rocks like a leaf on water while loading, is only a line when empty, and tips over on an error.</p>
   <nav><a href="views.html">Views</a></nav>
 </div>
-<div class="tiles" id="t"></div>
+<div id="t"></div>
 <script src="ui.js"></script>
 <script>
-document.getElementById("t").innerHTML = [
-  ["#fbfaf7", "#16181b", LOGO(150), "Mark"],
-  ["#16181b", "#ecebe6", LOGO(150), "Mark, dark"],
-  ["#fbfaf7", "#16181b", `<div class="word">${LOGO(52)}zen</div>`, "Wordmark"],
-  ["#ecebe7", "#16181b", `<div style="display:flex;gap:22px"><div class="icon" style="background:#16181b;color:#ecebe6">${LOGO(92)}</div><div class="icon" style="background:#fbfaf7">${LOGO(92)}</div></div>`, "App icon"],
-  ["#fbfaf7", "#16181b", `<div style="display:flex;gap:26px;align-items:center">${LOGO(48, "mono")}${LOGO(28, "mono")}${LOGO(16, "mono")}</div>`, "Mono, small sizes"],
-  ["#1f2b6e", "#fff", LOGO(130, "white"), "On colour"],
-].map(([bg, fg, h, l]) => `<div class="tile" style="background:${bg};color:${fg}">${h}<small>${l}</small></div>`).join("");
+const SEAL = "#d9432b";
+const inkOf = (m) => m === "white" ? "#fff" : "currentColor";
+
+// Leaf: a square with two opposite corners turned round. The sun rests in the open corner.
+const LEAF_D = "M12 50A38 38 0 0 1 50 12H74V50A38 38 0 0 1 36 88H12Z";
+function LEAF(s = 40, m = "color", state = "") {
+  const ink = inkOf(m), seal = m === "color" || m === "line" ? SEAL : ink;
+  const paint = m === "line" ? `fill="none" stroke="currentColor" stroke-width="${Math.max(3, 140 / s)}" stroke-linejoin="round"` : `fill="${ink}"`;
+  return `<svg class="lf ${state}" width="${s}" height="${s}" viewBox="0 0 100 100" overflow="visible"><path class="a" d="${LEAF_D}" ${paint}/><circle class="sun" cx="84" cy="84" r="${s < 24 ? 13 : 11}" fill="${seal}"/></svg>`;
+}
+
+document.getElementById("t").innerHTML = `<section class="concept"><h2>Mark</h2><div class="tiles">${[
+  ["#fbfaf7", "#16181b", LEAF(130), "Mark"],
+  ["#16181b", "#ecebe6", LEAF(130), "Mark, dark"],
+  ["#fbfaf7", "#16181b", `<div class="word">${LEAF(44)}zen</div>`, "Wordmark"],
+  ["#ecebe7", "#16181b", `<div style="display:flex;gap:16px"><div class="icon" style="background:#16181b;color:#ecebe6">${LEAF(70)}</div><div class="icon" style="background:${SEAL};color:#fff">${LEAF(70, "white")}</div></div>`, "App icon"],
+  ["#fbfaf7", "#16181b", `<div style="display:flex;gap:24px;align-items:center">${LEAF(48, "mono")}${LEAF(28, "mono")}${LEAF(16, "mono")}</div>`, "Mono, small sizes"],
+  ["#1f2b6e", "#fff", LEAF(110, "white"), "On colour"],
+].map(([bg, fg, x, l]) => `<div class="tile" style="background:${bg};color:${fg}">${x}<small>${l}</small></div>`).join("")}</div></section>
+<section class="concept"><h2>States</h2><p>The same leaf, three moods. Loading: the leaf rocks a few degrees from its lower tip on a slow 4-second cycle, like a leaf on water, while the sun breathes. Empty: only the outline, nothing to fill it today. Error: the leaf tips over and the sun rolls out from under it, so it reads as off without any warning icon.</p><div class="gallery"></div></section>`;
+
+const state = (leaf, h, sub, extra = "") => `<div class="state">${leaf}<div class="h">${h}</div><div class="sub">${sub}</div>${extra}</div>`;
+mount([
+  { tag: "Loading", sub: "First sync from the school portal. The leaf rocks on water.", html: chrome(state(LEAF(96, "color", "load"), "Đang lấy lịch", "Đang đọc thời khoá biểu từ cổng trường. Chỉ một lần thôi."), { dock: "" }) },
+  { tag: "Empty", sub: "Nothing planned today. Outline only, hold button stays ready.", html: chrome(state(LEAF(96, "line"), "Hôm nay thảnh thơi", "Không có việc gì. Có việc mới thì giữ nút để nói.")) },
+  { tag: "Error", sub: "Couldn't reach the school. The leaf tips and the sun rolls away.", html: chrome(state(LEAF(96, "color", "err"), "Chưa kết nối được trường", "Lịch cũ vẫn còn nguyên. Thử lại khi có mạng.", `<div class="btn">Thử lại</div><div class="ghost">Để sau</div>`), { dock: "" }) },
+  { tag: "Error, dark", sub: "Same state at night.", dark: true, html: chrome(state(LEAF(96, "color", "err"), "Chưa kết nối được trường", "Lịch cũ vẫn còn nguyên. Thử lại khi có mạng.", `<div class="btn">Thử lại</div><div class="ghost">Để sau</div>`), { dock: "" }) },
+]);
 </script>
 </body>
 </html>

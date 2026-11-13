@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Zen fonts</title>
+<link rel="stylesheet" href="ui.css" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Lexend:wght@400;500;600;700&family=Nunito:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&family=Figtree:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700&family=Mulish:wght@400;500;600;700&display=swap" />
+<style>
+  .font { max-width: 1240px; margin: 0 auto 56px; }
+  .font h2 { font-size: 20px; font-weight: 600; letter-spacing: -.01em; }
+  .font h2 small { font-size: 13px; font-weight: 500; color: #6d7378; margin-left: 8px; }
+  .font .why { margin: 6px 0 14px; max-width: 760px; font-size: 13.5px; color: #6d7378; line-height: 1.45; }
+  .spec { display: flex; gap: 24px; flex-wrap: wrap; align-items: baseline; margin-bottom: 18px; padding: 16px 20px; border-radius: 20px; background: #fbfaf7; }
+  .spec .big { font-size: 40px; font-weight: 600; letter-spacing: -.02em; line-height: 1.25; }
+  .spec .acc { font-size: 22px; line-height: 1.6; }
+  .spec .num { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .font .gallery { margin: 0; }
+  .font .frame { width: auto; }
+</style>
+</head>
+<body>
+<div class="head">
+  <h1>Fonts</h1>
+  <p>The same screens in each candidate, with real Vietnamese text. A missing glyph falls back to Courier, so any font that can't handle Vietnamese shows typewriter letters. Look at the stacked accents (ộ ẫ ữ ặ), the đ, and how 30px semibold titles feel next to 14px muted lines.</p>
+  <nav><a href="views.html">Views</a><a href="marks.html">Marks</a><a href="widgets.html">Widgets</a></nav>
+</div>
+<div id="fonts"></div>
+<script src="ui.js"></script>
+<script>
+const FONTS = [
+  ["Be Vietnam Pro", "current", "Drawn for Vietnamese. Wide and friendly; accents sit cleanly but the face is common in VN apps."],
+  ["Inter", "", "Neutral UI workhorse. Very legible small sizes, great tabular figures. Can feel generic."],
+  ["Plus Jakarta Sans", "", "Geometric with personality, slightly condensed. Check accent spacing on tight line heights."],
+  ["Manrope", "", "Modern semi-geometric, compact numerals. Good for big numbers like GPA."],
+  ["Figtree", "", "Soft geometric, clean and warm. Lighter feel than Be Vietnam Pro."],
+  ["Lexend", "", "Designed for reading ease; wide and airy. Takes more horizontal room."],
+  ["Nunito", "", "Rounded terminals, very friendly. Can read as childish at heavy weights."],
+  ["Mulish", "", "Minimal grotesque, quiet and calm. Fits the zen tone."],
+  ["Montserrat", "", "Popular, bold geometric. Wide; titles wrap sooner."],
+];
+const row = (type, title, sub, tm) => `<div class="r">${swatch(type)}<div class="tx"><b>${title}</b><small>${sub}</small></div><span class="tm">${tm}</span></div>`;
+const home = `<div class="hello">Chào buổi chiều</div><div class="h">Thứ sáu, 13 tháng 11</div>
+  <div class="tabs"><span class="on">Ngày</span><span>Tuần</span><span>Tháng</span></div>
+  <div class="art" style="margin-top:14px;height:150px;padding:18px 20px">${art("exam", { w: 252, h: 150, seed: 4, cls: "bgart" })}
+    <div class="lab" style="color:#fff;opacity:.85">Thi sau 3 ngày</div><div class="t" style="margin-top:8px">Xác suất thống kê, giữa kỳ</div></div>
+  <div class="list" style="margin-top:8px">
+    ${row("lecture", "Cơ sở dữ liệu", "Phòng A2.104, tiết 1 đến 3", "07:00")}
+    ${row("plan", "Ôn chương 4 giải tích", "Đọc lại đạo hàm riêng", "13:30")}
+    ${row("assignment", "Nộp tiểu luận triết học", "Hạn chót trên LMS", "23:59")}
+  </div>`;
+const marks = `<span class="o">${ic(I.back, 20)}</span><div class="h" style="margin-top:18px">Điểm</div>
+  <div class="art" style="margin-top:18px;height:150px;padding:18px 20px">${art("assignment", { w: 252, h: 150, seed: 2, cls: "bgart" })}
+    <div class="lab" style="color:#fff;opacity:.85">Tích luỹ</div>
+    <div style="position:absolute;left:20px;bottom:18px" class="meter"><span class="cap2" style="--p:85%"><i></i></span><div><div class="big" style="font-size:40px">3,42</div><div class="small">98 tín chỉ, hệ 4</div></div></div></div>
+  <div class="lab" style="margin-top:28px">Học kỳ 1, 2026 <span>3,58</span></div>
+  <div class="list" style="margin-top:6px">
+    <div class="r"><div class="tx"><b>Giải tích 2</b><small>3 tín chỉ</small></div><span class="tm" style="color:var(--ink);font-size:17px">8,6</span></div>
+    <div class="r"><div class="tx"><b>Lập trình hướng đối tượng</b><small>4 tín chỉ</small></div><span class="tm" style="color:var(--ink);font-size:17px">7,9</span></div>
+    <div class="r"><div class="tx"><b>Đường lối cách mạng</b><small>2 tín chỉ</small></div><span class="tm" style="color:var(--ink);font-size:17px">5,4</span></div>
+  </div>`;
+const ready = `<div style="margin-top:28px" class="hello">Sẵn sàng</div><div class="h">Giữ nút và kể tuần của bạn</div>
+  <div style="color:var(--muted);font-size:17px;line-height:26px;margin-top:22px">“Thứ sáu làm bài tập giải tích, tập gym ba buổi, thứ ba nộp tiểu luận.”</div>`;
+const device = (html, dark, dock) => `<div class="frame"><div class="device${dark ? " dark" : ""}"><div class="island"></div>${chrome(html, { dock })}</div></div>`;
+document.getElementById("fonts").innerHTML = FONTS.map(([name, tag, why]) => `<section class="font" style="font-family:'${name}', 'Courier New', monospace">
+  <h2>${name}${tag ? `<small>${tag}</small>` : ""}</h2><div class="why">${why}</div>
+  <div class="spec"><span class="big">Zen · Điểm 3,42</span><span class="acc">Đường lối · Ộ ẫ ữ ặ ằ ỹ · Nguyễn Thị Hằng</span><span class="num">07:00 13:30 23:59 0123456789</span></div>
+  <div class="gallery">${device(home, false, "idle")}${device(marks, false, null)}${device(ready, true, "idle")}</div></section>`).join("");
+</script>
+</body>
+</html>

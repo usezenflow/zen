@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Zen magic</title>
+<link rel="stylesheet" href="ui.css" />
+<style>
+/* Brief: takes the art card's slot only when the plan changed while you were away. */
+.brief { position: relative; margin-top: 16px; border-radius: 28px; background: var(--chip); padding: 18px 20px 18px; }
+.brief .lf { position: absolute; top: 16px; right: 16px; }
+.brief .t { margin-top: 26px; font-size: 24px; line-height: 1.15; font-weight: 600; letter-spacing: -.02em; padding-right: 40px; }
+.brief .s { margin-top: 6px; font-size: 15px; color: var(--muted); font-weight: 500; line-height: 1.35; }
+.brief .s b { color: var(--ink); font-weight: 600; }
+/* One move: title, from -> to, the reason. */
+.mvl { padding: 14px 0; }
+.mvl + .mvl { border-top: 1px solid var(--line); }
+.mvl b { display: block; font-size: 17px; font-weight: 600; }
+.mvl .ft { margin-top: 3px; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 6px; }
+.mvl .ft s { color: var(--muted); font-weight: 500; text-decoration-color: var(--muted); }
+.mvl small { display: block; margin-top: 3px; font-size: 15px; color: var(--muted); font-weight: 500; line-height: 1.35; }
+/* A moved row carries a vermilion dot and where it came from, until you've seen it. */
+.dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--seal); margin-right: 6px; vertical-align: 2px; }
+.r.ghost { opacity: .45; }
+.r.ghost .ck { border-style: dashed; }
+.r.ghost b { font-weight: 500; }
+.r.fly { position: relative; z-index: 3; background: var(--bg); border-radius: 16px; margin: 0 -10px; padding-left: 10px; padding-right: 10px; box-shadow: 0 14px 30px -12px rgba(0,0,0,.3); }
+.r.fly .tx { box-shadow: none !important; }
+/* Thinking: real solver steps, newest at the bottom, older ones fade. */
+.steps { position: absolute; left: 24px; right: 24px; bottom: 150px; z-index: 7; display: flex; flex-direction: column; gap: 10px; }
+.st { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 500; }
+.st svg { flex: none; }
+.st.old { color: var(--muted); }
+.st.now { font-weight: 600; }
+.spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--seal); flex: none; }
+/* Why: plain sentences with a hairline weight bar. */
+.why { margin-top: 22px; }
+.wy { display: flex; align-items: center; gap: 12px; padding: 9px 0; font-size: 16px; font-weight: 500; line-height: 1.35; }
+.wy span { flex: 1; }
+.wy i { flex: none; width: 46px; height: 4px; border-radius: 4px; background: var(--line); position: relative; overflow: hidden; }
+.wy i::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: var(--v); background: var(--ink); border-radius: 4px; }
+.wy.neg i::after { background: var(--seal); }
+/* Rhythm */
+.strip { display: flex; align-items: flex-end; gap: 2px; height: 54px; }
+.strip i { flex: 1; border-radius: 2px; background: rgba(255,255,255,.45); }
+.strip i.pk { background: #fff; }
+.hrs { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; opacity: .8; margin-top: 6px; }
+.ins { margin-top: 10px; padding: 16px 18px; border-radius: 22px; background: var(--chip); }
+.ins b { display: block; font-size: 17px; font-weight: 600; line-height: 1.3; letter-spacing: -.01em; }
+.ins small { display: block; margin-top: 4px; font-size: 15px; color: var(--muted); font-weight: 500; line-height: 1.35; }
+.ins .viz { margin-top: 12px; display: flex; align-items: center; gap: 8px; }
+.chipk { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px 0 4px; border-radius: 99px; background: var(--bg); font-size: 14px; font-weight: 600; }
+.chipk .sw-art { width: 24px; height: 24px; }
+.meterh { flex: 1; height: 6px; border-radius: 6px; background: var(--line); position: relative; }
+.meterh::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: var(--v); border-radius: 6px; background: var(--ink); }
+.meterh.guess { background: repeating-linear-gradient(90deg, var(--line) 0 6px, transparent 6px 10px); }
+.meterh.guess::after { background: var(--muted); }
+.tag { display: inline-block; font-size: 13px; font-weight: 700; color: var(--muted); border: 1px solid var(--line); border-radius: 99px; padding: 2px 9px; margin-left: 6px; vertical-align: 2px; }
+.set small { display: block; font-size: 14px; color: var(--muted); font-weight: 500; margin-top: 2px; }
+.set .tx { flex: 1; min-width: 0; }
+.mind { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border-radius: 99px; border: 1px solid var(--line); color: var(--ink); font-weight: 600; font-size: 14px; }
+.mind.on { background: var(--ink); border-color: var(--ink); color: var(--bg); } /* the leaf strokes currentColor, so it flips with the pill */
+.tabs > div > span { padding: 10px 0; }
+</style>
+</head>
+<body>
+<div class="head">
+  <h1>Magic, quietly</h1>
+  <p>Zen rearranges your week on its own. Nothing here asks you to replan. The diff is shown in three sizes: <b>motion</b> when you open the app (blocks glide from the old time to the new one), a <b>trail</b> on each moved row (a vermilion dot and "from T3 18:00" until you've seen it), and a <b>brief</b> that tells the story when the change was big. Every move has a reason in words, read straight from the model. Long-press puts it back, and that teaches Zen.</p>
+  <nav><a href="views.html">Views</a><a href="settings.html">Settings</a></nav>
+</div>
+<div class="gallery"></div>
+<script src="ui.js"></script>
+<script>
+// Ngày Tuần Tháng on the left; Nhịp apart on the right as a hairline pill with the leaf: Zen talking about you, not a calendar view.
+const tabs = (on) => `<div class="tabs" style="justify-content:space-between;align-items:center"><div style="display:flex;gap:20px">${["Ngày", "Tuần", "Tháng"].map((v) => `<span class="${v === on ? "on" : ""}">${v}</span>`).join("")}</div><div class="mind ${on === "Nhịp" ? "on" : ""}">${LOGO(14, "line")}Nhịp</div></div>`;
+const head = (hello, title, n) => `<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-top:6px"><div><div class="hello">${hello}</div><div class="h" style="margin-top:2px">${title}</div><div class="sub">${n}</div></div><span class="o" style="margin-top:2px">${ic(I.gear, 20)}</span></div>`;
+const row = (tm, title, type, sub = "", cls = "") => {
+  const box = type === "plan" || type === "assignment" ? `<span class="ck"></span>` : swatch(type);
+  return `<div class="r ${cls}">${box}<div class="tx"><b>${title}</b>${sub ? `<small>${sub}</small>` : ""}</div><span class="tm">${tm}</span></div>`;
+};
+const moved = (from) => `<span class="dot"></span>từ ${from}`;
+const mv = (title, from, to, why) => `<div class="mvl"><b>${title}</b><div class="ft"><s>${from}</s>${ic(I.right, 14, 2.2)}<span>${to}</span></div><small>${why}</small></div>`;
+const wy = (t, v, neg) => `<div class="wy ${neg ? "neg" : ""}"><span>${t}</span><i style="--v:${v}%"></i></div>`;
+const ml = (k, t, cls = "") => `<div class="${cls}">${ic(I[k], 20, 1.9)}<span>${t}</span></div>`;
+const dtop = `<div style="display:flex;justify-content:space-between"><span class="o">${ic(I.back, 20)}</span><span class="o">${ic(I.trash, 20)}</span></div>`;
+
+// 1. Morning brief: only when something moved while you were away.
+const brief = `${head("Thứ ba", "17 tháng 11", "4 việc, 2 tiết học")}${tabs("Ngày")}
+  <div class="brief"><span class="lab">Sáng nay</span><span class="lf">${LOGO(30, "line")}</span>
+    <div class="t">Xếp lại 3 việc</div><div class="s">Trường thêm tiết bù chiều nay, nên <b>Gym</b> sang sáng mai, lúc bạn hay tập nhất.</div></div>
+  <div class="lab" style="margin-top:26px">Hôm nay</div>
+  <div class="list" style="margin-top:6px">${row("09:00", "Báo cáo nhóm", "assignment", moved("T4 14:00"))}${row("13:30", "Tiết bù Mạng máy tính", "lecture", "Mới, B1.201")}${row("20:00", "Đọc sách mỗi tối", "plan")}</div>`;
+
+// 2. Brief opened in place: the story, one move per line, each with its reason. No sheet.
+const story = `${head("Thứ ba", "17 tháng 11", "Mình xếp lại 3 việc")}${tabs("Ngày")}
+  <div class="lab" style="margin-top:22px">Vì tiết bù 13:30 ${ic(I.down, 14)}</div>
+  <div style="margin-top:2px">${mv("Gym", "T3 17:00", "T4 07:00", "Sáng là giờ bạn tập đều nhất.")}${mv("Báo cáo nhóm", "T4 14:00", "T3 09:00", "Hạn T5. Làm sớm cho đỡ dồn, giờ này bạn tập trung tốt.")}${mv("Ôn Giải tích", "T3 15:00", "T3 16:30", "Lùi một chút, để có khoảng nghỉ sau tiết bù.")}</div>
+  <div class="lab" style="margin-top:14px;font-size:14px">Giữ lâu một việc để đặt lại giờ cũ.</div>`;
+
+// 3. Motion is the diff: the old slot stays as a ghost, the block glides, a dashed trail between.
+const glide = `${head("Thứ ba", "17 tháng 11", "4 việc, 2 tiết học")}${tabs("Ngày")}
+  <div class="lab" style="margin-top:28px">Hôm nay</div>
+  <div class="list" style="margin-top:6px">${row("09:00", "Báo cáo nhóm", "assignment", moved("T4 14:00"), "fly")}${row("13:30", "Tiết bù Mạng máy tính", "lecture", "Mới, B1.201")}${row("17:00", "Gym", "plan", "Sang T4 07:00", "ghost")}</div>`;
+
+// 4. Thinking: the dock's think state narrates real solver steps, like tool calls.
+const think = `<div class="words">Tuần này thêm Gym ba buổi</div>
+  <div class="steps">
+    <div class="st old">${ic(I.check, 16, 2.4)}Đọc lịch trường tuần này</div>
+    <div class="st old">${ic(I.check, 16, 2.4)}T3 đã 7 tiếng, để nhẹ bớt</div>
+    <div class="st old">${ic(I.check, 16, 2.4)}Gym vào sáng T2, T4, T6</div>
+    <div class="st now"><span class="spin"></span>Đổi Ôn Giải tích với Đọc sách</div></div>`;
+
+// 5. The reason lives in the row's sub line: one short phrase, the top contribution.
+const reasons = `${head("Thứ hai", "16 tháng 11", "5 việc, 1 tiết học")}${tabs("Ngày")}
+  <div class="lab" style="margin-top:28px">Hôm nay</div>
+  <div class="list" style="margin-top:6px">${row("09:00", "Ôn Giải tích", "plan", "Giờ bạn tập trung nhất")}${row("11:30", "Cơ sở dữ liệu", "lecture", "A2.104")}${row("13:00", "Gym", "plan", "Sau tiết học, như mọi khi")}${row("16:00", "Báo cáo nhóm", "assignment", "Hạn mai, làm nốt hôm nay")}${row("21:00", "Giặt đồ", "plan", "Tối nay còn trống")}</div>`;
+
+// 6. Detail: why this time, in sentences with weight bars, and the other good times as pills.
+const why = `${dtop}
+  <div style="display:flex;align-items:center;gap:10px;margin-top:22px">${swatch("plan")}<span class="sub" style="margin:0">Việc của bạn</span></div>
+  <div class="h" style="margin-top:14px">Ôn Giải tích</div>
+  <div class="meta">${ml("clock", "Làm lúc 09:00, 60 phút")}${ml("book", "Cho Thi Giải tích 2, T6 27/11")}</div>
+  <div class="why"><div class="lab">Vì sao lúc này</div>
+    ${wy("Sáng là giờ bạn tập trung nhất", 82)}${wy("Việc giống thế này bạn hay làm xong lúc 9 giờ", 60)}${wy("Còn 4 buổi ôn, buổi đầu nên sớm", 38)}${wy("Hơi sát tiết 11:30", 18, 1)}</div>
+  <div class="lab" style="margin-top:20px">Cũng hợp</div>
+  <div class="pills" style="margin-top:10px"><span class="pl sm">T2 16:30</span><span class="pl sm">T3 08:00</span></div>`;
+
+// 7. Long-press a moved row: put it back, take the other good time, or pin it. Each is a lesson.
+const back = `${head("Thứ ba", "17 tháng 11", "4 việc, 2 tiết học")}${tabs("Ngày")}
+  <div class="lab" style="margin-top:28px">Hôm nay</div>
+  <div class="list" style="margin-top:6px">${row("09:00", "Báo cáo nhóm", "assignment", moved("T4 14:00"), "lift")}${row("13:30", "Tiết bù Mạng máy tính", "lecture", "B1.201")}${row("20:00", "Đọc sách mỗi tối", "plan")}</div>
+  ${menu([["Để lại T4 14:00"], ["Giờ khác: T3 16:00"], ["Đừng dời việc này nữa"]], 336, 18)}`;
+
+// 8. Heads up before it breaks: the solver saw lateness coming; two real fixes, one tap.
+const heads = `${head("Thứ tư", "18 tháng 11", "5 việc, 1 tiết học")}${tabs("Ngày")}
+  <div class="warn"><b>Báo cáo nhóm hơi gấp</b><small>Còn khoảng 5 tiếng, mà trước T6 23:59 chỉ trống 3 tiếng.</small>
+    <div class="pills" style="margin-top:12px"><span class="pl sm on">Bỏ Gym T5</span><span class="pl sm">Bỏ Đọc sách T5</span></div></div>
+  <div class="lab" style="margin-top:26px">Hôm nay</div>
+  <div class="list" style="margin-top:6px">${row("14:00", "Báo cáo nhóm", "assignment", "Buổi 1 trên 3")}${row("17:30", "Cơ sở dữ liệu", "lecture", "A2.104")}${row("21:00", "Báo cáo nhóm", "assignment", "Buổi 2 trên 3")}</div>`;
+
+// 9. A rule, said once: Zen confirms in its own words and shows what it moved to keep it.
+const rule = toast("Mình sẽ giữ tối T6 trống", "Đọc sách T6 sang T7 20:00", [["Hoàn tác"]]) + `${head("Thứ hai", "16 tháng 11", "5 việc, 1 tiết học")}${tabs("Tuần")}
+  <div class="wk" style="margin-top:20px">${[["T2", 16, 0], ["T3", 17, 0], ["T4", 18, 0], ["T5", 19, 0], ["T6", 20, 1], ["T7", 21, 0], ["CN", 22, 0]].map(([d, n, f], i) => `<div class="c"><span class="d ${i === 0 ? "on" : ""}">${d}<i>${n}</i></span>${f ? `<div class="bs"><span class="b" style="--h:46px">${art("lecture", { w: 40, h: 46, seed: 2 })}</span><span class="hb" style="height:70px;margin-top:auto">Tối<br>trống</span></div>` : `<div class="bs">${[["plan", 30], ["lecture", 40]].slice(0, 1 + (i % 2)).map(([t, h], j) => `<span class="b" style="--h:${h}px">${art(t, { w: 40, h, seed: i + j })}</span>`).join("")}</div>`}</div>`).join("")}</div>`;
+
+// 10. What Zen remembers: what you said, and what it guessed (with how sure). Swipe to forget.
+const mem = `${head("Mình hiểu bạn", "Nhịp của bạn", "8 đến 11 giờ sáng")}${tabs("Nhịp")}
+  <div class="lab" style="margin-top:22px">Bạn dặn</div>
+  <div>${[["Tối T6 để trống", "Từ 18:00"], ["Không học sau 23:00", "Mọi ngày"]].map(([t, s]) => `<div class="set"><div class="tx">${t}<small>${s}</small></div></div>`).join("")}</div>
+  <div class="lab" style="margin-top:22px">Mình đoán</div>
+  <div>${[["Tập thể dục hợp nhất lúc 7 giờ", "Chắc lắm", 90], ["Sau giờ học, bạn làm tiếp tốt", "Khá chắc", 65], ["Việc nhà hợp lúc 17 giờ", "Đang đoán", 30]].map(([t, s, v]) => `<div class="set"><div class="tx">${t}<small>${s}</small></div><span class="meterh ${v < 50 ? "guess" : ""}" style="--v:${v}%;flex:none;width:56px"></span></div>`).join("")}</div>
+  <div class="lab" style="margin-top:16px;font-size:14px">Vuốt để mình quên.</div>`;
+
+// 11. Your rhythm: the model's weights, as a friend would say them.
+const bars = [1, 1, 1, 1, 1, 2, 5, 8, 9, 10, 9, 6, 3, 3, 5, 7, 6, 4, 4, 5, 6, 4, 2, 1];
+const rhythm = (dark) => `${head("Mình hiểu bạn", "Nhịp của bạn", "8 đến 11 giờ sáng")}${tabs("Nhịp")}
+  <div class="art" style="margin-top:16px;padding:18px 20px">${art("plan", { w: 264, h: 170, seed: 5, cls: "bgart" })}
+    <div class="lab" style="color:#fff;opacity:.85">Giờ vàng</div><div class="t" style="margin-top:6px">8 đến 11 giờ sáng</div>
+    <div class="strip" style="margin-top:14px">${bars.map((h, i) => `<i class="${h >= 8 ? "pk" : ""}" style="height:${h * 10}%"></i>`).join("")}</div>
+    <div class="hrs"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div></div>
+  <div class="ins"><b>Học xong là làm tiếp được</b><small>Sau giờ học, việc kế tiếp của bạn hay trôi chảy.</small>
+    <div class="viz"><span class="chipk">${swatch("lecture")}Sau giờ học</span></div></div>
+  <div class="ins"><b>Tập thể dục hợp nhất lúc 7 giờ</b><small>Mỗi loại việc có giờ riêng của nó.</small>
+    <div class="viz"><span class="chipk">${swatch("plan")}Tập thể dục</span><span class="meterh" style="--v:80%"></span></div></div>
+  <div class="ins"><b>Việc học hay bị dời</b><small>4 trên 10 lần. Mình xếp sớm hơn một chút, cho bạn đường lùi.</small>
+    <div class="viz"><span class="meterh" style="--v:40%"></span></div></div>
+  <div class="ins"><b>Buổi tối thì mình chưa rõ</b><small>Bạn ít khi làm gì sau 21 giờ. Thỉnh thoảng mình sẽ thử.</small>
+    <div class="viz"><span class="meterh guess" style="--v:25%"></span></div></div>`;
+
+// 12. Sunday: once a week the art slot says what Zen learned, then leads to the rhythm page.
+const sunday = `${head("Chủ nhật", "22 tháng 11", "Không có việc")}${tabs("Ngày")}
+  <div class="art" style="margin-top:16px;height:220px;padding:20px">${art("lecture", { w: 264, h: 220, seed: 8, cls: "bgart" })}
+    <div class="lab" style="color:#fff;opacity:.85">Tuần này mình hiểu thêm</div>
+    <div class="t" style="margin-top:10px">Bạn làm việc nhà hợp nhất lúc 5 giờ chiều</div>
+    <div style="position:absolute;left:20px;right:16px;bottom:16px;display:flex;align-items:flex-end;justify-content:space-between"><div class="small" style="font-weight:600">12 việc xong, 2 lần dời</div><span class="glass">${ic(I.right, 22, 2.2)}</span></div></div>
+  <div class="lab" style="margin-top:28px">Tuần sau</div>
+  <div class="list" style="margin-top:6px">${row("07:00", "Cấu trúc dữ liệu", "lecture", `${when("2026-11-23")}, A2.301`)}${row("09:00", "Ôn Giải tích", "plan", "Buổi 2 trên 4")}</div>`;
+
+// 13. Missed: no nag. It rolled forward on its own, and says so in one line.
+const missed = `${head("Thứ hai", "16 tháng 11", "5 việc, 1 tiết học")}${tabs("Ngày")}
+  <div class="lab" style="margin-top:28px">Hôm nay</div>
+  <div class="list" style="margin-top:6px">${row("15:00", "Cơ sở dữ liệu", "lecture", "A2.104")}${row("20:00", "Ôn Giải tích", "plan", moved("14:30, lỡ mất, không sao"))}${row("21:30", "Đọc sách mỗi tối", "plan")}</div>`;
+
+// 14. Exploring, named: when Zen tries a new hour, it says so, so it reads as a choice, not a bug.
+const explore = `${head("Thứ năm", "19 tháng 11", "3 việc")}${tabs("Ngày")}
+  <div class="lab" style="margin-top:28px">Hôm nay</div>
+  <div class="list" style="margin-top:6px">${row("06:30", "Gym", "plan", "Thử giờ mới, một lần thôi")}${row("09:00", "Viết luận Triết", "assignment", "Hạn T2 23/11")}${row("20:00", "Đọc sách mỗi tối", "plan")}</div>`;
+
+mount([
+  { tag: "1. Brief, morning", sub: "The art card's slot, only on a day something moved while you slept. One sentence: the cause, then the biggest move and its reason. Moved rows carry a vermilion dot and their old time. No changes: the normal art card.", html: chrome(brief) },
+  { tag: "2. Brief, opened", sub: "Tap the brief: the list becomes the story, in place, no sheet. Grouped by cause when there is one (a campus change); a quiet morning replan has no cause line. Each move: old time struck, new time, one reason in words. Reasons come from model weights, never counts.", html: chrome(story, { dock: null }) },
+  { tag: "3. Motion is the diff", sub: "Within a day, moved rows lift and glide to their new place (spring). A block that left for another day can't travel across lists, so its old slot shows a dashed ghost saying where it went, then fades once seen.", html: chrome(glide) },
+  { tag: "4. Thinking out loud", sub: "After you speak, the think state replays the solver's real accepted moves, about 300 ms apart, newest at the bottom. Solving takes ~50 ms, so the steps are replayed, not streamed; every line happened.", html: chrome(think, { dock: "think" }) },
+  { tag: "5. Reason in the row", sub: "Every placed row's sub line is its top reason in four to six words. Fixed items keep their room. The reason is the one most responsible for the score at this time compared with the next best.", html: chrome(reasons) },
+  { tag: "6. Why this time", sub: "Detail: up to four plain sentences, each with a hairline bar for how much it mattered. Vermilion is what counts against it. Below, the other good times. Tapping one moves it and teaches.", html: chrome(why, { dock: null }) },
+  { tag: "7. Put it back", sub: "Long-press a moved row. Back to the old time, the other good time, or pin it. Each is a reward for the model, the same as a drag.", html: chrome(back) },
+  { tag: "8. Heads up", sub: "Lateness the solver can see coming shows up days early, never on the due date. Fixes are other flexible tasks it can push past the deadline, longest first. One tap applies. (No 'stay up late' fix: the planner doesn't model sleep.)", html: chrome(heads) },
+  { tag: "9. A rule, said once", sub: "“Tối thứ sáu để trống nhé.” Zen repeats it in its own words and names what it moved to keep it. The week shows the kept evening as stripes.", html: chrome(rule) },
+  { tag: "10. Nhịp, scrolled: what Zen remembers", sub: "Below the rhythm cards, same view. What you said is a hard rule; swipe to forget it. What it guessed shows how sure it is: only what the model can learn (an hour per kind of task, a good hour after a kind), never 'X then Y'.", html: chrome(mem) },
+  { tag: "11. Nhịp", sub: "On the home screen, the pill right of Tháng, set apart from the calendar tabs. Not in Settings: this is where trust is earned, so it lives where you look every day. The weights, as a friend would put them. Golden hours: each hour arm's learned value. 'Sau giờ học': the after-kind weight (it knows what came before, not what you do next). Per-kind best hour: each arm's kind weight. Slip: the slip rate. Dashed: still unsure. Cold model: 'Mình còn đang học'.", html: chrome(rhythm(false)) },
+  { tag: "12. Sunday", sub: "Sundays only, when the model is confident about something: one sentence it learned (a kind's best hour, or golden hours), with done and moved counts from your week. Tap through to the Nhịp tab.", html: chrome(sunday) },
+  { tag: "13. Missed, no nag", sub: "A block that passed undone rolls to the next good slot on its own. The trail says so gently. No red, no badge.", html: chrome(missed) },
+  { tag: "14. Trying something", sub: "When exploration picks an hour the model is unsure about, the row says it's a try. Only for tasks without a deadline, and only once.", html: chrome(explore) },
+  { tag: "Your rhythm, dark", sub: "Same at night.", dark: true, html: chrome(rhythm(true)) },
+]);
+</script>
+</body>
+</html>
