@@ -5,14 +5,18 @@ import { type Piece, dur, startValue } from "./value";
 export interface Busy { start: number; end: number }
 export type End = { kind: Kind; end: number };
 export type Util = (p: Piece, start: number, ends: End[]) => number;
-export interface Env { busy: Busy[]; fixedEnds: End[]; now: number; util: Util }
-export interface Solved { starts: Map<string, number>; score: number; greedyScore: number }
+// utilAll scores every cell of cells(p, now) at once, index-aligned; util stays for off-grid starts.
+export interface Env { busy: Busy[]; fixedEnds: End[]; now: number; util: Util; utilAll?: (p: Piece, ends: End[]) => ArrayLike<number> }
+/** An accepted search move that raised the best score; policy.ts turns these into narrated Steps. */
+export interface LogEntry { kind: "place" | "swap" | "reinsert" | "chain" | "day"; ids: string[]; gain: number; day?: number }
+export interface Solved { starts: Map<string, number>; score: number; greedyScore: number; log: LogEntry[] }
 
-const SLOT = 30 * MIN;
+export const SLOT = 30 * MIN;
 const HALO = 60 * MIN;
+const TAIL = 6 * HOUR; // a block this far past a day's end can still halo an item that spills over midnight
 const W_GAP = 0.1;
 const SPREAD = 1;
-const ITERS = 200;
+const T0 = 0.5, T1 = 0.005, CAP_MS = 40, LOG_CAP = 40;
 export const EJECT_CAP = 12;
 
 const ceil = (t: number) => Math.ceil(t / SLOT) * SLOT;
@@ -26,26 +30,6 @@ export function fixedHours(busy: Busy[], day: number): number {
 
 interface Iv { start: number; end: number }
 
-// Load hinges, count penalty, halo, and overlap for one day of flexible items.
-function dayCost(env: Env, day: number, items: Iv[]): number {
-  if (!items.length) return 0;
-  const N = items.length;
-  const L = fixedHours(env.busy, day) + items.reduce((s, i) => s + (i.end - i.start), 0) / HOUR;
-  const load = 0.3 * Math.max(0, L - 4) + 1.0 * Math.max(0, L - 6);
-  const count = N > 2 ? 0.5 * (2 ** (N - 2) - 1) : 0;
-  let halo = 0, over = 0;
-  for (let i = 0; i < N; i++) {
-    const a = items[i];
-    for (const b of env.busy) {
-      const o = ov(a.start, a.end, b.start, b.end);
-      if (o) over += 1000 * (o / HOUR);
-      else if (ov(a.start - HALO, a.end + HALO, b.start, b.end)) halo += W_GAP * ((a.end - a.start) / SLOT);
-    }
-    for (let j = i + 1; j < N; j++) over += 500 * (ov(a.start, a.end, items[j].start, items[j].end) / HOUR);
-  }
-  return SPREAD * (load + count) + halo + over;
-}
-
 export function cells(p: Piece, now: number): number[] {
   const t = p.task;
   const lo = ceil(Math.max(now, t.notBefore ?? now));
@@ -56,87 +40,159 @@ export function cells(p: Piece, now: number): number[] {
   return out;
 }
 
-type Buckets = Map<number, Iv[]>;
-const add = (b: Buckets, s: number, e: number) => {
-  const d = dayStart(s);
-  (b.get(d) ?? b.set(d, []).get(d)!).push({ start: s, end: e });
-};
+type Mv = [number, number][]; // piece index -> new start (-1 = unplaced)
 
 export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
-  const { now } = env;
-  const cand = new Map(pieces.map((p) => [p.id, cells(p, now)]));
-  const starts = new Map<string, number>();
-  const byId = new Map(pieces.map((p) => [p.id, p]));
+  const t0 = Date.now(), { now } = env, n = pieces.length;
+  const cs = pieces.map((p) => cells(p, now));
+  const ds = cs.map((c) => c.map(dayStart)); // dayStart is slow (Date); once per cell
+  const du = pieces.map(dur);
 
-  const build = (skip?: string) => {
-    const ends: End[] = [...env.fixedEnds];
-    const bk: Buckets = new Map();
-    for (const [id, s] of starts) {
-      if (id === skip) continue;
-      const p = byId.get(id)!;
-      ends.push({ kind: p.task.kind, end: s + dur(p) });
-      add(bk, s, s + dur(p));
+  const bz = new Map<number, Busy[]>(); // busy blocks that can touch a day, halo included
+  for (const b of env.busy)
+    for (let d = dayStart(b.start - HALO - TAIL); d <= b.end + HALO; d = dayStart(d + 1.5 * DAY)) (bz.get(d) ?? bz.set(d, []).get(d)!).push(b);
+  const fx = new Map<number, number>();
+  const fh = (day: number) => fx.get(day) ?? (fx.set(day, fixedHours(bz.get(day) ?? [], day)), fx.get(day)!);
+
+  // Load hinges, count penalty, halo, and overlap for one day of flexible items; lax skips item-item overlap.
+  const dayCost = (day: number, items: Iv[], lax = false) => {
+    const N = items.length;
+    if (!N) return 0;
+    const bs = bz.get(day) ?? [];
+    const L = fh(day) + items.reduce((s, i) => s + (i.end - i.start), 0) / HOUR;
+    const load = 0.3 * Math.max(0, L - 4) + 1.0 * Math.max(0, L - 6);
+    const count = N > 2 ? 0.5 * (2 ** (N - 2) - 1) : 0;
+    let halo = 0, over = 0;
+    for (let i = 0; i < N; i++) {
+      const a = items[i];
+      for (const b of bs) {
+        const o = ov(a.start, a.end, b.start, b.end);
+        if (o) over += 1000 * (o / HOUR);
+        else if (ov(a.start - HALO, a.end + HALO, b.start, b.end)) halo += W_GAP * ((a.end - a.start) / SLOT);
+      }
+      if (!lax) for (let j = i + 1; j < N; j++) over += 500 * (ov(a.start, a.end, items[j].start, items[j].end) / HOUR);
     }
-    return { ends, bk };
+    return SPREAD * (load + count) + halo + over;
   };
-  const best = (p: Piece, ends: End[], bk: Buckets) => {
-    let top: { c: number; v: number } | undefined;
-    for (const c of cand.get(p.id)!) {
-      const day = dayStart(c);
-      const cur = bk.get(day) ?? [];
-      const marg = dayCost(env, day, [...cur, { start: c, end: c + dur(p) }]) - dayCost(env, day, cur);
-      const v = startValue(p, c, now, env.util(p, c, ends)) - marg;
-      if (!top || v > top.v) top = { c, v };
+
+  let S: number[] = Array(n).fill(-1); // current starts
+  let V: number[] = Array(n).fill(0); // current startValue per piece
+  const D = new Map<number, number>(); // current dayCost per day
+  let cur = 0;
+
+  const view = (mv: Mv, skip = -1) => { const x = S.slice(); for (const [i, s] of mv) x[i] = s; if (skip >= 0) x[skip] = -1; return x; };
+  const endsOf = (x: number[]) => {
+    const e: End[] = [...env.fixedEnds];
+    for (let i = 0; i < n; i++) if (x[i] >= 0) e.push({ kind: pieces[i].task.kind, end: x[i] + du[i] });
+    return e;
+  };
+  const listsOf = (x: number[]) => {
+    const m = new Map<number, Iv[]>();
+    for (let i = 0; i < n; i++) if (x[i] >= 0) { const d = dayStart(x[i]); (m.get(d) ?? m.set(d, []).get(d)!).push({ start: x[i], end: x[i] + du[i] }); }
+    return m;
+  };
+
+  // Best cell for piece i with the moves in mv applied and i itself lifted out.
+  const best = (i: number, mv: Mv, lax = false) => {
+    const x = view(mv, i), bk = listsOf(x), ends = endsOf(x), p = pieces[i], u = env.utilAll?.(p, ends);
+    const base = new Map<number, number>();
+    let top = { c: cs[i][0], v: -Infinity };
+    for (let k = 0; k < cs[i].length; k++) {
+      const c = cs[i][k], day = ds[i][k], items = bk.get(day) ?? [];
+      let b0 = base.get(day);
+      if (b0 === undefined) base.set(day, (b0 = dayCost(day, items, lax)));
+      const v = startValue(p, c, now, u ? u[k] : env.util(p, c, ends)) - (dayCost(day, [...items, { start: c, end: c + du[i] }], lax) - b0);
+      if (v > top.v) top = { c, v };
     }
-    return top!;
+    return top.c;
   };
-  const score = () => {
-    const { ends, bk } = build();
+
+  // Incremental score change of a move: only touched days and pieces whose "after" window a changed end reaches are rescored.
+  const evalMove = (mv: Mv) => {
+    const x = view(mv), bk = listsOf(x), ends = endsOf(x), moved = new Set(mv.map((m) => m[0]));
+    const win: number[] = [], days = new Set<number>();
+    for (const [i, s] of mv) for (const t of [S[i], s]) if (t >= 0) { days.add(dayStart(t)); win.push(t + du[i]); }
+    const dv = new Map<number, number>(), nd = new Map<number, number>();
+    let delta = 0;
+    for (let j = 0; j < n; j++) {
+      const s = x[j];
+      if (s < 0 || (!moved.has(j) && !win.some((e) => s >= e && s - e <= HOUR))) continue;
+      const v = startValue(pieces[j], s, now, env.util(pieces[j], s, ends));
+      dv.set(j, v); delta += v - V[j];
+    }
+    for (const d of days) { const c = dayCost(d, bk.get(d) ?? []); nd.set(d, c); delta -= c - (D.get(d) ?? 0); }
+    return { delta, commit() { S = x; for (const [j, v] of dv) V[j] = v; for (const [d, c] of nd) D.set(d, c); cur += delta; } };
+  };
+  const full = (x: number[]) => {
+    const ends = endsOf(x);
     let s = 0;
-    for (const [id, st] of starts) { const p = byId.get(id)!; s += startValue(p, st, now, env.util(p, st, ends)); }
-    for (const [day, items] of bk) s -= dayCost(env, day, items);
+    for (let i = 0; i < n; i++) if (x[i] >= 0) s += startValue(pieces[i], x[i], now, env.util(pieces[i], x[i], ends));
+    for (const [d, items] of listsOf(x)) s -= dayCost(d, items);
     return s;
   };
 
-  const order = [...pieces].sort((a, b) =>
-    (a.task.deadline ?? Infinity) - (b.task.deadline ?? Infinity) || (a.id < b.id ? -1 : 1));
-  for (const p of order) { const { ends, bk } = build(); starts.set(p.id, best(p, ends, bk).c); }
-  const greedyScore = score();
+  const log: LogEntry[] = [];
+  const order = pieces.map((_, i) => i).sort((a, b) =>
+    (pieces[a].task.deadline ?? Infinity) - (pieces[b].task.deadline ?? Infinity) || (pieces[a].id < pieces[b].id ? -1 : 1));
+  const rank: number[] = []; order.forEach((i, r) => (rank[i] = r));
+  for (const i of order) {
+    const m = evalMove([[i, best(i, [])]]);
+    m.commit();
+    if (m.delta > 0 && log.length < LOG_CAP / 2) log.push({ kind: "place", ids: [pieces[i].id], gain: m.delta });
+  }
+  const greedyScore = full(S);
 
   let rng = seed >>> 0;
   const rand = () => { rng = (rng + 0x6d2b79f5) >>> 0; let t = Math.imul(rng ^ (rng >>> 15), 1 | rng); t ^= t + Math.imul(t ^ (t >>> 7), 61 | t); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-  let cur = greedyScore;
-  const ids = pieces.map((p) => p.id);
-  for (let it = 0; it < ITERS && ids.length; it++) {
-    const i = ids[Math.floor(rand() * ids.length)];
-    const old = new Map(starts);
-    if (rand() < 0.5 && ids.length > 1) {
-      const j = ids[Math.floor(rand() * ids.length)];
-      if (i === j) continue;
-      const a = starts.get(i)!;
-      starts.set(i, starts.get(j)!); starts.set(j, a);
+  const iters = Math.min(3000, 80 * n);
+  let bestS = S, bestScore = cur;
+  for (let it = 0; it < iters; it++) {
+    if (Date.now() - t0 > CAP_MS) break; // only ever stops early
+    const T = T0 * (T1 / T0) ** (it / iters), r = rand(), i = Math.floor(rand() * n);
+    let mv: Mv = [], kind: LogEntry["kind"] = "reinsert", day: number | undefined;
+    if (r < 0.3) {
+      const c = best(i, []);
+      if (c !== S[i]) mv = [[i, c]];
+    } else if (r < 0.5) {
+      const j = Math.floor(rand() * n);
+      if (i !== j && S[i] !== S[j]) { mv = [[i, S[j]], [j, S[i]]]; kind = "swap"; }
+    } else if (r < 0.8) {
+      const a = best(i, [], true);
+      mv = [[i, a]];
+      const j = S.findIndex((s, k) => k !== i && ov(s, s + du[k], a, a + du[i]) > 0);
+      if (j >= 0) { mv.push([j, best(j, mv)]); kind = "chain"; }
+      else if (a === S[i]) mv = [];
     } else {
-      const { ends, bk } = build(i);
-      starts.set(i, best(byId.get(i)!, ends, bk).c);
+      const by = new Map<number, number[]>();
+      S.forEach((s, k) => { const d = dayStart(s); (by.get(d) ?? by.set(d, []).get(d)!).push(k); });
+      const keys = [...by.keys()].sort((a, b) => a - b);
+      day = keys[Math.floor(rand() * keys.length)];
+      const ids = by.get(day)!.sort((a, b) => rank[a] - rank[b]);
+      mv = ids.map((k) => [k, -1]);
+      mv.forEach((m) => (m[1] = best(m[0], mv)));
+      kind = "day";
     }
-    const s = score();
-    if (s > cur + 1e-9) cur = s;
-    else for (const [k, v] of old) starts.set(k, v);
+    if (!mv.length) continue;
+    const m = evalMove(mv);
+    if (m.delta < 0 && rand() >= Math.exp(m.delta / T)) continue;
+    m.commit();
+    if (cur > bestScore + 1e-9) {
+      if (log.length < LOG_CAP) log.push({ kind, ids: mv.map((q) => pieces[q[0]].id), gain: cur - bestScore, ...(day !== undefined && { day }) });
+      bestScore = cur; bestS = S;
+    }
   }
+  S = bestS;
 
   // Cap displaced tasks: revert the smallest moves to their old slot when it is free.
-  const moved = pieces.filter((p) => p.prior !== undefined && starts.get(p.id) !== p.prior)
-    .sort((a, b) => Math.abs(starts.get(a.id)! - a.prior!) - Math.abs(starts.get(b.id)! - b.prior!));
+  const moved = pieces.map((_, i) => i).filter((i) => pieces[i].prior !== undefined && S[i] !== pieces[i].prior)
+    .sort((a, b) => Math.abs(S[a] - pieces[a].prior!) - Math.abs(S[b] - pieces[b].prior!));
   let extra = moved.length - EJECT_CAP;
-  for (const p of moved) {
+  for (const i of moved) {
     if (extra <= 0) break;
-    const { bk } = build(p.id);
-    const day = dayStart(p.prior!);
-    const items = [...(bk.get(day) ?? []), { start: p.prior!, end: p.prior! + dur(p) }];
-    const free = dayCost(env, day, items) - dayCost(env, day, bk.get(day) ?? []) < 500;
-    if (free) { starts.set(p.id, p.prior!); extra--; }
+    const prior = pieces[i].prior!, day = dayStart(prior), items = listsOf(view([], i)).get(day) ?? [];
+    if (dayCost(day, [...items, { start: prior, end: prior + du[i] }]) - dayCost(day, items) < 500) { S = view([[i, prior]]); extra--; }
   }
-  return { starts, score: score(), greedyScore };
+  return { starts: new Map(pieces.map((p, i) => [p.id, S[i]])), score: full(S), greedyScore, log };
 }
 
 // Best-fitting flexible task for a free gap of 30 min or more that starts within 60 min.

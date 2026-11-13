@@ -9,6 +9,7 @@ export interface Piece {
   n: number; // sittings of the parent
   prior?: number; // current start
   slip: number;
+  missed?: number; // old start of a task that ended unfinished: replanned, told so
 }
 
 export const dur = (p: Piece) => p.effort * MIN;
@@ -24,14 +25,15 @@ export function bell(p: Piece, now: number, start: number): number {
   return Math.exp(-((pos - centre) ** 2) / (2 * 0.2 ** 2));
 }
 
-// util is the policy part (UCB or heuristic minus bell).
+export const MOVE_COST = 0.15;
+// Leaving a prior costs MOVE_COST, so only a clear gain moves it; today's prior is locked (1.0). A prior that is
+// no longer feasible scores -1000 or worse, so it loses anyway. Inside the score so every solver move pays it.
+export const moveCost = (p: Piece, start: number, now: number) =>
+  p.prior === undefined || p.prior === start ? 0 : dayStart(p.prior) === dayStart(now) ? 1 : MOVE_COST;
+
+export const lateH = (p: Piece, start: number) => (p.task.deadline === undefined ? 0 : Math.max(0, start + dur(p) - p.task.deadline) / HOUR);
+
+// util is the policy part (UCB minus bell).
 export function startValue(p: Piece, start: number, now: number, util: number): number {
-  const late = p.task.deadline === undefined ? 0 : Math.max(0, start + dur(p) - p.task.deadline) / HOUR;
-  let stab = 0;
-  if (p.prior !== undefined && p.prior !== start && p.prior - now <= DAY) {
-    const age = Math.max(0, now - p.task.createdAt) / HOUR;
-    const cross = dayStart(p.prior) !== dayStart(start) ? 1 : 0;
-    stab = 0.1 * Math.exp(-age / 48) * (1 + Math.abs(start - p.prior) / HOUR + 10 * cross);
-  }
-  return util + bell(p, now, start) - 1e-4 * Math.max(0, (start - now) / DAY) - 100 * late - stab;
+  return util + bell(p, now, start) - 1e-4 * Math.max(0, (start - now) / DAY) - 100 * lateH(p, start) - moveCost(p, start, now);
 }

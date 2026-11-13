@@ -1,6 +1,7 @@
 import type { Kind, Task } from "../lib/types";
 
 export const KINDS: Kind[] = ["study", "exercise", "chores", "social", "other"];
+export { D } from "./linucb";
 export const MIN = 60000;
 export const HOUR = 3600000;
 export const DAY = 86400000;
