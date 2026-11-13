@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Task } from "../types";
 import type { Fetched } from "./client";
-import { materialize } from "./materialize";
+import { digestNotices, marksNotice, materialize } from "./materialize";
 
 const NOW = Date.UTC(2026, 8, 1);
 const H = 3_600_000;
@@ -23,7 +23,7 @@ describe("materialize", () => {
       ["portal:lecture:S1:2026-09-03:1", "lecture", "dlu"],
       ["portal:exam:9", "exam", "dlu"],
       ["lms:assign:7", undefined, "dlu"],
-      [undefined, undefined, "dlu"], // the exam's prep
+      [undefined, undefined, "user"], // the exam's prep is the user's own plan item
     ]);
     expect(upserts[0].end! - upserts[0].start!).toBe(225 * 60_000);
     expect(upserts[2].deadline).toBe(NOW + 3 * D);
@@ -32,7 +32,7 @@ describe("materialize", () => {
   it("is idempotent", () => {
     const items = [lecture(), assign()] as Fetched;
     const tasks = materialize(items, [], NOW).upserts;
-    expect(materialize(items, tasks, NOW)).toEqual({ upserts: [], deletes: [] });
+    expect(materialize(items, tasks, NOW)).toMatchObject({ upserts: [], deletes: [] });
   });
 
   it("keeps user-edited fields and updates the rest", () => {
@@ -47,6 +47,17 @@ describe("materialize", () => {
     const old = { ...stored(assign()), start: NOW + D, end: NOW + D + H, effort: 90 };
     const [t] = materialize([assign({ title: "Mới" })] as Fetched, [old], NOW).upserts;
     expect(t).toMatchObject({ title: "Mới", start: NOW + D, effort: 90 });
+  });
+
+  it("updates the parent, not a sitting, and carries upstream changes to open sittings", () => {
+    const parent = stored(assign());
+    const kid = (id: string, over: Partial<Task> = {}): Task => ({ ...parent, id, parentId: parent.id, start: NOW + D, end: NOW + D + H, ...over });
+    const tasks = [parent, kid("k1"), kid("k2", { doneAt: NOW - H })];
+    const { upserts } = materialize([assign({ title: "Mới", submitted: true })] as Fetched, tasks, NOW);
+    expect(upserts.map((t) => [t.id, t.title, t.doneAt, t.start])).toEqual([
+      [parent.id, "Mới", NOW, undefined],
+      ["k1", "Mới", NOW, NOW + D], // the done sitting k2 stays as it was
+    ]);
   });
 
   it("marks a submitted assignment done", () => {
@@ -78,6 +89,61 @@ describe("materialize", () => {
     expect(materialize([lecture()] as Fetched, [old], NOW).upserts[0].deletedAt).toBeUndefined();
   });
 
+  it("never revives a task the user deleted", () => {
+    const old = { ...stored(lecture()), deletedAt: NOW - D, userEdited: ["deleted"] };
+    expect(materialize([lecture()] as Fetched, [old], NOW)).toMatchObject({ upserts: [], deletes: [] });
+  });
+
+  it("carries room, and a room change is a change with a digest line", () => {
+    const old = stored({ ...lecture(), location: "A1" });
+    expect(old).toMatchObject({ location: "A1" });
+    const r = materialize([{ ...lecture(), location: "B2" }] as Fetched, [old], NOW);
+    expect(r.upserts[0].location).toBe("B2");
+    expect(digestNotices(r.digest, NOW)).toEqual([{ title: "Đổi phòng: Môn mẫu", sub: "Sang B2", route: `/task/${old.id}` }]);
+    expect(materialize([{ ...lecture(), location: "B2" }] as Fetched, [{ ...old, userEdited: ["location"] }], NOW).upserts).toEqual([]); // the user's room stays
+  });
+
+  it("keeps upstream details in their own fields and the note for the user", () => {
+    const [l] = materialize([{ ...lecture(), scheduleStudyUnitId: "S1", teacher: "Cô A" }] as Fetched, [], NOW).upserts;
+    expect(l).toMatchObject({ section: "S1", teacher: "Cô A" });
+    expect(l.note).toBeUndefined();
+    const [a] = materialize([assign({ lmsCourse: { lmsCourseId: 1, fullName: "Toán", shortName: null }, url: "https://x/1", description: '<p>Nộp bài</p><script>x</script>' })] as Fetched, [], NOW).upserts;
+    expect(a).toMatchObject({ course: "Toán", url: "https://x/1", content: "<p>Nộp bài</p>" });
+    expect(a.location).toBeUndefined();
+  });
+
+  it("clears an old upstream note, room-as-url and rrule unless the user edited them", () => {
+    const old = { ...stored(lecture()), note: "GV: A", location: "https://x", rrule: "FREQ=WEEKLY" };
+    const [t] = materialize([lecture()] as Fetched, [old], NOW).upserts;
+    expect([t.note, t.location, t.rrule]).toEqual([undefined, undefined, undefined]);
+    expect(materialize([lecture()] as Fetched, [{ ...old, userEdited: ["note"] }], NOW).upserts[0].note).toBe("GV: A");
+  });
+
+  it("does not re-import meetings of a deleted section, or of its tail", () => {
+    const items = [lecture(), lecture("portal:lecture:S1:2026-09-10:1", NOW + 9 * D)].map((i) => ({ ...i, scheduleStudyUnitId: "S1" })) as Fetched;
+    const gone = (cut: number) => ({ sections: { S1: cut }, series: {} });
+    expect(materialize(items, [], NOW, 0.5, gone(0)).upserts).toEqual([]);
+    expect(materialize(items, [], NOW, 0.5, gone(NOW + 5 * D)).upserts.map((t) => t.upstreamKey)).toEqual(["portal:lecture:S1:2026-09-03:1"]);
+  });
+
+  it("digests new exams and assignments", () => {
+    const exam: Fetched[number] = { ...lecture("portal:exam:9"), type: "EXAM", durationMinutes: 90 };
+    const { digest } = materialize([exam, assign()] as Fetched, [], NOW);
+    expect([digest.exams.length, digest.assignments.length]).toEqual([1, 1]);
+    const [ne, na] = digestNotices(digest, NOW);
+    expect(ne).toMatchObject({ title: "Thêm lịch thi: Môn mẫu", route: `/task/${digest.exams[0].id}` });
+    expect(na).toMatchObject({ title: "Bài tập mới: Bài tập", sub: expect.stringMatching(/^Hạn T/) });
+  });
+
+  it("announces a new timetable with its size and first lecture, and changed marks", () => {
+    const ls = [0, 1, 2].map((i) => lecture(`portal:lecture:S1:2026-09-0${i + 3}:1`, NOW + (i + 1) * D));
+    const { digest } = materialize(ls as Fetched, [], NOW);
+    expect(digestNotices(digest, NOW)).toEqual([{ title: "Thời khoá biểu học kỳ đã có", sub: "3 tiết, đã xếp vào tuần", route: `day:${NOW + D}` }]);
+    const m = (score10: number | null) => ({ marks: [{ scheduleStudyUnitId: "u", curriculumName: "Giải tích", score10 }] }) as never;
+    expect(marksNotice(m(null), m(8.6))).toEqual({ title: "Điểm vừa cập nhật", sub: "Giải tích: 8,6", route: "/marks" });
+    expect(marksNotice(m(8.6), m(8.6))).toEqual({ title: "Điểm vừa cập nhật", route: "/marks" });
+  });
+
   describe("preps", () => {
     const exam = (at = NOW + 5 * D, over: Partial<Fetched[number]> = {}): Fetched[number] => ({
       ...lecture("portal:exam:9", at), type: "EXAM", durationMinutes: 90, ...over,
@@ -97,7 +163,14 @@ describe("materialize", () => {
       expect(upserts.filter((t) => t.id.startsWith("prep:"))).toEqual([]);
     });
     it("is idempotent", () => {
-      expect(materialize([exam()] as Fetched, withPrep(), NOW)).toEqual({ upserts: [], deletes: [] });
+      expect(materialize([exam()] as Fetched, withPrep(), NOW)).toMatchObject({ upserts: [], deletes: [] });
+    });
+    it("links a prep to its exam, also one stored before forId existed", () => {
+      const old = withPrep().find((t) => t.id.startsWith("prep:"))!;
+      expect(old.forId).toBe("dlu:portal:exam:9");
+      const { forId: _, ...legacy } = old;
+      const tasks = withPrep().map((t) => (t.id === old.id ? legacy : t));
+      expect(materialize([exam()] as Fetched, tasks, NOW).upserts.find((t) => t.id === old.id)?.forId).toBe("dlu:portal:exam:9");
     });
     it("resizes when the exam moves", () => {
       const { upserts } = materialize([exam(NOW + 6 * D)] as Fetched, withPrep(), NOW);

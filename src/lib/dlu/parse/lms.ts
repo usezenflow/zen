@@ -229,8 +229,6 @@ export function parseMonthlyView(
       });
       continue;
     }
-    const url = escapeHtml(event.url);
-    const submissionLinkHtml = `<p><a href="${url}">${url}</a></p>`;
     items.push({
       externalKey: lmsAssignKey(event.instance!),
       title: assignTitle(event.name),
@@ -238,8 +236,10 @@ export function parseMonthlyView(
       // `timestart` IS the due instant (the deadline, not on the grid).
       scheduledStartTime: new Date(event.timestart * 1000),
       durationMinutes: 0,
-      location: event.url.trim(),
-      note: (event.description || "") + submissionLinkHtml,
+      location: null,
+      note: null,
+      url: event.url.trim(),
+      description: event.description || null,
       lmsCourse: courseOf(event, courses),
       submitted: !offersSubmission(event),
     });
@@ -281,8 +281,9 @@ export function parseMonthlyView(
       externalKey,
       title: quizTitle(close.name),
       type: "EXAM" as const,
-      location: open?.url.trim() ?? null,
-      note: open?.url ? `<p><a href="${open?.url}">Exam Link</a></p>` : null,
+      location: null,
+      note: null,
+      url: open?.url.trim() ?? null,
       lmsCourse: courseOf(close, courses),
     };
 
@@ -307,12 +308,4 @@ export function parseMonthlyView(
   }
 
   return { items, courses: [...courses.values()], skipped };
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }

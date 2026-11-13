@@ -5,6 +5,7 @@ import {
   type MoodleMonthlyView,
   parseMonthlyView,
 } from "./lms";
+import type { ParsedLmsItem } from "./types";
 
 /**
  * Fixtures below are the real captured payloads, trimmed to the fields the
@@ -159,8 +160,10 @@ describe("parseMonthlyView — assignments", () => {
         type: "PLAN",
         scheduledStartTime: new Date("2026-04-01T00:39:00.000Z"),
         durationMinutes: 0,
-        location: ASSIGN_DUE_0739.url,
-        note: `<p><a href="${ASSIGN_DUE_0739.url}">${ASSIGN_DUE_0739.url}</a></p>`,
+        location: null,
+        note: null,
+        url: ASSIGN_DUE_0739.url,
+        description: ASSIGN_DUE_0739.description || null,
         lmsCourse: {
           lmsCourseId: 90002,
           fullName: COURSE_90002.fullname,
@@ -179,29 +182,14 @@ describe("parseMonthlyView — assignments", () => {
     expect(item.title).toBe("Hoàn thành Lab 7");
   });
 
-  it("puts the event url in location and appends a submission link to the note", () => {
+  it("carries the event url and description as fields, not room or note", () => {
     const description = "<p>Remember to attach your report.</p>";
     const [item] = parseMonthlyView(
       view([{ ...ASSIGN_DUE_0739, description }]),
       BEFORE_ALL,
-    ).items;
+    ).items as ParsedLmsItem[];
 
-    expect(item.location).toBe(ASSIGN_DUE_0739.url);
-    expect(item.note).toBe(
-      `${description}<p><a href="${ASSIGN_DUE_0739.url}">${ASSIGN_DUE_0739.url}</a></p>`,
-    );
-  });
-
-  it("escapes HTML-sensitive characters in the submission link", () => {
-    const url = 'https://lms.test/mod/assign/view.php?id=1&x=<b>"';
-    const [item] = parseMonthlyView(
-      view([{ ...ASSIGN_DUE_0739, url }]),
-      BEFORE_ALL,
-    ).items;
-
-    const escaped =
-      "https://lms.test/mod/assign/view.php?id=1&amp;x=&lt;b&gt;&quot;";
-    expect(item.note).toBe(`<p><a href="${escaped}">${escaped}</a></p>`);
+    expect(item).toMatchObject({ location: null, note: null, url: ASSIGN_DUE_0739.url, description });
   });
 
   it("keeps an 11:59 PM deadline exact (16:59 UTC)", () => {
@@ -280,8 +268,9 @@ describe("parseMonthlyView — quizzes", () => {
         // 17:35–18:25 VN, widened onto the grid to 17:30–18:30.
         scheduledStartTime: new Date("2024-10-25T10:30:00.000Z"),
         durationMinutes: 60,
-        location: QUIZ_OPEN.url,
-        note: `<p><a href="${QUIZ_OPEN.url}">Exam Link</a></p>`,
+        location: null,
+        note: null,
+        url: QUIZ_OPEN.url,
         lmsCourse: {
           lmsCourseId: 90003,
           fullName: COURSE_90003.fullname,
@@ -343,8 +332,7 @@ describe("parseMonthlyView — quizzes", () => {
       new Date("2024-10-25T11:00:00.000Z"),
     );
     // No open event survived the `now` filter, so there's no link to show.
-    expect(items[0].location).toBeNull();
-    expect(items[0].note).toBeNull();
+    expect((items[0] as ParsedLmsItem).url).toBeNull();
   });
 
   it("skips a lone open and says why", () => {

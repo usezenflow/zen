@@ -1,29 +1,44 @@
 import { parseExams, parseTimetable, type PortalExamRow, type PortalTimetableRow } from "./parse/portal";
 import { parseMonthlyView, type MoodleMonthlyView } from "./parse/lms";
-import type { ParsedBlock } from "./parse/types";
+import type { ParsedBlock, ParsedLmsItem, ParsedPortalItem } from "./parse/types";
 import { parseMarks, type ParsedMarks, type PortalMarksYear, type PortalStudyProgramRow } from "./parse/student";
 import { resolveTerm, vnDate, weeksToTermEnd } from "./season";
-import type { Creds } from "./creds";
+import { hasLms, hasPortal, type Creds } from "./creds";
 
-export type UpstreamItem = Pick<ParsedBlock, "externalKey" | "title" | "type" | "scheduledStartTime" | "durationMinutes" | "location" | "note"> & {
-  submitted?: boolean;
-  examFormat?: string | null;
-};
+export type UpstreamItem = Pick<ParsedBlock, "externalKey" | "title" | "type" | "scheduledStartTime" | "durationMinutes" | "location" | "note"> &
+  Partial<Pick<ParsedPortalItem, "scheduleStudyUnitId" | "teacher">> &
+  Partial<Pick<ParsedLmsItem, "lmsCourse" | "url" | "description">> & {
+    submitted?: boolean;
+    examFormat?: string | null;
+  };
 
-/** `failed` lists sources that errored, so materialize does not read their absence as removal. */
-export type Fetched = UpstreamItem[] & { failed?: ("portal" | "lms")[] };
+export type Source = "portal" | "lms";
+/** `failed` lists sources that errored or are disconnected, so materialize does not read their absence as removal.
+ *  `rejected` is the subset whose login was refused, `slow` the ones that timed out or answered 5xx. */
+export type Fetched = UpstreamItem[] & { failed?: Source[]; rejected?: Source[]; slow?: Source[] };
 
-export class CampusLoginError extends Error {}
+/** The campus refused this account's login. */
+export class CampusLoginError extends Error {
+  constructor(readonly source: Source) { super(`${source} login rejected`); }
+}
+/** The campus did not answer (timeout, network, 5xx): says nothing about the password. */
+export class CampusSlowError extends Error {
+  constructor(readonly source: Source) { super(`${source} slow`); }
+}
 
 const PORTAL = "https://portal-api.dlu.edu.vn";
 const LMS = "https://lms.dlu.edu.vn";
 const TZ = "Asia/Ho_Chi_Minh";
 const LOGIN_ERROR_MARKERS = ["loginerror", "invalid login", "invalidlogin", "sai tên đăng nhập"];
 
-const timed = (url: string, init: RequestInit = {}) => fetch(url, { ...init, signal: AbortSignal.timeout(15_000) });
+async function timed(source: Source, url: string, init: RequestInit = {}) {
+  const res = await fetch(url, { ...init, signal: AbortSignal.timeout(15_000) }).catch(() => { throw new CampusSlowError(source); });
+  if (res.status >= 500) throw new CampusSlowError(source);
+  return res;
+}
 
 async function portalLogin(c: Creds, base: string): Promise<string> {
-  const res = await timed(`${base}/api/authenticate/authpsc`, {
+  const res = await timed("portal", `${base}/api/authenticate/authpsc`, {
     method: "POST",
     headers: { "content-type": "application/json", apikey: c.portalApiKey, clientid: "vhu" },
     body: JSON.stringify({ username: c.studentId, password: c.password, type: 0 }),
@@ -36,7 +51,7 @@ async function portalLogin(c: Creds, base: string): Promise<string> {
 }
 
 async function portalGet<T>(c: Creds, base: string, token: string, path: string): Promise<T[]> {
-  const res = await timed(`${base}${path}`, { headers: { authorization: `Bearer ${token}`, clientid: "vhu", apikey: c.portalApiKey } });
+  const res = await timed("portal", `${base}${path}`, { headers: { authorization: `Bearer ${token}`, clientid: "vhu", apikey: c.portalApiKey } });
   if (res.status === 401 || res.status === 403) throw new CampusLoginError("portal");
   if (!res.ok) throw new Error(`portal ${path.split("?")[0]} ${res.status}`);
   const json: unknown = await res.json();
@@ -48,18 +63,18 @@ async function portalGet<T>(c: Creds, base: string, token: string, path: string)
 const sessionCookie = (res: Response) => /(MoodleSession[^=]*=[^;,\s]+)/.exec(res.headers.get("set-cookie") ?? "")?.[1];
 
 async function lmsLogin(c: Creds, base: string): Promise<{ cookie?: string; sesskey: string }> {
-  const form = await timed(`${base}/login/index.php`);
+  const form = await timed("lms", `${base}/login/index.php`);
   const logintoken = /name="logintoken"\s+value="([^"]*)"/.exec(await form.text())?.[1];
   let cookie = sessionCookie(form);
-  const sent = await timed(`${base}/login/index.php`, {
+  const sent = await timed("lms", `${base}/login/index.php`, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded", ...(cookie ? { cookie } : {}) },
-    body: new URLSearchParams({ username: c.studentId, password: c.password, anchor: "", ...(logintoken ? { logintoken } : {}) }).toString(),
+    body: new URLSearchParams({ username: c.studentId, password: c.lmsPassword || c.password, anchor: "", ...(logintoken ? { logintoken } : {}) }).toString(),
   });
   cookie = sessionCookie(sent) ?? cookie;
   const body = (await sent.text()).toLowerCase();
   if (LOGIN_ERROR_MARKERS.some((m) => body.includes(m))) throw new CampusLoginError("lms");
-  const dash = await timed(`${base}/my/`, { headers: cookie ? { cookie } : {} });
+  const dash = await timed("lms", `${base}/my/`, { headers: cookie ? { cookie } : {} });
   const sesskey = /"sesskey":"([A-Za-z0-9]+)"/.exec(await dash.text())?.[1];
   if (!sesskey) throw new CampusLoginError("lms");
   return { cookie, sesskey };
@@ -67,7 +82,7 @@ async function lmsLogin(c: Creds, base: string): Promise<{ cookie?: string; sess
 
 async function lmsMonth(base: string, s: { cookie?: string; sesskey: string }, year: number, month: number): Promise<MoodleMonthlyView> {
   const methodname = "core_calendar_get_calendar_monthly_view";
-  const res = await timed(`${base}/lib/ajax/service.php?sesskey=${encodeURIComponent(s.sesskey)}&info=${methodname}`, {
+  const res = await timed("lms", `${base}/lib/ajax/service.php?sesskey=${encodeURIComponent(s.sesskey)}&info=${methodname}`, {
     method: "POST",
     headers: { "content-type": "application/json", ...(s.cookie ? { cookie: s.cookie } : {}) },
     body: JSON.stringify([{ index: 0, methodname, args: { year, month, courseid: 1, includenavigation: false, mini: true, day: 1 } }]),
@@ -95,7 +110,16 @@ export async function fetchMarks(c: Creds): Promise<ParsedMarks> {
   return parseMarks(years);
 }
 
-/** Portal and LMS fail independently: one down keeps the other's items. A bad login still throws. */
+export type Check = "ok" | "wrong" | "slow";
+
+/** Logs in to each account once: refused is "wrong", anything else that failed is "slow". */
+export async function checkLogin(c: Creds): Promise<{ portal: Check; lms: Check }> {
+  const run = (p: Promise<unknown>): Promise<Check> => p.then(() => "ok" as const, (e) => (e instanceof CampusLoginError ? "wrong" : "slow"));
+  const [portal, lms] = await Promise.all([run(portalLogin(c, c.portalUrl ?? PORTAL)), run(lmsLogin(c, c.lmsUrl ?? LMS))]);
+  return { portal, lms };
+}
+
+/** Portal and LMS fail independently: one down keeps the other's items, and both outcomes are reported. Never throws for a login. */
 export async function fetchAll(c: Creds, now = Date.now()): Promise<Fetched> {
   const portal = c.portalUrl ?? PORTAL;
   const lms = c.lmsUrl ?? LMS;
@@ -128,12 +152,17 @@ export async function fetchAll(c: Creds, now = Date.now()): Promise<Fetched> {
     return [...items.values()];
   };
 
-  const [p, l] = await Promise.allSettled([fromPortal(), fromLms()]);
-  for (const r of [p, l]) if (r.status === "rejected" && r.reason instanceof CampusLoginError) throw r.reason;
-  if (p.status === "rejected" && l.status === "rejected") throw p.reason;
-  const failed: Fetched["failed"] = [];
-  if (p.status === "rejected") failed.push("portal");
-  if (l.status === "rejected") failed.push("lms");
-  return Object.assign([...(p.status === "fulfilled" ? p.value : []), ...(l.status === "fulfilled" ? l.value : [])], { failed });
+  const [p, l] = await Promise.allSettled([
+    hasPortal(c) ? fromPortal() : Promise.reject(undefined),
+    hasLms(c) ? fromLms() : Promise.reject(undefined),
+  ]);
+  const failed: Source[] = [];
+  const rejected: Source[] = [];
+  const slow: Source[] = [];
+  for (const [src, r, on] of [["portal", p, hasPortal(c)], ["lms", l, hasLms(c)]] as const) {
+    if (r.status === "fulfilled") continue;
+    failed.push(src);
+    if (on) (r.reason instanceof CampusLoginError ? rejected : slow).push(src);
+  }
+  return Object.assign([...(p.status === "fulfilled" ? p.value : []), ...(l.status === "fulfilled" ? l.value : [])], { failed, rejected, slow });
 }
-

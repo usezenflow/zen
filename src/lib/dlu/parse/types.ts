@@ -20,12 +20,18 @@ export interface ParsedLmsCourse {
 
 export interface ParsedLmsItem extends ParsedBlock {
   lmsCourse: ParsedLmsCourse | null;
+  /** Link to the assignment or quiz. */
+  url?: string | null;
+  /** PLAN only: the assignment's description HTML. */
+  description?: string | null;
   /** PLAN only: the student already submitted. */
   submitted?: boolean;
 }
 
 export interface ParsedPortalItem extends ParsedBlock {
   scheduleStudyUnitId: string | null;
+  /** Lecture only: who teaches the section. */
+  teacher?: string | null;
   legacyExternalKey?: string | null;
   examFormat?: string | null;
   examCredits?: number | null;

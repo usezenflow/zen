@@ -240,9 +240,8 @@ export function parseTimetable(
       scheduledStartTime: minutesToUtc(dateStr, block.startMin, timezone),
       durationMinutes: block.durationMinutes,
       location: orNull(row.RoomID),
-      // The one bit of section metadata worth carrying onto the block itself —
-      // "who teaches this" is useful at a glance on the calendar.
-      note: teacher ? `GV: ${teacher}` : null,
+      note: null,
+      teacher,
       scheduleStudyUnitId: sectionId,
       // The occurrence-cache coordinates — the same triple the key is built
       // from, kept as fields so the cache never has to re-parse the key.

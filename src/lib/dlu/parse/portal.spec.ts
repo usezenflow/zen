@@ -91,7 +91,8 @@ describe("parseTimetable", () => {
         scheduledStartTime: new Date("2026-08-17T00:30:00.000Z"),
         durationMinutes: 225,
         location: "X01.01",
-        note: "GV: Nguyễn Văn A",
+        note: null,
+        teacher: "Nguyễn Văn A",
         scheduleStudyUnitId: "99910AB100101",
         meetingDate: "2026-08-17",
         periodId: 1,
@@ -135,9 +136,9 @@ describe("parseTimetable", () => {
     expect(items[0].legacyExternalKey).toBeNull();
   });
 
-  it("falls back to a null note when the row names no teacher", () => {
+  it("falls back to a null teacher when the row names none", () => {
     const { items } = parseTimetable([{ ...LECTURE_ROW, FullName: null }], VN);
-    expect(items[0].note).toBeNull();
+    expect(items[0].teacher).toBeNull();
   });
 
   it("maps the evening block (periods 11–14) straight through, on grid", () => {
