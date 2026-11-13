@@ -1,45 +1,62 @@
-import { modelPath } from "./models";
+import { ExpoSpeechRecognitionModule as SR, type ExpoSpeechRecognitionResultEvent } from "expo-speech-recognition";
 
-type Lang = "vi" | "en";
-type Ctx = { transcribeData(data: ArrayBuffer, o: { language: string }): { promise: Promise<{ result: string }> } };
-type Pcm = { init(o: object): void; start(): void; stop(): Promise<string>; on(e: "data", cb: (b64: string) => void): { remove(): void } };
-const ctxs: Partial<Record<Lang, Promise<Ctx>>> = {};
+const LANG = "vi-VN";
 
-async function load(lang: Lang): Promise<Ctx> {
-  const path = await modelPath(lang === "vi" ? "whisper-vi" : "whisper-en");
-  if (!path) throw new Error(`ears: ${lang} model not downloaded`);
-  const { initWhisper } = await import("whisper.rn/index");
-  return initWhisper({ filePath: path });
+/** The recognizer's -2..10 volume as 0..1 for the bars; under 0 is inaudible. */
+export const level = (v: number) => Math.max(0, Math.min(1, v / 10));
+
+/** Mic and speech permission in one prompt pair. */
+export const askMic = async () => (await SR.requestPermissionsAsync()).granted;
+
+/** Stops any recognition an earlier JS bundle left running (a reload keeps native modules alive) and releases the session, clearing iOS's orange dot. */
+export function micReset() {
+  SR.abort();
+  try { SR.setAudioSessionActiveIOS(false, { notifyOthersOnDeactivation: true }); } catch { /* Android: no session */ }
 }
 
-/** Joins base64 chunks of 16 kHz mono s16le PCM into one buffer. */
-export function joinPcm(chunks: string[]): ArrayBuffer {
-  const parts = chunks.map((c) => Uint8Array.from(atob(c), (ch) => ch.charCodeAt(0)));
-  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
-  let o = 0;
-  for (const p of parts) { out.set(p, o); o += p.length; }
-  return out.buffer;
-}
+let onDevice: Promise<boolean> | undefined;
+// On-device when Vietnamese is installed (private, offline); otherwise the system's server recognizer.
+const local = () => (onDevice ??= SR.getSupportedLocales({}).then((l) => l.installedLocales.includes(LANG)).catch(() => false));
 
-/** Starts the mic as raw 16 kHz mono PCM, which whisper reads on both platforms. Returns stop, which yields the audio. */
-export async function listen(): Promise<() => Promise<ArrayBuffer>> {
-  const pcm: Pcm = (await import("@fugood/react-native-audio-pcm-stream")).default as Pcm;
-  const chunks: string[] = [];
-  pcm.init({ sampleRate: 16000, channels: 1, bitsPerSample: 16, audioSource: 6, bufferSize: 4096, wavFile: "" });
-  const sub = pcm.on("data", (b) => chunks.push(b));
-  pcm.start();
-  return async () => {
-    await pcm.stop();
-    sub.remove();
-    return joinPcm(chunks);
+/**
+ * Live Vietnamese words from the system recognizer. `onPartial` gets the whole text so far every time it is refined;
+ * `stop()` ends the mic, waits for the final result and resolves it (empty when nothing was heard).
+ */
+export async function listenLive(o: { onPartial?(text: string): void; onLevel?(level: number): void } = {}): Promise<{ stop(): Promise<string> }> {
+  const dev = await local();
+  let text = "";
+  let done: () => void = () => {};
+  const ended = new Promise<void>((ok) => (done = ok));
+  let failed: string | undefined;
+  const subs = [
+    SR.addListener("result", (e: ExpoSpeechRecognitionResultEvent) => {
+      const t = e.results[0]?.transcript?.trim();
+      if (t) { text = t; o.onPartial?.(t); }
+    }),
+    SR.addListener("volumechange", (e: { value: number }) => o.onLevel?.(level(e.value))),
+    // no-speech is an empty take, not a failure; anything else surfaces once start() has settled
+    SR.addListener("error", (e: { error: string; message: string }) => { if (e.error !== "no-speech" && e.error !== "aborted") failed = `${e.error}: ${e.message}`; done(); }),
+    SR.addListener("end", () => done()),
+  ];
+  const off = () => { subs.forEach((s) => s.remove()); micReset(); };
+  SR.start({
+    lang: LANG,
+    interimResults: true,
+    continuous: true, // keeps listening through pauses until the button is released
+    requiresOnDeviceRecognition: dev,
+    addsPunctuation: false,
+    volumeChangeEventOptions: { enabled: true, intervalMillis: 90 },
+  });
+  // start() reports failures as events: give it a beat so a refused start throws here, not on release.
+  await new Promise((ok) => setTimeout(ok, 150));
+  if (failed) { off(); throw new Error(failed); }
+  return {
+    async stop() {
+      SR.stop(); // flushes a final result, then "end"
+      await Promise.race([ended, new Promise((ok) => setTimeout(ok, 3000))]); // a recognizer that never ends must not hang the button
+      off();
+      if (failed && !text) throw new Error(failed);
+      return text;
+    },
   };
-}
-
-export async function transcribe(pcm: ArrayBuffer, lang: Lang): Promise<string> {
-  const ctx = await (ctxs[lang] ??= load(lang).catch((e) => {
-    delete ctxs[lang]; // allow retry after the download finishes
-    throw e;
-  }));
-  const { result } = await ctx.transcribeData(pcm, { language: lang }).promise;
-  return result.trim();
 }

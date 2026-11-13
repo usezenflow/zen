@@ -1,7 +1,11 @@
-import { expect, it } from "vitest";
-import { joinPcm } from "./ears";
+import { expect, it, vi } from "vitest";
 
-it("joins base64 PCM chunks in order", () => {
-  const b = joinPcm([btoa("\x01\x02"), btoa("\x03")]);
-  expect([...new Uint8Array(b)]).toEqual([1, 2, 3]);
+vi.mock("expo-speech-recognition", () => ({ ExpoSpeechRecognitionModule: {} }));
+const { level } = await import("./ears");
+
+it("maps the recognizer volume to 0..1, inaudible as 0", () => {
+  expect(level(-2)).toBe(0);
+  expect(level(0)).toBe(0);
+  expect(level(5)).toBe(0.5);
+  expect(level(12)).toBe(1);
 });
