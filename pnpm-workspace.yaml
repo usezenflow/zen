@@ -1,0 +1,8 @@
+allowBuilds:
+  llama.rn: true
+minimumReleaseAgeExclude:
+  - expo-calendar@58.0.7
+  - expo-sqlite@58.0.17
+  - expo@58.0.25
+patchedDependencies:
+  expo-widgets@58.0.28: patches/expo-widgets@58.0.28.patch

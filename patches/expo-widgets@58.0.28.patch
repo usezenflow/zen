@@ -1,0 +1,27 @@
+diff --git a/android/src/main/java/expo/modules/widgets/WidgetInteractionAction.kt b/android/src/main/java/expo/modules/widgets/WidgetInteractionAction.kt
+index b0b6479c2292763fd18eaee78b5e8d2dc4234493..259d2f5d81fe0adff4d44feee9a9faad8f168479 100644
+--- a/android/src/main/java/expo/modules/widgets/WidgetInteractionAction.kt
++++ b/android/src/main/java/expo/modules/widgets/WidgetInteractionAction.kt
+@@ -5,6 +5,7 @@ import android.content.Intent
+ import android.net.Uri
+ import androidx.glance.action.Action
+ import androidx.glance.appwidget.action.actionSendBroadcast
++import androidx.glance.appwidget.action.actionStartActivity
+ import expo.modules.widgets.notifications.ExpoWidgetsNotificationReceiver
+ 
+ internal const val WIDGET_INTERACTION_ACTION = "expo.modules.widgets.ACTION_WIDGET_INTERACTION"
+@@ -27,6 +28,14 @@ internal data class WidgetInteraction(
+ )
+ 
+ internal fun WidgetInteraction.toGlanceAction(context: Context): Action {
++  // zen patch: a widget target that is an app deep link opens the app instead of broadcasting.
++  if (source is InteractionSource.Widget && target.startsWith("zen:")) {
++    return actionStartActivity(
++      Intent(Intent.ACTION_VIEW, Uri.parse(target))
++        .setPackage(context.packageName)
++        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
++    )
++  }
+   val intent = when (source) {
+     is InteractionSource.Widget -> Intent(WIDGET_INTERACTION_ACTION)
+       .setComponent(widgetProviderComponentName(context, source.name))
