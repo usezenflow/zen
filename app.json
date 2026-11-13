@@ -8,16 +8,23 @@
     "scheme": "zen",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "bundleIdentifier": "com.anonymous.zen",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#fbfaf7",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ],
+      "package": "com.anonymous.zen"
     },
     "web": {
       "output": "server",
@@ -28,16 +35,160 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#fbfaf7",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 160,
+          "dark": {
+            "backgroundColor": "#121314",
+            "image": "./assets/images/splash-icon-dark.png"
+          }
         }
       ],
       "expo-sqlite",
       "expo-secure-store",
       "expo-background-task",
-      "expo-audio",
-      "llama.rn"
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Zen dùng micro để bạn nói lịch của mình.",
+          "speechRecognitionPermission": "Zen chuyển lời bạn nói thành chữ để xếp lịch. Khi máy có sẵn tiếng Việt, việc này diễn ra ngay trên máy.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "enableRemoteNotifications": false
+        }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Zen đọc lịch trên máy để tránh xếp việc trùng giờ và hiện ngày lễ.",
+          "remindersPermission": "Zen không dùng Lời nhắc."
+        }
+      ],
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/BeVietnamPro-Light.ttf",
+            "./assets/fonts/BeVietnamPro-Regular.ttf",
+            "./assets/fonts/BeVietnamPro-Medium.ttf",
+            "./assets/fonts/BeVietnamPro-SemiBold.ttf",
+            "./assets/fonts/BeVietnamPro-Bold.ttf",
+            "./assets/fonts/BeVietnamPro-ExtraBold.ttf"
+          ]
+        }
+      ],
+      "./plugins/with-widget-fonts",
+      [
+        "expo-widgets",
+        {
+          "enableAndroid": true,
+          "widgets": [
+            {
+              "name": "ZenNext",
+              "displayName": "Tiếp theo",
+              "description": "Việc tiếp theo và thời gian còn lại",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall"
+                ],
+                "contentMarginsDisabled": true,
+                "initialLayout": "src/widgets/ZenNext.ios.tsx"
+              },
+              "android": {
+                "targetCellWidth": 2,
+                "targetCellHeight": 2,
+                "minWidth": 110,
+                "minHeight": 110,
+                "resizeMode": "none",
+                "initialLayout": "src/widgets/ZenNext.android.tsx"
+              }
+            },
+            {
+              "name": "ZenTalk",
+              "displayName": "Nói",
+              "description": "Mở Zen và nghe ngay",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall"
+                ],
+                "contentMarginsDisabled": true,
+                "initialLayout": "src/widgets/ZenTalk.ios.tsx"
+              },
+              "android": {
+                "targetCellWidth": 2,
+                "targetCellHeight": 2,
+                "minWidth": 110,
+                "minHeight": 110,
+                "resizeMode": "none",
+                "initialLayout": "src/widgets/ZenTalk.android.tsx"
+              }
+            },
+            {
+              "name": "ZenExam",
+              "displayName": "Sắp thi",
+              "description": "Đếm ngày đến kỳ thi gần nhất",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall"
+                ],
+                "contentMarginsDisabled": true,
+                "initialLayout": "src/widgets/ZenExam.ios.tsx"
+              },
+              "android": {
+                "targetCellWidth": 2,
+                "targetCellHeight": 2,
+                "minWidth": 110,
+                "minHeight": 110,
+                "resizeMode": "none",
+                "initialLayout": "src/widgets/ZenExam.android.tsx"
+              }
+            },
+            {
+              "name": "ZenToday",
+              "displayName": "Hôm nay",
+              "description": "Việc hôm nay, đánh dấu xong ngay trên màn hình chính",
+              "ios": {
+                "supportedFamilies": [
+                  "systemMedium",
+                  "systemLarge"
+                ],
+                "contentMarginsDisabled": true,
+                "initialLayout": "src/widgets/ZenToday.ios.tsx"
+              },
+              "android": {
+                "targetCellWidth": 4,
+                "targetCellHeight": 2,
+                "minWidth": 250,
+                "minHeight": 110,
+                "resizeMode": "vertical",
+                "initialLayout": "src/widgets/ZenToday.android.tsx"
+              }
+            },
+            {
+              "name": "ZenLock",
+              "displayName": "Zen",
+              "description": "Việc tiếp theo trên màn hình khoá",
+              "ios": {
+                "supportedFamilies": [
+                  "accessoryCircular",
+                  "accessoryRectangular",
+                  "accessoryInline"
+                ],
+                "contentMarginsDisabled": true,
+                "initialLayout": "src/widgets/ZenLock.ios.tsx"
+              },
+              "android": null
+            }
+          ]
+        }
+      ],
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,
