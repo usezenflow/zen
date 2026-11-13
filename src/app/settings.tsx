@@ -1,82 +1,162 @@
-import * as Linking from "expo-linking";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
-import { Pressable, SafeAreaView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
-import { clearCreds, loadCreds, saveCreds } from "@/lib/dlu";
-import { getLang, setLang, t, type Lang } from "@/lib/i18n";
+import { useCallback, useEffect, useState } from "react";
+import { Appearance, Dimensions, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import Animated from "react-native-reanimated";
+import { Icon, TypeArt } from "@/components/art";
+import { Chevron } from "@/components/day";
+import { DropMenu } from "@/components/menu";
+import { fadeIn, fadeOut, glide, Tap } from "@/components/tap";
+import { ConnectForm, type Res } from "@/components/settings-connect";
+import { Toast } from "@/components/toast";
+import { loadCreds } from "@/lib/dlu";
+import { t } from "@/lib/i18n";
 import * as stats from "@/lib/stats";
-import { kvSet } from "@/lib/store";
-import { kvStorage, sync } from "@/lib/sync";
-import { useTheme } from "@/lib/theme";
+import { kvGet, kvSet } from "@/lib/store";
+import { disconnect, getMarks, kvStorage, loginError, sync, syncStatus, type Login } from "@/lib/sync";
+import { useTheme, font, space, ff } from "@/lib/theme";
+import { Sweep, useSweep } from "@/components/sweep";
+import { when } from "@/lib/when";
 
-const BUG_MAIL = process.env.EXPO_PUBLIC_BUG_EMAIL ?? "";
-const API_KEY = process.env.EXPO_PUBLIC_DLU_API_KEY ?? "";
+type Mode = "system" | "light" | "dark";
+
+// `sweep`: the change (theme) is revealed by a circle growing from the top-right corner toward the bottom-left.
+const Pill = ({ label, on, onPress, sweep }: { label: string; on: boolean; onPress: () => void; sweep?: boolean }) => {
+  const th = useTheme();
+  const run = useSweep();
+  return (
+    <Tap onPress={(e) => (sweep && !on ? run(Dimensions.get("window").width, 0, onPress) : onPress())} style={[s.pill, on ? { backgroundColor: th.ink, borderColor: th.ink } : { borderColor: th.line }]}>
+      <Text style={{ fontSize: font.sub, fontFamily: ff(on ? "700" : "500"), color: on ? th.bg : th.ink }}>{label}</Text>
+    </Tap>
+  );
+};
+
+function Row({ label, right, onPress, flat }: { label: string; right?: React.ReactNode; onPress?: () => void; flat?: boolean }) {
+  const th = useTheme();
+  return (
+    <Tap variant="row" onPress={onPress} disabled={!onPress} style={[s.row, { borderColor: th.line }, flat && { borderBottomWidth: 0, paddingBottom: 4 }]}>
+      <Text style={{ fontSize: font.base, fontFamily: ff("600"), color: th.ink }}>{label}</Text>
+      <View style={s.right}>{right}</View>
+    </Tap>
+  );
+}
 
 export default function Settings() {
   const th = useTheme();
-  const [lang, setL] = useState<Lang>(getLang());
+  const [mode, setMode] = useState<Mode>("system");
   const [id, setId] = useState("");
-  const [pw, setPw] = useState("");
   const [on, setOn] = useState(false);
+  const [bad, setBad] = useState<Login | null>(null);
+  const [last, setLast] = useState<number | null>(null);
+  const [gpa, setGpa] = useState<number | null>(null);
   const [share, setShare] = useState(true);
+  const [open, setOpen] = useState(false);
+  const [focus, setFocus] = useState<"portal" | "lms" | undefined>();
+  const [ok, setOk] = useState<Res | null>(null);
+  const [toast, setToast] = useState<{ text: string; sub: string }>();
+  const [now, setNow] = useState(0);
 
-  useEffect(() => {
-    loadCreds().then((c) => { if (c) { setId(c.studentId); setOn(true); } });
-    stats.isOptedOut(kvStorage).then((o) => setShare(!o));
+  const refresh = useCallback(async () => {
+    const c = await loadCreds();
+    setOn(!!c); setId(c?.studentId ?? "");
+    setNow(Date.now()); setLast((await syncStatus()).last); setBad(await loginError());
+    setGpa((await getMarks())?.gpa4 ?? null);
   }, []);
+  useEffect(() => {
+    void Promise.resolve().then(refresh);
+    stats.isOptedOut(kvStorage).then((o) => setShare(!o));
+    kvGet("theme").then((m) => { if (m === "light" || m === "dark") setMode(m); });
+  }, [refresh]);
+  useEffect(() => { if (!toast) return; const h = setTimeout(() => setToast(undefined), 4000); return () => clearTimeout(h); }, [toast]);
 
-  const pick = async (l: Lang) => { setLang(l); setL(l); await kvSet("lang", l); };
-  const connect = async () => {
-    if (!id || !pw) return;
-    await saveCreds({ studentId: id, password: pw, portalApiKey: API_KEY });
-    setPw(""); setOn(true);
-    sync();
+  // Appearance.setColorScheme makes useColorScheme (and so useTheme) follow; _layout must re-apply kv "theme" at launch.
+  const pickMode = async (m: Mode) => { setMode(m); Appearance.setColorScheme(m === "system" ? "unspecified" : m); await kvSet("theme", m); };
+
+  const done = (r: Res) => { setOk(r); if (r.portal === "ok" && r.lms === "ok") { setOpen(false); setOk(null); } refresh(); };
+  const off = async (which: "lms" | "portal" | "both") => {
+    await disconnect(which);
+    setToast({ text: t("disconnected"), sub: t(which === "lms" ? "offdLms" : which === "portal" ? "offdPortal" : "pwRemoved") });
+    setOk(null); refresh();
   };
-  const off = async () => { await clearCreds(); setOn(false); setId(""); };
-  const input = [s.input, { backgroundColor: th.card, borderColor: th.line, color: th.text }];
+  const fix = () => { setFocus(bad === "lms" ? "lms" : "portal"); setOpen(true); };
 
+  const sub = bad ? t("tapRetype")
+    : ok && (ok.portal === "ok") !== (ok.lms === "ok") ? t(ok.portal === "ok" ? "okPortal" : "okLms")
+    : last ? t("syncedAt", { time: when(last, now) }) : t("neverSynced");
+  const form = open || (on && !!ok);
+  const title = bad ? t(bad === "portal" ? "changedPortal" : bad === "lms" ? "changedLms" : "changedBoth") : id;
   return (
+    <Sweep>
     <SafeAreaView style={[s.root, { backgroundColor: th.bg }]}>
-      <View style={s.body}>
-        <Pressable onPress={() => router.back()} hitSlop={12}><Text style={{ color: th.sun, fontWeight: "800", fontSize: 16 }}>{t("back")}</Text></Pressable>
-        <Text style={[s.h, { color: th.muted }]}>{t("language")}</Text>
-        <View style={s.row}>
-          {(["vi", "en"] as Lang[]).map((l) => (
-            <Pressable key={l} onPress={() => pick(l)} style={[s.chip, { backgroundColor: lang === l ? th.sun : th.card, borderColor: th.line }]}>
-              <Text style={{ fontWeight: "800", color: lang === l ? "#2a1a00" : th.text }}>{l === "vi" ? "Tiếng Việt" : "English"}</Text>
-            </Pressable>
+      <ScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
+        <Tap onPress={() => router.back()} hitSlop={8} style={[s.o, { borderColor: th.line }]} accessibilityRole="button" accessibilityLabel={t("back")}>
+          <Icon name="x" size={20} color={th.ink} />
+        </Tap>
+        <Text style={[s.h, { color: th.ink }]}>{t("settings")}</Text>
+
+        <Text style={[s.lab, { color: th.muted, marginTop: 28 }]}>{t("theme")}</Text>
+        <View style={s.pills}>
+          {(["system", "light", "dark"] as Mode[]).map((m) => (
+            <Pill key={m} sweep on={mode === m} onPress={() => pickMode(m)} label={t(m === "system" ? "themeSystem" : m === "light" ? "themeLight" : "themeDark")} />
           ))}
         </View>
-        <Text style={[s.h, { color: th.muted }]}>{t("campus")}</Text>
-        {on ? (
-          <View style={s.row}>
-            <Text style={{ color: th.text, fontWeight: "700", flex: 1 }}>{t("connected")}: {id}</Text>
-            <Pressable onPress={off}><Text style={{ color: th.red, fontWeight: "800" }}>{t("disconnect")}</Text></Pressable>
-          </View>
-        ) : (
-          <>
-            <TextInput style={input} placeholder={t("studentId")} placeholderTextColor={th.muted} value={id} onChangeText={setId} autoCapitalize="none" />
-            <TextInput style={input} placeholder={t("password")} placeholderTextColor={th.muted} value={pw} onChangeText={setPw} secureTextEntry />
-            <Pressable onPress={connect} style={[s.chip, { backgroundColor: th.sun, alignSelf: "flex-start" }]}><Text style={{ fontWeight: "800", color: "#2a1a00" }}>{t("save")}</Text></Pressable>
-          </>
+
+        <Text style={[s.lab, { color: th.muted, marginTop: 26 }]}>{t("campusCard")}</Text>
+        {/* Connect / disconnect / form open swap several blocks at once: each fades, everything below glides. */}
+        {on && (
+          <Animated.View entering={fadeIn} exiting={fadeOut} layout={glide}>
+            <Tap onPress={() => (bad ? fix() : sync().then(refresh))} scale={0.98} style={s.art}>
+              <View style={StyleSheet.absoluteFill}><TypeArt type={bad ? "exam" : "lecture"} seed={5} w={264} h={118} /></View>
+              <Text style={s.artLab}>{t("campusCard")}</Text>
+              <Text style={[s.artId, bad ? { fontFamily: ff(), fontSize: 17 } : null]} numberOfLines={2}>{title}</Text>
+              <Text style={s.artSub}>{sub}</Text>
+              <View style={s.glass}><Icon name={bad ? "right" : "sync"} size={18} color="#fff" /></View>
+            </Tap>
+            {!bad && !form && (
+              <Animated.View entering={fadeIn} exiting={fadeOut} layout={glide}><Row flat label={t("marks")} onPress={() => router.push("/marks")}
+                right={<>{gpa != null && <Animated.Text entering={fadeIn} style={{ fontFamily: ff("600"), color: th.ink }}>{gpa.toFixed(2).replace(".", ",")}</Animated.Text>}
+                  <View style={[s.chevO, { borderColor: th.line }]}><Icon name="right" size={14} color={th.ink} /></View></>} /></Animated.View>
+            )}
+          </Animated.View>
         )}
-        <View style={[s.row, { marginTop: 12 }]}>
-          <Text style={{ color: th.text, fontWeight: "700", flex: 1 }}>{t("stats")}</Text>
-          <Switch value={share} onValueChange={(v) => { setShare(v); stats.setOptOut(kvStorage, !v); }} trackColor={{ true: th.sun }} />
-        </View>
-        <Pressable onPress={() => BUG_MAIL && Linking.openURL(`mailto:${BUG_MAIL}?subject=Zen`)} style={[s.chip, { backgroundColor: th.card, borderColor: th.line, alignSelf: "flex-start", marginTop: 12 }]}>
-          <Text style={{ color: th.text, fontWeight: "800" }}>{t("bug")}</Text>
-        </Pressable>
-      </View>
+        {!on && <Animated.View entering={fadeIn} exiting={fadeOut} layout={glide}><Row flat={open} label={t("campus")} right={<Chevron open={open} size={16} color={th.muted} />} onPress={() => { setFocus(undefined); setOpen(!open); }} /></Animated.View>}
+        {form && <Animated.View entering={fadeIn} exiting={fadeOut} layout={glide}><ConnectForm key={String(bad)} initialId={id} hideId={on} focus={focus} onResult={done} /></Animated.View>}
+        {on && (
+          <Animated.View layout={glide} style={s.off}>
+            <DropMenu label={t("disconnect")} color={th.muted} size={14} items={[
+              { label: t("offLms"), onPress: () => off("lms") },
+              { label: t("offPortal"), onPress: () => off("portal") },
+              { label: t("offBoth"), destructive: true, onPress: () => off("both") },
+            ]} />
+          </Animated.View>
+        )}
+        {!on && !form && (
+          <Animated.View entering={fadeIn} exiting={fadeOut} layout={glide}>
+            <Row label={t("stats")} right={<Switch value={share} onValueChange={(v) => { setShare(v); stats.setOptOut(kvStorage, !v); }} trackColor={{ true: th.ink, false: th.line }} ios_backgroundColor={th.line} thumbColor={share ? th.bg : th.dark ? th.muted : "#fff"} />} />
+          </Animated.View>
+        )}
+      </ScrollView>
+      {toast ? <Toast key={toast.text + toast.sub} text={toast.text} sub={toast.sub} /> : null}
     </SafeAreaView>
+    </Sweep>
   );
 }
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-  body: { padding: 20, gap: 12 },
-  h: { fontSize: 13, fontWeight: "800", marginTop: 12 },
-  row: { flexDirection: "row", gap: 10, alignItems: "center" },
-  chip: { minHeight: 44, borderRadius: 22, borderWidth: 1, paddingHorizontal: 20, alignItems: "center", justifyContent: "center" },
-  input: { minHeight: 48, borderRadius: 24, borderWidth: 1, paddingHorizontal: 20, fontSize: 16 },
+  body: { padding: space.gutter, paddingBottom: 40 },
+  o: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  h: { fontSize: font.h, lineHeight: 36, fontFamily: ff("600"), letterSpacing: -0.7, marginTop: 18 },
+  lab: { fontSize: font.label, fontFamily: ff("500") },
+  pills: { flexDirection: "row", gap: 8, marginTop: 10 },
+  pill: { height: 36, paddingHorizontal: 16, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  row: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 17, borderBottomWidth: StyleSheet.hairlineWidth },
+  right: { marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 8 },
+  art: { marginTop: 12, height: 132, borderRadius: 28, overflow: "hidden", padding: 16, paddingHorizontal: 18 },
+  artLab: { color: "#fff", opacity: 0.85, fontSize: font.label, fontFamily: ff("500") },
+  artId: { color: "#fff", fontSize: 20, fontFamily: ff("600"), marginTop: 6 },
+  artSub: { color: "#fff", opacity: 0.9, fontFamily: ff(), fontSize: font.sub, paddingRight: 50 },
+  chevO: { width: 30, height: 30, marginLeft: -6, borderRadius: 15, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  off: { paddingVertical: 17, alignItems: "flex-start" },
+  glass: { position: "absolute", right: 14, bottom: 14, width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,.28)", borderWidth: 1, borderColor: "rgba(255,255,255,.5)" },
 });

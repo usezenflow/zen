@@ -10,7 +10,7 @@ const open = () =>
     await d.execAsync(`
       PRAGMA journal_mode = WAL;
       CREATE TABLE IF NOT EXISTS tasks(id TEXT PRIMARY KEY, title TEXT, vec BLOB, kind TEXT, effort REAL,
-        deadline REAL, notBefore REAL, rrule TEXT, start REAL, "end" REAL, doneAt REAL, calendarEventId TEXT, meta TEXT);
+        deadline REAL, notBefore REAL, rrule TEXT, start REAL, "end" REAL, doneAt REAL, meta TEXT); -- older installs also have an unused calendarEventId column
       CREATE TABLE IF NOT EXISTS notes(id TEXT PRIMARY KEY, text TEXT, at REAL);
       CREATE TABLE IF NOT EXISTS events(id TEXT PRIMARY KEY, taskId TEXT, type TEXT, at REAL, data TEXT);
       CREATE TABLE IF NOT EXISTS model(key TEXT PRIMARY KEY, json TEXT);
@@ -19,20 +19,28 @@ const open = () =>
   })());
 
 type Row = Record<string, any>;
+// Every task write refreshes the widgets and reminders, including background sync. Lazy: widgets imports apply, which imports this file.
+const widgets = () => {
+  void import("./widgets").then((m) => m.pushWidgets()).catch(() => {});
+  void import("./reminders").then((m) => m.pushReminders()).catch(() => {});
+};
 const nul = <T,>(v: T | null): T | undefined => (v === null ? undefined : v);
 
-const toRow = (t: Task) => [
-  t.id, t.title, t.vec ? new Uint8Array(t.vec.buffer, t.vec.byteOffset, t.vec.byteLength) : null, t.kind, t.effort,
-  t.deadline ?? null, t.notBefore ?? null, t.rrule ?? null, t.start ?? null, t.end ?? null, t.doneAt ?? null, t.calendarEventId ?? null,
-  JSON.stringify({ source: t.source, upstreamKey: t.upstreamKey, fixed: t.fixed, parentId: t.parentId, deletedAt: t.deletedAt, userEdited: t.userEdited, createdAt: t.createdAt }),
-];
+const toRow = (t: Task) => {
+  const { id, title, vec, kind, effort, deadline, notBefore, rrule, start, end, doneAt, ...meta } = t;
+  return [
+    id, title, vec ? new Uint8Array(vec.buffer, vec.byteOffset, vec.byteLength) : null, kind, effort,
+    deadline ?? null, notBefore ?? null, rrule ?? null, start ?? null, end ?? null, doneAt ?? null,
+    JSON.stringify(meta),
+  ];
+};
 
 const fromRow = (r: Row): Task => ({
   ...JSON.parse(r.meta),
   id: r.id, title: r.title, kind: r.kind, effort: r.effort,
   vec: r.vec ? new Float32Array(new Uint8Array(r.vec).buffer) : undefined,
   deadline: nul(r.deadline), notBefore: nul(r.notBefore), rrule: nul(r.rrule), start: nul(r.start), end: nul(r.end),
-  doneAt: nul(r.doneAt), calendarEventId: nul(r.calendarEventId),
+  doneAt: nul(r.doneAt),
 });
 
 export async function allTasks(): Promise<Task[]> {
@@ -44,16 +52,18 @@ export async function putTasks(ts: Task[]) {
   await d.withTransactionAsync(async () => {
     for (const t of ts) {
       await d.runAsync(
-        `INSERT OR REPLACE INTO tasks(id,title,vec,kind,effort,deadline,notBefore,rrule,start,"end",doneAt,calendarEventId,meta) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        `INSERT OR REPLACE INTO tasks(id,title,vec,kind,effort,deadline,notBefore,rrule,start,"end",doneAt,meta) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
         toRow(t) as SQLite.SQLiteBindValue[],
       );
     }
   });
+  widgets();
 }
 
 export async function removeTasks(ids: string[]) {
   const d = await open();
   for (const id of ids) await d.runAsync("DELETE FROM tasks WHERE id=?", [id]);
+  widgets();
 }
 
 export async function allNotes(): Promise<Note[]> {

@@ -1,10 +1,10 @@
 import * as Calendar from "expo-calendar";
-import { Platform } from "react-native";
 import type { Busy } from "../planner";
-import type { Task } from "./types";
+import { allDayBusy } from "./busy";
 
-const NAME = "Zen";
-let own: Promise<Calendar.ExpoCalendar | undefined> | undefined;
+const DAY = 86400_000;
+
+const NAME = "Zen"; // the calendar older builds mirrored tasks into; never read back as busy
 
 async function granted(): Promise<boolean> {
   try {
@@ -14,60 +14,49 @@ async function granted(): Promise<boolean> {
   }
 }
 
-async function ownCalendar() {
-  return (own ??= (async () => {
-    if (!(await granted())) return undefined;
-    const all = await Calendar.getCalendars(Calendar.EntityTypes.EVENT);
-    const found = all.find((c) => c.title === NAME);
-    if (found) return found;
-    const src = Platform.OS === "ios" ? Calendar.getDefaultCalendarSync().source : { isLocalAccount: true, name: NAME, type: Calendar.SourceType.LOCAL };
-    return Calendar.createCalendar({ title: NAME, color: "#F59E0B", source: src as any, name: NAME, ownerAccount: "zen", accessLevel: Calendar.CalendarAccessLevel.OWNER });
-  })().catch(() => {
-    own = undefined;
-    return undefined;
-  }));
+const others = async () => (await Calendar.getCalendars(Calendar.EntityTypes.EVENT)).filter((c) => c.title !== NAME);
+
+/** Once: deletes the Zen calendar older builds wrote to, so stale task copies don't linger. Never prompts. */
+export async function dropOldCalendar(): Promise<boolean> {
+  try {
+    if (!(await Calendar.getCalendarPermissions()).granted) return false;
+    for (const c of await Calendar.getCalendars(Calendar.EntityTypes.EVENT)) if (c.title === NAME && c.allowsModifications) await c.delete();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-/** Timed events of every device calendar except Zen's own. Empty when access is denied. */
+/** Events (all-day ones block the whole local day) of every device calendar except the old Zen one. Empty when access is denied. */
 export async function readBusy(from: number, to: number): Promise<Busy[]> {
   try {
     if (!(await granted())) return [];
-    const mine = await ownCalendar();
-    const cals = (await Calendar.getCalendars(Calendar.EntityTypes.EVENT)).filter((c) => c.id !== mine?.id);
+    const cals = await others();
     if (!cals.length) return [];
     const evs = await Calendar.listEvents(cals, new Date(from), new Date(to));
-    return evs.filter((e) => !e.allDay).map((e) => ({ start: new Date(e.startDate).getTime(), end: new Date(e.endDate).getTime() }));
+    return evs.map((e) => {
+      const [start, end] = [new Date(e.startDate).getTime(), new Date(e.endDate).getTime()];
+      return e.allDay ? allDayBusy(start, end) : { start, end };
+    });
   } catch {
     return [];
   }
 }
 
-/** Mirrors placed tasks into the Zen calendar. Returns changed calendarEventId by task id (null = removed). */
-export async function syncCalendar(tasks: Task[]): Promise<Record<string, string | null>> {
-  const cal = await ownCalendar();
-  if (!cal) return {};
-  const out: Record<string, string | null> = {};
-  for (const t of tasks) {
-    const live = !t.doneAt && !t.deletedAt && t.start !== undefined && t.end !== undefined;
-    const children = tasks.some((c) => c.parentId === t.id);
-    try {
-      if (t.calendarEventId && (!live || children)) {
-        await Calendar.ExpoCalendarEvent.get(t.calendarEventId).then((e) => e.delete());
-        out[t.id] = null;
-      } else if (live && !children) {
-        const details = { title: t.title, startDate: new Date(t.start!), endDate: new Date(t.end!), alarms: [{ relativeOffset: -30 }] };
-        if (t.calendarEventId) {
-          const e = await Calendar.ExpoCalendarEvent.get(t.calendarEventId).catch(() => undefined);
-          if (e) {
-            if (new Date(e.startDate).getTime() !== t.start || new Date(e.endDate).getTime() !== t.end || e.title !== t.title) await e.update(details);
-            continue;
-          }
-        }
-        out[t.id] = (await cal.createEvent(details)).id;
-      }
-    } catch {
-      // one bad event must not stop the rest
+/** Phone-calendar all-day events (holidays such as Tết included) per local UTC+7 day start; none without permission. */
+export async function allDay(from: number, to: number): Promise<{ day: number; title: string }[]> {
+  try {
+    if (!(await granted())) return [];
+    const cals = await others();
+    if (!cals.length) return [];
+    const out: { day: number; title: string }[] = [];
+    for (const e of await Calendar.listEvents(cals, new Date(from), new Date(to))) {
+      if (!e.allDay) continue;
+      const b = allDayBusy(new Date(e.startDate).getTime(), new Date(e.endDate).getTime());
+      for (let d = b.start; d < b.end; d += DAY) if (d >= from - DAY && d < to) out.push({ day: d, title: e.title });
     }
+    return out;
+  } catch {
+    return [];
   }
-  return out;
 }
