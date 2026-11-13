@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Zen views</title>
+<link rel="stylesheet" href="ui.css" />
+</head>
+<body>
+<div class="head">
+  <h1>Day, week, month</h1>
+  <p>Paper white, ink type, hairline circles. Colour lives only in raked sand cards, one palette per type: plan, lecture, exam, assignment, busy. Swipe sideways to switch views; in the day view, pull past the edge for the next day.</p>
+  <nav><a href="logo.html">Logo</a><a href="ready.html">Getting ready</a><a href="settings.html">Settings</a><a href="marks.html">Marks</a></nav>
+</div>
+<div class="gallery"></div>
+<script src="ui.js"></script>
+<script>
+const tabs = (on) => `<div class="tabs">${["Ngày", "Tuần", "Tháng"].map((v) => `<span class="${v === on ? "on" : ""}">${v}</span>`).join("")}</div>`;
+const head = (hello, title, n) => `<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-top:6px"><div><div class="hello">${hello}</div><div class="h" style="margin-top:2px">${title}</div><div class="sub">${n}</div></div><span class="o" style="margin-top:2px">${ic(I.gear, 18)}</span></div>`;
+const row = (tm, title, type, st = "", sub = "") => {
+  const box = type === "plan" || type === "assignment" ? `<span class="ck ${st}">${st ? ic(I.check, 16, 2.4) : ""}</span>` : swatch(type);
+  return `<div class="r ${st ? "done" : ""} ${type === "busy" ? "busy" : ""}">${box}<div class="tx"><b>${title}</b>${sub ? `<small>${sub}</small>` : ""}</div><span class="tm">${tm}</span></div>`;
+};
+const next = (type, title, big, small, p) => `<div class="art" style="margin-top:16px;height:220px;padding:20px 20px 18px">${art(type, { w: 264, h: 220, seed: 4, cls: "bgart" })}
+  <div class="lab" style="color:#fff;opacity:.85">Tiếp theo</div><div class="t" style="margin-top:10px">${title}</div>
+  <div style="position:absolute;left:20px;right:16px;bottom:16px;display:flex;align-items:flex-end;justify-content:space-between"><div class="meter"><span class="cap2" style="--p:${p}"><i></i></span><div><div class="big">${big}</div><div class="small">${small}</div></div></div><span class="glass solid">${ic(I.check, 22, 2.2)}</span></div></div>`;
+const day = (st) => `${head("Thứ hai", "16 tháng 11", "5 việc, 1 tiết học")}${tabs("Ngày")}
+  ${next("plan", "Ôn Giải tích", "10 phút", "đến 14:30", "35%")}
+  <div class="lab" style="margin-top:22px">Sau đó</div>
+  <div class="list" style="margin-top:4px">${row("14:30", "Ôn Giải tích", "plan", st)}${row("16:00", "Báo cáo nhóm", "assignment", "", "Hạn 23:59")}${row("17:30", "Cơ sở dữ liệu", "lecture", "", "A2.104")}${row("19:00", "Ăn tối với Minh", "busy")}</div>
+  <div class="lab" style="margin-top:14px">Xong (2) ${ic(I.down, 14)}</div>`;
+const W = [["T2", 16, [["lecture", 46], ["plan", 26], ["assignment", 34]]], ["T3", 17, [["plan", 30], ["exam", 52]]], ["T4", 18, [["lecture", 46], ["plan", 24], ["plan", 24]]], ["T5", 19, [["plan", 34], ["assignment", 28]]], ["T6", 20, [["lecture", 46], ["busy", 38]]], ["T7", 21, [["plan", 28]]], ["CN", 22, []]];
+const week = `${head("Tuần này", "16 đến 22/11", "14 việc, 1 bài thi")}${tabs("Tuần")}
+  <div class="wk" style="margin-top:20px">${W.map(([d, n, bs], i) => `<div class="c"><span class="d ${i === 0 ? "on" : ""}">${d}<i>${n}</i></span>${bs.map(([t, h], j) => `<span class="b" style="--h:${h}px">${art(t, { w: 40, h, seed: i * 3 + j, dir: t === "lecture" || t === "exam" ? "v" : "h" })}</span>`).join("")}</div>`).join("")}</div>
+  <div class="lab" style="margin-top:22px">Thứ ba, 17</div>
+  <div class="list" style="margin-top:4px">${row("08:00", "Ôn Xác suất", "plan")}${row("13:30", "Thi Xác suất", "exam", "", "Trắc nghiệm, B1.201")}</div>`;
+const pick = (d) => [[], ["plan"], ["lecture", "plan"], ["lecture", "plan", "assignment"], ["exam"], ["plan", "plan"], []][d % 7];
+const month = `${head("Năm 2026", "Tháng 11", "42 việc, 3 bài thi")}${tabs("Tháng")}
+  <div class="mo" style="margin-top:20px">${["T2", "T3", "T4", "T5", "T6", "T7", "CN"].map((d) => `<span class="w">${d}</span>`).join("")}
+  ${Array.from({ length: 35 }, (_, i) => { const d = i - 5, out = d < 1 || d > 30, n = d < 1 ? 26 + i : d > 30 ? d - 30 : d; return `<div class="d ${out ? "out" : ""} ${d === 16 ? "today" : ""} ${d === 19 ? "sel" : ""}"><span>${n}</span><span class="ds">${(out ? [] : pick(d * 5)).map((t) => `<i style="--c:${DOT[t]}"></i>`).join("")}</span></div>`; }).join("")}</div>
+  <div class="lab" style="margin-top:18px">Thứ năm, 19</div>
+  <div class="list" style="margin-top:4px">${row("09:00", "Viết luận Triết", "assignment", "", "Hạn thứ hai")}</div>`;
+mount([
+  { tag: "Day", sub: "Next up is the art card; its circle marks it done. Below, the rest of today. Fixed items wear their type art instead of a checkbox.", html: chrome(day("")) },
+  { tag: "Done", sub: "Tap a circle: it fills black and pops, the row strikes through, haptic success, Undo.", html: chrome(toast("Ôn Giải tích xong", "Còn 3 việc hôm nay", [["Hoàn tác"]]) + day("pop")) },
+  { tag: "Created", sub: "No confirmation. Undo, or take the other good slot.", html: chrome(toast("Báo cáo nhóm", "Th 6 14:00", [["Th 7 09:00", 1], ["Hoàn tác"]]) + day(""), { dock: "think" }) },
+  { tag: "Week", sub: "Today in an ink pill. Blocks are type art; tap a day to see it below.", html: chrome(week) },
+  { tag: "Month", sub: "Today in black, selected outlined, up to three dots.", dark: true, html: chrome(month) },
+  { tag: "Day, dark", sub: "Same view in dark.", dark: true, html: chrome(day(""), { dock: "live" }) },
+]);
+</script>
+</body>
+</html>

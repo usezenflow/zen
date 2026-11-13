@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Zen settings</title>
+<link rel="stylesheet" href="ui.css" />
+</head>
+<body>
+<div class="head">
+  <h1>Settings</h1>
+  <p>One screen. Theme and language are pills. Campus keeps its password on the phone and syncs on its own. Marks open from campus.</p>
+  <nav><a href="views.html">Views</a><a href="marks.html">Marks</a><a href="ready.html">Getting ready</a></nav>
+</div>
+<div class="gallery"></div>
+<script src="ui.js"></script>
+<script>
+const close = `<span class="o">${ic(I.x, 18)}</span>`;
+const pills = (xs, on) => `<div class="pills" style="margin-top:10px">${xs.map((x) => `<span class="pl sm ${x === on ? "on" : ""}">${x}</span>`).join("")}</div>`;
+const set = (t, right) => `<div class="set">${t}${right}</div>`;
+const campus = (state) => state === "off"
+  ? set("Kết nối trường", `<span class="v">${ic(I.right, 16)}</span>`)
+  : `<div class="art" style="margin-top:12px;height:118px;padding:16px 18px">${art(state === "err" ? "exam" : "lecture", { w: 264, h: 118, seed: 5, cls: "bgart" })}
+      <div class="lab" style="color:#fff;opacity:.85">Trường</div>
+      <div style="font-size:18px;font-weight:600;margin-top:6px">${state === "err" ? "Mật khẩu đã đổi" : "2112345"}</div>
+      <div class="small" style="font-size:12.5px;opacity:.9">${state === "err" ? "Chạm để nhập lại" : "Cập nhật 07:12, tự đồng bộ"}</div>
+      <span class="glass" style="position:absolute;right:14px;bottom:14px;width:44px;height:44px">${ic(state === "err" ? I.right : I.sync, 18)}</span></div>
+    ${state === "on" ? set("Điểm", `<span class="v">3,42 ${ic(I.right, 14)}</span>`) : ""}`;
+const main = (state, theme = "Hệ thống") => `${close}<div class="h" style="margin-top:18px">Cài đặt</div>
+  <div class="lab" style="margin-top:22px">Giao diện</div>${pills(["Hệ thống", "Sáng", "Tối"], theme)}
+  <div class="lab" style="margin-top:18px">Ngôn ngữ</div>${pills(["Tiếng Việt", "English"], "Tiếng Việt")}
+  <div class="lab" style="margin-top:20px">Trường</div>${campus(state)}
+  ${set("Chia sẻ số liệu ẩn danh", '<span class="tog"></span>')}${set("Báo lỗi", `<span class="v">${ic(I.right, 16)}</span>`)}`;
+const connect = (err) => `<span class="o">${ic(I.back, 18)}</span><div class="h" style="margin-top:18px">Kết nối<br>trường</div>
+  <div style="margin-top:10px;font-size:14px;color:var(--muted);line-height:1.45">Lịch học, lịch thi, hạn nộp và điểm tự về. Mật khẩu chỉ ở trên máy này.</div>
+  <div class="lab" style="margin-top:24px">Mã sinh viên</div><div class="field" style="margin-top:8px">2112345</div>
+  <div class="lab" style="margin-top:16px">Mật khẩu</div><div class="field ${err ? "" : "ph"}" style="margin-top:8px;${err ? "border-color:#ff2f52" : ""}">${err ? "••••••••" : "Mật khẩu cổng sinh viên"}</div>
+  ${err ? '<div style="margin:8px 0 0 22px;font-size:13px;font-weight:600;color:#ff2f52">Sai mật khẩu, thử lại nhé</div>' : ""}
+  <div class="btn" style="margin-top:auto;margin-bottom:6px">Kết nối</div>`;
+mount([
+  { tag: "Not connected", sub: "Theme and language as pills, campus one row.", html: chrome(main("off"), { dock: null }) },
+  { tag: "Connected", sub: "Campus becomes an art card with last sync; marks open below.", html: chrome(main("on"), { dock: null }) },
+  { tag: "Login changed", sub: "The card turns exam red and says so. Tap to fix.", dark: true, html: chrome(main("err", "Tối"), { dock: null }) },
+  { tag: "Connect", sub: "Two fields, one black button.", html: chrome(connect(false), { dock: null }) },
+  { tag: "Wrong password", sub: "Inline, no dialog.", html: chrome(connect(true), { dock: null }) },
+]);
+</script>
+</body>
+</html>

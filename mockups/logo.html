@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Zen logo</title>
+<link rel="stylesheet" href="ui.css" />
+<style>
+.tiles { max-width: 1240px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 20px; }
+.tile { height: 270px; border-radius: 34px; display: grid; place-items: center; position: relative; }
+.tile small { position: absolute; left: 22px; bottom: 18px; font-size: 10.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; opacity: .55; }
+.word { display: flex; align-items: center; gap: 12px; font-size: 44px; font-weight: 600; letter-spacing: -.03em; }
+.icon { width: 132px; height: 132px; border-radius: 30px; display: grid; place-items: center; box-shadow: 0 24px 40px -20px rgba(0,0,0,.45); }
+</style>
+</head>
+<body>
+<div class="head">
+  <h1>Logo</h1>
+  <p>A vermilion stone with two raked ripples, from the karesansui garden. The inner ring is closed, today; the outer ring stays open where the next day comes in. Mono for small sizes.</p>
+  <nav><a href="views.html">Views</a></nav>
+</div>
+<div class="tiles" id="t"></div>
+<script src="ui.js"></script>
+<script>
+document.getElementById("t").innerHTML = [
+  ["#fbfaf7", "#16181b", LOGO(150), "Mark"],
+  ["#16181b", "#ecebe6", LOGO(150), "Mark, dark"],
+  ["#fbfaf7", "#16181b", `<div class="word">${LOGO(52)}zen</div>`, "Wordmark"],
+  ["#ecebe7", "#16181b", `<div style="display:flex;gap:22px"><div class="icon" style="background:#16181b;color:#ecebe6">${LOGO(92)}</div><div class="icon" style="background:#fbfaf7">${LOGO(92)}</div></div>`, "App icon"],
+  ["#fbfaf7", "#16181b", `<div style="display:flex;gap:26px;align-items:center">${LOGO(48, "mono")}${LOGO(28, "mono")}${LOGO(16, "mono")}</div>`, "Mono, small sizes"],
+  ["#1f2b6e", "#fff", LOGO(130, "white"), "On colour"],
+].map(([bg, fg, h, l]) => `<div class="tile" style="background:${bg};color:${fg}">${h}<small>${l}</small></div>`).join("");
+</script>
+</body>
+</html>

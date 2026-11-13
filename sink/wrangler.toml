@@ -1,0 +1,9 @@
+name = "zen-sink"
+main = "src/index.ts"
+account_id = "ddc8e90f668854adb2cb680c611c0e2d"
+compatibility_date = "2025-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "zen-sink"
+database_id = "ae99381e-9f0d-4311-a7fb-2fabb28dda1a"

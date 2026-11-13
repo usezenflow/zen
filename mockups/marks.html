@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Zen marks</title>
+<link rel="stylesheet" href="ui.css" />
+</head>
+<body>
+<div class="head">
+  <h1>Marks</h1>
+  <p>Read only, from the campus portal. GPA in an art card, then each term as a plain list. Weak courses quietly get one more short review before their exam.</p>
+  <nav><a href="settings.html">Settings</a><a href="views.html">Views</a></nav>
+</div>
+<div class="gallery"></div>
+<script src="ui.js"></script>
+<script>
+const row = (c, cr, s, l) => `<div class="r"><div class="tx"><b>${c}</b><small>${cr} tín chỉ</small></div><span class="tm" style="color:var(--ink);font-size:15px">${s}</span><span class="pl sm" style="width:40px;padding:0">${l}</span></div>`;
+const page = (dark) => `<span class="o">${ic(I.back, 18)}</span><div class="h" style="margin-top:18px">Điểm</div>
+  <div class="art" style="margin-top:18px;height:150px;padding:18px 20px">${art("assignment", { w: 264, h: 150, seed: 2, cls: "bgart" })}
+    <div class="lab" style="color:#fff;opacity:.85">Tích luỹ</div>
+    <div style="position:absolute;left:20px;bottom:18px" class="meter"><span class="cap2" style="--p:85%"><i></i></span><div><div class="big" style="font-size:40px">3,42</div><div class="small">98 tín chỉ, hệ 4</div></div></div></div>
+  <div class="lab" style="margin-top:22px">Học kỳ 1, 2026 <span>3,58</span></div>
+  <div class="list" style="margin-top:4px">${row("Giải tích 2", 3, "8,6", "A")}${row("Cơ sở dữ liệu", 3, "7,9", "B+")}${row("Xác suất thống kê", 3, "5,4", "D+")}${row("Triết học", 2, "8,1", "B+")}</div>
+  <div class="lab" style="margin-top:14px">Học kỳ 2, 2025 <span>3,31</span></div>`;
+mount([
+  { tag: "Marks", sub: "One number up top, plain rows below. Letter in a hairline pill.", html: chrome(page(false), { dock: null }) },
+  { tag: "Marks, dark", sub: "Same in dark.", dark: true, html: chrome(page(true), { dock: null }) },
+]);
+</script>
+</body>
+</html>
