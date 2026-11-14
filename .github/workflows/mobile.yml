@@ -199,7 +199,8 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: dist/zen-ios-unsigned.ipa
-          key: ipa-${{ hashFiles('src/**', 'assets/**', 'plugins/**', 'patches/**', 'app.json', 'pnpm-lock.yaml') }}
+          # package.json (version), app.config.js and CHANGELOG.md (bundled notes) change the app too.
+          key: ipa-${{ hashFiles('src/**', 'assets/**', 'plugins/**', 'patches/**', 'app.json', 'app.config.js', 'package.json', 'CHANGELOG.md', 'pnpm-lock.yaml') }}
       - uses: pnpm/action-setup@v4
         if: steps.ipa.outputs.cache-hit != 'true'
         with:
