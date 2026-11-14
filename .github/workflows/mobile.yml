@@ -168,8 +168,6 @@ jobs:
             -Dorg.gradle.parallel=true -Dorg.gradle.caching=true
             -Dorg.gradle.jvmargs="-Xmx3g -XX:MaxMetaspaceSize=768m -XX:+UseParallelGC"
             -Pkotlin.daemon.jvm.options="-Xmx1g")
-          # Dex first: classpath and duplicate class errors fail in minutes, before the C++ build.
-          ./gradlew :app:mergeDexRelease "${args[@]}"
           ./gradlew assembleRelease "${args[@]}"
       - name: Collect APK
         run: |
