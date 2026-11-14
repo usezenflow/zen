@@ -1,14 +1,15 @@
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { Fill } from "@/components/meter";
-import { fadeIn, Tap, EASE } from "@/components/tap";
+import { fadeIn, EASE } from "@/components/tap";
 import type { ParsedMarks } from "@/lib/dlu/parse/student";
-import { Icon, TypeArt } from "@/components/art";
+import { TypeArt } from "@/components/art";
+import { RestCard } from "@/components/day";
 import { t } from "@/lib/i18n";
 import { getMarks } from "@/lib/sync";
+import { PartHead } from "@/components/parthead";
 import { useTheme, font, space, ff } from "@/lib/theme";
 
 const num = (n: number | null | undefined, d = 2) => (n == null ? "" : n.toFixed(d).replace(".", ","));
@@ -16,17 +17,15 @@ const num = (n: number | null | undefined, d = 2) => (n == null ? "" : n.toFixed
 export default function Marks() {
   const th = useTheme();
   const [m, setM] = useState<ParsedMarks | null>();
-  useEffect(() => { getMarks().then(setM); }, []);
+  const load = useCallback(() => void getMarks().then(setM), []);
+  useEffect(() => { load(); }, [load]);
   const terms = [...(m?.terms ?? [])].reverse();
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: th.bg }}>
       <ScrollView contentContainerStyle={{ padding: space.gutter, paddingBottom: 60 }}>
-        <Tap onPress={() => router.back()} accessibilityLabel={t("back")} style={[s.o, { borderColor: th.line, backgroundColor: th.bg }]}>
-          <Icon name="back" size={20} color={th.ink} />
-        </Tap>
-        <Text style={[s.h, { color: th.ink, marginTop: 18 }]}>{t("marks")}</Text>
+        <PartHead part="marks" title={t("marks")} onLand={load} />
         {!m?.marks.length ? (
-          m !== undefined && <Animated.Text entering={fadeIn} style={[s.sub, { color: th.muted, marginTop: 18 }]}>{t("noMarks")}</Animated.Text>
+          m !== undefined && <Animated.View entering={fadeIn}><RestCard lab={t("cumulative")} title={t("noMarksT")} sub={t("noMarks")} h={150} /></Animated.View>
         ) : (
           <>
             <Animated.View entering={fadeIn} style={s.art}>
@@ -46,9 +45,9 @@ export default function Marks() {
                   <Text style={[s.labT, { color: th.muted }]}>{t("termOf", { t: tm.termId, y: tm.yearStudy })}</Text>
                   <Text style={[s.labT, { color: th.muted }]}>{num(tm.gpa4)}</Text>
                 </View>
-                {m.marks.filter((k) => k.yearStudy === tm.yearStudy && k.termId === tm.termId).map((k, i) => (
+                {m.marks.filter((k) => k.credits > 0 && k.yearStudy === tm.yearStudy && k.termId === tm.termId).map((k, i) => (
                   <View key={k.scheduleStudyUnitId} style={s.r}>
-                    <View style={[s.tx, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: th.line }]}>
+                    <View style={[s.tx, i > 0 && { borderTopWidth: 1, borderTopColor: th.line }]}>
                       <Text style={[s.b, { color: th.ink }]} numberOfLines={1}>{k.curriculumName}</Text>
                       <Text style={[s.small2, { color: th.muted }]}>{t("credits", { n: k.credits })}</Text>
                     </View>
@@ -66,21 +65,18 @@ export default function Marks() {
 }
 
 const s = StyleSheet.create({
-  o: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  h: { fontSize: font.h, lineHeight: 36, fontFamily: ff("600"), letterSpacing: -0.7 },
-  sub: { fontFamily: ff(), fontSize: font.md },
   art: { marginTop: 18, height: 150, borderRadius: 28, overflow: "hidden", paddingVertical: 18, paddingHorizontal: 20 },
   lab: { color: "#fff", opacity: 0.85, fontSize: font.label, fontFamily: ff("500") },
   meter: { position: "absolute", left: 20, bottom: 18, flexDirection: "row", alignItems: "center", gap: 12 },
   cap: { width: 18, height: 54, borderRadius: 10, borderWidth: 2, borderColor: "rgba(255,255,255,.9)", justifyContent: "flex-end", padding: 2 },
-  big: { color: "#fff", fontSize: 40, fontFamily: ff("600"), lineHeight: 42 },
+  big: { color: "#fff", fontSize: 40, fontFamily: ff("600"), lineHeight: 40 },
   small: { color: "#fff", opacity: 0.9, fontSize: font.md, fontFamily: ff("500"), marginTop: 3 },
-  labRow: { marginTop: 28, flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
+  labRow: { marginTop: 28, flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
   labT: { fontSize: font.label, fontFamily: ff("500") },
   r: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: space.row },
-  tx: { flex: 1, minWidth: 0, alignSelf: "stretch", justifyContent: "center", gap: 2 },
-  b: { fontSize: font.base, fontFamily: ff("600") },
-  small2: { fontFamily: ff(), fontSize: font.sub },
+  tx: { flex: 1, minWidth: 0, alignSelf: "stretch", justifyContent: "center", gap: 2, paddingVertical: space.row + 2, marginVertical: -space.row },
+  b: { fontSize: font.base, lineHeight: 24, fontFamily: ff("600") },
+  small2: { fontFamily: ff("500"), fontSize: font.sub, lineHeight: 21 },
   score: { fontSize: font.base, fontFamily: ff("600"), fontVariant: ["tabular-nums"] },
   pl: { width: 44, height: 36, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   plT: { fontSize: font.sub, fontFamily: ff("500") },

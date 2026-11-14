@@ -8,14 +8,18 @@ const exam = (over: Partial<Task> = {}): Task => ({
 });
 
 describe("preps", () => {
-  it("gives 1 or 2 sittings of 45 min due at the exam", () => {
-    for (const [weak, n] of [[0, 1], [0.4, 1], [0.5, 2], [1, 2]] as const) {
-      const [p] = preps(exam(), weak);
-      expect(p).toMatchObject({ title: "Ôn Toán", source: "user", forId: "dlu:e", deadline: 1e12, maxSitting: 45, effort: 45 * n });
-      expect(split(p.effort, p.maxSitting)).toEqual(Array(n).fill(45));
+  it("titles the prep by the exam format, the subject only in course", () => {
+    for (const [format, title] of [
+      ["Báo cáo(TL)", "Viết báo cáo"], ["Báo cáo TTTT,TL", "Viết báo cáo"], ["Tiểu luận", "Viết tiểu luận"], ["Thực hành", "Luyện thực hành"], ["Thi máy", "Luyện thực hành"],
+      ["Vấn đáp", "Luyện vấn đáp"], ["Tự luận", "Ôn lý thuyết, luyện đề"], ["Trắc nghiệm", "Ôn thi"], [undefined, "Ôn thi"],
+    ] as const) {
+      expect(preps(exam({ format }))[0]).toMatchObject({ title, course: "Toán", source: "user", forId: "dlu:e", deadline: 1e12, maxSitting: 45 });
     }
   });
-  it("gives none for a report exam", () => {
-    expect(preps(exam({ format: "Báo cáo(TL)" }), 0.5)).toEqual([]);
+  it("sizes 45 min sittings by the format and the marks multiplier", () => {
+    for (const [format, mult, n] of [["Báo cáo(TL)", 0.75, 3], ["Báo cáo(TL)", 1, 4], ["Báo cáo(TL)", 1.6, 6], ["Tự luận", 0.75, 2], ["Tự luận", 1, 3], ["Tự luận", 1.6, 4], ["Tự luận", 9, 4]] as const) {
+      const [p] = preps(exam({ format }), mult);
+      expect(split(p.effort, p.maxSitting)).toEqual(Array(n).fill(45));
+    }
   });
 });

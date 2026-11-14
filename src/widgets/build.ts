@@ -1,5 +1,5 @@
 // Relative imports: vitest has no "@/" alias.
-import { addDays, hhmm, onDay, short, shown, startOfDay, weekday } from "../components/cal";
+import { addDays, hhmm, mondayOf, onDay, short, shown, startOfDay, weekday } from "../components/cal";
 import { t } from "../lib/i18n";
 import type { Task } from "../lib/types";
 import { when } from "../lib/when";
@@ -20,35 +20,66 @@ export function widgetData(tasks: Task[], now: number, art: WidgetData["art"], t
   const nextToday = nx && nx.start! < addDays(day, 1) ? nx : undefined;
   let next: WidgetData["next"];
   if (nextToday) {
-    const s = nextToday.start!, e = nextToday.end!, going = s <= now;
-    const mins = Math.max(1, Math.round((going ? e - now : e - s) / MIN));
+    // widgets.html at 14:20, next at 14:30: "10 phút / đến 14:30". Running, it counts to the end; upcoming, to the start.
+    const s = nextToday.start!, e = nextToday.end!, going = s <= now, to = going ? e : s;
+    const mins = Math.max(1, Math.round((to - now) / MIN)), left = t("nMin", { n: mins });
     next = {
       id: nextToday.id, title: nextToday.title, type: typeOf(nextToday) as ArtType, label: t("nextUp"),
-      big: going ? t("nMin", { n: mins }) : hhmm(s), small: going ? t("until", { time: hhmm(e) }) : t("nMin", { n: mins }),
-      mins: `${mins}′`, at: hhmm(s), fill: going ? Math.min(1, (now - s) / (e - s)) : 0,
-      rect: going ? `${hhmm(s)}, còn ${t("nMin", { n: mins })}` : `${hhmm(s)}, ${t("nMin", { n: mins })}`, left: going ? `còn ${t("nMin", { n: mins })}` : t("nMin", { n: mins }), url: url(nextToday.id),
+      big: left, small: t("until", { time: hhmm(to) }), mins: `${mins}′`, at: hhmm(s),
+      // Running: the share done. Upcoming: the last half hour drains to the start (10 min left ≈ the mockup's 35%).
+      fill: going ? Math.min(1, (now - s) / (e - s)) : Math.min(1, (s - now) / (30 * MIN)),
+      rect: `${hhmm(s)}, còn ${left}`, left: `còn ${left}`, url: url(nextToday.id),
     };
   }
-  const rows: WRow[] = today.filter((x) => x.id !== nextToday?.id && x.end! > now).slice(0, 6).map((x) => {
+  const toRow = (x: Task): WRow => {
     const type = typeOf(x) as ArtType;
     return { id: x.id, title: x.title, type, time: hhmm(x.start!), check: type === "plan" || type === "assignment", done: ticked.includes(x.id), url: url(x.id) };
-  });
+  };
+  const rows = today.filter((x) => x.id !== nextToday?.id && x.end! > now).slice(0, 6).map(toRow);
+  let aheadDay = 0, ahead: Task[] = [];
+  for (let i = 1; i <= 7 && !ahead.length; i++) { aheadDay = addDays(day, i); ahead = onDay(tasks, aheadDay); }
+  const tm = ahead[0];
   const doneN = tasks.filter((x) => x.doneAt && !x.deletedAt && x.start !== undefined && x.start >= day && x.start < addDays(day, 1)).length;
-  const tm = onDay(tasks, addDays(day, 1))[0];
   const ex = tasks.filter((x) => typeOf(x) === "exam" && !x.doneAt && !x.deletedAt && x.start !== undefined && x.start > now).sort((a, b) => a.start! - b.start!)[0];
   const exDays = ex && Math.round((startOfDay(ex.start!) - day) / DAY);
   return {
     weekday: weekday(now), date: `${d.getDate()} tháng ${d.getMonth() + 1}`, short: `${short[(d.getDay() + 6) % 7]} ${d.getDate()}`,
-    summary: [n || !lec ? t("nTasks", { n }) : "", lec ? t("nLectures", { n: lec }) : ""].filter(Boolean).join(", "),
-    count: t("nTasks", { n: today.length }),
+    summary: summary(today),
+    count: t("nTasks", { n }), // medium "5 việc" next to large "5 việc, 1 tiết học": classes are not counted
     next, rows, doneLabel: doneN ? `Xong (${doneN})` : "",
-    tomorrow: tm ? `Mai: ${tm.title} ${hhmm(tm.start!)}` : "",
+    tomorrow: tm ? `${dayTag(tm.start!, now)}: ${tm.title} ${hhmm(tm.start!)}` : "",
+    ahead: ahead.slice(0, 3).map(toRow),
+    aheadHead: !ahead.length ? "" : aheadDay === addDays(day, 1) ? "Mai" : weekday(aheadDay),
+    aheadCount: ahead.length ? summary(ahead) : "",
+    doneCount: doneN ? `${t("nTasks", { n: doneN })} xong` : "",
+    dayName: `${weekday(now)} ${d.getDate()}`,
     exam: ex && {
       id: ex.id, title: ex.title.replace(/^Thi\s+/i, ""), big: exDays! < 1 ? hhmm(ex.start!) : `${exDays} ngày`, small: when(ex.start!, now),
-      fill: Math.max(0, Math.min(1, 1 - exDays! / 14)), inline: `${/^thi\s/i.test(ex.title) ? ex.title : `Thi ${ex.title}`} còn ${exDays} ngày`, url: url(ex.id),
+      // Four weeks out is empty: 11 days reads as the mockup's 60%.
+      fill: Math.max(0, Math.min(1, 1 - exDays! / 28)),
+      n: exDays! < 1 ? hhmm(ex.start!) : `${exDays}`, unit: exDays! < 1 ? "hôm nay" : "ngày nữa", inline: `Thi ${abbr(ex.title.replace(/^Thi\s+/i, ""))} còn ${exDays} ngày`, url: url(ex.id),
     },
     art, ticked, home: "zen:///", listen: "zen:///?listen=1",
   };
+}
+
+/** "Mai" tomorrow, "T6" later this Monday-started week, "T6 27/11" past it. */
+function dayTag(ms: number, now: number): string {
+  const d = new Date(ms), tag = short[(d.getDay() + 6) % 7];
+  if (startOfDay(ms) === addDays(startOfDay(now), 1)) return "Mai";
+  return mondayOf(ms) === mondayOf(now) ? tag : `${tag} ${d.getDate()}/${d.getMonth() + 1}`;
+}
+
+/** "2 việc, 1 tiết học": classes counted apart; "0 việc" only for a day with neither. */
+function summary(day: Task[]): string {
+  const lec = day.filter((x) => typeOf(x) === "lecture").length, n = day.length - lec;
+  return [n || !lec ? t("nTasks", { n }) : "", lec ? t("nLectures", { n: lec }) : ""].filter(Boolean).join(", ");
+}
+
+/** Student short form for the lock line: "Giải tích 2" → "GT2", "Cơ sở dữ liệu" → "CSDL"; one word stays whole. */
+export function abbr(title: string): string {
+  const w = title.trim().split(/\s+/).filter(Boolean);
+  return w.length < 2 ? title.trim() : w.map((x) => (/^\d+$/.test(x) ? x : x[0].toUpperCase())).join("");
 }
 
 /** Instants where the widgets change: now, every 5 minutes for 6 hours, each start/end, and midnight. */

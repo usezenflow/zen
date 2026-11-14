@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Tap } from "@/components/tap";
+import type { Box } from "@/components/outside";
 import Svg, { Circle, Path } from "react-native-svg";
 import { useTheme, font, ff } from "@/lib/theme";
 
@@ -11,7 +12,9 @@ const G = {
   book: [["path", { d: "M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5Z" }], ["path", { d: "M4 19.5V22h16" }]],
   link: [["path", { d: "M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" }]],
   clock: [["circle", { cx: 12, cy: 12, r: 8.5 }], ["path", { d: "M12 7.5V12l3 2" }]],
+  hourglass: [["path", { d: "M7 3h10M7 21h10M8 3v3.5a4 4 0 0 0 1.6 3.2L12 12l-2.4 2.3A4 4 0 0 0 8 17.5V21M16 3v3.5a4 4 0 0 1-1.6 3.2L12 12l2.4 2.3A4 4 0 0 1 16 17.5V21" }]],
   repeat: [["path", { d: "M17 3l3 3-3 3M4 11V9a3 3 0 0 1 3-3h13M7 21l-3-3 3-3M20 13v2a3 3 0 0 1-3 3H4" }]],
+  dots: [["circle", { cx: 6, cy: 12, r: 1 }], ["circle", { cx: 12, cy: 12, r: 1 }], ["circle", { cx: 18, cy: 12, r: 1 }]],
   right: [["path", { d: "M9 6l6 6-6 6" }]],
 } as const;
 export type Glyph = Exclude<keyof typeof G, "right">;
@@ -24,7 +27,7 @@ export function Gly({ name, size, color, w = 1.8 }: { name: keyof typeof G; size
   );
 }
 
-/** One muted meta line (mockup .meta div): icon, text, optional chevron when tappable. */
+/** One muted meta line (mockup .meta div): icon, text; only a link (.lk) carries the chevron, other tappable lines do not. */
 export function Meta({ icon, text, tone, onPress }: { icon: Glyph; text: string; tone?: "link" | "red"; onPress?: () => void }) {
   const th = useTheme();
   const color = tone === "red" ? th.seal : tone === "link" ? th.ink : th.muted;
@@ -32,12 +35,20 @@ export function Meta({ icon, text, tone, onPress }: { icon: Glyph; text: string;
     <Tap onPress={onPress} disabled={!onPress} scale={0.98} style={s.row}>
       <View style={{ opacity: 0.85 }}><Gly name={icon} size={20} color={color} w={1.9} /></View>
       <Text style={[s.t, { color, fontFamily: ff(tone ? "600" : "500") }]} numberOfLines={1}>{text}</Text>
-      {onPress && <View style={{ opacity: 0.85, marginLeft: -4 }}><Gly name="right" size={16} color={color} /></View>}
+      {tone === "link" && <View style={{ opacity: 0.85, marginLeft: -4 }}><Gly name="right" size={16} color={color} /></View>}
     </Tap>
   );
 }
 
+/** A meta line opened for editing: icon, then the native pickers (children) in place. */
+export function EdLine({ icon, tone, children, ref }: { icon: Glyph; tone?: "red"; children: React.ReactNode; ref?: React.Ref<Box> }) {
+  const th = useTheme();
+  return <View ref={ref} collapsable={false} style={s.ed}><View style={s.edIcon}><Gly name={icon} size={20} color={tone === "red" ? th.seal : th.ink} w={1.9} /></View>{children}</View>;
+}
+
 const s = StyleSheet.create({
+  ed: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 },
+  edIcon: { opacity: 0.85, marginRight: 4 }, // .meta svg opacity, .meta .ed svg margin-right
   row: { flexDirection: "row", alignItems: "center", gap: 10 },
-  t: { fontFamily: ff(), fontSize: font.meta, lineHeight: 22, flexShrink: 1 },
+  t: { fontFamily: ff(), fontSize: font.meta, lineHeight: 22.4, flexShrink: 1 },
 });

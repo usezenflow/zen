@@ -1,8 +1,8 @@
-import type { Action, Kind } from "../types";
+import type { Action, Fixed, Kind } from "../types";
+import { kindOf as kindOfTitle } from "./kind";
 import { read, readBest } from "./reader/reader";
 import { t, type Key } from "../i18n";
 import type { ReadOpts } from "./reader/reader";
-import { fold } from "./reader/fold";
 import type { ReaderItem, ReaderItemType, ReaderResult, ReaderSource, ReaderWC, ReaderWindow } from "./shared";
 
 // App time is fixed UTC+7 (see dlu/parse/time.ts); the reader works in wall clock.
@@ -16,19 +16,16 @@ const START: Record<ReaderWindow, string> = {
   EARLY_MORNING: "05:00", DAWN: "05:00", MORNING: "08:00", NOON: "11:30",
   AFTERNOON: "14:00", EVENING: "18:00", NIGHT: "20:00", MIDNIGHT: "23:00",
 };
-const KIND: Partial<Record<ReaderItemType, Kind>> = { EXAM: "study", ASSIGNMENT: "study", LECTURE: "study" };
-// A free task is "study" only when the type says so; otherwise its words do. Folded keywords from the reader's ACTIVITIES and the standing-rule KINDS.
-const WORD_KIND: [RegExp, Kind][] = [
-  [/\b(gym|chay bo|boi|da bong|yoga|the duc|tap the|workout|cardio|dap xe|cau long)\b/, "exercise"],
-  [/\b(viec nha|don nha|giat do|giat|nau an|nau com|di cho|rua bat|clean|laundry)\b/, "chores"],
-  [/\b(cafe|ca phe|cf|coffee|hen|gap|di choi|goi dien|call)\b/, "social"],
-];
-/** The kind of a task from its type, else from the words of its title. */
-export const kindOf = (type: ReaderItemType, title: string): Kind | undefined => {
-  if (KIND[type]) return KIND[type];
-  const f = fold(title).text;
-  return WORD_KIND.find(([re]) => re.test(f))?.[1];
+// Where a said part of the day ends (the reader's own bounds in reader/parts.ts); a task of that part stays inside it.
+const END: Record<ReaderWindow, string> = {
+  EARLY_MORNING: "08:00", DAWN: "08:00", MORNING: "12:00", NOON: "14:00",
+  AFTERNOON: "17:00", EVENING: "22:00", NIGHT: "22:00", MIDNIGHT: "23:59",
 };
+const KIND: Partial<Record<ReaderItemType, Kind>> = { EXAM: "study", ASSIGNMENT: "study", LECTURE: "study" };
+/** The kind of a task from its type, else from the words of its title. */
+export const kindOf = (type: ReaderItemType, title: string): Kind | undefined => KIND[type] ?? kindOfTitle(title);
+const FIXED: Partial<Record<ReaderItemType, Fixed>> = { EXAM: "exam", LECTURE: "lecture", BUSY: "busy" };
+const mins = (c: string) => +c.slice(0, 2) * 60 + +c.slice(3);
 
 const GUESS_CAP = 120;
 
@@ -45,16 +42,31 @@ export function itemAction(it: ReaderItem): Action {
   const a: Action = { op: "create", title: cleanTitle(it.title) };
   const kind = kindOf(it.type, it.title);
   if (kind) a.kind = kind;
-  // Fixed items carry a start; flexible ones may carry a day plus a clock or part of day.
-  const day = it.days?.[0];
-  const at = it.startsAt ? iso(it.startsAt) : day && `${day}T${it.clocks?.[0]?.from ?? START[it.windows?.[0] as ReaderWindow] ?? "09:00"}:00`;
+  // The reader gives an exact start as BUSY/EXAM/LECTURE with `startsAt`; a lone day plus one clock is the same thing said another way.
+  const c = it.clocks?.length === 1 && it.days?.length === 1 && !it.windows?.length && it.type !== "ASSIGNMENT" ? it.clocks[0] : undefined;
+  const fixed = FIXED[it.type] ?? (it.startsAt || c ? "busy" : undefined);
+  // One day (the reader sets notBefore..deadline to that day, or to a part of it): flexible, kept inside the window.
+  const one = it.notBefore && it.deadline?.slice(0, 10) === it.notBefore.slice(0, 10) && !fixed ? it.notBefore.slice(0, 10) : undefined;
+  const day = it.days?.[0] ?? one;
+  const w = it.windows?.[0] as ReaderWindow | undefined;
+  // "mai từ 5h chiều": a said start of the day's window opens it, where the default would plan the morning
+  const from = one && it.notBefore!.slice(11, 16) !== "00:00" ? it.notBefore!.slice(11, 16) : undefined;
+  const at = it.startsAt ? iso(it.startsAt) : day && `${day}T${it.clocks?.[0]?.from ?? (w && START[w]) ?? from ?? "09:00"}:00`;
   if (at) a.when = at;
-  if (it.deadline) a.deadline = iso(it.deadline);
+  if (fixed && at) a.fixed = fixed;
+  else if (day && !it.clocks?.length) a.notAfter = `${day}T${(w && END[w]) ?? "23:59"}:00`;
+  // That same-day pair is the said window, not a due time: as a deadline it would make the plan an assignment ("Hạn 22:00").
+  const win = !!one && !!a.notAfter && !it.rrule;
+  if (it.deadline && !win) a.deadline = iso(it.deadline);
   // A guessed size uses coursework norms ("demo" is 6 h); spoken, unsized, it is one sitting of at most 2 h. Said minutes stand.
   if (it.durationMinutes) a.effortMinutes = it.inferred?.includes("durationMinutes") ? Math.min(it.durationMinutes, GUESS_CAP) : it.durationMinutes;
+  if (a.fixed && c && (!it.durationMinutes || it.inferred?.includes("durationMinutes")) && mins(c.to) > mins(c.from)) a.effortMinutes = mins(c.to) - mins(c.from);
   if (it.rrule) a.repeat = it.rrule;
-  if (it.notBefore) a.notBefore = iso(it.notBefore);
+  if (it.notBefore && !win) a.notBefore = iso(it.notBefore);
   if (it.location) a.location = it.location;
+  // the task note is plain text: the reader's paragraphs become lines
+  const note = it.note?.replace(/<\/(p|li|h\d)>|<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&").trim();
+  if (note) a.note = note;
   if (it.days?.length) a.days = it.days;
   if (it.clocks?.length) a.clocks = it.clocks;
   if (it.windows?.length) a.windows = it.windows;
@@ -85,6 +97,30 @@ export function readFull(text: string, now: Date, source: ReaderSource = "typed"
     if (readErrors.length > 20) readErrors.shift();
     return { items: [], dropped: [], mentions: [], repairs: [] };
   }
+}
+
+/**
+ * What to light up on a scanned photo or PDF page (capture.html .shot mark): the reader's mentions plus each item's title and place where
+ * the text says them. A title the reader built ("Thi Xác suất", "Nộp … qua LMS") lights its longest run of two or more words in the text.
+ * A place lights wherever it stands as a word of its own: a link is no mention (the reader masks links so their digits are never a date),
+ * and a room read from a table column has no cue word.
+ */
+export function marksOf(text: string, r: ReaderResult): { start: number; end: number }[] {
+  const low = text.toLowerCase(), out: { start: number; end: number }[] = r.mentions.map(({ start, end }) => ({ start, end }));
+  for (const it of r.items) {
+    const words = it.title.toLowerCase().replace(/[:,.;]/g, " ").split(/\s+/).filter(Boolean);
+    let best: { start: number; end: number } | undefined;
+    for (let a = 0; a < words.length; a++) for (let b = words.length; b - a >= Math.min(2, words.length) && (!best || best.end - best.start < words.slice(a, b).join(" ").length); b--) {
+      const q = words.slice(a, b).join(" "), at = low.indexOf(q);
+      if (at >= 0) { best = { start: at, end: at + q.length }; break; }
+    }
+    if (best) out.push(best);
+  }
+  const edge = (i: number) => i < 0 || i >= low.length || !/[\p{L}\d]/u.test(low[i]);
+  for (const loc of new Set(r.items.map((it) => it.location?.toLowerCase()).filter((x): x is string => !!x)))
+    for (let at = low.indexOf(loc); at >= 0; at = low.indexOf(loc, at + loc.length))
+      if (edge(at - 1) && edge(at + loc.length)) out.push({ start: at, end: at + loc.length });
+  return out.sort((a, b) => a.start - b.start);
 }
 
 /** Rule-based reading of one utterance; empty when the reader finds nothing. Never throws. */

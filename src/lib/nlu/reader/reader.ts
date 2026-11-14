@@ -17,6 +17,7 @@ import {
   workloadMinutes,
   type Ctx,
   type Prior,
+  firstUrl,
 } from "./assemble";
 import { applyDayPick, hidePick, joinFragments, type CalDay } from "./daypick";
 import { applyImplied } from "./implied";
@@ -93,7 +94,7 @@ export function read(raw: string, opts: ReadOpts): ReaderResult {
     return {
       items: sched,
       dropped: [],
-      mentions: mentionsFor(rep),
+      mentions: mentionsFor(rep, raw.length),
       repairs,
       hints: hintsOf(raw, { ref: opts.ref, repairs }),
     };
@@ -164,7 +165,7 @@ export function read(raw: string, opts: ReadOpts): ReaderResult {
 
   const docTopic = findAnnouncementTopic(clauses);
   const courseTitle = findCourseTitle(clauses);
-  const meetingUrl = rep.text.match(/https?:?\/\/[^\s,;!?)]+/)?.[0];
+  const meetingUrl = firstUrl(rep.text);
 
   const ctx: Ctx = {
     prepCue,
@@ -191,6 +192,7 @@ export function read(raw: string, opts: ReadOpts): ReaderResult {
   // a phrase that sets a start or a day pick joins its task clause, even across a comma
   // a leading day ("mai") holds for the later clauses of its line; a newline resets it
   let carry: string | undefined;
+  let lineDay: string | undefined;
   let prev: Clause | undefined;
   for (const c of joinFragments(joinConnectors(clauses), opts.calendar)) {
     const sameLine =
@@ -205,10 +207,20 @@ export function read(raw: string, opts: ReadOpts): ReaderResult {
       dropped.push(...out.dropped);
       return applyDayPick(p.text, out.items, opts.calendar);
     });
-    const own = per.flat();
     const dayOf = (it: ReaderItem) =>
       (it.deadline ?? it.startsAt ?? it.notBefore)?.slice(0, 10);
+    const own = per.flat();
     const mentions = findMentions(c.text);
+    // "họp mai 8h rồi 4h chiều đi khám": said in one line, a later clock with no day of its own is on the day named before it
+    const dated = mentions.some((m) => m.kind === "date" || m.kind === "recur");
+    if (!sameLine) lineDay = undefined;
+    if (lineDay && !dated && opts.source !== "paste" && opts.source !== "ocr")
+      for (const it of own)
+        if (it.startsAt && !it.rrule) {
+          it.startsAt = lineDay + it.startsAt.slice(10);
+          if (it.days?.length) it.days = [lineDay];
+        }
+    if (dated) lineDay = own.length ? dayOf(own[own.length - 1]) : undefined;
     if (carry && sameLine && !mentions.some((m) => m.kind === "date"))
       for (const it of own)
         if (
@@ -285,24 +297,46 @@ export function read(raw: string, opts: ReadOpts): ReaderResult {
     items = applyDayPick(raw, [fb], opts.calendar);
   }
 
+  // a bare deadline label is no title: name the task by the list due with it
+  const listed = [
+    ...raw.matchAll(/^\s*(?:\d{1,2}[.)]|[-•*+])\s+(.+?)\.?\s*$/gm),
+  ].map((m) => m[1].replace(/\s{2,}/g, " ").trim());
+  for (const it of items) {
+    const f = fold(it.title).text;
+    if (!/^(han nop|han chot|han|thoi han|deadline)$/.test(f)) continue;
+    if (listed.length)
+      it.title = `Nộp ${listed[0]}${listed.length > 1 ? ` và ${listed.length - 1} mục khác` : ""}`;
+    else if (f === "han nop") it.title = "Nộp bài";
+  }
+
+  // a pasted text keeps all its words: with no note of its own, the text is the note
+  // (the input box sends a paste as "typed"; a short line needs no note repeating it)
+  if (
+    opts.source === "paste" ||
+    opts.source === "ocr" ||
+    (opts.source === "typed" && (raw.trim().includes("\n") || raw.length > 120))
+  )
+    for (const it of items) it.note ||= sanitizeNoteHtml(raw) || null;
+
   return {
     items,
     dropped,
-    mentions: mentionsFor(rep),
+    mentions: mentionsFor(rep, raw.length),
     repairs,
     hints: hintsOf(raw, { ref: opts.ref, repairs }),
   };
 }
 
-/** Mention offsets back to the raw input. */
-function mentionsFor(rep: {
-  text: string;
-  map: number[];
-}): ReaderResult["mentions"] {
+/** Mention offsets back to the raw input. The end is where the next char starts in raw: repair maps every char of a token it
+ *  touched ("8g00", "27/11") to the token's first raw char, so `map[end - 1] + 1` would cut the span after one char. */
+function mentionsFor(
+  rep: { text: string; map: number[] },
+  rawLen: number,
+): ReaderResult["mentions"] {
   return mentionsOf(rep.text).map((m) => ({
     kind: m.kind,
     start: rep.map[m.start],
-    end: rep.map[m.end - 1] + 1,
+    end: m.end < rep.map.length ? rep.map[m.end] : rawLen,
   }));
 }
 
@@ -328,16 +362,28 @@ export function readScore(raw: string, res: ReaderResult): number {
   );
 }
 
-/** Reads each transcript and keeps the best-scored read. Ties keep the earlier one, so the main text wins. */
+/** The day an item is on, for comparing two reads. */
+const dayOfItem = (it?: ReaderItem) =>
+  (it?.startsAt ?? it?.deadline ?? it?.notBefore)?.slice(0, 10);
+
+/**
+ * Reads each transcript and keeps the best-scored read. Ties keep the earlier one, so the main text wins.
+ * The main text is what the user saw on screen: another hearing may add what it missed (a clock, a day it had none of),
+ * never move the day it read.
+ */
 export function readBest(texts: string[], opts: ReadOpts): ReaderResult {
   let best: ReaderResult | undefined;
   let bestScore = -Infinity;
   // other transcripts exist only for speech: a typed text is read alone
   const reads =
     opts.source === "voice" ? texts.slice(0, MAX_READS) : texts.slice(0, 1);
+  let mainDays: string[] | undefined;
   for (const text of reads) {
     const res = read(text, opts);
     const score = readScore(text, res);
+    const days = res.items.map(dayOfItem).filter((d): d is string => !!d).sort();
+    if (!best) mainDays = days;
+    else if (mainDays?.length && days.join() !== mainDays.join()) continue;
     if (score > bestScore) {
       best = res;
       bestScore = score;

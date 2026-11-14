@@ -6,10 +6,11 @@
 <title>Zen capture</title>
 <link rel="stylesheet" href="ui.css" />
 <style>
-/* Fan: two satellites above the mic, only while the finger is down. Mic centre sits ~93px above the bottom edge. */
+/* Fan: three satellites on one arc above the mic, only while the finger is down. Mic centre sits ~93px above the bottom edge. */
 .sat { position: absolute; bottom: 150px; width: 56px; height: 56px; margin-left: -28px; border-radius: 50%; display: grid; place-items: center; background: var(--bg); color: var(--ink); border: 1px solid var(--line); z-index: 8; box-shadow: 0 12px 24px -14px rgba(0,0,0,.35); }
 .sat small { position: absolute; top: 62px; font-size: 13px; font-weight: 600; color: var(--muted); white-space: nowrap; }
-.sat.l { left: 70px; } .sat.r { left: 230px; }
+.sat.l { left: 121px; } .sat.r { left: 281px; } /* mic centre x 201 on the 402 phone, ±80 */
+.sat.m { left: 201px; bottom: 182px; } /* straight up, ~117px from the mic like the other two */
 .sat.on { background: var(--ink); color: var(--bg); border-color: var(--ink); transform: scale(1.18); }
 .sat.on small { color: var(--ink); }
 .dock.dim .hold { background: var(--chip); color: var(--muted); transform: scale(.9); }
@@ -19,26 +20,30 @@
 .trail { position: absolute; inset: 0; z-index: 7; pointer-events: none; }
 .finger { position: absolute; width: 38px; height: 38px; margin: -19px 0 0 -19px; border-radius: 50%; background: rgba(127,127,127,.22); border: 1.5px solid rgba(127,127,127,.45); z-index: 9; }
 /* Type: one field over the keyboard, nothing dimmed. */
-.kb { position: absolute; left: 0; right: 0; bottom: 0; height: 236px; background: var(--chip); z-index: 10; padding: 10px 6px 0; display: grid; grid-template-columns: repeat(10, 1fr); gap: 7px 5px; align-content: start; }
+.kb { position: absolute; left: 0; right: 0; bottom: 0; height: 336px; background: var(--chip); z-index: 10; padding: 10px 6px 0; display: grid; grid-template-columns: repeat(10, 1fr); gap: 7px 5px; align-content: start; }
 .kb i { height: 38px; border-radius: 6px; background: var(--bg); box-shadow: 0 1px 0 rgba(0,0,0,.12); }
 .kb i.w2 { grid-column: span 2; } .kb i.w6 { grid-column: span 6; }
-.ask { position: absolute; left: 12px; right: 12px; bottom: 248px; z-index: 11; display: flex; align-items: flex-end; gap: 8px; }
+.ask { position: absolute; left: 12px; right: 12px; bottom: 348px; /* 12 above a real 336pt iOS keyboard */ z-index: 11; display: flex; align-items: flex-end; gap: 8px; }
 .ask .f { flex: 1; min-height: 52px; padding: 14px 20px; border-radius: 26px; background: var(--bg); border: 1px solid var(--line); font-size: 17px; font-weight: 500; line-height: 1.35; }
 .ask .f.ph { color: var(--muted); }
 .ask .f u { text-decoration: none; border-right: 2px solid var(--seal); }
 .ask .go { flex: none; width: 52px; height: 52px; border-radius: 50%; background: var(--ink); color: var(--bg); display: grid; place-items: center; }
 .ask .go.off { background: var(--chip); color: var(--muted); border: 1px solid var(--line); }
 /* Photo: the picked image, a scan line sweeping, then what it read. */
-.shot { position: relative; margin-top: 22px; height: 300px; border-radius: 22px; overflow: hidden; background: #e9e5da; color: #3b3a36; padding: 18px 16px; font-size: 12px; line-height: 1.7; transform: rotate(-1.2deg); box-shadow: 0 18px 34px -20px rgba(0,0,0,.45); }
-.shot b { font-size: 14px; }
+.shot { position: relative; width: 322px; margin: 150px 0 0 16px; height: 400px; font-size: 15px !important; border-radius: 22px; overflow: hidden; background: #e9e5da; color: #3b3a36; padding: 22px 20px; line-height: 1.7; transform: rotate(-1.2deg); box-shadow: 0 18px 34px -20px rgba(0,0,0,.45); }
+.shot b { font-size: 17px; }
 .shot mark { background: rgba(217,67,43,.18); color: inherit; border-radius: 3px; padding: 0 2px; }
+/* PDF: the first page as the document it is, white and flat. */
+/* Long text is never scrolled here: the top of the page shows, the rest fades out, and the counter below steps through the pages. */
+.shot.pdf { background: #fff; color: #2b2a27; transform: none; -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent); }
+.pgs { width: 322px; margin: 12px 0 0 16px; text-align: center; font-size: 13px; font-weight: 600; color: var(--muted); }
 .scan { position: absolute; left: 0; right: 0; top: 46%; height: 2px; background: var(--seal); box-shadow: 0 0 18px 6px rgba(217,67,43,.35); }
 </style>
 </head>
 <body>
 <div class="head">
-  <h1>Capture: voice, type, photo</h1>
-  <p>The mic stays the one button. Press it and it listens, as today. Drag your thumb up-left or up-right and two more ways to add things fan out: <b>Ảnh</b> (read a photo: a notice, a whiteboard, a printed timetable) and <b>Gõ</b> (type it, for a quiet room). Let go on one to pick it. Let go anywhere else and it was just voice. Everything still goes through the same reader and planner, so the result is the same toast. It never asks: it adds its best reading. Only when two readings are close does the toast offer the other one as an outline pill. Ignore it and the task stays as added.</p>
+  <h1>Capture: voice, type, paste, photo, PDF, share</h1>
+  <p>The mic stays the one button. Press it and it listens, as today. Drag your thumb away and three more ways to add things fan out: <b>Ảnh</b> up-left (read a photo: a notice, a whiteboard, a printed timetable), <b>PDF</b> straight up (an exam schedule, a timetable or a notice sent as a file) and <b>Gõ</b> up-right (type it, for a quiet room). Let go on one to pick it. Text can also arrive without the fan: paste it into the Gõ box, or send text or a PDF to Zen from another app's share button. Let go anywhere else and it was just voice. Everything still goes through the same reader and planner, so the result is the same toast. It never asks: it adds its best reading. Only when two readings are close does the toast offer the other one as an outline pill. Ignore it and the task stays as added.</p>
   <nav><a href="views.html">Views</a><a href="magic.html">Magic</a><a href="settings.html">Settings</a></nav>
 </div>
 <div class="gallery"></div>
@@ -47,46 +52,57 @@
 I.image = '<rect x="3.5" y="4.5" width="17" height="15" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M4 17l5-4.5 4 3.5 3-2.5 4 3.5"/>';
 I.type = '<path d="M5 6.5h14M12 6.5V19M9 19h6"/>';
 I.send = '<path d="M12 19V5M6 11l6-6 6 6"/>';
+I.pdf = '<path d="M8 2.75h5.6c.53 0 1.04.21 1.41.59l3.65 3.65c.38.37.59.88.59 1.41V18.25a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V5.75a3 3 0 0 1 3-3z"/><path d="M13.75 3v3a1.75 1.75 0 0 0 1.75 1.75h3.25M9 12.75h6M9 16.25h4"/>';
 
 // Same home content as views.html.
 const tabs = (on) => `<div class="tabs">${["Ngày", "Tuần", "Tháng"].map((v) => `<span class="${v === on ? "on" : ""}">${v}</span>`).join("")}</div>`;
-const head = (hello, title, n) => `<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-top:6px"><div><div class="hello">${hello}</div><div class="h" style="margin-top:2px">${title}</div><div class="sub">${n}</div></div><span class="o" style="margin-top:2px">${ic(I.gear, 20)}</span></div>`;
 const row = (tm, title, type, sub = "") => `<div class="r">${type === "plan" || type === "assignment" ? `<span class="ck"></span>` : swatch(type)}<div class="tx"><b>${title}</b>${sub ? `<small>${sub}</small>` : ""}</div><span class="tm">${tm}</span></div>`;
 const day = `${head("Thứ hai", "16 tháng 11", "5 việc, 1 tiết học")}${tabs("Ngày")}
   <div class="lab" style="margin-top:28px">Hôm nay</div>
   <div class="list" style="margin-top:6px">${row("14:30", "Ôn Giải tích", "plan")}${row("16:00", "Báo cáo nhóm", "assignment", "Hạn 23:59")}${row("17:30", "Cơ sở dữ liệu", "lecture", "A2.104")}${row("19:00", "Ăn tối với Minh", "busy")}</div>`;
 
-// Dock with the fan open. pick: "" (still at the mic), "l" (Ảnh) or "r" (Gõ). fx/fy: finger, in device px from top-left.
-const MIC = [150, 557];
+// Dock with the fan open. pick: "" (still at the mic), "l" (Ảnh), "m" (PDF) or "r" (Gõ). fx/fy: finger, in device px from top-left.
+const MIC = [201, 781];
 function fan(pick, fx, fy, label) {
-  const line = fx ? `<svg class="trail" viewBox="0 0 300 650"><path d="M${MIC[0]} ${MIC[1]} L${fx} ${fy}" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="3 5" stroke-linecap="round"/></svg><div class="finger" style="left:${fx}px;top:${fy}px"></div>` : "";
+  const line = fx ? `<svg class="trail" viewBox="0 0 402 874"><path d="M${MIC[0]} ${MIC[1]} L${fx} ${fy}" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="3 5" stroke-linecap="round"/></svg><div class="finger" style="left:${fx}px;top:${fy}px"></div>` : "";
   const sat = (side, icon, name) => `<div class="sat ${side} ${pick === side ? "on" : ""}">${ic(icon, 24, 1.8)}<small>${name}</small></div>`;
-  return `<div class="veil"></div>${sat("l", I.image, "Ảnh")}${sat("r", I.type, "Gõ")}${line}
+  return `<div class="veil"></div>${sat("l", I.image, "Ảnh")}${sat("m", I.pdf, "PDF")}${sat("r", I.type, "Gõ")}${line}
     <div class="dock ${pick ? "dim" : ""}"><div class="hold ${pick ? "" : "live"}">${ic(I.mic, 28, 1.8)}</div><div class="dlabel">${label}</div></div>`;
 }
 const screen = (inner, extra) => chrome(inner, { dock: null }) + extra;
 
-const KB = `<div class="kb">${Array.from({ length: 29 }, (_, i) => `<i class="${i === 20 || i === 28 ? "w2" : i === 27 ? "w6" : ""}"></i>`).join("")}</div>`;
+const KB = `<div class="kb">${Array.from({ length: 39 }, (_, i) => `<i class="${i === 29 || i === 38 ? "w2" : i === 37 ? "w6" : ""}"></i>`).join("")}</div>`;
 const typing = (txt, ph) => `<div class="veil" style="z-index:9"></div><div class="ask"><div class="f ${ph ? "ph" : ""}">${ph ? "Kể việc cần làm…" : `${txt}<u></u>`}</div><div class="go ${ph ? "off" : ""}">${ic(I.send, 22, 2.2)}</div></div>${KB}`;
 
 const notice = `<b>THÔNG BÁO</b><br>V/v: Lịch thi giữa kỳ HK1<br><br>Môn <mark>Xác suất thống kê</mark> thi vào <mark>8g00 thứ Sáu 27/11</mark>, phòng <mark>B1.201</mark>.<br>Sinh viên mang thẻ SV.<br><br>Nộp <mark>báo cáo thực hành</mark> trước <mark>23g59 25/11</mark> qua LMS.<br><br>Khoa CNTT`;
-const photo = (scan) => `<span class="o">${ic(I.x, 20)}</span><div class="shot">${notice}${scan ? `<div class="scan"></div>` : ""}</div>`;
+const typingLong = (txt) => `<div class="veil" style="z-index:9"></div><div class="ask"><div class="f" style="max-height:168px;overflow:hidden;font-size:15px">${txt}<u></u></div><div class="go">${ic(I.send, 22, 2.2)}</div></div>${KB}`;
+const photo = (scan) => `<div class="shot">${notice}${scan ? `<div class="scan"></div>` : ""}</div>`;
+// Mondays 30/11 and 7/12, 14/12; Wednesdays 2/12, 9/12; Fridays 4/12, 11/12 (the day view is Monday 16/11).
+const EXAMS = [["Mạng máy tính", "7g30 thứ Hai 30/11", "A24.1", "tự luận"], ["Cơ sở dữ liệu", "13g30 thứ Tư 2/12", "B1.105", "thi máy"], ["Triết học", "9g00 thứ Sáu 4/12", "A2.104", "trắc nghiệm"], ["Giải tích 2", "7g30 thứ Hai 7/12", "A24.1", "tự luận"], ["Tiếng Anh 2", "9g00 thứ Tư 9/12", "B1.201", "trắc nghiệm"], ["Lập trình web", "13g30 thứ Sáu 11/12", "B1.105", "thi máy"], ["Xác suất thống kê", "7g30 thứ Hai 14/12", "A2.104", "tự luận"]];
+const exams = `<b>LỊCH THI KẾT THÚC HỌC PHẦN</b><br>HK1 2026-2027 · Khoa CNTT<br><br>${EXAMS.map(([c, at, room, fmt], i) => `${i + 1}. <mark>${c}</mark>: <mark>${at}</mark>, phòng <mark>${room}</mark>, ${fmt}`).join("<br><br>")}`;
+const pasted = `Lịch học tuần 16/11<br>T2 7g30 Giải tích 2, A24.1<br>T4 9g00 Cơ sở dữ liệu, B1.105<br>T6 13g30 Lập trình web, B1.105<br>Nộp bài tập lớn trước 23g59 20/11`;
+const pdf = `<div class="shot pdf">${exams}</div><div class="pgs">Trang 1/4</div>`;
 // Let go on Ảnh: the satellite stays lit and the house dropdown opens above it. Tap outside to cancel.
-const pickPhoto = fan("l", 0, 0, "Chọn nguồn ảnh") + menu([["Chụp ảnh"], ["Chọn từ thư viện"]], 334, 58);
+const pickPhoto = fan("l", 0, 0, "Chọn nguồn ảnh") + menu([["Chụp ảnh"], ["Chọn từ thư viện"]], 558, 109);
 
 mount([
   { tag: "1. Idle", sub: "Nothing new on screen. The mic is still the one button; the label is unchanged. The fan is found by doing it, and first launch can teach it once.", html: chrome(day) },
-  { tag: "2. Pressed", sub: "Finger down: it listens right away, as today, so voice users lose nothing. The day fades behind a soft glow rising from the mic, and two small satellites fade in above: Ảnh up-left, Gõ up-right, a thumb's reach away.", html: screen(day, fan("", 0, 0, "Thả tay khi xong")) },
-  { tag: "3. Drag to Gõ", sub: "Slide toward Gõ: it fills ink and grows, a light tick at the snap. The mic greys out and the listen stops; any words so far are dropped. Label says what letting go does.", html: screen(day, fan("r", 230, 472, "Thả để gõ")) },
-  { tag: "4. Drag to Ảnh", sub: "Same, the other way. Slide back to the mic and it listens again. Let go anywhere that isn't a satellite and it was voice, nothing changes.", html: screen(day, fan("l", 70, 472, "Thả để chọn ảnh")) },
-  { tag: "5. Gõ", sub: "Let go on Gõ: a single field rises with the keyboard, the day fades back behind the same glow. Same words you would say. No form, no date picker.", html: screen(day, typing("", true)) },
-  { tag: "6. Gõ, typed", sub: "Send runs the same reader as voice, then the think state and the usual toast. Swipe down to drop it.", html: screen(day, typing("Mai 9 giờ ôn Giải tích, T6 nộp báo cáo nhóm", false)) },
-  { tag: "7. Ảnh", sub: "Let go on Ảnh: no sheet. Ảnh stays lit and the same dropdown as delete opens above it: camera or library. Tap outside to cancel. Zen asks for camera or photos permission only here, the first time.", html: screen(day, pickPhoto) },
-  { tag: "8. Reading the photo", sub: "The photo fills the screen, a vermilion line sweeps it while text is read on the device. What it found lights up: names, dates, rooms.", html: chrome(photo(true), { dock: "think" }) },
-  { tag: "9. Added", sub: "Same toast as voice: count, first two names, one Undo takes all back. The exam lands with its room; the report gets prep time before its deadline.", html: chrome(toast("Đã thêm 2 việc", "Thi Xác suất thống kê, Báo cáo thực hành", [["Hoàn tác"]]) + day, { dock: "think" }) },
-  { tag: "10. Photo, nothing found", sub: "No date or task in the picture: say so, keep the photo, offer Gõ. Nothing is added.", html: chrome(toast("Không thấy việc nào trong ảnh", "Thử ảnh rõ hơn, hoặc gõ", [["Gõ"]]) + photo(false), { dock: null }) },
-  { tag: "11. Two readings", sub: "\"họp nhóm thứ 4 lúc 3 giờ\": 3 giờ could be 15:00 or 03:00. It adds the likely one; the other sits in the outline pill. One tap switches, no retyping. This is the only doubt Zen ever shows.", html: chrome(toast("Họp nhóm", when("2026-11-18", "15:00"), [[when("2026-11-18", "03:00"), 1], ["Hoàn tác"]]) + day, { dock: "think" }) },
-  { tag: "Fan, dark", sub: "Same at night.", dark: true, html: screen(day, fan("r", 230, 472, "Thả để gõ")) },
+  { tag: "2. Pressed", sub: "Finger down: it listens right away, as today, so voice users lose nothing. The day fades behind a soft glow rising from the mic (it stays there until the first word is heard, then the live words take the screen), and three small satellites fade in on one arc: Ảnh up-left, PDF straight up, Gõ up-right, each a thumb's reach away.", html: screen(day, fan("", 0, 0, "Thả tay khi xong")) },
+  { tag: "3. Drag to Gõ", sub: "Slide toward Gõ: a soft grey circle follows the thumb, a dashed line pulls from the mic, and Gõ fills ink and grows, a light tick at the snap. The mic greys out and the listen stops; any words so far are dropped. Label says what letting go does.", html: screen(day, fan("r", 281, 696, "Thả để gõ")) },
+  { tag: "4. Drag to Ảnh", sub: "Same, the other way. Slide back to the mic and it listens again. Let go anywhere that isn't a satellite and it was voice, nothing changes.", html: screen(day, fan("l", 121, 696, "Thả để chọn ảnh")) },
+  { tag: "5. Drag to PDF", sub: "Straight up. Let go and the phone's own file picker opens at once, showing only PDFs. Zen draws no sheet of its own. Cancel the picker and you are back on the day.", html: screen(day, fan("m", 201, 664, "Thả để chọn PDF")) },
+  { tag: "6. Gõ", sub: "Let go on Gõ: a single field rises with the keyboard, the day fades back behind the same glow. Same words you would say. No form, no date picker.", html: screen(day, typing("", true)) },
+  { tag: "7. Gõ, typed", sub: "Send runs the same reader as voice, then the think state and the usual toast. Swipe down to drop it.", html: screen(day, typing("Mai 9 giờ ôn Giải tích, T6 nộp báo cáo nhóm", false)) },
+  { tag: "7b. Gõ, pasted", sub: "Paste long or multi-line text into the same field (the keyboard's own Paste). The field grows to a few lines and stops; the rest stays in it. Send reads it as pasted text, not as speech: tables, dates and rooms are read line by line, and the toast is the bulk one, \"Đã thêm 4 việc\".", html: screen(day, typingLong(pasted)) },
+  { tag: "8. Ảnh", sub: "Let go on Ảnh: no sheet. Ảnh stays lit and the same dropdown as delete opens above it: camera or library. Tap outside to cancel. Zen asks for camera or photos permission only here, the first time.", html: screen(day, pickPhoto) },
+  { tag: "9. Reading the photo", sub: "The photo fills the screen, a vermilion line sweeps it while text is read on the device. What it found lights up: names, dates, rooms.", html: chrome(photo(true), { dock: "think" }) },
+  { tag: "10. Added", sub: "Same toast as voice: count, first two names, one Undo takes all back. The exam lands with its room; the report gets prep time before its deadline.", html: chrome(toast("Đã thêm 2 việc", "Thi Xác suất thống kê, Báo cáo thực hành", [["Hoàn tác"]]) + day, { dock: "think" }) },
+  { tag: "11. Photo, nothing found", sub: "No date or task in the picture: say so, keep the photo, offer Gõ. Nothing is added. No close button: the mic stays, and pressing it puts the photo away and listens.", html: chrome(toast("Không thấy việc nào trong ảnh", "Thử ảnh rõ hơn, hoặc gõ", [["Gõ"]]) + photo(false)) },
+  { tag: "12. Reading the PDF", sub: "The page shows flat and white, as the file looks. Every page is read on the phone, with no upload. What it found lights up the same way. Long text is never scrolled or cut from the reading: only the top of the page shows, fading out, and the counter under it steps through the pages as they are read. A scanned PDF with no text in it gets the same sweep as a photo.", html: chrome(pdf, { dock: "think" }) },
+  { tag: "13. PDF added", sub: "Same bulk toast: count, first two names, +5, one Undo for all. Each exam lands with its room, and gets prep tasks for its format: tự luận, thi máy, trắc nghiệm.", html: chrome(toast("Đã thêm 7 việc", "Thi Mạng máy tính, Thi Cơ sở dữ liệu +5", [["Hoàn tác"]]) + day, { dock: "think" }) },
+  { tag: "13b. Shared in", sub: "In another app, share text or a PDF and pick Zen. The system's share sheet does the choosing; Zen draws none. Zen opens, reads what arrived the same way as paste or the PDF pick (same flat page, same think state), and ends on the same toast. Nothing is added until it has been read, and Hoàn tác takes it all back.", html: chrome(`<div class=\"shot pdf\" style=\"transform:none\">${pasted}</div>`, { dock: "think" }) },
+  { tag: "14. Two readings", sub: "\"họp nhóm thứ 4 lúc 3 giờ\": 3 giờ could be 15:00 or 03:00. It adds the likely one; the other sits in the outline pill. One tap switches, no retyping. This is the only doubt Zen ever shows.", html: chrome(toast("Họp nhóm", when("2026-11-18", "15:00"), [[when("2026-11-18", "03:00"), 1], ["Hoàn tác"]]) + day, { dock: "think" }) },
+  { tag: "Fan, dark", sub: "Same at night.", dark: true, html: screen(day, fan("r", 281, 696, "Thả để gõ")) },
 ]);
 </script>
 </body>

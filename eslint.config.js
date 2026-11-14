@@ -7,4 +7,9 @@ module.exports = defineConfig([
   {
     ignores: ['dist/*'],
   },
+  // Config files and config plugins run in Node.
+  {
+    files: ['*.js', 'plugins/*.js'],
+    languageOptions: { globals: { __dirname: 'readonly' } },
+  },
 ]);

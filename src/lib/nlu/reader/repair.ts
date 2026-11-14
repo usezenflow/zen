@@ -3,6 +3,7 @@
 import { fold } from "./fold";
 import { isSyllable } from "./syllables";
 import { spokenEdits } from "./spoken";
+import { TELEX_TERMS, untelex } from "./telex";
 import { gridEdits, isScheduleText } from "./table";
 import type { ReaderSource } from "../shared";
 
@@ -869,6 +870,14 @@ const ASR_CONFUSIONS: [
   // "tết lại", "tết thử", "tết app": the test the user said, heard as the holiday
   [/(?<!\p{L})tết(?=\s+(?:lại|thử|app)(?!\p{L}))/giu, () => "test", () => true],
   [/(?<!\p{L})tuầng(?!\p{L})/giu, () => "tuần", anchored],
+  // "tuần sao", "tuần xau": next week, heard or typed one letter off. Left as it is, the day is lost and the clock lands today.
+  [/(?<!\p{L})(tuần|tháng) (?:sao|xau|xao|sâu|sau6)(?!\p{L})/giu, (m) => `${m[1]} sau`, () => true],
+  // "tám giời": the hour word, heard with a southern glide
+  [/(?<!\p{L})giời(?!\p{L})/giu, () => "giờ", anchored],
+  // "8h sán", "tám rưỡi sán": the morning, next to a clock or a day word
+  [/(?<!\p{L})sán(?!\p{L})/giu, () => "sáng", anchored],
+  // "ngày may" is tomorrow, "ngày may mắn" a lucky day
+  [/(?<!\p{L})ngày may(?!\p{L})(?! mắn)/giu, () => "ngày mai", () => true],
   [/(?<!\p{L})mươi lăm(?!\p{L})/giu, () => "mười lăm", anchored],
   [/(?<!\p{L})(mười|mươi) năm(?!\p{L})/giu, (m) => `${m[1]} lăm`, anchored],
   // "từ giờ" (from now) keeps its word; "tử giờ" with its tone is 4 o'clock
@@ -914,7 +923,7 @@ const RUN_ON = new RegExp(
 const CLAUSE_STOP = /[.!?;,]/;
 const HAS_TIME =
   /\d|sang|chieu|trua|toi|dem|khuya|mai|nay|hom|thu|chu nhat|gio/;
-function runOn(src: Repaired): Repaired {
+function runOn(src: Repaired, clockFirst = false): Repaired {
   const text = src.text;
   const ms = [...text.matchAll(RUN_ON)];
   const edits: Edit[] = [];
@@ -939,6 +948,8 @@ function runOn(src: Repaired): Repaired {
     while (b < nextStart && !CLAUSE_STOP.test(text[b])) b++;
     if (!HAS_TIME.test(fold(text.slice(a, s)).text)) return;
     if (!HAS_TIME.test(fold(text.slice(e, b)).text)) return;
+    // typed text splits only where the next step opens with its clock: "… rồi 8h tối học tiếng Anh"
+    if (clockFirst && !/^\s*(?:luc\s+)?\d{1,2}\s*(?:h|g|gio|:\d)/.test(fold(text.slice(e, b)).text)) return;
     let s0 = s;
     while (s0 > 0 && text[s0 - 1] === " ") s0--;
     let e0 = e;
@@ -1172,7 +1183,7 @@ const ENGLISH_KEEP = new Set([
 /** A token read as its Vietnamese form: a typed word that decodes to a syllable. Undefined when it stays as typed. */
 function decodedWord(w: string): string | undefined {
   if (MENTION_TOKEN.test(w.toLowerCase())) return undefined;
-  if (ENGLISH_KEEP.has(w.toLowerCase())) return undefined;
+  if (ENGLISH_KEEP.has(w.toLowerCase()) || TELEX_TERMS.has(w.toLowerCase())) return undefined;
   const hasTyped =
     /aa|ee|oo|dd|d9|aw|ow|uw|[1-5]/i.test(w) ||
     (w.length >= 2 &&
@@ -1432,6 +1443,19 @@ export function repair(raw: string, source: ReaderSource): Repaired {
   r = sub(r, /\p{L}\p{M}+/gu, (m) => m[0].normalize("NFC"));
   r = sub(r, /Ð/g, () => "Đ");
   r = sub(r, /ð/g, () => "đ");
+  // 2.5 an English term typed with Telex left on: "ưeb" is web, "mêting" meeting. Typed text only: speech has no keys.
+  if (source !== "voice") {
+    // only the words that change are edits: an untouched word keeps its own offsets
+    const edits: Edit[] = [];
+    for (const m of r.text.matchAll(/(?<![\p{L}\d])\p{L}{3,14}(?![\p{L}\d])/gu)) {
+      const en = untelex(m[0]);
+      if (en === undefined) continue;
+      // a capital stays a capital
+      const text = /^\p{Lu}/u.test(m[0]) ? en[0].toUpperCase() + en.slice(1) : en;
+      edits.push({ start: m.index ?? 0, end: (m.index ?? 0) + m[0].length, text });
+    }
+    if (edits.length) r = splice(r, edits);
+  }
   // 3 punctuation
   r = sub(r, /[‐-―−]/g, () => "-");
   r = sub(r, /[‘’]/g, () => "'");
@@ -1454,8 +1478,15 @@ export function repair(raw: string, source: ReaderSource): Repaired {
   r = sub(r, / {2,}/g, () => " ");
   r = sub(r, / *\n */g, () => "\n");
   r = sub(r, /\n{2,}/g, () => "\n");
+  // "tuần sao", "tuần xau": next week one letter off, typed or heard. Left alone the day is lost and the clock lands today.
+  r = sub(r, /(?<!\p{L})(tuần|tháng) (?:sao|xau|xao|sâu)(?!\p{L})/giu, (m) => `${m[1]} sau`);
+  // a closing "nha" is a particle, not the task: "họp nhóm 8h30 nha". In text typed with no marks at all it is "nhà", and stays.
+  if (/\p{M}/u.test(r.text.normalize("NFD")))
+    r = sub(r, / +nha(?=[ .!]*$)/giu, () => "");
   if (source === "paste") r = chatFillers(mailFillers(r));
   if (source === "voice") r = voiceWords(r);
+  // typed in one go, "đá bóng mai 3h chiều rồi 8h tối học tiếng Anh" is two items too, where the second opens with its clock
+  if (source === "typed") r = runOn(r, true);
   // 5 digits, OCR: typed digits join only with a separator, and a comma after a weekday stays
   r = joinDigits(r, source);
   r = fixOcr(r);

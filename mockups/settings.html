@@ -5,12 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Zen settings</title>
 <link rel="stylesheet" href="ui.css" />
+<style>@keyframes z{to{transform:rotate(360deg)}}</style>
 </head>
 <body>
 <div class="head">
   <h1>Settings</h1>
-  <p>One screen, Vietnamese only. Theme is pills. Campus connects inline (no sheets), keeps its passwords on the phone and syncs on its own. Marks open from campus. Disconnect sits quietly below and opens a dropdown.</p>
-  <nav><a href="capture.html">Capture</a><a href="views.html">Views</a><a href="marks.html">Marks</a></nav>
+  <p>One screen, Vietnamese only. Theme is pills. Online (timetable, exams, marks, fees) and LMS (assignments) are separate sections: each connects inline, keeps its password on the phone and disconnects quietly below. The card is the account; under it, one quiet row per part. The circle on a row asks the campus again; Điểm and Học phí open their own screen when tapped. Nothing calls the campus directly: every refresh, by hand or on a schedule, becomes a job in a small queue on the phone. One job runs at a time with a short pause between requests, a failed one waits and retries on its own, and asking twice for the same thing is one job. The queue survives closing the app and keeps going in the background. The last row is the version; when a newer release is on GitHub it says so and opens the update dialog. Zen checks on launch and on return (at most every six hours) and offers each new version once a run. After an update, the first launch shows what is new, once. The installed version's notes ship inside the app (from CHANGELOG.md), so they need no network; only a newer release's notes come from GitHub.</p>
+  <nav><a href="capture.html">Capture</a><a href="views.html">Views</a><a href="marks.html">Marks</a><a href="fees.html">Fees</a></nav>
 </div>
 <div class="gallery"></div>
 <script src="ui.js"></script>
@@ -18,39 +19,81 @@
 const close = `<span class="o">${ic(I.x, 20)}</span>`;
 const pills = (xs, on) => `<div class="pills" style="margin-top:10px">${xs.map((x) => `<span class="pl sm ${x === on ? "on" : ""}">${x}</span>`).join("")}</div>`;
 const set = (t, right, st = "") => `<div class="set" style="${st}">${t}${right}</div>`;
-// Connect lives inline: the "Kết nối trường" row expands in place into the three fields.
 const fld = (lab, val, err) => `<div class="field ${err ? "err" : ""}" style="margin-top:8px;height:60px;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;padding:0 22px"><span style="font-size:13px;font-weight:500;color:var(--muted)">${lab}</span><span style="${val ? "" : "color:var(--muted);font-weight:400"}">${val || "Nhập vào"}</span></div>${err ? `<div class="errt">${err}</div>` : ""}`;
 const slowt = (t) => `<div class="errt" style="color:var(--muted);font-weight:500">${t}</div>`;
-const form = (f = {}) => `${f.card ? "" : set("Kết nối trường", `<span class="v">${ic(I.down, 16)}</span>`, "border-bottom:none;padding-bottom:4px")}
-  ${f.card ? "" : fld("Mã sinh viên", f.id)}${fld("Mật khẩu Online", f.portal, f.portalErr)}${f.portalSlow ? slowt("Online đang chậm, sẽ tự thử lại") : ""}${fld("Mật khẩu LMS", f.lms, f.lmsErr)}${f.lmsSlow ? slowt("LMS đang chậm, sẽ tự thử lại") : ""}
-  <div class="btn sm" style="margin-top:18px">${f.portalSlow || f.lmsSlow || f.portalErr || f.lmsErr ? "Thử lại" : "Kết nối"}</div>`;
-const card = (state, which, syn = "Cập nhật 07:12, tự đồng bộ") => `<div class="art" style="margin-top:12px;height:132px;padding:16px 18px">${art(state === "err" ? "exam" : "lecture", { w: 264, h: 132, seed: 5, cls: "bgart" })}
-      <div class="lab" style="color:#fff;opacity:.85">Trường</div>
-      <div style="font-size:${state === "err" ? 17 : 20}px;font-weight:600;margin-top:6px;padding-right:50px">${state === "err" ? `Mật khẩu ${which} đã đổi` : "2112345"}</div>
-      <div class="small" style="padding-right:50px;font-size:14px;opacity:.9">${state === "err" ? "Chạm để nhập lại" : syn}</div>
-      <span class="glass" style="position:absolute;right:14px;bottom:14px;width:44px;height:44px">${ic(state === "err" ? I.right : I.sync, 18)}</span></div>`;
-const campus = (state, which) => state === "off" ? set("Kết nối trường", `<span class="v">${ic(I.right, 16)}</span>`)
-  : state === "form" ? form(which)
-  : state === "partial" ? card("on", "", which.sub) + form({ ...which, card: 1 }) + set("Ngắt kết nối", "", "border-bottom:none;color:var(--muted);font-weight:500;font-size:14px")
-  : card(state, which) + (state === "on" ? set("Điểm", `<span class="v" style="color:var(--ink);font-weight:600">3,42</span><span class="o" style="width:30px;height:30px;margin-left:-6px">${ic(I.right, 14)}</span>`, "border-bottom:none") : "")
-    + set("Ngắt kết nối", "", "border-bottom:none;color:var(--muted);font-weight:500;font-size:14px");
-const main = (state, theme = "Hệ thống", which) => `${close}<div class="h" style="margin-top:18px">Cài đặt</div>
+const spin = `<span style="display:flex;animation:z 1s linear infinite">${ic(I.sync, 18)}</span>`;
+// Each account is its own section: Online (green: timetable, exams, marks) and LMS (purple: assignments).
+// Each connects, syncs (tap the card), and disconnects on its own; the student ID is asked only while nothing is connected yet.
+const NAME = { portal: "Online", lms: "LMS" };
+const LAB = { portal: "Online: lịch học, lịch thi, điểm, học phí", lms: "LMS: bài tập" };
+// The card is the account only: who, and whether the campus still takes the password. It no longer syncs; the part rows do.
+const card = (k, err, sub, id) => `<div class="art" style="margin-top:10px;height:104px;padding:14px 18px">${art(err ? "exam" : k === "portal" ? "lecture" : "assignment", { w: 264, h: 104, seed: k === "portal" ? 5 : 2, cls: "bgart" })}
+      <div class="lab" style="color:#fff;opacity:.85">${id}</div>
+      <div style="font-size:${err ? 17 : 20}px;font-weight:600;margin-top:4px;padding-right:50px">${err ? `Mật khẩu ${NAME[k]} đã đổi` : NAME[k]}</div>
+      <div class="small" style="padding-right:50px;font-size:14px;opacity:.9">${err ? "Chạm để nhập lại" : sub}</div>
+      ${err ? `<span class="glass" style="position:absolute;right:14px;bottom:14px;width:44px;height:44px">${ic(I.right, 18)}</span>` : ""}</div>`;
+// A part row: name, its value or when it last came, then a small hairline circle that asks again (enqueues it).
+// Parts with a screen of their own (marks, fees) open it when the row is tapped anywhere but the circle.
+// st: "" idle | run (its job is running: circle turns, a timetable counts weeks) | wait (queued behind another job) | retry (failed, will try again at a time)
+const circ = (st) => `<span class="o" style="width:30px;height:30px;margin-left:-6px">${st === "run" ? spin.replace("18", "14") : ic(I.sync, 14)}</span>`;
+const STV = { run: "Đang cập nhật…", wait: "Đang chờ" };
+const part = (lab, val, st = "", o = {}) => set(lab,
+  `<span class="v" style="${st ? "" : o.ink ? "color:var(--ink);font-weight:600" : o.red ? "color:var(--seal);font-weight:600" : ""}">${st === "retry" ? `Thử lại lúc ${o.at}` : STV[st] ? (o.n ? `${STV[st].replace("…", "")} ${o.n}` : STV[st]) : val}</span>${circ(st)}`,
+  `padding:13px 0;font-size:16px${o.last ? ";border-bottom:none" : ""}`);
+// st: off | form | on | err. o: { id (ask for it), pw, pwErr, slow, sub, parts: { tt, ex, mk, fe, as } part states, fee (owed), n (timetable progress), at (retry time) }
+const sec = (k, st, o = {}) => {
+  const head = `<div class="lab" style="margin-top:26px">${LAB[k]}</div>`;
+  const open = st === "form";
+  if (st === "off" || open) {
+    return head + set(o.change ? "Đổi mật khẩu" : `Kết nối ${NAME[k]}`, `<span class="v">${ic(open ? I.down : I.right, 16)}</span>`, open ? "border-bottom:none;padding-bottom:4px" : "")
+      + (open ? (o.id === undefined ? "" : fld("Mã sinh viên", o.id)) + fld(`Mật khẩu ${NAME[k]}`, o.pw, o.pwErr) + (o.slow ? slowt(`${NAME[k]} đang chậm, sẽ tự thử lại`) : "")
+        + `<div class="btn sm" style="margin-top:18px">${o.slow || o.pwErr ? "Thử lại" : "Kết nối"}</div>` : "");
+  }
+  const err = st === "err", p = o.parts ?? {};
+  const rows = err ? "" : k === "portal"
+    ? part("Lịch học", "T2 9/11", p.tt, { n: o.n, at: o.at }) + part("Lịch thi", "Hôm qua", p.ex, { at: o.at }) + part("Điểm", "3,42", p.mk, { ink: 1, go: 1 })
+      + part("Học phí", o.fee ? `Còn ${o.fee}` : "Đã đóng đủ", p.fe, { red: !!o.fee, go: 1, last: 1 })
+    : part("Bài tập", "07:09", p.as, { last: 1 });
+  return head + card(k, err, o.sub || "Đã kết nối", "2112345") + rows
+    + `<div style="display:flex;gap:22px;padding:14px 0 17px;font-size:14px;font-weight:500"><span style="color:var(--muted)">Đổi mật khẩu</span><span style="color:var(--seal)">Ngắt ${NAME[k]}</span></div>`;
+};
+// First connect: one row opens the student ID and both passwords together.
+const first = (f = {}) => `<div class="lab" style="margin-top:26px">Trường</div>` + set("Kết nối trường", `<span class="v">${ic(f.open ? I.down : I.right, 16)}</span>`, f.open ? "border-bottom:none;padding-bottom:4px" : "")
+  + (f.open ? fld("Mã sinh viên", f.id) + fld("Mật khẩu Online", f.pw, f.pwErr) + (f.slow ? slowt("Online đang chậm, sẽ tự thử lại") : "") + fld("Mật khẩu LMS", f.lms, f.lmsErr)
+    + `<div class="btn sm" style="margin-top:18px">${f.slow || f.pwErr || f.lmsErr ? "Thử lại" : "Kết nối"}</div>` : "");
+// Last row: the installed version and build hash; an available update turns it vermilion.
+const ver = (up) => set("Phiên bản", `<span class="v" style="${up ? "color:var(--seal);font-weight:600" : ""}">${up ? `Có bản ${up}` : "26.0.0 · a1b2c3d"}</span>`);
+// The release notes are the GitHub release body (CHANGELOG.md's section), one line per bullet.
+const NOTES = ["Tự cập nhật bản mới từ GitHub", "Cài đặt hiện phiên bản đang dùng"];
+const dlg = (lab, v, btn, ghost) => `<div class="dscrim"></div><div class="dlg"><div class="lab">${lab}</div><div class="h">Zen ${v}</div><ul>${NOTES.map((n) => `<li>${n}</li>`).join("")}</ul><div class="btn sm">${btn}</div>${ghost ? `<div class="ghost">${ghost}</div>` : ""}</div>`;
+const main = (p, l, theme = "Hệ thống", extra = "", up = "") => `${close}<div class="h" style="margin-top:18px">Cài đặt</div>
   <div class="lab" style="margin-top:28px">Giao diện</div>${pills(["Hệ thống", "Sáng", "Tối"], theme)}
-  <div class="lab" style="margin-top:26px">Trường</div>${campus(state, which)}
-  ${state === "form" || state === "partial" || state === "on" || state === "err" ? "" : set("Chia sẻ số liệu ẩn danh", '<span class="tog"></span>') + set("Báo lỗi", `<span class="v">${ic(I.right, 16)}</span>`)}`;
-const FULL = { id: "2112345", portal: "••••••••", lms: "••••••" };
+  ${p}${l}${extra}${ver(up)}`;
+const toggles = set("Chia sẻ số liệu ẩn danh", '<span class="tog"></span>') + set("Báo lỗi", `<span class="v">${ic(I.right, 16)}</span>`);
 mount([
-  { tag: "Not connected", sub: "Theme as pills (no language option: Vietnamese only); picking one sweeps the new theme in as a circle growing from the tap. Campus one row. Tap it and the fields open in place.", html: chrome(main("off"), { dock: null }) },
-  { tag: "Connect", sub: "Inline, no sheet: the row expands into student ID, portal password and LMS password.", html: chrome(main("form"), { dock: null }) },
-  { tag: "Wrong portal password", sub: "Says which one: the portal field turns red with its own message. LMS untouched.", html: chrome(main("form", "Hệ thống", { ...FULL, portalErr: "Sai mật khẩu Online" }), { dock: null }) },
-  { tag: "Wrong LMS password", sub: "Same for the LMS field.", html: chrome(main("form", "Hệ thống", { ...FULL, lmsErr: "Sai mật khẩu LMS" }), { dock: null }) },
-  { tag: "Portal slow, LMS connected", sub: "Each account is checked on its own: LMS connects, the portal shows its own neutral note and retries.", html: chrome(main("partial", "Hệ thống", { ...FULL, sub: "LMS đã kết nối", portalSlow: 1 }), { dock: null }) },
-  { tag: "LMS slow, portal connected", sub: "Same the other way round: the portal connects, the LMS field carries the neutral note.", html: chrome(main("partial", "Hệ thống", { ...FULL, sub: "Online đã kết nối", lmsSlow: 1 }), { dock: null }) },
-  { tag: "Connected", sub: "Campus becomes an art card with last sync; marks open below. The disconnect row has no divider above it.", html: chrome(main("on"), { dock: null }) },
-  { tag: "Disconnect menu", sub: "Tap Ngắt kết nối: a dropdown with three choices, the last in red. No sheet, no confirm.", html: chrome(main("on") + menu([["Ngắt LMS"], ["Ngắt Online"], ["Ngắt cả hai", "", 1]], 334, 18), { dock: null }) },
-  { tag: "Disconnected", sub: "Back to Not connected. A short note, no Undo; connecting again brings the timetable back.", html: chrome(toast("Đã ngắt kết nối", "Mật khẩu đã xoá khỏi máy", []) + main("off"), { dock: null }) },
-  { tag: "Login changed, portal", sub: "The card turns exam red and names the account that changed. Tap to fix.", dark: true, html: chrome(main("err", "Tối", "Online"), { dock: null }) },
-  { tag: "Login changed, LMS", sub: "Same card when only the LMS password changed.", dark: true, html: chrome(main("err", "Tối", "LMS"), { dock: null }) },
+  { tag: "Not connected", sub: "Nothing connected yet: one row, as before.", html: chrome(main(first(), "", "Hệ thống", toggles), { dock: null }) },
+  { tag: "Connect", sub: "One student ID and two password fields, Online and LMS. A blank one is simply not connected.", html: chrome(main(first({ open: 1, id: "2112345", pw: "••••••••", lms: "••••••" }), ""), { dock: null }) },
+  { tag: "Wrong Online password", sub: "The field turns red with its own message; LMS is untouched.", html: chrome(main(first({ open: 1, id: "2112345", pw: "••••••••", lms: "••••••", pwErr: "Sai mật khẩu Online" }), ""), { dock: null }) },
+  { tag: "Wrong LMS password", sub: "Same for the LMS field.", html: chrome(main(first({ open: 1, id: "2112345", pw: "••••••••", lms: "••••••", lmsErr: "Sai mật khẩu LMS" }), ""), { dock: null }) },
+  { tag: "Online slow", sub: "A neutral note and a retry; nothing is blamed on the password.", html: chrome(main(first({ open: 1, id: "2112345", pw: "••••••••", lms: "••••••", slow: 1 }), ""), { dock: null }) },
+  { tag: "Connected, both", sub: "Online (green) and LMS (purple) are the accounts; the rows under each are what they bring. Each row says when it last came, or its value; its circle asks again for just that part. Tapping Điểm or Học phí opens the marks or fees screen; their circle still refreshes. On its own Zen asks rarely: assignments once a day, the timetable once a term, exams daily in exam months (Oct-Nov, Mar-Apr, Jun-Jul), marks daily from a week after the first exam to the end of Jan, Jun or Jul.", html: chrome(main(sec("portal", "on"), sec("lms", "on")), { dock: null }) },
+  { tag: "Refreshing one part", sub: "Tap the circle on Lịch thi: one job joins the queue and starts. Its circle turns and its line reads Đang cập nhật…; the other rows stay as they are. Done, the line shows the time again.", html: chrome(main(sec("portal", "on", { parts: { ex: "run" } }), sec("lms", "on")), { dock: null }) },
+  { tag: "Queued", sub: "Tap several circles: they line up. The timetable is one job per week, so its line counts them (5/22); the parts behind it read Đang chờ and start in turn. Tapping a part that is already waiting adds nothing.", html: chrome(main(sec("portal", "on", { parts: { tt: "run", mk: "wait" }, n: "5/22" }), sec("lms", "on", { parts: { as: "wait" } })), { dock: null }) },
+  { tag: "Waiting to retry", sub: "A job the campus did not answer (a timeout, a server error) waits and tries again by itself: a minute, then five, then longer, up to a few hours. The row says when; other parts and other weeks go on meanwhile, and the stored data stays. A wrong password stops that account's jobs until it is typed again, so it is never locked out.", html: chrome(main(sec("portal", "on", { parts: { ex: "retry" }, at: "14:35" }), sec("lms", "on")), { dock: null }) },
+  { tag: "Fees owed", sub: "Học phí reads what is left, in vermilion; paid in full it reads Đã đóng đủ. The row opens the fees screen with every term's table and the pay button. Zen asks once on the 15th of Oct, Mar and Jun after noon, when fees are billed, and again when you come back from paying.", html: chrome(main(sec("portal", "on", { fee: "1.590.000 đ" }), sec("lms", "on")), { dock: null }) },
+  { tag: "Online only", sub: "Once one account is in, the other is offered as its own Kết nối LMS row under a section of its own.", html: chrome(main(sec("portal", "on"), sec("lms", "off")), { dock: null }) },
+  { tag: "Change password", sub: "A connected account can have its password updated: Đổi mật khẩu sits beside Ngắt, and opens just that account's field. The ID and the other account are kept.", html: chrome(main(sec("portal", "on"), sec("lms", "form", { pw: "••••••", change: 1 })), { dock: null }) },
+  { tag: "Add LMS", sub: "Only the LMS password; the ID and the Online account are kept.", html: chrome(main(sec("portal", "on"), sec("lms", "form", { pw: "••••••" })), { dock: null }) },
+  { tag: "LMS only", sub: "The reverse: assignments only, and the Online section offers to connect.", html: chrome(main(sec("portal", "off"), sec("lms", "on")), { dock: null }) },
+  { tag: "Disconnected", sub: "Ngắt LMS removes just that account and its assignments. A short note, no Undo, no confirm.", html: chrome(toast("Đã ngắt LMS", "Mật khẩu đã xoá khỏi máy", []) + main(sec("portal", "on"), sec("lms", "off")), { dock: null }) },
+  { tag: "Login changed, Online", sub: "Only that account's card turns exam red and names it; the other stays as it was. Tap to fix.", dark: true, html: chrome(main(sec("portal", "err"), sec("lms", "on"), "Tối"), { dock: null }) },
+  { tag: "Login changed, LMS", sub: "Same card when only the LMS password changed.", dark: true, html: chrome(main(sec("portal", "on"), sec("lms", "err"), "Tối"), { dock: null }) },
+  { tag: "Version", sub: "The last row: version and build hash, read from the app itself. Tapping it shows that version's notes.", html: chrome(main(sec("portal", "on"), sec("lms", "on")), { dock: null }) },
+  { tag: "Update available", sub: "A newer release is on GitHub: the row names it in vermilion and opens the dialog below.", html: chrome(main(sec("portal", "on"), sec("lms", "on"), "Hệ thống", "", "26.1.0"), { dock: null }) },
+  { tag: "Update, Android", sub: "Shown once a run when Zen finds it, over whatever screen is open, and from the row. Cập nhật downloads the APK and hands it to Android's installer, which asks to confirm. Để sau closes it until the next launch.", html: chrome(dlg("Bản mới", "26.1.0", "Cập nhật", "Để sau") + main(sec("portal", "on"), sec("lms", "on"), "Hệ thống", "", "26.1.0"), { dock: null }) },
+  { tag: "Downloading", sub: "The button counts the download; the dialog stays until the installer opens. If the download fails, the release page opens in the browser instead.", html: chrome(dlg("Bản mới", "26.1.0", "Đang tải 42%") + main(sec("portal", "on"), sec("lms", "on"), "Hệ thống", "", "26.1.0"), { dock: null }) },
+  { tag: "Update, iPhone", sub: "The .ipa is unsigned, so SideStore installs it: the button opens SideStore with the file's link and it re-signs on the phone.", html: chrome(dlg("Bản mới", "26.1.0", "Cài qua SideStore", "Để sau") + main(sec("portal", "on"), sec("lms", "on"), "Hệ thống", "", "26.1.0"), { dock: null }) },
+  { tag: "What's new", sub: "The first launch after an update shows that release's notes, once. A fresh install shows nothing. The notes ship inside the app, so this works offline.", html: chrome(dlg("Có gì mới", "26.1.0", "Đã hiểu") + main(sec("portal", "on"), sec("lms", "on")), { dock: null }) },
 ]);
 </script>
 </body>

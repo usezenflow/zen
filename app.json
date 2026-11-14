@@ -2,13 +2,16 @@
   "expo": {
     "name": "Zen",
     "slug": "zen",
-    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "zen",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "bundleIdentifier": "com.anonymous.zen",
+      "bundleIdentifier": "com.alpha.zen",
+      "icon": {
+        "light": "./assets/images/icon.png",
+        "dark": "./assets/images/icon-dark.png"
+      },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -22,9 +25,10 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.REQUEST_INSTALL_PACKAGES"
       ],
-      "package": "com.anonymous.zen"
+      "package": "com.alpha.zen"
     },
     "web": {
       "output": "server",
@@ -64,13 +68,6 @@
         }
       ],
       [
-        "expo-calendar",
-        {
-          "calendarPermission": "Zen đọc lịch trên máy để tránh xếp việc trùng giờ và hiện ngày lễ.",
-          "remindersPermission": "Zen không dùng Lời nhắc."
-        }
-      ],
-      [
         "expo-font",
         {
           "fonts": [
@@ -84,6 +81,8 @@
         }
       ],
       "./plugins/with-widget-fonts",
+      "./plugins/with-lms-ca",
+      "./plugins/with-release-signing",
       [
         "expo-widgets",
         {
@@ -130,6 +129,26 @@
               }
             },
             {
+              "name": "ZenScan",
+              "displayName": "Chụp",
+              "description": "Mở Zen với camera, chụp thông báo hay lịch thi",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall"
+                ],
+                "contentMarginsDisabled": true,
+                "initialLayout": "src/widgets/ZenScan.ios.tsx"
+              },
+              "android": {
+                "targetCellWidth": 2,
+                "targetCellHeight": 2,
+                "minWidth": 110,
+                "minHeight": 110,
+                "resizeMode": "none",
+                "initialLayout": "src/widgets/ZenScan.android.tsx"
+              }
+            },
+            {
               "name": "ZenExam",
               "displayName": "Sắp thi",
               "description": "Đếm ngày đến kỳ thi gần nhất",
@@ -155,8 +174,7 @@
               "description": "Việc hôm nay, đánh dấu xong ngay trên màn hình chính",
               "ios": {
                 "supportedFamilies": [
-                  "systemMedium",
-                  "systemLarge"
+                  "systemMedium"
                 ],
                 "contentMarginsDisabled": true,
                 "initialLayout": "src/widgets/ZenToday.ios.tsx"

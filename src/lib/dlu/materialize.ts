@@ -5,16 +5,15 @@ import { when } from "../when";
 import type { ParsedMarks } from "./parse/student";
 import { sanitizeNoteHtml } from "../nlu/shared/note-html";
 import type { Fetched } from "./client";
-import { preps } from "../../planner/prep";
+import { PREP_SITTING, preps, workOf } from "../../planner/prep";
 import { lmsCoverageEnd } from "./season";
 
-const ASSIGN_EFFORT = 45; // minutes; the planner resizes
-const ASSIGN_SITTING = 45;
+const UNSIZED = 45; // minutes every assignment got before it was sized by its work and the marks
 
 const idOf = (key: string) => `dlu:${key}`;
 const sourceOf = (key: string) => (key.startsWith("lms:") ? "lms" : "portal");
 
-function fromItem(i: Fetched[number], now: number): Task {
+function fromItem(i: Fetched[number], now: number, mult: (title: string) => number): Task {
   const start = i.scheduledStartTime.getTime();
   const content = sanitizeNoteHtml(i.description);
   const base = {
@@ -23,7 +22,9 @@ function fromItem(i: Fetched[number], now: number): Task {
     ...(i.teacher ? { teacher: i.teacher } : {}), ...(i.lmsCourse ? { course: i.lmsCourse.fullName } : {}),
     ...(i.url ? { url: i.url } : {}), ...(content ? { content } : {}), kind: "study" as const, source: "dlu" as const, upstreamKey: i.externalKey, createdAt: now };
   if (i.type === "PLAN") {
-    return { ...base, effort: ASSIGN_EFFORT, maxSitting: ASSIGN_SITTING, deadline: start, ...(i.submitted ? { doneAt: now } : {}) };
+    // Sized like an exam prep: by what the title and content ask for, and by the marks of the course.
+    const { effort } = workOf(`${i.title} ${(i.description ?? "").replace(/<[^>]*>/g, " ")}`, mult(`${i.lmsCourse?.fullName ?? ""} ${i.title}`));
+    return { ...base, effort, maxSitting: PREP_SITTING, deadline: start, ...(i.submitted ? { doneAt: now } : {}) };
   }
   const end = start + i.durationMinutes * 60_000;
   return { ...base, effort: i.durationMinutes, fixed: i.type === "EXAM" ? "exam" : "lecture", start, end, ...(i.type === "EXAM" ? { deadline: start, ...(i.examFormat ? { format: i.examFormat } : {}) } : {}) };
@@ -54,6 +55,7 @@ function merge(old: Task, next: Task): Task {
     set("end", next.end);
     set("effort", next.effort);
   }
+  if (!next.fixed && old.effort === UNSIZED) set("effort", next.effort); // stored before sizing: still one sitting, so nothing to resplit
   if (next.doneAt && !old.doneAt) set("doneAt", next.doneAt);
   if (old.deletedAt && !old.userEdited?.length) out.deletedAt = undefined;
   return out;
@@ -72,12 +74,18 @@ function syncKids(parent: Task, tasks: Task[]): Task[] {
 const same = (a: Task, b: Task) => JSON.stringify(a) === JSON.stringify(b);
 
 /** What a sync changed that the student cares about. `timetable`: a new semester's lecture count and first start. */
-export interface Digest { exams: Task[]; assignments: Task[]; rooms: Task[]; timetable?: { n: number; first: number } }
+export interface Digest { exams: Task[]; assignments: Task[]; rooms: Task[]; timetable?: { n: number; first: number }; lectures?: number[] }
 
 /** One notice per kind of change; marks come from `marksNotice`. */
 export function digestNotices(d: Digest, now: number): Notice[] {
   const out: Notice[] = [];
   if (d.timetable) out.push({ title: t("noticeTimetable"), sub: t("noticeTimetableSub", { n: d.timetable.n }), route: `day:${d.timetable.first}` });
+  // Three or more item changes are one notice (views.html "Campus, many changes"), so a busy sync never floods the lock screen.
+  const many = [...d.exams, ...d.assignments, ...d.rooms];
+  if (many.length >= 3) {
+    out.push({ title: t("noticeMany", { n: many.length }), sub: `${many.slice(0, 2).map((x) => x.title).join(", ")} +${many.length - 2}` });
+    return out;
+  }
   for (const x of d.exams) out.push({ title: t("noticeExam", { title: x.title }), sub: when(x.start!, now), route: `/task/${x.id}` });
   for (const x of d.assignments) out.push({ title: t("noticeAssignment", { title: x.title }), sub: t("due", { time: when(x.deadline!, now) }), route: `/task/${x.id}` });
   for (const x of d.rooms) out.push({ title: t("noticeRoom", { title: x.title }), sub: t("noticeRoomSub", { room: x.location! }), route: `/task/${x.id}` });
@@ -96,7 +104,7 @@ export function marksNotice(prev: ParsedMarks | null, next: ParsedMarks | null):
  * deletes are ids of future upstream tasks that disappeared from a source that fetched cleanly
  * (caller soft-deletes them).
  */
-export function materialize(items: Fetched, tasks: Task[], now = Date.now(), weak = 0.5, gone: Gone = { sections: {}, series: {} }): { upserts: Task[]; deletes: string[]; digest: Digest } {
+export function materialize(items: Fetched, tasks: Task[], now = Date.now(), mult: (title: string) => number = () => 1, gone: Gone = { sections: {}, series: {} }): { upserts: Task[]; deletes: string[]; digest: Digest } {
   // Sittings copy their parent's upstreamKey; only the parent stands for the upstream item.
   const byKey = new Map(tasks.filter((t) => t.upstreamKey && !t.parentId).map((t) => [t.upstreamKey!, t]));
   const seen = new Set<string>();
@@ -107,7 +115,7 @@ export function materialize(items: Fetched, tasks: Task[], now = Date.now(), wea
 
   for (const i of items) {
     seen.add(i.externalKey);
-    const next = fromItem(i, now);
+    const next = fromItem(i, now, mult);
     const old = byKey.get(i.externalKey);
     if (!old) {
       const cut = next.section !== undefined ? gone.sections[next.section] : undefined;
@@ -126,17 +134,20 @@ export function materialize(items: Fetched, tasks: Task[], now = Date.now(), wea
   }
 
   const failed = new Set(items.failed);
+  const skipped = (key: string) => (items.skipped ?? []).some((p) => key.startsWith(`${p}:`));
+  const outside = (key: string, at: number) => !!items.window && key.startsWith("portal:lecture:") && (at < items.window[0] || at >= items.window[1]);
   const lmsEnd = lmsCoverageEnd(now);
   const deletes = tasks
     .filter((t) => {
       const key = t.upstreamKey;
-      if (!key || t.source !== "dlu" || t.deletedAt || t.doneAt || seen.has(key) || failed.has(sourceOf(key))) return false;
+      if (!key || t.source !== "dlu" || t.deletedAt || t.doneAt || seen.has(key) || failed.has(sourceOf(key)) || skipped(key)) return false;
       const at = t.start ?? t.deadline;
-      // Past items drop out of the feed by design; LMS only covers this and next month.
-      return at !== undefined && at > now && (sourceOf(key) !== "lms" || at < lmsEnd);
+      // Past items drop out of the feed by design; LMS covers the months in LMS_MONTHS.
+      return at !== undefined && at > now && !outside(key, at) && (sourceOf(key) !== "lms" || at < lmsEnd);
     })
     .map((t) => t.id);
 
+  digest.lectures = lectures; // the queue sums them across one term's week jobs
   if (!hadTimetable && lectures.length >= 3) digest.timetable = { n: lectures.length, first: Math.min(...lectures) };
 
   // Preps follow their exam: added when it appears, resized when it moves, dropped when it goes.
@@ -148,11 +159,15 @@ export function materialize(items: Fetched, tasks: Task[], now = Date.now(), wea
   for (const e of exams.values()) {
     const old = prepOf.get(`prep:${e.id}`);
     const live = !e.deletedAt && !dropped.has(e.id) && e.start! > now;
-    const [want] = live ? preps(e, weak) : [];
+    const [want] = live ? preps(e, mult(e.title)) : [];
     if (want && !old) upserts.push(want);
-    else if (want && old && !old.deletedAt && !old.doneAt && (old.deadline !== want.deadline || old.effort !== want.effort || old.forId !== want.forId)) {
-      upserts.push({ ...old, deadline: want.deadline, effort: want.effort, title: want.title, vec: titleVec(want.title), forId: want.forId });
+    else if (want && old && !old.deletedAt && !old.doneAt) {
+      const title = old.userEdited?.includes("title") ? old.title : want.title; // a name the student gave stays
+      if (old.deadline === want.deadline && old.effort === want.effort && old.forId === want.forId && old.course === want.course && old.title === title) continue;
+      const next = { ...old, deadline: want.deadline, effort: want.effort, title, vec: titleVec(title), forId: want.forId, course: want.course };
+      upserts.push(next);
       if (old.deadline !== want.deadline || old.effort !== want.effort) deletes.push(...kids(old.id)); // resplit at the new size
+      else upserts.push(...syncKids(next, tasks)); // renamed only: open sittings follow
     } else if (!want && old && !old.deletedAt && !old.doneAt && (e.deletedAt || dropped.has(e.id))) {
       deletes.push(old.id, ...kids(old.id));
     }

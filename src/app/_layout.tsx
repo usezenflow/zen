@@ -1,6 +1,7 @@
-import { Stack } from "expo-router";
+import "@/lib/matchall"; // first: Hermes matchAll loses named groups, fixed before any reader code runs
+import { router, Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { Appearance, useColorScheme } from "react-native";
+import { Appearance, Linking, useColorScheme } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -8,6 +9,8 @@ import { kvGet } from "@/lib/store";
 import * as Notifications from "expo-notifications";
 import { askReminders, pushReminders } from "@/lib/reminders";
 import { setupBackground } from "@/lib/sync";
+import { feedTaps } from "@/components/outside";
+import { UpdatePrompt } from "@/components/update";
 
 setupBackground();
 // Show reminders and campus notices while the app is open too.
@@ -23,9 +26,17 @@ export default function Layout() {
     kvGet("theme").then((m) => { if (m === "light" || m === "dark") Appearance.setColorScheme(m); }).finally(() => { setReady(true); SplashScreen.hide(); });
     askReminders().then(pushReminders).catch(() => {});
   }, []);
+  // A tapped notice opens what it names: a web page (fees: the pay page) or a screen.
+  const tapped = Notifications.useLastNotificationResponse();
+  useEffect(() => {
+    const route = tapped?.notification.request.content.data?.route;
+    if (!ready || typeof route !== "string") return;
+    if (route.startsWith("https://")) Linking.openURL(route).catch(() => {});
+    else if (route.startsWith("/")) router.push(route as "/marks");
+  }, [tapped, ready]);
   // Rows, day pull and week swipe use gesture-handler, which needs this root.
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1 }} {...feedTaps}>
       <StatusBar style={dark ? "light" : "dark"} />
       {ready ? (
         <Stack screenOptions={{ headerShown: false, statusBarStyle: dark ? "light" : "dark" }}>
@@ -33,6 +44,7 @@ export default function Layout() {
           <Stack.Screen name="settings" options={{ presentation: "modal" }} />
         </Stack>
       ) : null}
+      {ready && <UpdatePrompt />}
     </GestureHandlerRootView>
   );
 }

@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import type { Task } from "../types";
 import { readFull } from "./adapt";
-import { affinityOf, calendarOf, committedRows, vocab } from "./context";
+import { affinityOf, calendarOf, committedRows, prepMult, vocab } from "./context";
 
 const at = (iso: string) => new Date(iso).getTime();
 const task = (x: Partial<Task>): Task => ({ id: "t", title: "T", kind: "study", source: "dlu", effort: 0, createdAt: 0, ...x });
@@ -41,6 +41,15 @@ it("weights prep by the marks: low and failed read above 1, high below, unknown 
     { curriculumName: "Triết", score10: 7.5, passed: true },
   ]);
   expect([...m]).toEqual([["giai tich", 1.6], ["vat ly", 1.25], ["lap trinh", 0.75]]);
+});
+
+it("sizes exam prep by the course's own mark, else by the overall level", () => {
+  const mark = (curriculumName: string, score10: number, letter: string) => ({ curriculumName, score10, letter, passed: score10 >= 5 }) as never;
+  const mult = prepMult({ marks: [mark("Kiểm thử phần mềm", 4, "F"), mark("Triết", 9, "A")], gpa4: 3 });
+  expect(mult("Kiểm thử phần mềm")).toBe(1.6); // failed before
+  expect(mult("Triết học")).toBe(0.75); // names a course with a high mark
+  expect(mult("Giải tích")).toBeCloseTo(0.75 + 0.5 * (0.5 * 0.25 + 0.5 * 0.5)); // no mark of its own: gpa 3, half the courses D or F
+  expect(prepMult(null)("Toán")).toBe(1);
 });
 
 it("keeps committed rows newest first, capped, for the prior (1.10)", () => {

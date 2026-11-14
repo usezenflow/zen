@@ -21,7 +21,7 @@ export interface Task {
   url?: string; // LMS link, upstream-owned
   content?: string; // LMS assignment description, sanitized HTML, upstream-owned
   forId?: string; // prep: the exam it prepares for
-  format?: string; // exam format; a report gets no preps
+  format?: string; // exam format; names what its prep does
   maxSitting?: number; // longest sitting in minutes when split
   deadline?: number;
   notBefore?: number;
@@ -57,7 +57,7 @@ export interface Action {
   effortMinutes?: number;
   deadline?: string; // ISO
   repeat?: string; // rrule
-  note?: string; // edit: the task's note
+  note?: string; // the task's note: create sets it, edit replaces it
   kind?: Kind;
   fixed?: Fixed; // an exact said time ("6 giờ chiều thứ 4 đi gym"): a busy block at `when`, never a flexible plan
   notAfter?: string; // ISO; end of a said part of day or day, for a flexible plan
@@ -100,7 +100,7 @@ export type ReasonKey =
 export interface Reason { key: ReasonKey; w: number; vars?: Record<string, string | number> }
 
 /** One accepted solver move, for the narrated "thinking" lines. */
-export interface Step { key: "read" | "place" | "move" | "lighten" | "swap" | "chain" | "rule" | "missed"; vars: Record<string, string | number> }
+export interface Step { key: "read" | "place" | "move" | "lighten" | "swap" | "chain" | "rule" | "missed"; vars: Record<string, string | number>; id?: string } // id: the task a place or move line is about
 
 /** A deadline the plan cannot meet in free time; fixes push one other flexible task past the deadline. */
 export interface Warn { id: string; title: string; deadline: number; need: number; free: number; fixes: { id: string; title: string; start: number }[] } // need/free in minutes

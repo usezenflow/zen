@@ -1,7 +1,7 @@
 // What the app knows that the reader is not told by the text: the timetable, habits per title, marks. Pure, so each is testable.
-import type { ParsedMark } from "../dlu/parse/student";
+import { weak, type ParsedMark, type ParsedMarks } from "../dlu/parse/student";
 import type { Task } from "../types";
-import type { Committed } from "./reader/assemble";
+import { affinityOf as courseMult, type Committed } from "./reader/assemble";
 import { fold } from "./reader/fold";
 import type { CalDay } from "./reader/daypick";
 import type { ReaderItem } from "./shared";
@@ -34,6 +34,12 @@ export function affinityOf(marks: Pick<ParsedMark, "curriculumName" | "score10" 
     if (key && mult !== 1) out.set(key, mult);
   }
   return out;
+}
+
+/** Exam prep length multiplier for a course title: its own past mark when the marks name it, else the student's overall level (0.75 strong to 1.25 weak, 1 with no marks). */
+export function prepMult(m: Pick<ParsedMarks, "marks" | "gpa4"> | null | undefined): (title: string) => number {
+  const own = affinityOf(m?.marks ?? []), overall = 0.75 + 0.5 * weak(m);
+  return (title) => { const c = courseMult(own, title); return c === 1 ? overall : c; };
 }
 
 const KEEP = 300;

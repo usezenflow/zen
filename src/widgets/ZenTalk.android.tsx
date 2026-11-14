@@ -56,7 +56,7 @@ function ZenTalk(p: WidgetData, env: WidgetEnvironment) {
         <Row verticalAlignment="center" modifiers={[fillMaxWidth()]}>
           {logo(c.ink)}
           <Box contentAlignment="centerEnd" modifiers={[fillMaxWidth()]}>
-            <Text color={c.muted} maxLines={1} style={{ fontSize: 15 }}>Zen</Text>
+            <Text color={c.muted} maxLines={1} style={{ fontSize: 14.4 }}>Zen</Text>
           </Box>
         </Row>
         <Box contentAlignment="bottomCenter" modifiers={[fillMaxSize()]}>

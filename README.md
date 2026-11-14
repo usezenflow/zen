@@ -1,6 +1,6 @@
 # Zen
 
-A local-first planner for students: day, week and month views and one hold-to-speak button. Speech goes through the system recognizer (on the phone when Vietnamese is installed); understanding and planning are rules and a small bandit on the phone; the phone calendar is the calendar. Decision: [ADR-0001](docs/adr/0001-local-first.md).
+A local-first planner for students: day, week and month views and one hold-to-speak button. Speech goes through the system recognizer (on the phone when Vietnamese is installed); understanding and planning are rules and a small bandit on the phone. Decision: [ADR-0001](docs/adr/0001-local-first.md).
 
 ## Run
 
@@ -18,7 +18,7 @@ No models to download. See [docs/mind.md](docs/mind.md).
 | Path | What |
 | --- | --- |
 | `src/app` | the card screen and settings |
-| `src/lib` | store (SQLite), ears (system speech recognizer), apply, calendar, rules, stats, sync |
+| `src/lib` | store (SQLite), ears (system speech recognizer), apply, rules, stats, sync |
 | `src/lib/nlu` | rule reader, voice commands, title vectors |
 | `src/lib/dlu` | campus portal and LMS client, parsers, materialize, background sync |
 | `src/planner` | LinUCB, features, habits, placement, policy, simulator |

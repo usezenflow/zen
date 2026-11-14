@@ -49,6 +49,17 @@ describe("materialize", () => {
     expect(t).toMatchObject({ title: "Mới", start: NOW + D, effort: 90 });
   });
 
+  it("sizes an assignment by what it asks for and the marks of its course", () => {
+    const size = (over: Partial<Fetched[number]>, mult?: (title: string) => number) => materialize([assign(over)] as Fetched, [], NOW, mult).upserts[0];
+    expect(size({})).toMatchObject({ title: "Bài tập", effort: 135, maxSitting: 45 });
+    expect(size({ description: "<p>Nộp <b>báo cáo</b> toàn văn</p>" }).effort).toBe(180);
+    expect(size({ title: "Bài thực hành 3", lmsCourse: { lmsCourseId: 1, fullName: "Lập trình Web", shortName: null } }, (t) => (t.includes("Lập trình Web") ? 1.6 : 1)).effort).toBe(180);
+  });
+  it("sizes an assignment stored at the old 45 minutes, unless the student set its length", () => {
+    const old = { ...stored(assign()), effort: 45 };
+    expect(materialize([assign()] as Fetched, [old], NOW).upserts[0].effort).toBe(135);
+    expect(materialize([assign()] as Fetched, [{ ...old, userEdited: ["effort"] }], NOW).upserts).toEqual([]);
+  });
   it("updates the parent, not a sitting, and carries upstream changes to open sittings", () => {
     const parent = stored(assign());
     const kid = (id: string, over: Partial<Task> = {}): Task => ({ ...parent, id, parentId: parent.id, start: NOW + D, end: NOW + D + H, ...over });
@@ -79,8 +90,8 @@ describe("materialize", () => {
     expect(materialize(items, [gone], NOW).deletes).toEqual([]);
   });
 
-  it("does not delete LMS tasks beyond next month", () => {
-    const far = stored(assign({ scheduledStartTime: new Date(NOW + 90 * D) }));
+  it("does not delete LMS tasks beyond the fetched months", () => {
+    const far = stored(assign({ scheduledStartTime: new Date(NOW + 150 * D) }));
     expect(materialize([] as unknown as Fetched, [far], NOW).deletes).toEqual([]);
   });
 
@@ -122,8 +133,8 @@ describe("materialize", () => {
   it("does not re-import meetings of a deleted section, or of its tail", () => {
     const items = [lecture(), lecture("portal:lecture:S1:2026-09-10:1", NOW + 9 * D)].map((i) => ({ ...i, scheduleStudyUnitId: "S1" })) as Fetched;
     const gone = (cut: number) => ({ sections: { S1: cut }, series: {} });
-    expect(materialize(items, [], NOW, 0.5, gone(0)).upserts).toEqual([]);
-    expect(materialize(items, [], NOW, 0.5, gone(NOW + 5 * D)).upserts.map((t) => t.upstreamKey)).toEqual(["portal:lecture:S1:2026-09-03:1"]);
+    expect(materialize(items, [], NOW, undefined, gone(0)).upserts).toEqual([]);
+    expect(materialize(items, [], NOW, undefined, gone(NOW + 5 * D)).upserts.map((t) => t.upstreamKey)).toEqual(["portal:lecture:S1:2026-09-03:1"]);
   });
 
   it("digests new exams and assignments", () => {
@@ -133,6 +144,13 @@ describe("materialize", () => {
     const [ne, na] = digestNotices(digest, NOW);
     expect(ne).toMatchObject({ title: "Thêm lịch thi: Môn mẫu", route: `/task/${digest.exams[0].id}` });
     expect(na).toMatchObject({ title: "Bài tập mới: Bài tập", sub: expect.stringMatching(/^Hạn T/) });
+  });
+
+  it("groups three or more item changes into one notice", () => {
+    const exam: Fetched[number] = { ...lecture("portal:exam:9"), type: "EXAM", durationMinutes: 90 };
+    const as = [1, 2, 3].map((i) => assign({ externalKey: `lms:assign:${i}`, title: `Bài ${i}` }));
+    const { digest } = materialize([exam, ...as] as Fetched, [], NOW);
+    expect(digestNotices(digest, NOW)).toEqual([{ title: "Trường cập nhật 4 việc", sub: "Môn mẫu, Bài 1 +2" }]);
   });
 
   it("announces a new timetable with its size and first lecture, and changed marks", () => {
@@ -153,14 +171,28 @@ describe("materialize", () => {
       return [ex, ...materialize([exam()] as Fetched, [ex], NOW).upserts];
     };
 
-    it("adds one prep with a new exam, sized by weak", () => {
-      const { upserts } = materialize([exam()] as Fetched, [], NOW, 0.8);
+    it("adds one prep with a new exam, sized by the marks multiplier of its course", () => {
+      const { upserts } = materialize([exam()] as Fetched, [], NOW, (title) => (title === exam().title ? 1.6 : 1));
       const prep = upserts.find((t) => t.id.startsWith("prep:"))!;
-      expect(prep).toMatchObject({ id: "prep:dlu:portal:exam:9", effort: 90, maxSitting: 45, deadline: NOW + 5 * D });
+      expect(prep).toMatchObject({ id: "prep:dlu:portal:exam:9", title: "Ôn thi", course: exam().title, effort: 180, maxSitting: 45, deadline: NOW + 5 * D });
     });
-    it("adds none for a report exam", () => {
+    it("adds the prep for an exam stored before preps existed", () => {
+      const { upserts } = materialize([exam()] as Fetched, [stored(exam())], NOW);
+      expect(upserts.filter((t) => t.id.startsWith("prep:"))).toHaveLength(1);
+    });
+    it("adds the prep for an exam stored before preps existed", () => {
+      const { upserts } = materialize([exam()] as Fetched, [stored(exam())], NOW);
+      expect(upserts.filter((t) => t.id.startsWith("prep:"))).toHaveLength(1);
+    });
+    it("adds a writing prep for a report exam", () => {
       const { upserts } = materialize([exam(NOW + 5 * D, { examFormat: "Báo cáo(TL)" })] as Fetched, [], NOW);
-      expect(upserts.filter((t) => t.id.startsWith("prep:"))).toEqual([]);
+      expect(upserts.filter((t) => t.id.startsWith("prep:"))).toMatchObject([{ title: "Viết báo cáo", effort: 180 }]);
+    });
+    it("renames a prep made under the old title and its open sittings, but not one the student renamed", () => {
+      const [ex, prep] = withPrep();
+      const old = { ...prep, title: "Ôn Toán", course: undefined }, kid = { ...old, id: `${prep.id}#1`, parentId: prep.id };
+      expect(materialize([exam()] as Fetched, [ex, old, kid], NOW).upserts.map((t) => [t.id, t.title, t.course])).toEqual([[prep.id, prep.title, prep.course], [kid.id, prep.title, prep.course]]);
+      expect(materialize([exam()] as Fetched, [ex, { ...prep, title: "Của tôi", userEdited: ["title"] }], NOW).upserts).toEqual([]);
     });
     it("is idempotent", () => {
       expect(materialize([exam()] as Fetched, withPrep(), NOW)).toMatchObject({ upserts: [], deletes: [] });

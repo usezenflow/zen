@@ -4,6 +4,7 @@ import type { Model } from "./model";
 
 const KIND_EFFORT: Record<Kind, number> = { study: 60, exercise: 60, chores: 30, social: 90, other: 30 };
 const HALF = 21 * DAY;
+const SIM = 0.6; // cosine floor for a title to count as alike
 
 export function cosine(a: ArrayLike<number>, b: ArrayLike<number>): number {
   let d = 0, na = 0, nb = 0;
@@ -25,7 +26,7 @@ export function effort(t: Task, m: Model): number {
   if (t.vec) {
     const near = m.efforts
       .map((e) => ({ c: cosine(t.vec!, e.vec), m: e.minutes }))
-      .sort((a, b) => b.c - a.c).slice(0, 5);
+      .filter((e) => e.c > SIM).sort((a, b) => b.c - a.c).slice(0, 5);
     if (near.length) return median(near.map((n) => n.m));
   }
   return KIND_EFFORT[t.kind];
@@ -41,7 +42,7 @@ export function neighbors(t: Task, m: Model, now: number): Nb[] {
   if (!t.vec) return [];
   return m.hist
     .map((h) => ({ c: cosine(t.vec!, h.vec), h }))
-    .filter((e) => e.c > 0.6)
+    .filter((e) => e.c > SIM)
     .sort((a, b) => b.c - a.c).slice(0, 20)
     .map(({ c, h }) => ({ w: c * 0.5 ** ((now - h.at) / HALF), hour: h.hour, r: h.r }));
 }

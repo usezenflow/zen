@@ -4,7 +4,7 @@ import { ActivityIndicator, StyleSheet, Text, TextInput, View } from "react-nati
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withTiming } from "react-native-reanimated";
 import { fadeIn, fadeOut, glide, Tap, settle } from "@/components/tap";
 import { t } from "@/lib/i18n";
-import { connect, sync } from "@/lib/sync";
+import { connect, syncNow, syncStatus } from "@/lib/sync";
 import { useTheme, font, ff } from "@/lib/theme";
 
 const RED = "#ff2f52";
@@ -15,7 +15,7 @@ const LMS_URL = process.env.EXPO_PUBLIC_DLU_LMS_URL || undefined;
 type Check = "ok" | "wrong" | "slow" | "off";
 export type Res = { portal: Check; lms: Check };
 
-function Field({ label, note, bad, ph, ...p }: { label: string; note?: string; bad?: boolean; ph?: string } & React.ComponentProps<typeof TextInput>) {
+function Field({ label, note, bad, ...p }: { label: string; note?: string; bad?: boolean } & React.ComponentProps<typeof TextInput>) {
   const th = useTheme();
   const x = useSharedValue(0);
   // A wrong password shakes its field, like the iOS passcode screen.
@@ -29,7 +29,7 @@ function Field({ label, note, bad, ph, ...p }: { label: string; note?: string; b
     <>
       <Animated.View layout={glide} style={[s.field, { borderColor: bad ? RED : th.line }, shake]}>
         <Text style={[s.lab, { color: th.muted }]}>{label}</Text>
-        <TextInput {...p} style={[s.input, { color: th.ink }]} placeholder={ph ?? t("fieldPh")} placeholderTextColor={th.muted} autoCapitalize="none" autoCorrect={false} />
+        <TextInput {...p} style={[s.input, { color: th.ink }]} placeholder={t("fieldPh")} placeholderTextColor={th.muted} selectionColor={th.seal} cursorColor={th.seal} autoCapitalize="none" autoCorrect={false} />
       </Animated.View>
       {note ? <Animated.Text key={note} entering={fadeIn} exiting={fadeOut} layout={glide} style={[s.note, { color: bad ? RED : th.muted, fontFamily: ff(bad ? "600" : "500") }]}>{note}</Animated.Text> : null}
     </>
@@ -37,7 +37,8 @@ function Field({ label, note, bad, ph, ...p }: { label: string; note?: string; b
 }
 
 /** Inline connect fields. Each account reports on its own: wrong = red on that field, slow = neutral note under it. onResult runs after connect + sync. */
-export function ConnectForm({ initialId, focus, hideId, onResult }: { initialId: string; hideId?: boolean; focus?: "portal" | "lms"; onResult: (r: Res) => void }) {
+/** `onFirst`: the first sync ever runs behind logo.html's loading state, and a failed one shows its error state. */
+export function ConnectForm({ initialId, focus, hideId, only, onResult, onFirst }: { initialId: string; hideId?: boolean; only?: "portal" | "lms"; focus?: "portal" | "lms"; onResult: (r: Res) => void; onFirst?: (s: "load" | "err" | null) => void }) {
   const th = useTheme();
   const [id, setId] = useState(initialId);
   const [pw, setPw] = useState("");
@@ -49,7 +50,12 @@ export function ConnectForm({ initialId, focus, hideId, onResult }: { initialId:
     setBusy(true);
     const r = await connect({ studentId: id.trim(), password: pw, lmsPassword: lms || undefined, portalApiKey: API_KEY, portalUrl: PORTAL_URL, lmsUrl: LMS_URL });
     setRes(r);
-    if ([r.portal, r.lms].some((c) => c === "ok" || c === "slow")) await sync();
+    if ([r.portal, r.lms].some((c) => c === "ok" || c === "slow")) {
+      const first = !(await syncStatus()).last;
+      if (first) onFirst?.("load");
+      await syncNow(only); // one field open: just that account's jobs
+      if (first) onFirst?.((await syncStatus()).last ? null : "err");
+    }
     setBusy(false);
     onResult(r);
   };
@@ -58,10 +64,10 @@ export function ConnectForm({ initialId, focus, hideId, onResult }: { initialId:
   return (
     <View>
       {!hideId && <Field label={t("studentId")} value={id} onChangeText={setId} keyboardType="number-pad" />}
-      <Field label={t("portalPwLab")} ph={t("pwSkipPh")} value={pw} onChangeText={setPw} secureTextEntry autoFocus={focus === "portal"}
-        bad={res?.portal === "wrong"} note={note(res?.portal, t("wrongPortal"), t("slowPortal"))} />
-      <Field label={t("lmsPwLab")} ph={t("pwSkipPh")} value={lms} onChangeText={setLms} secureTextEntry autoFocus={focus === "lms"}
-        bad={res?.lms === "wrong"} note={note(res?.lms, t("wrongLms"), t("slowLms"))} />
+      {only !== "lms" && <Field label={t("portalPwLab")} value={pw} onChangeText={setPw} secureTextEntry autoFocus={focus === "portal"}
+        bad={res?.portal === "wrong"} note={note(res?.portal, t("wrongPortal"), t("slowPortal"))} />}
+      {only !== "portal" && <Field label={t("lmsPwLab")} value={lms} onChangeText={setLms} secureTextEntry autoFocus={focus === "lms"}
+        bad={res?.lms === "wrong"} note={note(res?.lms, t("wrongLms"), t("slowLms"))} />}
       <Animated.View layout={glide}>
         <Tap onPress={go} disabled={busy} style={[s.btn, { backgroundColor: th.ink }]}>
           {busy
@@ -75,8 +81,8 @@ export function ConnectForm({ initialId, focus, hideId, onResult }: { initialId:
 
 const s = StyleSheet.create({
   field: { height: 60, marginTop: 8, paddingHorizontal: 22, borderRadius: 99, borderWidth: 1, justifyContent: "center", gap: 1 },
-  lab: { fontSize: font.label, fontFamily: ff("500") },
-  input: { fontSize: font.base, fontFamily: ff("500"), padding: 0 },
+  lab: { fontSize: 13, fontFamily: ff("500") },
+  input: { fontSize: font.base, lineHeight: Math.round(font.base * 1.3), height: Math.round(font.base * 1.3), fontFamily: ff("500"), padding: 0 },
   note: { marginTop: 8, marginLeft: 22, fontFamily: ff(), fontSize: font.md },
   btn: { marginTop: 18, height: 50, borderRadius: 99, alignItems: "center", justifyContent: "center" },
 });

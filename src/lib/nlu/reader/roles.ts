@@ -36,16 +36,19 @@ const ROLES: [RegExp, Role][] = [
 ];
 /** "tuần sau", "tháng trước" name a week or month, not a day: no role. */
 const SPAN_WORD =
-  /(?<![a-z])(?:tuan|thang|nam)\s+(?:sau|truoc|trc|nay|toi|nua)\s*$/;
+  /(?<![a-z])(?<!thu\s)(?:tuan|thang|nam)\s+(?:sau|truoc|trc|nay|toi|nua)\s*$/;
 /** "2 ngày trước", "1 tuần sau": the count before the role word. */
 const OFFSET = /(?<![\d])(\d{1,2})\s*(ngay|tuan)\s+(truoc|trc|sau)\s*$/;
 
 /** The role the words right before an anchor set. Undefined when none is named. */
 export function roleOf(before: string): RoleCue | undefined {
+  const f = fold(before).text;
+  // "tuần tới 8h" is next week at 8, "thứ tư 8h" is Wednesday at 8: the word belongs to the day, not the clock
+  if (/(?<![a-z])(?:(?:tuan|thang|nam)\s+toi|thu\s+tu)\s*$/.test(f))
+    return undefined;
   // "tới" (until) and "tối" (evening) fold alike, so the raw word decides
   if (/(?<![\p{L}])tới\s*$/u.test(before.normalize("NFC").toLowerCase()))
     return { role: "until" };
-  const f = fold(before).text;
   const off = OFFSET.exec(f);
   if (off) {
     const days = +off[1] * (off[2] === "tuan" ? 7 : 1);

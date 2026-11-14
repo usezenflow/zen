@@ -1,5 +1,6 @@
 import * as SQLite from "expo-sqlite";
 import { newModel, type Model } from "../planner";
+import { upgradePrior } from "../planner/linucb";
 import type { Note, Task, TaskEvent } from "./types";
 
 let db: Promise<SQLite.SQLiteDatabase> | undefined;
@@ -47,16 +48,20 @@ export async function allTasks(): Promise<Task[]> {
   return (await (await open()).getAllAsync<Row>("SELECT * FROM tasks")).map(fromRow);
 }
 
+// withTransactionAsync is not exclusive: two writes at once (a sync and an edit) nest BEGINs on the one connection. Queue them.
+let writing: Promise<unknown> = Promise.resolve();
 export async function putTasks(ts: Task[]) {
   const d = await open();
-  await d.withTransactionAsync(async () => {
+  const run = writing.catch(() => {}).then(() => d.withTransactionAsync(async () => {
     for (const t of ts) {
       await d.runAsync(
         `INSERT OR REPLACE INTO tasks(id,title,vec,kind,effort,deadline,notBefore,rrule,start,"end",doneAt,meta) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
         toRow(t) as SQLite.SQLiteBindValue[],
       );
     }
-  });
+  }));
+  writing = run;
+  await run;
   widgets();
 }
 
@@ -92,12 +97,19 @@ export async function removeEvents(ids: string[]) {
   for (const id of ids) await d.runAsync("DELETE FROM events WHERE id=?", [id]);
 }
 
+// The model is ~500 KB of JSON: parse once. Callers must treat it as immutable (plan and learn clone).
+let cached: Model | undefined;
 export async function loadModel(now: number): Promise<Model> {
+  if (cached) return cached;
   const r = await (await open()).getFirstAsync<Row>("SELECT json FROM model WHERE key='planner'");
-  return r ? JSON.parse(r.json) : newModel(now);
+  if (!r) return newModel(now);
+  const m: Model = JSON.parse(r.json);
+  upgradePrior(m);
+  return (cached = m);
 }
 export async function saveModel(m: Model) {
   await (await open()).runAsync("INSERT OR REPLACE INTO model(key,json) VALUES('planner',?)", [JSON.stringify(m)]);
+  cached = m;
 }
 
 export async function kvGet(key: string): Promise<string | null> {

@@ -8,7 +8,7 @@ import type { Model } from "./model";
 
 export interface Insights {
   hours: number[]; // 24 values in 0..1: how well each hour tends to go
-  golden?: { from: number; to: number }; // best contiguous hours, to exclusive
+  golden?: { from: number; to: number; sure?: number }; // best contiguous hours, to exclusive
   pairs: { before: Kind; w: number }[]; // "after" weights worth saying, strongest first
   slip: { kind: Kind; rate: number }[]; // kinds pushed later often, highest first
   unsure?: { from: number; to: number }; // waking hours the model knows least about
@@ -19,6 +19,8 @@ export interface Insights {
 
 const COLD = prepare(coldArms());
 const U0 = Math.sqrt(COLD.inv[0][0]); // uncertainty of an arm with no evidence
+const KC = KINDS.map((_, j) => 4 + j); // the kind one-hot columns
+const UK = KC.map((c) => Math.sqrt(COLD.inv[0][c * D + c]));
 const mean = (v: number[]) => v.reduce((a, b) => a + b, 0) / (v.length || 1);
 const range = (a: number, b: number) => Array.from({ length: b - a }, (_, i) => a + i);
 const clamp = (x: number) => Math.max(0, Math.min(1, x));
@@ -28,10 +30,12 @@ export function insights(m: Model, now: number): Insights {
   const learned = m.arms.some((arm, a) => arm.A.some((v, i) => Math.abs(v - cold[a].A[i]) > 1e-6));
   const p = prepare(m.arms);
   const peak = peakHour(m, now);
-  const raw = range(0, 24).map((h) => p.theta[h][0] + p.theta[h][I_ENERGY] * energy(h + 0.5, peak));
+  // An hour's quality counts what was learned for any kind too: a moved task teaches its kind's columns, never the intercept.
+  const raw = range(0, 24).map((h) => p.theta[h][0] + mean(KC.map((c) => p.theta[h][c])) + p.theta[h][I_ENERGY] * energy(h + 0.5, peak));
   const lo = Math.min(...raw), hi = Math.max(...raw);
   const hours = raw.map((v) => (hi > lo ? (v - lo) / (hi - lo) : 0));
-  const unc = (hs: number[]) => mean(hs.map((h) => Math.sqrt(p.inv[h][0]) / U0));
+  // How little is known about an hour: the best-known of its intercept and kind columns, against the cold prior.
+  const unc = (hs: number[]) => mean(hs.map((h) => Math.min(Math.sqrt(p.inv[h][0]) / U0, ...KC.map((c, j) => Math.sqrt(p.inv[h][c * D + c]) / UK[j]))));
   const sureOf = (hs: number[]) => clamp(1 - unc(hs));
   const wake = range(7, 23);
   const out: Insights = { hours, pairs: [], slip: [], byKind: [], guesses: [] };
@@ -46,9 +50,14 @@ export function insights(m: Model, now: number): Insights {
     if (v >= best) { best = v; out.golden = { from, to: from + len }; }
   }
   if (out.golden) {
-    const hs = range(out.golden.from, out.golden.to), sure = sureOf(hs);
-    out.guesses.push({ text: `Giờ vàng ${out.golden.from}–${out.golden.to} giờ`, sure });
-    weekly.push({ text: `Bạn làm việc hợp nhất lúc ${out.golden.from} đến ${out.golden.to} giờ`, sure });
+    const sure = sureOf(range(out.golden.from, out.golden.to));
+    // A handful of moves or ticks already names a range, marked "Đang đoán" below 0.5; the bare prior never does (learned above).
+    if (sure < 0.35) out.golden = undefined;
+    else {
+      out.golden.sure = sure;
+      out.guesses.push({ text: `Giờ vàng ${out.golden.from}–${out.golden.to} giờ`, sure });
+      weekly.push({ text: `Bạn làm việc hợp nhất lúc ${out.golden.from} đến ${out.golden.to} giờ`, sure });
+    }
   }
 
   // Additive model: only "after {prev}, things go well", never "prev then X".
@@ -65,7 +74,7 @@ export function insights(m: Model, now: number): Insights {
     let top = -Infinity, from = 7;
     for (let f = 7; f <= 20; f++) { const v = mean(range(f, f + 3).map(score)); if (v > top) { top = v; from = f; } }
     const hs = range(from, from + 3);
-    const sure = clamp(1 - mean(hs.map((h) => Math.sqrt(p.inv[h][c * D + c]) / Math.sqrt(COLD.inv[h][c * D + c]))));
+    const sure = clamp(1 - mean(hs.map((h) => Math.sqrt(p.inv[h][c * D + c])))); // against the bare ridge, not the prior's mass
     if (top - avg > 0.1 && sure >= 0.5) {
       out.byKind.push({ kind, from, to: from + 3, sure });
       out.guesses.push({ text: `Bạn ${KIND_VI[kind]} hợp nhất lúc ${from}–${from + 3} giờ`, sure });
@@ -82,7 +91,8 @@ export function insights(m: Model, now: number): Insights {
     const u = mean(range(from, from + 3).map((h) => Math.sqrt(p.inv[h][0])));
     if (u > worst) { worst = u; out.unsure = { from, to: from + 3 }; }
   }
+  out.guesses = out.guesses.filter((g) => g.sure > 0);
   out.guesses.sort((a, b) => b.sure - a.sure);
-  out.weekly = weekly.sort((a, b) => b.sure - a.sure)[0]?.text;
+  out.weekly = weekly.filter((w) => w.sure >= 0.5).sort((a, b) => b.sure - a.sure)[0]?.text;
   return out;
 }

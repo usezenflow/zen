@@ -12,6 +12,27 @@ describe("readActions", () => {
     expect(a.every((x) => x.op === "create" && x.title)).toBe(true);
     expect(a.some((x) => x.deadline?.startsWith("2026-11-20") || x.when?.startsWith("2026-11-20"))).toBe(true);
   });
+  it("carries a pasted text's note as plain lines", () => {
+    const [a] = readActions("Hạn nộp: trước 23:00 ngày 16/11\n1. Báo cáo & slide\n2. Bài báo", now);
+    expect(readActions("mua sữa mai", now)[0].note).toBeUndefined();
+    expect(a.note).toBe("Hạn nộp: trước 23:00 ngày 16/11\n1. Báo cáo & slide\n2. Bài báo");
+  });
+  it("a week word with a clock is that weekday at that clock, fixed", () => {
+    const sat = new Date("2026-11-14T08:00:00Z");
+    for (const said of ["Báo cáo môn web tuần sau 8h sáng", "báo cáo môn web tuần tới 8 giờ sáng"])
+      expect(readActions(said, sat, "voice")[0]).toMatchObject({ title: "Báo cáo môn web", when: "2026-11-21T08:00:00", fixed: "busy" });
+    // no clock: still the whole week
+    expect(readActions("Báo cáo môn web tuần sau", sat)[0]).toMatchObject({ notBefore: "2026-11-16T00:00:00", deadline: "2026-11-22T23:59:00" });
+  });
+  it("reads what the recognizer wrote for a Saturday report: 'mong' is no course cue, '08.00' and '08:00 SA' are clocks", () => {
+    const sat = new Date("2026-11-14T11:22:00Z");
+    for (const said of ["Báo cáo mong Web thứ 7 tuần sau 08.00 sáng", "Báo cáo mong Web thứ 7 tuần sau 08:00 SA", "Báo cáo môn web thứ bảy tuần sau tám giờ sáng"]) {
+      const a = readActions(said, sat, "voice");
+      expect(a[0]).toMatchObject({ when: "2026-11-21T08:00:00", fixed: "busy" });
+      expect(a[1]).toMatchObject({ deadline: "2026-11-21T08:00:00" });
+      expect(a[0].title).toMatch(/^Báo cáo (mong Web|môn web)$/);
+    }
+  });
   it("returns nothing for empty text", () => {
     expect(readActions("", now)).toEqual([]);
   });
@@ -102,5 +123,33 @@ describe("readNotes (1.13)", () => {
     const r = { items: [], dropped: [{ quote: "nếu rảnh", reason: "optional" as const }], mentions: [], repairs: [] };
     expect(readNotes("x", r).sub).toBe("bỏ “nếu rảnh” (tùy chọn)");
     expect(readNotes("nộp bài 20/11", readFull("nộp bài 20/11", now))).toEqual({ sub: undefined, alt: undefined });
+  });
+});
+
+describe("said times", () => {
+  const one = (text: string) => itemAction(readFull(text, now).items[0]);
+  it("makes an exact clock a fixed busy block", () => {
+    expect(one("6 giờ chiều thứ 4 đi gym")).toMatchObject({ fixed: "busy", when: "2026-11-18T18:00:00" });
+    expect(one("mai 9 giờ ôn Giải tích")).toMatchObject({ fixed: "busy", when: "2026-11-14T09:00:00", kind: "study" });
+    expect(one("mai 9 giờ đến 11 giờ ôn Giải tích")).toMatchObject({ fixed: "busy", effortMinutes: 120 });
+  });
+  it("fixes an exam as an exam, and keeps its revision plan flexible", () => {
+    const [x, plan] = readFull("thi Toán 8 giờ sáng thứ 6", now).items.map(itemAction);
+    expect(x).toMatchObject({ fixed: "exam", when: "2026-11-20T08:00:00" });
+    expect(plan.fixed).toBeUndefined();
+  });
+  it("keeps a deadline flexible", () => {
+    const a = one("nộp báo cáo trước 5 giờ chiều thứ 6");
+    expect(a.fixed).toBeUndefined();
+    expect(a.deadline).toBeDefined();
+  });
+  it("keeps a part of the day or a day flexible inside its window", () => {
+    expect(one("tối thứ 5 học toán")).toMatchObject({ when: "2026-11-19T20:00:00", notAfter: "2026-11-19T22:00:00", kind: "study" });
+    expect(one("tối thứ 5 học toán").fixed).toBeUndefined();
+    expect(one("thứ 5 học toán")).toMatchObject({ notAfter: "2026-11-19T23:59:00" });
+  });
+  it("makes a day with one clock a fixed block, and takes its length from a clock range", () => {
+    const it0: ReaderItem = { type: "PLAN", title: "Học nhóm", days: ["2026-11-19"], clocks: [{ from: "09:00", to: "11:30" }], confidence: 1, inferred: ["durationMinutes"], flags: [], alternatives: [], evidence: "", checked: true, durationMinutes: 60 };
+    expect(itemAction(it0)).toMatchObject({ fixed: "busy", when: "2026-11-19T09:00:00", effortMinutes: 150 });
   });
 });

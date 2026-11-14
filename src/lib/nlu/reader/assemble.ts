@@ -177,7 +177,7 @@ const OTHER =
 const OPTIONAL = /\b(neu|co the|quan tam|tuy)\b/;
 const MODAL = /\b(bat buoc|phai|vui long|de nghi|can|han chot|luu y)\b/;
 const DUE =
-  /\b(truoc|han|deadline|dl|ddl|den het|chot|cham nhat|muon nhat|tre nhat|kip|trc|hoan thanh|hoan thien|by|before|due)\b/;
+  /\b(truoc|han|deadline|dl|ddl|den het|chot|cham nhat|muon nhat|tre nhat|kip|trc|het\s+(?:tuan|thang)|(?<!ngay\s)trong\s+tuan|hoan thanh|hoan thien|by|before|due)\b/;
 const ASSIGN =
   /\b(bai\s*tap|bt|btl|bai\s*tap\s*lon|(?<!phong\s+)lab|bai\s*lab|assignment|asm|homework|hw|tieu\s*luan|tl|do\s*an|khoa\s*luan|kltn|datn)\b|(?:\b(?:bao\s*cao|bc)\s+(?:mon|hoc\s*phan|lab|thuc\s*tap)\b)|(?:\b(?:nop|submit)\s+(?:bai|bai\s*tap|bt|lab|bao\s*cao|bc|slide|do\s*an|tieu\s*luan|khoa\s*luan|kltn|form|ho\s*so|don)\b)|(?:\b(?:lam|viet)\s+(?:bai\s*tap|bt|lab|bc\s+mon|bao\s*cao\s+mon|tieu\s*luan|do\s*an|khoa\s*luan|kltn)\b)|(?:\b(?:gui|hoan\s*thien)\s+(?:bao\s*cao|bc)\b.*?\bgv(?:pb|hd)?\b)|(?:\b(?:bao\s*cao|bc)\s+(?:vat\s*ly|toan|hoa|tin|sinh|su|dia|van|triet|kinh\s*te|web|csdl|mang|cntt)\b)|(?:\b(?:dien\s+(?:vao\s+)?form|nop\s+form)\b)|(?:\ble\s*phi\b)/i;
 // "kiểm tra" is an exam only with a course, a part-term, a period or a number ("kiểm tra lại app" is a task)
@@ -237,7 +237,7 @@ const TRUOC_NGAY =
 /** Cues that make a part of the day the deadline's clock before it. */
 const BEFORE_CUE = /\b(truoc|trc|cham nhat|muon nhat|tre nhat|kip)\b/;
 const PHRASE_CUE =
-  /\b(trong gio hanh chinh|ngoai gio hoc|dau tien (?=(?:moi |hang |cua )?thang)|cuoi cung (?=(?:moi |hang |cua )?thang)|cham nhat|muon nhat|tre nhat|kip|rang sang|sang som|buoi trua|giua trua|xe chieu|cuoi gio chieu|chieu toi|nua dem|trong (?:vong|khoang) \d{1,2} ?(?:ngay|tuan)|trong \d{1,2} tuan|\d{1,2} (?:buoi|lan)|bat dau|keo dai|ket thuc(?=\s*:|\s+\d)|mat(?=\s+(?:khoang\s+|hon\s+|gan\s+|tam\s+)?\d)|tong cong|tong(?=\s+(?:khoang\s+|hon\s+|gan\s+|tam\s+)?\d)|in total|sau (?:bua|an) (?:trua|toi)|truoc khi ngu|sau khi thuc day|viec dau tien)\b/g;
+  /\b(trong gio hanh chinh|ngoai gio hoc|dau tien (?=(?:moi |hang |cua )?thang)|cuoi cung (?=(?:moi |hang |cua )?thang)|cham nhat|muon nhat|tre nhat|kip|(?<!(?:kham|danh|nho|nieng|tram|lam|tay|chua|boc|nhuc|dau) )rang sang|sang som|buoi trua|giua trua|xe chieu|cuoi gio chieu|chieu toi|nua dem|trong (?:vong|khoang) \d{1,2} ?(?:ngay|tuan)|trong \d{1,2} tuan|\d{1,2} (?:buoi|lan)|bat dau|keo dai|ket thuc(?=\s*:|\s+\d)|mat(?=\s+(?:khoang\s+|hon\s+|gan\s+|tam\s+)?\d)|tong cong|tong(?=\s+(?:khoang\s+|hon\s+|gan\s+|tam\s+)?\d)|in total|sau (?:bua|an) (?:trua|toi)|truoc khi ngu|sau khi thuc day|viec dau tien)\b/g;
 /** Raw spans of the deadline cues and multi-word parts of the day in `text`: they are cues, not title words. */
 function phraseCueSpans(text: string): [number, number][] {
   // a list of parts ("sáng/tối", "sáng hoặc tối") is a cue too, separators included
@@ -354,12 +354,20 @@ export function findCourseTitle(clauses?: Clause[]): string | undefined {
   for (const c of clauses) {
     const raw = c.text;
     const m = raw.match(
-      /\b(?:môn|mon|học phần|hoc phan)\s*:?\s*([^,;:!?\n()]+)/i,
+      // a whole word: "mong" is not "môn"
+      /\b(?:môn|mon|học phần|hoc phan)(?![\p{L}])\s*:?\s*([^,;:!?\n()]+)/iu,
     );
     if (m && m[1].trim()) {
-      let candidate = m[1].trim();
-      candidate = candidate.charAt(0).toUpperCase() + candidate.slice(1);
-      return shorten(candidate, MAX_TITLE);
+      // "học bù môn web thứ 6 8h": the name ends where the day or clock begins
+      const from = (m.index ?? 0) + m[0].length - m[1].length;
+      const when = findMentions(raw).find(
+        (x) => (x.kind === "date" || x.kind === "time") && x.start >= from,
+      );
+      let candidate = (when ? raw.slice(from, when.start) : m[1]).trim();
+      if (candidate) {
+        candidate = candidate.charAt(0).toUpperCase() + candidate.slice(1);
+        return shorten(candidate, MAX_TITLE);
+      }
     }
     const cm = findMentions(raw).find((x) => x.kind === "course");
     if (cm && cm.v.k === "course") {
@@ -475,9 +483,11 @@ const TRAIL_WORDS = new Set([
   "after",
 ]);
 /** Sentence particles, compared raw: "nha" alone is the house "nhà". */
-const TRAIL_PARTICLES = new Set(["nhé", "nhá", "nhe", "ạ"]);
+const TRAIL_PARTICLES = new Set(["nhé", "nhá", "nhe", "nhen", "nghen", "ạ"]);
 /** Words that open a title only as a join of two parts: "còn" (not the noun "Con"), "xong". Raw, like TRAIL_WORDS. */
 const LEAD_CONNECTORS = new Set([
+  "đó",
+  "do",
   "và",
   "với",
   "hoặc",
@@ -503,10 +513,21 @@ function leadSkip(keys: string[]): number {
   for (const p of LEAD_PHRASES) {
     if (!p.every((w, k) => keys[j + k] === w)) continue;
     const end = j + p.length;
+    // "đặt vé xe", "đặt phòng": the verb books the thing, it is the task and not a command to the app
+    if (
+      p.length === 1 &&
+      p[0] === "dat" &&
+      /^(ve|phong|ban|hang|xe|do|com|tra|coc|tiec|cho|sach|banh|hoa|tour|khach|san|grab|taxi|mon)$/.test(
+        keys[end] ?? "",
+      )
+    )
+      return j;
     return keys[end] === "cai" ? end + 1 : end;
   }
   return 0;
 }
+/** A sound made before the task, with its mark so "Ô tô" keeps its word: "à họp nhóm", "ok họp nhóm". */
+const LEAD_SOUND = /^(?:à|ờ|ừ|ừm|ờm|ơ|ok|oke|okay|okie)$/;
 
 /** The title words with its leftover connectors and trailing cues removed from both ends. */
 function edgesOf(kept: string[]): string {
@@ -535,7 +556,8 @@ function titleOf(
 ): string {
   const toks = [...text.matchAll(/\S+/g)];
   const keys = toks.map((w) => fold(w[0]).text.replace(/[^a-z0-9]/g, ""));
-  const lead = leadSkip(keys);
+  const sound = toks.length > 1 && LEAD_SOUND.test(toks[0][0].toLowerCase().normalize("NFC").replace(/[,.!]+$/, "")) ? 1 : 0;
+  const lead = leadSkip(keys) || sound;
   // the words from token `from` on, with the cues and spans removed
   const build = (from: number): string[] => {
     const kept: string[] = [];
@@ -579,6 +601,8 @@ function titleOf(
           !partAfterVerb &&
           raw !== "đá" &&
           raw !== "đà" &&
+          // "da bong" typed with no marks is "đá bóng", not the cue "đã"
+          !(raw === "da" && /^(?:bong|banh|cau)$/.test(keys[i + 1] ?? "")) &&
           !inName &&
           !(key === "tu" && TU_WORDS.has(keys[i + 1] ?? "")) &&
           !isBanHanh)
@@ -735,6 +759,10 @@ function evidenceOf(text: string, spans: [number, number][]): string {
     .trim();
 }
 
+/** The first link in a text, whole: its query stays ("view.php?id=123"), the sentence punctuation after it goes. */
+export const firstUrl = (s: string) =>
+  s.match(/https?:?\/\/\S+/)?.[0].replace(/[.,;!?)]+$/, "");
+
 export interface Requirements {
   art: DetectedArtifacts;
   /** Every "trước ngày X" date in the input, earliest first. */
@@ -852,7 +880,7 @@ const mondayOf = (ref: ReaderWC): ReaderWC =>
   addDays(ref, -((dowOf(ref.y, ref.m, ref.d) + 6) % 7));
 
 /** The days a span phrase covers: a week or month part, or a week from its offset. Null for anything else. */
-function spanOf(
+export function spanOf(
   v: Val,
   ref: ReaderWC,
 ): { from: ReaderWC; to: ReaderWC } | null {
@@ -947,7 +975,7 @@ function spanOf(
   }
 }
 
-function resolveDate(f: Found, ref: ReaderWC): DateRes | null {
+export function resolveDate(f: Found, ref: ReaderWC): DateRes | null {
   const v = f.v;
   if (v.k === "date") {
     // a day past the month's end is its last day: "31/11" is 30/11
@@ -1256,7 +1284,8 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
     const word = fold(blank.slice(m.start, m.end)).text.replace(/\s+/g, "");
     // "học 2h hôm nay": 1h to 5h alone is a length, nobody means 2 am; any day word may follow
     const small = /^[1-5]h$/.test(word);
-    if (!small && !(headTask && /^\d{1,2}h\d{2}$/.test(word))) return m;
+    // "đi khám 8h30" is half past eight: past five hours, a clock with minutes is a clock
+    if (!small && !(headTask && m.v.h <= 5 && /^\d{1,2}h\d{2}$/.test(word))) return m;
     if (
       LENGTH_CUE.test(
         fold(blank.slice(Math.max(cutRaw, m.start - 8), m.start)).text,
@@ -1500,7 +1529,11 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
     const [a, b] = pieceSpans[pi];
     if (joined.has(pi)) continue;
     const pieceText = blank.slice(a, b);
-    const fpiece = fold(pieceText).text;
+    // "tạo lịch học tiếng Anh …", "lên lịch thi …": the opening command names no class timetable and no exam schedule
+    const fpiece = fold(pieceText).text.replace(
+      /^(\s*)(?:tao|dat|len|xep|lap)\s+lich(?=\s)/,
+      (m) => " ".repeat(m.length),
+    );
     if (
       CANCELLATION.test(fpiece) ||
       (CANCELLATION.test(folded) && !MAKEUP.test(fpiece))
@@ -1541,8 +1574,11 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
     const pDates = ownDates(pieceDates);
     // a bare clock takes the one part of the day the piece names: "tối nay đi ăn lúc 7 giờ" is 19:00
     // "7h tới 17h": a "tới" between two clocks ends a range, it is no evening word
-    const pieceFold = fold(noDow.slice(a, b))
+    // "tuần tới 8h": the "tới" of next week, month or year is no evening word either
+    // "nhắc tôi … 8:30": "tôi" is the speaker, not the evening
+    const pieceFold = fold(noDow.slice(a, b).replace(/(?<!\p{L})tôi(?!\p{L})/giu, "   "))
       .text.replace(/\btonight\b/g, "toi")
+      .replace(/(?<=\b(?:tuan|thang|nam)\s+)toi\b/g, "   ")
       .replace(/(?<=\d\s*(?:h|g|gio)\s*)toi(?=\s+\d)/g, " ");
     const pieceParts = new Set(
       [...pieceFold.matchAll(/\b(sang|trua|chieu|toi|dem)\b/g)].map(
@@ -1645,7 +1681,15 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
     if (
       !pieceDates.length &&
       !recur &&
-      (datedPieces.length > 1 || !pTimes.length) &&
+      // said in one breath, a clock after a dated step is its own step on that day: "mai 8h họp, 9h tối gọi mẹ, mốt 7h đá bóng"
+      ((datedPieces.length > 1 &&
+        !(
+          pTimes.length &&
+          ctx.source !== "paste" &&
+          ctx.source !== "ocr" &&
+          datedPieces.some((p) => p[0] < a)
+        )) ||
+        !pTimes.length) &&
       !undatedTask
     )
       continue;
@@ -1675,7 +1719,12 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
               v: { k: "rel" as const, off: bareNc?.off ?? startOff },
             },
           ]
-        : inherited;
+        : inherited.length || ctx.source === "paste" || ctx.source === "ocr"
+          ? inherited
+          : // said in one breath, "mai 8h họp, 9h tối gọi mẹ, mốt 7h đá bóng": a clock with no day is on the day named last before it
+            ownDates(
+              datesIn(datedPieces.filter((p) => p[0] < a).at(-1) ?? [0, 0]),
+            );
     if (!dateList.length && !undatedTask) continue;
     const dateHow: "own" | "inherit" = pieceDates.length ? "own" : "inherit";
     // only an explicit date takes the clock of a time-only piece; "mai" or "thứ năm" keep their own day
@@ -1764,7 +1813,17 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
     const inPart = !!partSpec && IN_PART.test(fpart);
 
     // dates: a span ("tuần sau", "cuối tháng"), a range "từ X đến Y", a part "trong sáng mai", else one item per listed date
-    const sorted = [...dateList].sort((x, y) => x.start - y.start);
+    // "tuần sau 8h": a said clock needs one day, so a week word alone is today's weekday in that week, not the whole week
+    const weekClock =
+      dateList.length === 1 &&
+      sortedTimes.some((m) => m.v.k === "time" && !m.v.after);
+    const sorted = [...dateList]
+      .sort((x, y) => x.start - y.start)
+      .map((d) =>
+        weekClock && d.v.k === "week" && d.v.off >= 1
+          ? { ...d, v: { k: "rel" as const, off: 7 * d.v.off } }
+          : d,
+      );
     const resolved: { res: DateRes; f: Found }[] = [];
     for (const d of sorted) {
       const res = resolveDate(d, ctx.ref);
@@ -1908,8 +1967,21 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
           : DNDCUE.test(cueText) && !(holidayBefore && TASK_WORD.test(fpiece))
             ? "BUSY"
             : "PLAN";
+    // one line the user said or typed, not a notice
+    const said =
+      ctx.source === "voice" ||
+      (ctx.source === "typed" && (ctx.clauses?.length ?? 1) <= 1);
     // a period the table does not know (15 and up, or a span over them): no clock to give, so a plain task
     if (type === "LECTURE" && periodUnknown && !c.timetable) type = "PLAN";
+    // said or typed in one line, "học môn web mai 8h" is the user's own plan, not a notice of a class the timetable already holds
+    if (
+      type === "LECTURE" &&
+      !c.timetable &&
+      !periodRes &&
+      !LECT.test(cueText.replace(/\bhoc mon\b/g, "hoc")) &&
+      said
+    )
+      type = "PLAN";
     if (type === "PLAN" && hasTimeHint && !due && !range && !fromCue)
       type = "BUSY";
     if (isPresentation && hasTimeHint && !due && !range) type = "BUSY";
@@ -1947,8 +2019,9 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
     if (isScheduleSubmission) continue;
 
     // title: the piece's own words, else the clause's, else the section's, else announcement topic
+    // "nộp bài môn web": the course is part of what the task is called, so its words stay
     const innerPieceSpans = piece
-      .filter((m) => m.kind !== "mask")
+      .filter((m) => m.kind !== "mask" && m.kind !== "course")
       .map((m): [number, number] => [m.start - a, m.end - a]);
     let title = titleOf(
       pieceText,
@@ -1962,7 +2035,8 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
       ctx.docTopic ??
       (ctx.clauses ? memo.docTopic : findAnnouncementTopic([c]));
     const courseTitle = ctx.courseTitle ?? memo.courseTitle;
-    if (words(title) < 2 || (type === "LECTURE" && courseTitle)) {
+    // a notice's class is named by its "Môn:" line; a said one by its own words ("học bù môn web")
+    if (words(title) < 2 || (type === "LECTURE" && courseTitle && !said)) {
       const sectionWords = titleOf(c.sectionTitle ?? "", [], "");
       const candidates = [
         courseTitle ?? "",
@@ -2067,9 +2141,15 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
     const activityWords = fold(title)
       .text.split(/\s+/)
       .filter((w) => w && !TIME_WORD_RE.test(w) && !holidayWords.has(w));
+    // the role word must stand before the holiday itself: in "từ 2h đến 4h chiều 20/11" the "từ" opens the clock range
+    const holidayDate = piece.find((m) => holidayMention(m, ctx.ref));
+    const holidayRole = holidayDate
+      ? roleOf(blank.slice(a, holidayDate.start))?.role
+      : undefined;
     const afterHoliday =
       holidayHere &&
       (cue?.role === "after" || cue?.role === "from") &&
+      (holidayRole === "after" || holidayRole === "from") &&
       activityWords.length > 0;
     const allDayHere =
       !hasTimeHint &&
@@ -2079,8 +2159,12 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
       (!due || holidayBefore) &&
       (ALL_DAY_CUE.test(fpiece) || (holidayHere && type === "PLAN"));
     // a holiday or birthday with a task verb is a task due that day; alone it is no item
+    // the verb may come after the date: "20/11 giặt đồ" opens with it once the date is out
     const taskHere =
-      (TASK_VERB.test(fpiece.trimStart()) || TASK_WORD.test(fpiece)) && !busy;
+      (TASK_VERB.test(fpiece.trimStart()) ||
+        (!borrowed && TASK_VERB.test(fold(title).text)) ||
+        TASK_WORD.test(fpiece)) &&
+      !busy;
     title = remapInstitutionalTitle(
       title,
       fixed || /\b(nop|gui|submit)\b/.test(fpiece),
@@ -2104,9 +2188,8 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
     const isOnline =
       /truc\s+tuyen|online|zoom|meet/i.test(cueText) ||
       /truc\s+tuyen|online/i.test(folded);
-    const urlMatch = (s: string) => s.match(/https?:?\/\/[^\s,;!?)]+/)?.[0];
-    const uPiece = urlMatch(pieceText);
-    const uClause = urlMatch(raw);
+    const uPiece = firstUrl(pieceText);
+    const uClause = firstUrl(raw);
     const uDoc = ctx.meetingUrl;
     const urlLocation = uPiece ?? uClause ?? uDoc;
     if (urlLocation && (isOnline || !location)) {
@@ -2318,7 +2401,8 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
             !due && partWindows.length > 1 ? [23, 59] : (partClock ?? [23, 59]);
           item.deadline = stamp(date, h, mi);
           // "cafe cn này": a task with no due cue happens on its day, not any time before
-          if (kind === "PLAN" && !due && !cue)
+          // "ngày 20/11", "vào thứ 6": the at-words name the day the same way
+          if (kind === "PLAN" && !due && (!cue || (cue.role === "at" && cue.days === undefined)))
             item.notBefore = stamp(date, 0, 0);
           if (partSpec) {
             // a due cue makes the part of the day a deadline clock only
@@ -2587,7 +2671,9 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
     if (
       (item.type === "PLAN" || item.type === "ASSIGNMENT") &&
       item.deadline &&
-      item.deadline > cap
+      item.deadline > cap &&
+      // never to before the day the task itself starts: "giặt đồ 20/3" said in November keeps its day
+      !(item.notBefore && item.notBefore > cap)
     )
       item.deadline = cap;
     const at = item.startsAt ?? item.deadline;

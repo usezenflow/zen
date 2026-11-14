@@ -27,28 +27,29 @@ const ZenTalk = (p: WidgetData, env: WidgetEnvironment) => {
     <VStack
       spacing={0}
       modifiers={[
-        padding({ vertical: 16, horizontal: 18 }), frame({ maxWidth: Infinity, maxHeight: Infinity }),
+        padding({ vertical: 16.25, horizontal: 17.5 }), frame({ maxWidth: Infinity, maxHeight: Infinity }),
         containerBackground(c.bg, "widget"), widgetURL(p.listen),
       ]}>
       <HStack>
-        {logo(22, c.ink)}
+        {logo(22.5, c.ink)}
         <Spacer />
-        <Text modifiers={[font({ family: "BeVietnamPro-Medium", size: 15, weight: "medium" }), foregroundStyle(c.muted)]}>Zen</Text>
+        <Text modifiers={[font({ family: "BeVietnamPro-Medium", size: 13.75, weight: "medium" }), foregroundStyle(c.muted)]}>Zen</Text>
       </HStack>
       <Spacer minLength={0} />
       {/* 58px ink disc with a 6px chip ring, x1.25 */}
       <ZStack>
-        <Circle modifiers={[foregroundStyle(c.chip), frame({ width: 87, height: 87 })]} />
-        <Circle modifiers={[foregroundStyle(c.ink), frame({ width: 72, height: 72 })]} />
-        <Image systemName="mic" modifiers={[font({ size: 28, weight: "regular" }), foregroundStyle(c.bg)]} />
+        <Circle modifiers={[foregroundStyle(c.chip), frame({ width: 87.5, height: 87.5 })]} />
+        <Circle modifiers={[foregroundStyle(c.ink), frame({ width: 72.5, height: 72.5 })]} />
+        <Image systemName="mic" modifiers={[font({ size: 30, weight: "regular" }), foregroundStyle(c.bg)]} />
       </ZStack>
     </VStack>
   );
 };
 
-const SAMPLE: WidgetData = {
+export const SAMPLE: WidgetData = {
   weekday: "Thứ hai", date: "16 tháng 11", short: "T2 16", summary: "5 việc, 1 tiết học", count: "5 việc",
   rows: [], doneLabel: "", tomorrow: "",
+  ahead: [], aheadHead: "", aheadCount: "", doneCount: "", dayName: "Thứ hai 16",
   art: {
     plan: { square: "", wide: "" }, lecture: { square: "", wide: "" }, exam: { square: "", wide: "" },
     assignment: { square: "", wide: "" }, busy: { square: "", wide: "" },

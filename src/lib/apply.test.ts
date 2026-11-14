@@ -17,7 +17,6 @@ vi.mock("./store", () => ({
   kvGet: async (k: string) => db.kv.get(k) ?? null,
   kvSet: async (k: string, v: string) => void db.kv.set(k, v),
 }));
-vi.mock("./calendar", () => ({ readBusy: async () => [] }));
 
 const pl = vi.hoisted(() => ({ from: undefined as number | undefined }));
 vi.mock("../planner", async (orig) => {
@@ -31,6 +30,7 @@ vi.mock("../planner", async (orig) => {
 
 import { addRule, apply, ingest, pickNow, pin, putBack, removeRule, scopeIds, swipeDone } from "./apply";
 import { loadMoves } from "./moves";
+import { preps } from "../planner/prep";
 
 const NOW = new Date("2026-11-13T10:00:00").getTime();
 const live = () => [...db.tasks.values()].filter((x: Task) => !x.deletedAt);
@@ -84,7 +84,6 @@ it("pickNow prefers the running task, else the next one", () => {
 
 import { futureDlu, moveMine, removeImported } from "./apply";
 import { overlaps, keepBoth, pendingOverlaps } from "./overlap";
-import { allDayBusy } from "./busy";
 
 const T = (o: Partial<Task>): Task => ({ id: "x", title: "x", kind: "study", source: "user", effort: 60, createdAt: NOW, ...o });
 const H1 = 3_600_000;
@@ -119,12 +118,6 @@ it("removeImported drops only future dlu tasks", async () => {
   expect(db.tasks.get("q").deletedAt).toBe(NOW);
   expect(db.tasks.get("p").deletedAt).toBeUndefined();
   expect(db.tasks.get("u").deletedAt).toBeUndefined();
-});
-
-it("an all-day event blocks the whole UTC+7 day", () => {
-  const day = Date.UTC(2026, 10, 12, 17); // 13 Nov 00:00 +07
-  expect(allDayBusy(day, day + 86400_000 - 1000)).toEqual({ start: day, end: day + 86400_000 });
-  expect(allDayBusy(Date.UTC(2026, 10, 13), Date.UTC(2026, 10, 14))).toEqual({ start: day, end: day + 86400_000 });
 });
 
 it("repeat scope: following covers this and later siblings, one only itself; note edit pins the field", async () => {
@@ -235,13 +228,13 @@ it("addRule and removeRule round-trip, pin sets pinned", async () => {
 });
 
 it("a move's cause is the new class over its old slot", async () => {
-  await apply([{ op: "create", title: "Read", kind: "study", effortMinutes: 60 }], NOW);
+  await apply([{ op: "create", title: "Read", kind: "study", effortMinutes: 60, when: new Date(NOW + DAYMS).toISOString() }], NOW); // not today: a task in progress is never moved
   const read = live()[0], s0 = read.start!;
   const lec: Task = { id: "lec", title: "Tiết bù", kind: "study", source: "dlu", fixed: "lecture", effort: 90, start: s0 - 1800_000, end: s0 + 3600_000, createdAt: NOW };
   await ingest([lec], [], NOW + 1000);
   const m = (await loadMoves()).find((x) => x.id === read.id)!;
   expect(m.from).toBe(s0);
-  expect(m.cause).toMatch(/^Vì Tiết bù /);
+  expect(m.cause).toMatch(/^Vì trường thêm Tiết bù /);
 });
 
 it("a repeat puts each occurrence on its own day, with the said clock and due time, and skips left-out weekdays", async () => {
@@ -303,4 +296,140 @@ describe("repeat shapes", () => {
     expect(own).toHaveLength(1);
     expect(r.sub).toMatch(/gần nhất/);
   });
+});
+
+describe("said times, edits, replans, causes", () => {
+  const day0 = new Date(NOW).setHours(0, 0, 0, 0), clock = (d: number, h: number) => day0 + d * DAYMS + h * H1;
+  const iso = (ms: number) => new Date(ms).toISOString();
+  const mine = (title: string) => live().filter((x: Task) => x.title === title);
+
+  it("a fixed create stores a busy block and a later create does not move it", async () => {
+    await apply([{ op: "create", title: "Gym", kind: "exercise", fixed: "busy", when: iso(clock(2, 18)), effortMinutes: 60 }], NOW);
+    const [g] = mine("Gym");
+    expect(g).toMatchObject({ fixed: "busy", start: clock(2, 18), end: clock(2, 19), notBefore: undefined, deadline: undefined });
+    await apply([{ op: "create", title: "Read", kind: "study", effortMinutes: 60 }], NOW + 1000);
+    expect(db.tasks.get(g.id)).toMatchObject({ start: clock(2, 18), end: clock(2, 19) });
+  });
+
+  it("a fixed block without a length takes the model's", async () => {
+    await apply([{ op: "create", title: "Gym", kind: "exercise", fixed: "busy", when: iso(clock(2, 18)) }], NOW);
+    const [g] = mine("Gym");
+    expect(g.end! - g.start!).toBeGreaterThan(0);
+  });
+
+  it("a repeating fixed create and its top-up keep the clock", async () => {
+    await apply([{ op: "create", title: "Gym", fixed: "busy", repeat: "FREQ=DAILY", when: iso(clock(1, 18)), effortMinutes: 45 }], NOW);
+    expect(mine("Gym").every((x: Task) => x.fixed === "busy" && x.start! % DAYMS === mine("Gym")[0].start! % DAYMS)).toBe(true);
+    await topUp(NOW + 6 * DAYMS);
+    const gym = mine("Gym");
+    expect(gym.length).toBeGreaterThan(7);
+    expect(new Set(gym.map((x: Task) => dayStartOf(x.start!))).size).toBe(gym.length);
+    for (const x of gym) { expect(x.fixed).toBe("busy"); expect(x.start! - dayStartOf(x.start!)).toBe(18 * H1); expect(x.end! - x.start!).toBe(45 * 60_000); }
+  });
+
+  it("notAfter is stored on a single create", async () => {
+    await apply([{ op: "create", title: "Toán", kind: "study", effortMinutes: 60, notBefore: iso(clock(1, 18)), notAfter: iso(clock(1, 22)) }], NOW);
+    expect(mine("Toán")[0].notAfter).toBe(clock(1, 22));
+  });
+
+  it("a kind the user corrected is remembered for a title that reads alike", async () => {
+    await apply([{ op: "create", title: "Ôn Giải tích", kind: "other", effortMinutes: 60 }], NOW);
+    await apply([{ op: "edit", target: mine("Ôn Giải tích")[0].id, kind: "study" }], NOW + 1000);
+    expect(mine("Ôn Giải tích")[0].userEdited).toContain("kind");
+    await apply([{ op: "create", title: "Ôn Giải tích 2", kind: "other", effortMinutes: 60 }], NOW + 2000);
+    expect(mine("Ôn Giải tích 2")[0].kind).toBe("study");
+  });
+
+  it("edit fields: location, kind, clearing the deadline", async () => {
+    await apply([{ op: "create", title: "Nộp bài", kind: "study", effortMinutes: 30, deadline: iso(clock(3, 12)) }], NOW);
+    const id = mine("Nộp bài")[0].id;
+    await apply([{ op: "edit", target: id, location: "A1.2", kind: "chores", notAfter: iso(clock(1, 9)) }], NOW + 1000);
+    expect(db.tasks.get(id)).toMatchObject({ location: "A1.2", kind: "chores" });
+    expect(db.tasks.get(id).notAfter).toBeUndefined();
+    expect(db.tasks.get(id).userEdited).toEqual(expect.arrayContaining(["location", "kind"]));
+    await apply([{ op: "edit", target: id, deadline: "" }], NOW + 2000);
+    expect(db.tasks.get(id).deadline).toBeUndefined();
+    expect(db.tasks.get(id).userEdited).toContain("deadline");
+  });
+
+  it("only a create, a time, due or length edit, and the explicit asks replan", async () => {
+    const r0 = await apply([{ op: "create", title: "Read", kind: "study", effortMinutes: 30 }], NOW);
+    expect(r0.steps).toBeDefined();
+    const id = mine("Read")[0].id;
+    for (const a of [{ op: "edit", target: id, title: "Read 2" }, { op: "edit", target: id, kind: "social" }, { op: "edit", target: id, note: "n" }, { op: "edit", target: id, location: "x" }, { op: "done", target: id }] as const) {
+      db.kv.delete("plannedAt");
+      expect((await apply([a], NOW + 5000)).steps).toBeUndefined();
+      expect(db.kv.has("plannedAt")).toBe(false);
+    }
+    await pin(id, true, NOW + 6000);
+    expect(db.kv.has("plannedAt")).toBe(false);
+    for (const a of [{ op: "edit", target: id, effortMinutes: 45 }, { op: "edit", target: id, deadline: iso(clock(4, 12)) }, { op: "edit", target: id, deadline: "" }, { op: "edit", target: id, when: iso(clock(2, 9)) }] as const) {
+      db.kv.delete("plannedAt");
+      expect((await apply([a], NOW + 7000)).steps).toBeDefined();
+      expect(db.kv.get("plannedAt")).toBe(String(NOW + 7000));
+    }
+  });
+
+  it("causes read from a simulated campus ingest: new, moved, due", async () => {
+    await apply([{ op: "create", title: "Read", kind: "study", effortMinutes: 60, when: iso(NOW + DAYMS) }], NOW);
+    const read = mine("Read")[0], s0 = read.start!;
+    const lec = (start: number): Task => ({ id: "lec", title: "Tiết bù", kind: "study", source: "dlu", fixed: "lecture", effort: 90, start, end: start + 90 * 60_000, createdAt: NOW });
+    await ingest([lec(s0 - 1800_000)], [], NOW + 1000);
+    expect((await loadMoves()).find((x) => x.id === read.id)!.cause).toMatch(/^Vì trường thêm Tiết bù /);
+    const at1 = db.tasks.get(read.id).start!;
+    await ingest([lec(at1 - 1800_000)], [], NOW + 2000);
+    const m2 = (await loadMoves()).filter((x) => x.id === read.id).at(-1)!;
+    expect(m2.from).toBe(at1);
+    expect(m2.cause).toMatch(/^Vì trường dời Tiết bù sang /);
+    // a due-date change by the user (an LMS upsert would look the same to the transaction)
+    await apply([{ op: "create", title: "Essay", kind: "study", effortMinutes: 60, deadline: iso(clock(9, 12)) }], NOW + 3000);
+    const es = mine("Essay")[0];
+    await apply([{ op: "edit", target: es.id, deadline: iso(es.start! - H1) }], NOW + 4000); // due before its slot: the slot is no longer good
+    const m3 = (await loadMoves()).filter((x) => x.id === es.id).at(-1)!;
+    expect(m3.cause).toMatch(/^Vì hạn Essay đổi sang /);
+  });
+
+  it("self marks the user's own moves, not ingest, replan or top-up ones", async () => {
+    await apply([{ op: "create", title: "Read", kind: "study", effortMinutes: 60, when: iso(NOW + DAYMS) }], NOW);
+    const read = mine("Read")[0];
+    await apply([{ op: "create", title: "Gym", fixed: "busy", when: iso(read.start!), effortMinutes: 60 }], NOW + 1000); // the user's own block lands on it
+    const ms = await loadMoves();
+    expect(ms.length).toBeGreaterThan(0);
+    expect(ms.every((m) => m.self === true)).toBe(true);
+    db.kv.set("moves", "[]");
+    await ingest([T({ id: "lec2", source: "dlu", fixed: "lecture", start: db.tasks.get(read.id).start!, end: db.tasks.get(read.id).start! + H1 })], [], NOW + 2000);
+    const m2 = await loadMoves();
+    expect(m2.length).toBeGreaterThan(0);
+    expect(m2.every((m) => m.self === undefined)).toBe(true);
+  });
+
+  it("a user's busy block over a lecture is an overlap; move mine makes it flexible", async () => {
+    const lec = T({ id: "l", source: "dlu", fixed: "lecture", start: NOW + 2 * H1, end: NOW + 4 * H1 });
+    const busy = T({ id: "b", fixed: "busy", start: NOW + 3 * H1, end: NOW + 4 * H1 });
+    expect(overlaps([lec, busy], NOW).map((o) => o.mine.id)).toEqual(["b"]);
+    expect(overlaps([lec, T({ id: "p", fixed: "busy", source: "dlu", start: NOW + 3 * H1, end: NOW + 4 * H1 })], NOW)).toEqual([]);
+    db.tasks.set("l", lec); db.tasks.set("b", busy);
+    await moveMine("b", NOW);
+    expect(db.tasks.get("b").fixed).toBeUndefined();
+    expect(db.tasks.get("b").start).not.toBe(NOW + 3 * H1);
+  });
+});
+const dayStartOf = (ms: number) => new Date(ms).setHours(0, 0, 0, 0);
+
+it.each([6, 25, 60])("a campus exam %i days out gets its prep split into placed sittings before it", async (days) => {
+  const at = NOW + days * DAYMS;
+  const exam: Task = { id: "dlu:portal:exam:1", title: "Giải tích 2", kind: "study", source: "dlu", fixed: "exam", effort: 90, start: at, end: at + 90 * 60_000, deadline: at, createdAt: NOW };
+  const prep = preps(exam, 0.5)[0];
+  await ingest([exam, prep], [], NOW);
+  const sits = live().filter((x: Task) => x.parentId === prep.id);
+  expect(sits.length).toBeGreaterThan(0);
+  expect(sits.every((x: Task) => x.start !== undefined && x.end! <= at)).toBe(true);
+});
+
+it("a time set by hand stays put, even one already past, and its length counts", async () => {
+  await apply([{ op: "create", title: "Đọc", kind: "study", effortMinutes: 60 }], NOW);
+  const id = live()[0].id;
+  const past = NOW - 3 * 3600_000;
+  await apply([{ op: "edit", target: id, when: new Date(past).toISOString(), effortMinutes: 120 }], NOW);
+  expect(db.tasks.get(id)).toMatchObject({ start: past, end: past + 120 * 60_000, pinned: true });
 });

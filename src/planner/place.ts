@@ -32,10 +32,12 @@ export function fixedHours(busy: Busy[], day: number): number {
 interface Iv { start: number; end: number }
 
 export function cells(p: Piece, now: number): number[] {
+  if (p.lock) return [p.prior!];
   const t = p.task;
   const lo = ceil(Math.max(now, t.notBefore ?? now));
-  let hi = t.deadline === undefined ? now + 7 * DAY : Math.min(t.deadline + 3 * DAY, now + 120 * DAY);
+  let hi = t.deadline === undefined ? now + (p.soon ? 2 : 7) * DAY : Math.min(t.deadline + 3 * DAY, now + 120 * DAY);
   if (hi <= lo) hi = lo + 3 * DAY;
+  if (t.notAfter !== undefined) hi = Math.max(lo + 1, Math.min(hi, t.notAfter - dur(p) + 1)); // the whole task ends by notAfter
   const out: number[] = [];
   for (let c = lo; c < hi; c += SLOT) out.push(c);
   return out;
@@ -56,6 +58,7 @@ export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
   const cs = pieces.map((p) => cells(p, now));
   const ds = cs.map((c) => c.map(dayStart)); // dayStart is slow (Date); once per cell
   const du = pieces.map(dur);
+  const inDom = (i: number, s: number) => s >= cs[i][0] && s <= cs[i][cs[i].length - 1];
 
   const bz = new Map<number, Busy[]>(); // busy blocks that can touch a day, halo included
   for (const b of env.busy)
@@ -70,7 +73,8 @@ export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
     const bs = bz.get(day) ?? [];
     const L = fh(day) + items.reduce((s, i) => s + (i.end - i.start), 0) / HOUR;
     const load = 0.3 * Math.max(0, L - 4) + 1.0 * Math.max(0, L - 6);
-    const count = N > 2 ? 0.5 * (2 ** (N - 2) - 1) : 0;
+    const big = items.filter((i) => i.end - i.start > SLOT).length; // errands of 30 min or less do not count
+    const count = big > 2 ? 0.5 * (2 ** (big - 2) - 1) : 0;
     let halo = 0, over = 0;
     for (let i = 0; i < N; i++) {
       const a = items[i];
@@ -153,18 +157,21 @@ export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
 
   let rng = seed >>> 0;
   const rand = () => { rng = (rng + 0x6d2b79f5) >>> 0; let t = Math.imul(rng ^ (rng >>> 15), 1 | rng); t ^= t + Math.imul(t ^ (t >>> 7), 61 | t); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-  const iters = Math.min(3000, 80 * n);
+  // Only pieces with a choice are searched: a held piece has one cell, so a small change stays a small, repeatable search.
+  const free = pieces.map((_, i) => i).filter((i) => cs[i].length > 1), nf = free.length;
+  const iters = Math.min(3000, 80 * nf);
   let bestS = S, bestScore = cur;
   for (let it = 0; it < iters; it++) {
-    if (Date.now() - t0 > CAP_MS) break; // only ever stops early
-    const T = T0 * (T1 / T0) ** (it / iters), r = rand(), i = Math.floor(rand() * n);
+    if (it >= 20 * nf && Date.now() - t0 > CAP_MS) break; // stops early, but never before the greedy clashes had a fair chance to clear
+    const T = T0 * (T1 / T0) ** (it / iters), r = rand(), i = free[Math.floor(rand() * nf)];
     let mv: Mv = [], kind: LogEntry["kind"] = "reinsert", day: number | undefined;
     if (r < 0.3) {
       const c = best(i, []);
       if (c !== S[i]) mv = [[i, c]];
     } else if (r < 0.5) {
-      const j = Math.floor(rand() * n);
-      if (i !== j && S[i] !== S[j]) { mv = [[i, S[j]], [j, S[i]]]; kind = "swap"; }
+      const j = free[Math.floor(rand() * nf)];
+      // a swap must stay inside both pieces' horizons and windows
+      if (i !== j && S[i] !== S[j] && inDom(i, S[j]) && inDom(j, S[i])) { mv = [[i, S[j]], [j, S[i]]]; kind = "swap"; }
     } else if (r < 0.8) {
       const a = best(i, [], true);
       mv = [[i, a]];
@@ -176,7 +183,7 @@ export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
       S.forEach((s, k) => { const d = dayStart(s); (by.get(d) ?? by.set(d, []).get(d)!).push(k); });
       const keys = [...by.keys()].sort((a, b) => a - b);
       day = keys[Math.floor(rand() * keys.length)];
-      const ids = by.get(day)!.sort((a, b) => rank[a] - rank[b]);
+      const ids = by.get(day)!.filter((k) => cs[k].length > 1).sort((a, b) => rank[a] - rank[b]);
       mv = ids.map((k) => [k, -1]);
       mv.forEach((m) => (m[1] = best(m[0], mv)));
       kind = "day";
@@ -198,7 +205,9 @@ export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
   let extra = moved.length - EJECT_CAP;
   for (const i of moved) {
     if (extra <= 0) break;
-    const prior = pieces[i].prior!, day = dayStart(prior), items = listsOf(view([], i)).get(day) ?? [];
+    const prior = pieces[i].prior!;
+    if (!inDom(i, prior)) continue;
+    const day = dayStart(prior), items = listsOf(view([], i)).get(day) ?? [];
     if (dayCost(day, [...items, { start: prior, end: prior + du[i] }]) - dayCost(day, items) < 500) { S = view([[i, prior]]); extra--; }
   }
   return { starts: new Map(pieces.map((p, i) => [p.id, S[i]])), score: full(S), greedyScore, log };

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Zen fees</title>
+<link rel="stylesheet" href="ui.css" />
+<style>@keyframes z{to{transform:rotate(360deg)}}
+/* Empty state, as in marks.html: the card takes the art card's slot. */
+.rest { position: relative; margin-top: 18px; height: 150px; border-radius: 28px; background: var(--chip); padding: 20px; display: flex; flex-direction: column; }
+.rest .lf { position: absolute; top: 18px; right: 18px; color: var(--ink); }
+.rest .t { margin-top: auto; padding-right: 58px; font-size: 24px; line-height: 1.15; font-weight: 600; letter-spacing: -.02em; }
+.rest .s { margin-top: 6px; font-size: 15px; color: var(--muted); font-weight: 500; line-height: 1.35; }
+.r .owe { color: var(--seal); }
+</style>
+</head>
+<body>
+<div class="head">
+  <h1>Fees</h1>
+  <p>Read only, from the campus portal: every fee line Zen already fetched, term by term, newest first. What is still owed sits in a card up top with one button to pay on the school's e-bills page. The circle at the top right asks again, as one job in the queue. Names, phone and class from the portal are never kept, only the lines.</p>
+  <nav><a href="capture.html">Capture</a><a href="settings.html">Settings</a><a href="marks.html">Marks</a><a href="views.html">Views</a></nav>
+</div>
+<div class="gallery"></div>
+<script src="ui.js"></script>
+<script>
+const hdr = (run) => `<div style="display:flex;justify-content:space-between"><span class="o">${ic(I.back, 20)}</span><span class="o">${run ? `<span style="display:flex;animation:z 1s linear infinite">${ic(I.sync, 20)}</span>` : ic(I.sync, 20)}</span></div>
+  <div class="h" style="margin-top:18px">Học phí</div><div class="sub" style="margin-top:4px">${run ? "Đang cập nhật…" : "Cập nhật 15/10"}</div>`;
+// A fee line: its name (the credits bracket moves to the small line), what it costs, and paid on a date or what is left in vermilion.
+const line = (name, tc, amt, paid) => `<div class="r"><div class="tx"><b>${name}</b><small${paid ? "" : ' class="owe"'}>${[tc ? `${tc} tín chỉ` : "", paid ? `Đã đóng ${paid}` : `Còn ${amt}`].filter(Boolean).join(" · ")}</small></div><span class="tm" style="color:var(--ink);font-size:16px">${amt}</span></div>`;
+const term = (t, sum, rows, first) => `<div class="lab" style="margin-top:${first ? 28 : 22}px">${t} <span>${sum}</span></div><div class="list" style="margin-top:6px">${rows}</div>`;
+const HK1 = term("HK1, 2026-2027", "3.863.100 đ",
+  line("Bảo hiểm y tế", "", "683.100 đ", "10/11") + line("Phát triển ứng dụng web nâng cao", 3, "1.590.000 đ", "10/11") + line("Mẫu thiết kế", 3, "1.590.000 đ"), 1);
+const HK2 = term("HK2, 2025-2026", "4.770.000 đ",
+  line("Công nghệ phần mềm", 3, "1.590.000 đ", "02/03") + line("Lập trình di động", 3, "1.590.000 đ", "02/03") + line("Trí tuệ nhân tạo", 3, "1.590.000 đ", "02/03"));
+const owed = `<div class="art" style="margin-top:18px;height:150px;padding:18px 20px">${art("exam", { w: 264, h: 150, seed: 3, cls: "bgart" })}
+    <div class="lab" style="color:#fff;opacity:.85">Còn nợ</div>
+    <div style="position:absolute;left:20px;bottom:18px"><div class="big" style="font-size:34px">1.590.000 đ</div><div class="small">1 khoản, HK1 2026-2027</div></div>
+    <span class="pl sm" style="position:absolute;right:16px;bottom:18px;background:rgba(255,255,255,.9);color:#0b0b0c;border:none;font-weight:700">Đóng</span></div>`;
+const paid = `<div class="rest"><span class="lab">Học phí</span><span class="lf">${LOGO(52, "color")}</span><div class="t">Đã đóng đủ</div><div class="s">Không còn khoản nào. Kỳ sau Zen xem lại giữa tháng 3.</div></div>`;
+const none = `<div class="rest"><span class="lab">Học phí</span><span class="lf">${LOGO(52, "line")}</span><div class="t">Chưa có học phí</div><div class="s">Chạm vòng tròn phía trên để lấy từ Online.</div></div>`;
+mount([
+  { tag: "Fees, owed", sub: "The red exam palette carries what is left and how many lines; Đóng opens e-bills for this student ID, and coming back asks again. Below, each term's table with its total: a paid line says when, an unpaid one says what is left in vermilion.", html: chrome(hdr() + owed + HK1 + HK2, { dock: null }) },
+  { tag: "Fees, paid", sub: "Nothing owed: the quiet card with the leaf filled in, and the tables still there to look back on.", html: chrome(hdr() + paid + HK1.replace(/<small class="owe">3 tín chỉ · Còn 1.590.000 đ/, "<small>3 tín chỉ · Đã đóng 14/11") + HK2, { dock: null }) },
+  { tag: "Fees, updating", sub: "The circle turns while the job runs; the tables stay until fresh ones land.", html: chrome(hdr(1) + owed + HK1, { dock: null }) },
+  { tag: "Fees, never fetched", sub: "Before the first fee check: the outline leaf and where fees come from.", html: chrome(hdr() + none, { dock: null }) },
+  { tag: "Fees, dark", sub: "Same at night.", dark: true, html: chrome(hdr() + owed + HK1, { dock: null }) },
+]);
+</script>
+</body>
+</html>

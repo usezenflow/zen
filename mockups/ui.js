@@ -1,8 +1,9 @@
 // Shared chrome for the zen mockups: scanline art, the disc logo, icons and the dock.
 const ic = (d, s = 20, w = 1.8) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const I = {
+  camera: '<path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.5-2h6l1.5 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5Z"/><circle cx="12" cy="12.5" r="3.5"/>',
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>',
-  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/>',
   x: '<path d="M6 6l12 12M18 6 6 18"/>',
   back: '<path d="M15 18l-6-6 6-6"/>',
   down: '<path d="M6 9l6 6 6-6"/>',
@@ -14,9 +15,13 @@ const I = {
   person: '<circle cx="12" cy="8" r="3.6"/><path d="M5 20a7 7 0 0 1 14 0"/>',
   book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5Z"/><path d="M4 19.5V22h16"/>',
   link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+  hourglass: '<path d="M7 3h10M7 21h10M8 3v3.5a4 4 0 0 0 1.6 3.2L12 12l-2.4 2.3A4 4 0 0 0 8 17.5V21M16 3v3.5a4 4 0 0 1-1.6 3.2L12 12l2.4 2.3A4 4 0 0 1 16 17.5V21"/>',
   clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
   repeat: '<path d="M17 3l3 3-3 3M4 11V9a3 3 0 0 1 3-3h13M7 21l-3-3 3-3M20 13v2a3 3 0 0 1-3 3H4"/>',
   unlink: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1M4 4l16 16"/>',
+  sun: '<circle cx="12" cy="12" r="3.5"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
+  moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/>',
+  search: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3"/>',
   sync: '<path d="M20 11a8 8 0 0 0-14.5-4.5M4 13a8 8 0 0 0 14.5 4.5"/><path d="M5 3v4h4M19 21v-4h-4"/>',
 };
 
@@ -62,7 +67,7 @@ function ring(p) {
 function chrome(inner, { time = "14:20", dock = "idle", p = 0 } = {}) {
   const label = { idle: "Giữ để nói", live: "Thả tay khi xong", think: "Đang sắp xếp", off: `Đang chuẩn bị ${Math.round(p * 100)}%` }[dock];
   return `<div class="sb"><span>${time}</span><span>●●● ▮</span></div><div class="scr">${inner}</div>
-  ${dock ? `<div class="fade"></div><div class="dock"><div class="hold ${dock}">${p ? ring(p) : ""}${dock === "think" ? LOGO(34, "white") : ic(I.mic, 28, 1.8)}</div><div class="dlabel">${label}</div></div>` : ""}<div class="hi"></div>`;
+  ${dock ? `<div class="fade"></div><div class="dock"><div class="hold ${dock}">${p ? ring(p) : ""}${dock === "think" ? LOGO(34, "mono") : ic(I.mic, 28, 1.8)}</div><div class="dlabel">${label}</div></div>` : ""}<div class="hi"></div>`;
 }
 
 // Toast: title and sub wrap (two lines each); actions sit in a bottom row, right-aligned.
@@ -81,8 +86,17 @@ function when(iso, time = "") {
 }
 
 // iOS-style dropdown from a tapped button: items are [label, iconKey, destructive]. Place with top/right.
-// Live mic level: bars follow loudness while listening.
-const WAVE = `<div class="wave">${[8, 14, 22, 28, 18, 24, 12, 20, 26, 16, 10, 18, 8, 6].map((h) => `<i style="height:${h}px"></i>`).join("")}</div>`;
+// Home header: hello, date, count; the search circle, the theme circle (sun in light, moon in dark) then the gear.
+const head = (hello, title, n, go) => `<div style="position:relative;display:flex;align-items:flex-start;justify-content:space-between;margin-top:6px"><div><div class="hello">${hello}</div><div class="h" style="margin-top:2px">${title}</div><div class="sub">${n}</div></div><div style="display:flex;gap:8px;margin-top:2px"><span class="o">${ic(I.search, 20)}</span><span class="o th">${ic(I.sun, 20).replace("<svg", '<svg class="sun"')}${ic(I.moon, 20).replace("<svg", '<svg class="moon"')}</span><span class="o">${ic(I.gear, 20)}</span></div>${go ? `<span class="go">Hôm nay</span>` : ""}</div>`;
+
+// Live voice, after LiveKit's bar visualizer: five pill bars that rest as dots.
+// "silent": listening, nothing heard yet, the centre dot breathes. "speak": all lit, heights follow loudness (0..1 per bar).
+// "think": all dots, one lit, sweeping side to side while it plans.
+const VIZ = (mode, lv = [0.4, 0.75, 1, 0.65, 0.35], lit = 2) => `<div class="vbars">${[0.55, 0.8, 1, 0.8, 0.55].map((e, i) => {
+  const h = mode === "speak" ? Math.max(8, Math.round(8 + 40 * e * lv[i])) : 8;
+  const on = mode === "speak" || i === lit;
+  return `<i class="${on ? "on" : ""}" style="height:${h}px"></i>`;
+}).join("")}</div>`;
 
 // Text-only rows; the panel fits its longest label.
 const menu = (items, top = 96, right = 18) => `<div class="mscrim"></div><div class="menu" style="top:${top}px;right:${right}px">${items.map(([t, , red]) => `<div class="mi ${red ? "red" : ""}">${t}</div>`).join("")}</div>`;

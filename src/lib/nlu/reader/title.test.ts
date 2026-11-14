@@ -4,6 +4,21 @@ import { read } from "./reader";
 import { mentionsOf } from "./mentions";
 
 describe("reader titles", () => {
+  it("names a labelled deadline by its list, keeps its clock and the pasted text as note", () => {
+    const text = `các nhóm c hướng dẫn, tạo thư mục (Nhom_TenTatDeTai) - Hạn nộp: trước 23:00 ngày 16/11/2026, các nhóm tự hoàn thiện các nội dung để nộp:
+1. Báo cáo toàn văn
+2. Bài báo khoa học
+3.  Source code + video demo sản phẩm.
+Link nộp: https://drive.google.com/drive/folders/abc?usp=sharing`;
+    const r = read(text, { source: "paste", ref: { y: 2026, m: 11, d: 14, h: 9, mi: 0 } });
+    expect(r.items).toHaveLength(1);
+    expect(r.items[0]).toMatchObject({
+      title: "Nộp Báo cáo toàn văn và 2 mục khác",
+      deadline: "2026-11-16 23:00",
+    });
+    expect(r.items[0].note).toContain("<p>2. Bài báo khoa học</p>");
+  });
+
   it("extracts bulk 5 items without error", () => {
     const text =
       "Launch Zenflow trc mai, quay demo và hoàn thiện báo cáo hết tuần này, học system design hết tuần này, viết bc môn web trc 20/11, đọc code zf hết tuần này";

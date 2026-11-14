@@ -6,6 +6,7 @@ import type { WidgetData } from "./data";
 // Small: the next thing on its sand with the time left in a battery meter (mockups/widgets.html).
 // Sizes are mockup px x 1.31 (300px mockup phone vs 393dp). The widget runtime sees nothing at module scope,
 // so tokens and helpers live inside the function.
+// shortcut: Glance (expo-widgets 58) renders 500/600 as Normal and has no line-height, letter-spacing or custom font, so 600 is drawn Bold in the system font; upgrade when expo-widgets maps Medium/SemiBold.
 function ZenNext(p: WidgetData, env: WidgetEnvironment) {
   "widget";
   const c = env.colorScheme === "dark"
@@ -33,11 +34,11 @@ function ZenNext(p: WidgetData, env: WidgetEnvironment) {
   );
   // Battery meter: a translucent track with the white fill rising from the bottom (Glance has no borders).
   const meter = (fill: number, big: string, small: string) => {
-    const h = Math.round(43 * Math.max(0, Math.min(1, fill)));
+    const h = Math.min(39.4, 43.2 * Math.max(0, Math.min(1, fill)));
     return (
       <Row verticalAlignment="center">
-        <Box contentAlignment="bottomCenter" modifiers={[size(16, 47), cornerRadius(9), background("#ffffff40"), padding(2, 2, 2, 2)]}>
-          {h > 0 ? <Box modifiers={[fillMaxWidth(), height(Math.max(h, 6)), cornerRadius(6), background("#ffffff")]} /> : null}
+        <Box contentAlignment="bottomCenter" modifiers={[size(15.7, 47.2), cornerRadius(9.2), background("#ffffff40"), padding(3.9, 3.9, 3.9, 3.9)]}>
+          {h > 0 ? <Box modifiers={[fillMaxWidth(), height(Math.max(h, 6)), cornerRadius(6.55), background("#ffffff")]} /> : null}
         </Box>
         <Spacer modifiers={[width(10)]} />
         <Column>
@@ -54,15 +55,15 @@ function ZenNext(p: WidgetData, env: WidgetEnvironment) {
       <Button {...tap(p.home)} modifiers={[fillMaxSize()]}>
         <Box modifiers={[fillMaxSize(), cornerRadius(28), background(c.bg), padding(18, 17, 18, 17)]}>
           <Row verticalAlignment="center" modifiers={[fillMaxWidth()]}>
-            {logo(c.ink)}
+            {logo(c.muted)}
             <Box contentAlignment="centerEnd" modifiers={[fillMaxWidth()]}>
-              <Text color={c.muted} maxLines={1} style={{ fontSize: 15 }}>{p.short}</Text>
+              <Text color={c.muted} maxLines={1} style={{ fontSize: 14.4 }}>{p.short}</Text>
             </Box>
           </Row>
           <Box contentAlignment="bottomStart" modifiers={[fillMaxSize()]}>
             <Column>
               <Text color={c.ink} maxLines={2} style={{ fontSize: 21, fontWeight: "bold" }}>{"Xong hết\nhôm nay"}</Text>
-              {p.tomorrow ? <Text color={c.muted} maxLines={2} style={{ fontSize: 15 }}>{p.tomorrow}</Text> : null}
+              {p.tomorrow ? <Text color={c.muted} maxLines={2} modifiers={[padding(0, 3.9, 0, 0)]} style={{ fontSize: 15 }}>{p.tomorrow}</Text> : null}
             </Column>
           </Box>
         </Box>
@@ -76,7 +77,7 @@ function ZenNext(p: WidgetData, env: WidgetEnvironment) {
         {art ? <Image source={{ uri: art }} contentScale="crop" contentDescription={null} modifiers={[fillMaxSize()]} /> : null}
         <Box modifiers={[fillMaxSize(), padding(18, 17, 18, 17)]}>
           <Column>
-            <Text color="#ffffffd9" maxLines={1} style={{ fontSize: 15 }}>{n.label}</Text>
+            <Text color="#ffffffd9" maxLines={1} style={{ fontSize: 14.4 }}>{n.label}</Text>
             <Text color="#ffffff" maxLines={2} style={{ fontSize: 21, fontWeight: "bold" }}>{n.title}</Text>
           </Column>
           <Box contentAlignment="bottomStart" modifiers={[fillMaxSize()]}>
@@ -99,7 +100,8 @@ export const SAMPLE: WidgetData = {
     { id: "s5", title: "Đọc sách", type: "plan", time: "20:00", check: true, done: false, url: "zen:///" },
   ],
   doneLabel: "Xong (2)", tomorrow: "Mai: Cấu trúc dữ liệu 07:00",
-  exam: { id: "s6", title: "Giải tích 2", big: "11 ngày", small: "T6 27/11 08:00", fill: 0.6, inline: "Thi Giải tích 2 còn 11 ngày", url: "zen:///" },
+  ahead: [], aheadHead: "", aheadCount: "", doneCount: "", dayName: "Thứ hai 16",
+  exam: { id: "s6", title: "Giải tích 2", big: "11 ngày", small: "T6 27/11 08:00", fill: 0.6, inline: "Thi GT2 còn 11 ngày", n: "11", unit: "ngày nữa", url: "zen:///" },
   // Empty art falls back to the type's flat colour until the app has copied the PNGs.
   art: { plan: { square: "", wide: "" }, lecture: { square: "", wide: "" }, exam: { square: "", wide: "" }, assignment: { square: "", wide: "" }, busy: { square: "", wide: "" } },
   ticked: [], home: "zen:///", listen: "zen:///?listen=1",

@@ -18,6 +18,7 @@
 .wk .nil { height: 150px; border-radius: 10px; border: 1px dashed var(--line); }
 .inl { margin-top: 10px; padding: 14px 16px; border-radius: 22px; background: var(--chip); display: flex; align-items: center; gap: 12px; }
 .inl b { display: block; font-size: 16px; font-weight: 600; }
+.go { position: absolute; right: 0; bottom: 0; height: 30px; padding: 0 12px; border-radius: 99px; border: 1px solid var(--line); display: flex; align-items: center; font-size: 14px; font-weight: 600; }
 .inl small { display: block; margin-top: 2px; font-size: 14px; color: var(--muted); font-weight: 500; }
 /* System notification banner (iOS style), drawn by the OS, not by Zen: only the words are ours. */
 .nt { position: absolute; top: 46px; left: 10px; right: 10px; z-index: 30; display: flex; gap: 10px; padding: 12px 14px; border-radius: 22px; background: rgba(245,245,245,.86); backdrop-filter: blur(20px); color: #111; box-shadow: 0 16px 34px -18px rgba(0,0,0,.45); }
@@ -28,19 +29,46 @@
 .nt .tx span { display: block; color: #333; }
 .dark .nt { background: rgba(40,40,42,.86); color: #f2f2f2; }
 .dark .nt .tx span { color: #d0d0d0; }
+/* Detail editing: a tapped meta line turns into native compact pickers, in place. No sheet. */
+.meta .ed { gap: 6px; color: var(--ink); }
+.meta .ed svg { margin-right: 4px; }
+.pk { flex: none; white-space: nowrap; height: 34px; padding: 0 9px; border-radius: 9px; background: var(--chip); display: inline-grid; place-items: center; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
+.pk.on { box-shadow: 0 0 0 1.5px var(--seal); }
+.meta .ed em { font-style: normal; color: var(--muted); font-weight: 500; }
+.meta .ed .clr { margin-left: auto; white-space: nowrap; color: var(--muted); font-size: 15px; font-weight: 600; }
+.meta .caret::after { content: ""; display: inline-block; width: 2px; height: 17px; margin-left: 1px; vertical-align: -3px; background: var(--seal); }
+.meta .ph { color: var(--muted); opacity: .7; }
+.kd { display: inline-flex; align-items: center; gap: 4px; }
+/* Search: the header becomes the field, in place. Matched words wear the same vermilion tint as capture's read marks. */
+/* Spotlight: while the field grows out of the search circle the view behind blurs and fades to paper. Tap outside to close. */
+.sv { position: absolute; inset: 0; z-index: 19; padding: 54px 24px 30px; background: var(--bg); } /* open: solid paper, so rows over a colourful card stay legible */
+.sv.mid { background: color-mix(in srgb, var(--bg) 40%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.fld .clr { margin-left: auto; color: var(--muted); display: grid; }
+.sg { display: flex; align-items: center; gap: 12px; padding: 13px 0; }
+.sg + .sg .st { box-shadow: 0 -1px 0 var(--line); }
+.sg svg { flex: none; color: var(--muted); }
+.sg .st { flex: 1; min-width: 0; align-self: stretch; display: flex; flex-direction: column; justify-content: center; }
+.sg b { font-size: 17px; font-weight: 600; }
+.sg small { margin-top: 2px; font-size: 14px; font-weight: 500; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lab .xo { margin-left: auto; font-weight: 600; color: var(--ink); }
+.find { display: flex; gap: 8px; margin-top: 6px; }
+.find .fld { background: var(--bg); flex: 1; height: 44px; padding: 0 16px; border-radius: 99px; border: 1px solid var(--line); display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 500; }
+.find .ph { color: var(--muted); }
+.find .caret::after { content: ""; display: inline-block; width: 2px; height: 19px; margin-left: 1px; vertical-align: -4px; background: var(--seal); }
+.got { margin-top: 10px; padding-left: 16px; font-size: 14px; font-weight: 600; color: var(--muted); }
+.r mark { background: rgba(217,67,43,.18); color: inherit; border-radius: 3px; padding: 0 2px; }
 </style>
 </head>
 <body>
 <div class="head">
   <h1>Day, week, month</h1>
-  <p>Paper white, ink type, hairline circles. Colour lives only in raked sand cards, one palette per type: plan, lecture, exam, assignment, busy. Swipe sideways to change week or month; in the day view, pull up or down past the edge for the next or previous day. No sheets: menus drop from the button.</p>
-  <nav><a href="capture.html">Capture</a><a href="logo.html">Logo</a><a href="settings.html">Settings</a><a href="marks.html">Marks</a><a href="widgets.html">Widgets</a><a href="magic.html">Magic</a></nav>
+  <p>Paper white, ink type, hairline circles. Colour lives only in raked sand cards, one palette per type: plan, lecture, exam, assignment, busy. Swipe sideways to change week or month; in the day view, pull up or down past the edge for the next or previous day. No sheets: menus drop from the button. The search circle opens search over the view, like Spotlight.</p>
+  <nav><a href="capture.html">Capture</a><a href="logo.html">Logo</a><a href="settings.html">Settings</a><a href="marks.html">Marks</a><a href="fees.html">Fees</a><a href="widgets.html">Widgets</a><a href="magic.html">Magic</a></nav>
 </div>
 <div class="gallery"></div>
 <script src="ui.js"></script>
 <script>
 const tabs = (on) => `<div class="tabs">${["Ngày", "Tuần", "Tháng"].map((v) => `<span class="${v === on ? "on" : ""}">${v}</span>`).join("")}</div>`;
-const head = (hello, title, n) => `<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-top:6px"><div><div class="hello">${hello}</div><div class="h" style="margin-top:2px">${title}</div><div class="sub">${n}</div></div><span class="o" style="margin-top:2px">${ic(I.gear, 20)}</span></div>`;
 const row = (tm, title, type, st = "", sub = "") => {
   const on = st && st !== "late";
   const box = type === "plan" || type === "assignment" ? `<span class="ck ${st}">${on ? ic(I.check, 16, 2.4) : ""}</span>` : swatch(type);
@@ -60,9 +88,13 @@ const edit = `${head("Thứ hai", "16 tháng 11", "5 việc, 1 tiết học")}${
     <div class="r edit"><span class="ck"></span><div class="tx"><b>Báo cáo nhóm</b><small>Chương 3 và 4. Hỏi Lan file slide.</small></div><span class="tm">16:00</span></div>
     ${row("17:30", "Cơ sở dữ liệu", "lecture", "", "A2.104")}</div><div class="kb"></div>`;
 const ml = (k, t, cls = "") => `<div class="${cls}">${ic(I[k], 20, 1.9)}<span>${t}</span></div>`;
-const dtop = `<div style="display:flex;justify-content:space-between"><span class="o">${ic(I.back, 20)}</span><span class="o">${ic(I.trash, 20)}</span></div>`;
-// Detail: type tag, title, muted meta lines (not editable), optional LMS content, then the user's own note.
-const dt = (type, from, title, meta, note, lms = "") => `${dtop}
+const dtop = `<div style="display:flex;justify-content:space-between"><span class="o">${ic(I.back, 20)}</span><span class="o del">${ic(I.trash, 20)}</span></div>`;
+// Detail: type tag, title, muted meta lines, optional LMS content, then the user's own note. Lines the user owns open in place when tapped.
+const dtop2 = `<div style="display:flex;justify-content:space-between"><span class="o">${ic(I.back, 20)}</span><span style="display:flex;gap:8px"><span class="o">${ic(I.dots, 20)}</span><span class="o del">${ic(I.trash, 20)}</span></span></div>`;
+// A user's own task names its kind after the type; tapping it opens the kind dropdown.
+const mine = (kind) => `Việc của bạn · <span class="kd">${kind}${ic(I.down, 14)}</span>`;
+const pk = (t, on) => `<span class="pk ${on ? "on" : ""}">${t}</span>`;
+const dt = (type, from, title, meta, note, lms = "", top = dtop) => `${top}
   <div style="display:flex;align-items:center;gap:10px;margin-top:22px">${swatch(type)}<span class="sub" style="margin:0">${from}</span></div>
   <div class="h" style="margin-top:14px">${title}</div>
   <div class="meta">${meta}</div>${lms}
@@ -70,15 +102,34 @@ const dt = (type, from, title, meta, note, lms = "") => `${dtop}
 const lmsBody = `<div class="lms"><div class="lab">Nội dung</div><p>Xây dựng trang quản lý sinh viên.</p><ul><li>Có trang danh sách và thêm mới</li><li>Nộp file .zip lên LMS</li></ul></div>`;
 const noteLms = "Hỏi Lan về phần kiểm tra.";
 const detail = dt("assignment", "Từ LMS", "Bài tập lớn: Quản lý sinh viên",
-  ml("clock", `Hạn ${when("2026-11-23", "23:59")}`, "red") + ml("clock", `Làm lúc ${when("2026-11-20", "14:00")}, 90 phút`) + ml("book", "Lập trình Web") + ml("link", `Mở trên LMS ${ic(I.right, 16)}`, "lk"), noteLms, lmsBody);
+  ml("hourglass", `Hạn ${when("2026-11-23", "23:59")}`, "red") + ml("clock", `Làm lúc ${when("2026-11-20", "14:00")}, 45 phút`) + ml("book", "Lập trình Web") + ml("link", `Mở trên LMS ${ic(I.right, 16)}`, "lk"), noteLms, lmsBody);
 const detailLec = (m = "") => dt("lecture", "Từ lịch trường", "Cấu trúc dữ liệu",
   ml("clock", `${when("2026-11-18", "07:00")} đến 09:30`) + ml("pin", "A2.301") + ml("person", "GV Nguyễn Văn A"), '<span class="note ph">Thêm ghi chú</span>') + m;
 const detailExam = dt("exam", "Từ lịch trường", "Thi Giải tích 2", ml("clock", when("2026-11-27", "08:00")) + ml("pin", "A2.301"), '<span class="note ph">Thêm ghi chú</span>');
-const detailPrep = dt("plan", "Việc của bạn", "Ôn Giải tích 2",
-  ml("clock", `Làm lúc ${when("2026-11-19", "08:00")}, 60 phút`) + ml("book", `Ôn lý thuyết ${ic(I.right, 16)}`, "lk"), "Làm lại bài tập chương 3.");
-const detailRep = (m = "") => dt("plan", "Việc của bạn", "Đọc sách mỗi tối",
-  ml("clock", "20:00, 45 phút") + ml("repeat", "Mỗi ngày"), "Đọc chương đang dở.") + m;
-const detailPlain = dt("plan", "Việc của bạn", "Mua pin cho chuột", ml("clock", `Làm lúc ${when("2026-11-17", "17:00")}`), '<span class="note ph">Thêm ghi chú</span>');
+const detailPrep = dt("plan", mine("Học"), "Ôn lý thuyết, luyện đề",
+  ml("clock", `Làm lúc ${when("2026-11-19", "08:00")}, 45 phút`) + ml("book", `Giải tích 2 ${ic(I.right, 16)}`, "lk"), "Làm lại bài tập chương 3.", "", dtop2);
+const detailRep = (m = "") => dt("plan", mine("Việc khác"), "Đọc sách mỗi tối",
+  ml("clock", "20:00, 45 phút") + ml("repeat", "Mỗi ngày"), "Đọc chương đang dở.", "", dtop2) + m;
+const PH = '<span class="note ph">Thêm ghi chú</span>';
+const detailPlain = dt("plan", mine("Việc nhà"), "Mua pin cho chuột", ml("clock", `Làm lúc ${when("2026-11-17", "17:00")}`), PH, "", dtop2);
+// Editing in place. Each state is the same screen with one line open.
+const edLine = (k, inner, cls = "") => `<div class="ed ${cls}">${ic(I[k], 20, 1.9)}${inner}</div>`;
+const detailTime = dt("plan", mine("Việc nhà"), "Mua pin cho chuột", edLine("clock", `${pk("T3 17/11")}${pk("17:00", 1)}<em>đến</em>${pk("17:30")}`), PH, "", dtop2);
+const MORE = [["Đặt hạn"], ["Thêm địa điểm"], ["Để Zen xếp lại"]];
+const detailMore = detailPlain + menu(MORE, 96, 62);
+const detailDue = dt("plan", mine("Việc nhà"), "Mua pin cho chuột",
+  edLine("hourglass", `${pk("T6 20/11")}${pk("23:59", 1)}<span class="clr">Bỏ hạn</span>`, "red") + ml("clock", `Làm lúc ${when("2026-11-17", "17:00")}, 30 phút`), PH, "", dtop2);
+const detailPlace = dt("plan", mine("Việc nhà"), "Mua pin cho chuột",
+  ml("clock", `Làm lúc ${when("2026-11-17", "17:00")}`) + `<div class="ed">${ic(I.pin, 20, 1.9)}<span class="caret">Siêu thị Go</span></div>`, PH, "", dtop2) + '<div class="kb"></div>';
+// A place that is a link opens it; "Sửa địa điểm" in the dots menu types it again.
+const detailLink = dt("plan", mine("Học"), "Nộp Báo cáo toàn văn và 3 mục khác",
+  ml("hourglass", `Hạn ${when("2026-11-16", "23:00")}`, "red") + ml("link", `drive.google.com ${ic(I.right, 16)}`, "lk"),
+  "<p>các nhóm c hướng dẫn, tạo thư mục (Nhom_TenTatDeTai) - Hạn nộp: trước 23:00 ngày 16/11/2026, các nhóm tự hoàn thiện các nội dung để nộp:</p><p>1. Báo cáo toàn văn</p><p>2. Bài báo khoa học</p><p>3. Source code + video demo sản phẩm.</p><p>4. Hướng dẫn triển khai + sử dụng phần mềm</p><p>Link nộp: https://drive.google.com/drive/folders/12mF…</p>", "", dtop2);
+const KINDS = [["Học"], ["Tập thể dục"], ["Việc nhà"], ["Gặp gỡ"], ["Việc khác"]];
+const detailKind = dt("plan", mine("Việc khác"), "Ôn từ vựng", ml("clock", `Làm lúc ${when("2026-11-17", "20:00")}`), PH, "", dtop2) + menu(KINDS, 172, 84);
+const detailBusy = dt("busy", "Việc của bạn · Giờ cố định", "Đi gym", ml("clock", `${when("2026-11-18", "18:00")} đến 19:00`) + ml("repeat", "Mỗi tuần vào T4"), PH, "", dtop2);
+const detailLmsTime = dt("assignment", "Từ LMS", "Bài tập lớn: Quản lý sinh viên",
+  ml("hourglass", `Hạn ${when("2026-11-23", "23:59")}`, "red") + edLine("clock", `${pk("T6 20/11", 1)}${pk("14:00")}<em>đến</em>${pk("15:30")}`) + ml("book", "Lập trình Web") + ml("link", `Mở trên LMS ${ic(I.right, 16)}`, "lk"), noteLms, lmsBody);
 // Swipe right: a red trash bed shows behind the row as it slides.
 const swipe = (r, on) => (on ? `<div class="sw"><span class="bed">${ic(I.trash, 20, 2)}</span>${r}</div>` : r);
 const lst = (lift = "") => `${head("Thứ tư", "18 tháng 11", "4 việc, 1 tiết học")}${tabs("Ngày")}
@@ -103,11 +154,11 @@ const W = [["T2", 16, [["lecture", 46], ["plan", 26], ["assignment", 34]]], ["T3
 const PK = (n) => Array.from({ length: n }, (_, i) => [["plan", "assignment", "busy", "lecture"][i % 4], 24]);
 const WP = W.map((c, i) => (i === 1 ? ["T3", 17, [["lecture", 46], ...PK(7)]] : i === 3 ? ["T5", 19, PK(12)] : c));
 const wkList = `<div class="lab" style="margin-top:28px">T3, 17/11</div>
-  <div class="list" style="margin-top:6px">${row("08:00", "Ôn Xác suất", "plan")}${row("13:30", "Thi Xác suất", "exam", "", "Trắc nghiệm, B1.201")}</div>`;
+  <div class="list" style="margin-top:6px">${row("08:00", "Ôn thi", "plan", "", "Buổi 2/2 · Xác suất")}${row("13:30", "Thi Xác suất", "exam", "", "Trắc nghiệm, B1.201")}</div>`;
 const week = `${head("Tuần này", "16 đến 22/11", "14 việc, 1 bài thi")}${tabs("Tuần")}${wk(W)}${wkList}`;
 const weekPacked = `${head("Tuần này", "16 đến 22/11", "31 việc, 1 bài thi")}${tabs("Tuần")}${wk(WP)}${wkList}`;
 const pick = (d) => [[], ["plan"], ["lecture", "plan"], ["lecture", "plan", "assignment"], ["exam"], ["plan", "plan"], []][d % 7];
-const month = `${head("Năm 2026", "Tháng 11", "42 việc, 3 bài thi")}${tabs("Tháng")}
+const month = `${head("Năm 2026", "Tháng 11", "42 việc, 3 bài thi", 1)}${tabs("Tháng")}
   <div class="mo" style="margin-top:20px">${["T2", "T3", "T4", "T5", "T6", "T7", "CN"].map((d) => `<span class="w">${d}</span>`).join("")}
   ${Array.from({ length: 35 }, (_, i) => { const d = i - 5, out = d < 1 || d > 30, n = d < 1 ? 26 + i : d > 30 ? d - 30 : d; return `<div class="d ${out ? "out" : ""} ${d === 16 ? "today" : ""} ${d === 19 ? "sel" : ""}"><span>${n}</span><span class="ds">${(out ? [] : pick(d * 5)).map((t) => `<i style="--c:${DOT[t]}"></i>`).join("")}</span></div>`; }).join("")}</div>
   <div class="lab" style="margin-top:24px">T5, 19/11</div>
@@ -122,7 +173,7 @@ const monthHol = `${head("Năm 2027", "Tháng 2", "9 việc, 5 ngày Tết")}${t
   <div class="lab" style="margin-top:24px">T5, 11/2</div>
   <div class="list" style="margin-top:6px">${row("07:00", "Cấu trúc dữ liệu", "lecture", "", "A2.301")}</div>`;
 const pring = (p) => `<svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" fill="none" stroke="currentColor" stroke-opacity=".3" stroke-width="2"/><circle cx="9" cy="9" r="7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-dasharray="44" stroke-dashoffset="${44 * (1 - p)}" transform="rotate(-90 9 9)"/></svg>`;
-// Vertical pull: down at the top peeks the previous day, up at the bottom peeks the next. Past the threshold the pill turns vermilion with a check.
+// Vertical pull: down at the top peeks the previous day, up at the bottom peeks the next. Past the threshold the pill turns teal with a check.
 const pull = (dir, p, label) => { const done = p >= 1, dy = dir === "down" ? 30 + 34 * p : -(8 + 16 * p);
   return `<div class="peek ${done ? "done" : ""}" style="${dir === "down" ? "top:56px" : "bottom:150px"}">${done ? ic(I.check, 18, 2.4) : pring(p)}${label}</div><div style="transform:translateY(${dy}px)">${dayAt("Thứ sáu", "13 tháng 11")}</div>`; };
 const dayAt = (hello, title) => `${head(hello, title, "5 việc, 1 tiết học")}${tabs("Ngày")}
@@ -136,11 +187,11 @@ const say = (txt) => `<div class="say">${ic(I.mic, 18, 2)}<span>“<b>${txt}</b>
 const dayFree = `${head("Thứ bảy", "21 tháng 11", "Không có việc")}${tabs("Ngày")}
   ${rest("Hôm nay", "Ngày trống, thở chút", "Không có lịch học hay việc nào. Cứ để trống cũng được.")}
   <div class="lab" style="margin-top:28px">Sắp tới</div>
-  <div class="list" style="margin-top:6px">${row("07:00", "Cấu trúc dữ liệu", "lecture", "", `${when("2026-11-23")}, A2.301`)}${row("23:59", "Viết luận Triết", "assignment", "", `Hạn ${when("2026-11-23")}`)}${row("08:00", "Thi Giải tích 2", "exam", "", `${when("2026-11-27")}, A2.301`)}</div>`;
+  <div class="list" style="margin-top:6px">${row("07:00", "Cấu trúc dữ liệu", "lecture", "", `${when("2026-11-23")}, A2.301`)}${row("23:59", "Viết luận Triết", "assignment", "", `${when("2026-11-23")}, Hạn 23:59`)}${row("08:00", "Thi Giải tích 2", "exam", "", `${when("2026-11-27")}, A2.301`)}</div>`;
 const dayDone = `${head("Thứ hai", "16 tháng 11", "5 việc, xong hết")}${tabs("Ngày")}
   ${rest("Hôm nay", "Xong hết rồi", "5 việc, 1 tiết học. Phần còn lại của ngày là của bạn.", "color")}
   <div class="lab" style="margin-top:28px">Ngày mai</div>
-  <div class="list" style="margin-top:6px">${row("08:00", "Ôn Xác suất", "plan")}${row("13:30", "Thi Xác suất", "exam", "", "B1.201")}</div>
+  <div class="list" style="margin-top:6px">${row("08:00", "Ôn thi", "plan", "", "Buổi 2/2 · Xác suất")}${row("13:30", "Thi Xác suất", "exam", "", "B1.201")}</div>
   <div class="lab" style="margin-top:20px">Xong (5) ${ic(I.down, 14)}</div>`;
 const dayFirst = `${head("Chào bạn", "Thứ hai, 16/11", "Chưa có gì")}${tabs("Ngày")}
   ${rest("Bắt đầu", "Giữ nút và kể tuần này", "Nói như nhắn cho bạn. Zen tự xếp giờ.", "line", 168)}
@@ -168,27 +219,89 @@ const daySit = (st = "") => `${head("Thứ năm", "19 tháng 11", "4 việc, 1 t
 // Reminder: 10 minutes before a block starts. Title is the task; the line says when, then the deadline (assignment) or room (lecture, exam).
 const nt = (title, body, ago = "bây giờ") => `<div class="nt"><span class="ap">${LOGO(24, "color")}</span><div class="tx"><b>${title}<i>${ago}</i></b><span>${body}</span></div></div>`;
 const gone = (t, s) => chrome(toast(t, s, [["Hoàn tác"]]) + lst());
+// What Zen understood from the query, one muted line under the field: type, date or deadline, part of day, status.
+const got = (t) => `<div class="got">${t}</div>`;
+// Search: word by word, any order, accents optional; a word may be a prefix, an acronym, a known abbreviation or one typo off. Title or course. A series (a course's lectures, a repeat you said, a split assignment's sittings) is one row, at its next time. Today and later first, then past days, newest first. Each day keeps its label.
+const field = (q) => `<div class="find"><div class="fld">${ic(I.search, 20)}<span class="${q ? "caret" : "ph"}">${q || "Tìm việc"}</span>${q ? `<span class="clr">${ic(I.x, 18, 2)}</span>` : ""}</div></div>`;
+// The overlay over whatever view was open. "mid" catches the opening at about 60%: the field between the circle and full width.
+const sv = (inner, under = day(""), mid = false) => `${under}<div class="sv${mid ? " mid" : ""}">${inner}</div>`;
+const opening = sv(`<div class="fld" style="position:absolute;top:62px;left:106px;right:56px;height:44px;padding:0 12px;border-radius:99px;border:1px solid var(--line);background:var(--bg);display:flex;align-items:center">${ic(I.search, 20)}</div>`, day(""), true);
+const sg = (icon, q, sub) => `<div class="sg">${ic(I[icon], 18, 2)}<div class="st"><b>${q}</b>${sub ? `<small>${sub}</small>` : ""}</div></div>`;
+const suggest = sv(`${field("")}
+  <div class="lab" style="margin-top:28px">Gần đây<span class="xo">Xoá</span></div>
+  <div style="margin-top:2px">${sg("clock", "bc web", "")}${sg("clock", "gym", "")}</div>
+  <div class="lab" style="margin-top:22px">Gợi ý</div>
+  <div style="margin-top:2px">${sg("search", "giải tích", "Lịch học, Bài thi, Bài tập · 5 việc")}${sg("search", "ctdl", "Cấu trúc dữ liệu và giải thuật · 3 việc")}${sg("search", "thi tuần sau", "Bài thi · 23 đến 29/11 · 2 việc")}${sg("search", "hạn tuần này", "Hạn 16 đến 22/11 · 3 việc")}${sg("search", "tối mai", "Ngày mai · Buổi tối · 2 việc")}</div>`);
+const suggestNew = sv(`${field("")}
+  <div class="lab" style="margin-top:28px">Thử tìm</div>
+  <div style="margin-top:2px">${sg("search", "thi tuần sau", "Bài thi · 23 đến 29/11")}${sg("search", "hạn T6 chưa xong", "Bài tập · Hạn T6 · Chưa xong")}${sg("search", "tối mai", "Ngày mai · Buổi tối")}${sg("search", "csdl", "Viết tắt cũng được")}</div>`, dayFirst);
+const G = "<mark>Giải tích</mark>";
+const found = `${field("giai tich")}
+  <div class="lab" style="margin-top:28px">Hôm nay</div>
+  <div class="list" style="margin-top:6px">${row("14:30", `Ôn ${G}`, "plan")}</div>
+  <div class="lab" style="margin-top:24px">T3, 17/11</div>
+  <div class="list" style="margin-top:6px">${row("07:00", `${G} 2`, "lecture", "", "A2.301")}</div>
+  <div class="lab" style="margin-top:24px">T4, 18/11</div>
+  <div class="list" style="margin-top:6px">${row("08:00", "Ôn lý thuyết, luyện đề", "plan", "", "Buổi 1/4 · Giải tích 2")}${row("16:00", `Bài tập ${G} chương 3`, "assignment", "", "Hạn 23:59")}</div>
+  <div class="lab" style="margin-top:24px">T6, 27/11</div>
+  <div class="list" style="margin-top:6px">${row("08:00", `Thi ${G} 2`, "exam", "", "A2.301")}</div>
+  <div class="lab" style="margin-top:24px">T6, 13/11</div>
+  <div class="list" style="margin-top:6px">${row("14:30", `Ôn ${G}`, "plan", "on")}</div>`;
+const foundLoose = `${field("bc mon web")}
+  <div class="lab" style="margin-top:28px">T5, 19/11</div>
+  <div class="list" style="margin-top:6px">${row("14:00", "<mark>Báo cáo</mark> cuối kỳ môn <mark>Web</mark>", "assignment", "", "Hạn 23:59")}</div>
+  <div class="lab" style="margin-top:24px">T2, 23/11</div>
+  <div class="list" style="margin-top:6px">${row("09:00", "Nộp <mark>báo cáo</mark> <mark>website</mark> nhóm", "plan")}</div>`;
+const foundExam = `${field("thi tuần sau")}${got("Bài thi · 23 đến 29/11")}
+  <div class="lab" style="margin-top:22px">T3, 24/11</div>
+  <div class="list" style="margin-top:6px">${row("13:30", "<mark>Thi</mark> Xác suất", "exam", "", "B1.201")}${row("16:00", "Ôn lý thuyết, luyện đề", "plan", "", "Buổi 2/2 · Xác suất")}</div>
+  <div class="lab" style="margin-top:24px">T6, 27/11</div>
+  <div class="list" style="margin-top:6px">${row("08:00", "<mark>Thi</mark> Giải tích 2", "exam", "", "A2.301")}</div>`;
+const foundDue = `${field("bài tập hạn t6 chưa xong")}${got("Bài tập · Hạn T6 · Chưa xong")}
+  <div class="lab" style="margin-top:22px">Hôm nay</div>
+  <div class="list" style="margin-top:6px">${row("16:00", "Báo cáo nhóm", "assignment", "", "Hạn T6 23:59")}</div>
+  <div class="lab" style="margin-top:24px">T4, 18/11</div>
+  <div class="list" style="margin-top:6px">${row("16:00", "<mark>Bài tập</mark> Giải tích chương 3", "assignment", "", "Hạn T6 23:59")}</div>`;
+const foundEve = `${field("tối mai")}${got("Ngày mai · Buổi tối")}
+  <div class="lab" style="margin-top:22px">T3, 17/11</div>
+  <div class="list" style="margin-top:6px">${row("19:00", "Họp nhóm đồ án", "busy")}${row("20:00", "Đọc sách mỗi tối", "plan", "", "Mỗi ngày")}</div>`;
+const foundRep = `${field("gym")}
+  <div class="lab" style="margin-top:28px">T4, 18/11</div>
+  <div class="list" style="margin-top:6px">${row("18:00", "Đi <mark>gym</mark>", "busy", "", "Mỗi tuần vào T4")}</div>`;
+const foundNone = `${field("bơi")}
+  <div class="inl">${LOGO(34, "line")}<div><b>Không thấy việc nào</b><small>Tìm theo tên việc, gõ không dấu cũng được.</small></div></div>`;
 mount([
   { tag: "Day", sub: "Next up is the art card; its meter fills continuously as the block runs, not in steps. Its circle marks it done. Below, the rest of today.", html: chrome(day("")) },
   { tag: "Day, empty", sub: "No blank screen. The rest card takes the art card's slot, with the leaf in outline. Below it, what's coming in the next days, so the screen is still useful.", html: chrome(dayFree) },
   { tag: "Day, all done", sub: "Everything ticked. The leaf fills in, done rows collapse, and tomorrow moves up to take the space.", html: chrome(dayDone) },
   { tag: "Day, first launch", sub: "Nothing anywhere yet. The space teaches instead: three lines you could say, dashed like they're waiting to be filled, and the school link below.", html: chrome(dayFirst) },
-  { tag: "Day, listening", sub: "Hold the button: words appear live as you speak, with bars that follow your voice so you know it hears you. The last word is still partial, slightly faded.", html: chrome(`<div class="words">Mai nhắc mình nộp báo cáo<em> nhóm</em></div>${WAVE}`, { dock: "live" }) },
+  { tag: "Day, listening", sub: "Hold the button: the day stays behind the glow until the first word is heard, then the words take the screen. Words appear live as you speak: settled words in ink, the word still being heard faded; each new word fades in rising 4px. Below, five bars after LiveKit's visualizer follow your voice, the middle one tallest.", html: chrome(`<div class="words">Mai nhắc mình nộp báo cáo<em> nhóm</em></div>${VIZ("speak")}`, { dock: "live" }) },
+  { tag: "Day, listening, a pause", sub: "Between words the bars settle back to five dots and the middle one breathes, so a quiet moment still reads as listening. The words stay.", html: chrome(`<div class="words">Mai nhắc mình nộp báo cáo nhóm</div>${VIZ("silent")}`, { dock: "live" }) },
+  { tag: "Day, listening, long", sub: "A long take never scrolls: past four lines the oldest line fades out at the top and the newest stays where your eye is.", html: chrome(`<div class="words long">Thứ hai 7 giờ học Cấu trúc dữ liệu, chiều 3 giờ họp nhóm ở thư viện, tối ăn với Minh, thứ ba nộp báo cáo thực hành trước 11 giờ đêm,<em> nhớ</em></div>${VIZ("speak", [0.6, 0.5, 0.9, 0.7, 0.3])}`, { dock: "live" }) },
+  { tag: "Day, thinking", sub: "Let go: the words settle to ink, the bars fall to dots and one lit dot sweeps side to side while Zen places it. The leaf rocks on the button.", html: chrome(`<div class="words">Mai nhắc mình nộp báo cáo nhóm</div>${VIZ("think", undefined, 1)}`, { dock: "think" }) },
   { tag: "Done", sub: "Tap a circle: it fills black and pops, the row strikes through, haptic success, Undo.", html: chrome(toast("Ôn Giải tích xong", "Còn 3 việc hôm nay", [["Hoàn tác"]]) + day("pop")) },
-  { tag: "Day, missed", sub: "A task whose time has passed without a tick keeps its place, with a vermilion circle and time. No strike-through: it is not done, just late. Tick it, or say when to move it.", html: chrome(`${head("Thứ hai", "16 tháng 11", "5 việc, 1 tiết học")}${tabs("Ngày")}<div class="lab" style="margin-top:28px">Hôm nay</div><div class="list" style="margin-top:6px">${row("09:00", "Đọc chương 2", "plan", "late")}${row("11:00", "Nộp phiếu khảo sát", "assignment", "late", "Hạn 12:00")}${row("16:00", "Báo cáo nhóm", "assignment", "", "Hạn 23:59")}${row("17:30", "Cơ sở dữ liệu", "lecture", "", "A2.104")}</div>`, { time: "14:20" }) },
+  { tag: "Day, missed", sub: "A task whose time has passed without a tick keeps its place, with a vermilion circle and time. No strike-through: it is not done, just late. Tick it, or leave it: the next time you open the app Zen has rolled it forward (Magic, 15).", html: chrome(`${head("Thứ hai", "16 tháng 11", "5 việc, 1 tiết học")}${tabs("Ngày")}<div class="lab" style="margin-top:28px">Hôm nay</div><div class="list" style="margin-top:6px">${row("09:00", "Đọc chương 2", "plan", "late")}${row("11:00", "Nộp phiếu khảo sát", "assignment", "late", "Hạn 12:00")}${row("16:00", "Báo cáo nhóm", "assignment", "", "Hạn 23:59")}${row("17:30", "Cơ sở dữ liệu", "lecture", "", "A2.104")}</div>`, { time: "14:20" }) },
   { tag: "Created", sub: "No confirmation. One Undo button; the other good slot is an outline pill left of Undo; title and sub may wrap to two lines. Dates follow the week rule: weekday only this week, plus day/month otherwise.", html: chrome(toast("Báo cáo nhóm", when("2026-11-20", "14:00"), [[when("2026-11-21", "09:00"), 1], ["Hoàn tác"]]) + day(""), { dock: "think" }) },
   { tag: "Created, many", sub: "One line said several things. The toast counts them, names the first two, and one Undo takes all back. No other-slot offer for a batch.", html: chrome(toast("Đã thêm 5 việc", "Báo cáo nhóm, Gym +3", [["Hoàn tác"]]) + day(""), { dock: "think" }) },
   { tag: "Created, next week", sub: "Outside the current week the date shows: T6 27/11 14:00.", html: chrome(toast("Báo cáo nhóm", when("2026-11-27", "14:00"), [["Hoàn tác"]]) + day(""), { dock: "think" }) },
-  { tag: "Edit", sub: "Tap a title and it becomes the field, right there. Time is tappable too. Return saves; nothing else on screen changes. Tap the row (not the title or time) for details. Long-press a row for the delete menu.", html: chrome(edit, { dock: null }) },
+  { tag: "Edit", sub: "Double-tap the title (or the line under it) and it becomes the field, right there. Tap the time and it becomes the native picker. Return saves; nothing else on screen changes. One tap anywhere else on the row, the title included, opens the details. Long-press a row for the delete menu.", html: chrome(edit, { dock: null }) },
   { tag: "Day, pull to previous", sub: "Pull down at the top of the day. A small pill peeks at the edge with a progress ring that fills as you pull.", html: chrome(pull("down", 0.55, "T5, 12/11")) },
-  { tag: "Day, pull past threshold", sub: "Past the threshold the ring becomes a check and the pill turns vermilion; letting go switches to the previous day.", html: chrome(pull("down", 1, "T5, 12/11")) },
+  { tag: "Day, pull past threshold", sub: "Past the threshold the ring becomes a check and the pill turns teal; letting go switches to the previous day.", html: chrome(pull("down", 1, "T5, 12/11")) },
   { tag: "Day, pull to next", sub: "Pull up at the bottom for the next day. Same pill, above the button.", html: chrome(pull("up", 0.55, "T7, 14/11")) },
-  { tag: "Detail, LMS assignment", sub: "Trash replaces the dots. Muted meta lines with icons (due, planned time, course, LMS link), then the LMS content as rich text in a quiet bordered block, then your own note like Apple Notes.", html: chrome(detail, { dock: null }) },
+  { tag: "Detail, LMS assignment", sub: "Trash replaces the dots. Muted meta lines with icons (due, planned time, course, LMS link), then the LMS content as rich text in a quiet bordered block, then your own note like Apple Notes. The title is the LMS name. The work is 45 minute sittings: how many comes from what the title and content ask for (a report or essay more than a lab, an oral or an exercise) and from the student's marks.", html: chrome(detail, { dock: null }) },
   { tag: "Detail, lecture", sub: "Lectures lead with room and teacher; the note stays yours. No Lặp lại line: the timetable is just flexible busy time. Trash opens the dropdown (same section: this, this and later, all).", html: chrome(detailLec(menu(DEL)), { dock: null }) },
   { tag: "Detail, exam", sub: "Exam: time and room as meta, note below.", html: chrome(detailExam, { dock: null }) },
-  { tag: "Detail, exam prep", sub: "A prep task says only what it prepares: Ôn plus the exam format (lý thuyết, thực hành…). The subject is already the title. Tappable, opens the exam.", html: chrome(detailPrep, { dock: null }) },
+  { tag: "Detail, exam prep", sub: "A prep task is titled by what to do for the exam format: Viết báo cáo, Viết tiểu luận, Ôn lý thuyết, luyện đề, Luyện thực hành, Luyện vấn đáp, else Ôn thi. The subject is not in the title: it is the link here (tappable, opens the exam), and the row's small line reads Buổi 1/4 · subject (which sitting, then the subject, never the due: the exam's own row has the time). Its length follows the student's marks.", html: chrome(detailPrep, { dock: null }) },
   { tag: "Detail, repeating", sub: "Only the user's own repeating task shows a repeat line. It has no end, so just Mỗi ngày. Trash opens the same three-option dropdown.", html: chrome(detailRep(menu(DEL)), { dock: null }) },
-  { tag: "Detail, single task", sub: "Not a series: the trash deletes at once, no menu.", html: chrome(detailPlain, { dock: null }) },
+  { tag: "Detail, single task", sub: "Your own task. The tag names its kind; the time line is where Zen put it. Every line you can change is tappable, and the dots hold what the task does not have yet. Not a series: the trash deletes at once, no menu.", html: chrome(detailPlain, { dock: null }) },
+  { tag: "Detail, change the time", sub: "Tap the time line: it becomes three small native pickers in place, the day, the start and the end. Each opens the system's compact wheel or calendar, never a sheet. Moving the end changes the length. A time you set is kept; Zen plans the rest around it.", html: chrome(detailTime, { dock: null }) },
+  { tag: "Detail, more", sub: "The dots drop a short menu of what is missing: a due date, a place. “Để Zen xếp lại” gives the time back to Zen when you no longer want the one you set.", html: chrome(detailMore, { dock: null }) },
+  { tag: "Detail, due date", sub: "A due date is a day and a time, the same two pickers. Changing it is one of the few things that makes Zen re-plan. “Bỏ hạn” removes it.", html: chrome(detailDue, { dock: null }) },
+  { tag: "Detail, place", sub: "The place is typed in the line itself, like the title. Return saves.", html: chrome(detailPlace, { dock: null }) },
+  { tag: "Detail, link place", sub: "A pasted link lands as the place. It shows its site and opens on tap; Sửa địa điểm in the dots menu edits it. A pasted text with no note of its own keeps the whole text as the note.", html: chrome(detailLink, { dock: null }) },
+  { tag: "Detail, kind", sub: "Zen reads the kind from the words of the title: học, tập thể dục, việc nhà, gặp gỡ, or việc khác. Tap the tag to correct it. A corrected title teaches: the next task that reads alike gets the same kind. The kind is what habits are learned about (“Bạn tập thể dục hợp nhất lúc 7–10 giờ”).", html: chrome(detailKind, { dock: null }) },
+  { tag: "Detail, fixed time", sub: "Something you said with an exact time is a busy block, not a plan: no “Vì sao lúc này”, because Zen did not choose it. Its time line opens the same three pickers.", html: chrome(detailBusy, { dock: null }) },
+  { tag: "Detail, LMS assignment, change the time", sub: "For school items the school owns the due date, room and teacher, so those lines do not open. The planned time is Zen's, so that one does.", html: chrome(detailLmsTime, { dock: null }) },
   { tag: "Row, swipe to delete", sub: "Swipe a row right to left: a red trash bed shows behind it, a light tick at the threshold. A single task goes at once with Undo.", html: chrome(lst("swiping")) },
   { tag: "Row, swiped series", sub: "A lecture or repeating task springs back and the same three choices drop under the row. Tap outside to cancel.", html: chrome(lst("lift") + menu(DEL, 262, 18)) },
   { tag: "Row, long-press", sub: "Long-press a lecture or repeating-task row: it lifts and the same dropdown opens beneath it. Nothing to confirm.", html: chrome(lst("lift") + menu(DEL, 262, 18)) },
@@ -198,9 +311,21 @@ mount([
   { tag: "Deleted, single task", sub: "Plain item: trash, then Undo.", html: gone("Đã xoá Mua pin cho chuột", when("2026-11-17", "17:00")) },
   { tag: "Day, assignment sittings", sub: "An LMS assignment too big for one sitting is split into blocks the planner places before the deadline. Every block keeps the assignment's title, course and deadline, and opens the same detail. Tick the last block and the assignment is done.", html: chrome(daySit()) },
   { tag: "Reminder, assignment", sub: "Ten minutes before each block, a system notification: the task, its start, its deadline. When a campus sync moves or ticks a block, its reminder moves or goes with it.", html: chrome(nt(BTL, `Bắt đầu lúc 09:00 · Hạn ${when("2026-11-23", "23:59")}`) + daySit(), { time: "08:50" }) },
-  { tag: "Reminder, lecture", sub: "Lectures and exams name the room instead. Phone-calendar busy blocks get none: their own calendar already reminds.", html: chrome(nt("Cấu trúc dữ liệu", "Bắt đầu lúc 13:30 · A2.301") + daySit(), { time: "13:20" }) },
+  { tag: "Reminder, lecture", sub: "Lectures and exams name the room instead. A busy block you said gets one too. Phone-calendar events get none: their own calendar already reminds.", html: chrome(nt("Cấu trúc dữ liệu", "Bắt đầu lúc 13:30 · A2.301") + daySit(), { time: "13:20" }) },
+  { tag: "Campus, many changes", sub: "A campus sync that brings three or more new exams, assignments or room changes posts one notification, not one each: the count, then the first two names and +n, like Created, many. One or two still come one by one. A new term's timetable and new marks keep their own line. Inside the app the same one toast shows.", html: chrome(nt("Trường cập nhật 5 việc", "Bài tập lớn: Quản lý sinh viên, Thi Giải tích 2 +3") + daySit(), { time: "07:12" }) },
+  { tag: "Fees owed", sub: "On the 15th of Oct, Mar and Jun, the first sync after noon checks fees. If something is unpaid, one local notification (no push server): the amount left. Tap opens the school's e-bills page for this student. Nothing owed, nothing said.", html: chrome(nt("Còn nợ học phí", "1.590.000 đ · Chạm để đóng") + daySit(), { time: "12:05" }) },
   { tag: "Reminder, dark", sub: "Same at night.", dark: true, html: chrome(nt("Đọc sách mỗi tối", "Bắt đầu lúc 20:00") + daySit(), { time: "19:50" }) },
-  { tag: "Overlap", sub: "Campus lands on a time you pinned. A small card under the two rows: move mine, or keep both. Nothing moves until you tap.", html: chrome(overlap) },
+  { tag: "Overlap", sub: "Campus lands on a time you fixed: a busy block you said, or a task you pinned or timed by hand. A small card under the two rows: move mine, or keep both. Nothing moves until you tap.", html: chrome(overlap) },
+  { tag: "Search, opening", sub: "Like Spotlight: tap the search circle and it grows leftward into the field (about 280 ms) while the view behind blurs and fades out to plain paper, so nothing colourful sits under the rows. The keyboard rises once the field is full; the suggestions drop in one after another.", html: chrome(opening, { dock: null }) },
+  { tag: "Search, suggestions", sub: "An empty field is never blank. Gần đây: your last searches (one you opened a result from, or sent with results), Xoá clears them. Gợi ý: five searches drawn from your own tasks, each one that gathers a handful of them (two to twelve rows), never a single item: your two courses with the most going on, named whole as the timetable writes them (a long name by its initials, with the full name under it; never from LMS course text, which teachers type and misspell), your exams next week, this week's deadlines, tomorrow evening, open assignments, a room. The line under each says what it gathers and how many.", html: chrome(suggest + '<div class="kb"></div>', { dock: null }) },
+  { tag: "Search, first time", sub: "Nothing to build from yet: four samples show what the field understands. Tap one to try it.", html: chrome(suggestNew + '<div class="kb"></div>', { dock: null }) },
+  { tag: "Search", sub: "Results sit on plain paper over the view. Tap anywhere outside the field and the rows to close: the field shrinks back into the circle. The cross inside the field only clears it. Rows are the day view's rows under day labels, one per series, from today on, then past days newest first; done rows stay struck. The matched words in each title are tinted. Typing without accents finds accented titles. A prep sitting is found by its course (Giải tích 2 in its small line), so its title has no tint.", html: chrome(sv(found) + '<div class="kb"></div>', { dock: null }) },
+  { tag: "Search, loose words", sub: "Each word you type is looked for on its own, in any order. bc is Báo cáo (an acronym, or the abbreviations Zen already reads: btl, csdl, oop), web is the start of website (the whole word is tinted), one typo is forgiven, and small words like môn may be missing. The words found are tinted.", html: chrome(sv(foundLoose), { dock: null }) },
+  { tag: "Search, understood", sub: "The field is read like a spoken line. A date the reader knows (mai, T6, tuần sau, cuối tháng, 20/11, Tết) and a type word (thi, lịch học, bài tập) filter; the line under the field says what was understood. A prep sitting belongs to its exam. A type word that is also in the title is tinted.", html: chrome(sv(foundExam), { dock: null }) },
+  { tag: "Search, deadline and status", sub: "Hạn moves the date onto the deadline. Chưa xong, đã xong and trễ filter by what is left, done or missed. What is not understood is matched as words.", html: chrome(sv(foundDue), { dock: null }) },
+  { tag: "Search, part of day", sub: "Sáng, trưa, chiều, tối, đêm keep rows starting in that part, with the reader's own hours. A clock (8h) keeps rows running at that time. A query that is only a date and a part lists that slice of the day.", html: chrome(sv(foundEve), { dock: null }) },
+  { tag: "Search, a series", sub: "A repeat is one row, not one per week: its next time, with the repeat line from its detail. Lectures of one course and the sittings of a split assignment collapse the same way. Tap opens that occurrence.", html: chrome(sv(foundRep), { dock: null }) },
+  { tag: "Search, nothing found", sub: "No match: the same small inline note as an empty day, in place of rows.", html: chrome(sv(foundNone), { dock: null }) },
   { tag: "Week", sub: "Today in an ink pill. Fixed-height columns. Swipe sideways for the previous or next week; tap a day to see it below.", html: chrome(week) },
   { tag: "Week, empty", sub: "Columns keep their height as dashed slots, so the grid reads as room, not as missing. A short inline note, then what's left of this week.", html: chrome(weekFree) },
   { tag: "Week, packed", sub: "Columns never grow. T3 compresses proportionally; T5 has too many for even the minimum height, so it shows what fits and a +n chip.", html: chrome(weekPacked) },
@@ -209,7 +334,7 @@ mount([
   { tag: "Week, holiday", sub: "A holiday or all-day busy day is shaded with diagonal stripes and a label. Nothing gets planned there.", html: chrome(weekHol) },
   { tag: "Month, holiday", sub: "Same stripes behind the date, the day wears its name instead of dots.", html: chrome(monthHol) },
   { tag: "Day, empty, dark", sub: "Same at night.", dark: true, html: chrome(dayFree) },
-  { tag: "Day, dark", sub: "Same view in dark.", dark: true, html: chrome(day(""), { dock: "live" }) },
+  { tag: "Day, dark", sub: "Same view in dark. The theme circle shows the moon.", dark: true, html: chrome(day(""), { dock: "live" }) },
 ]);
 </script>
 </body>

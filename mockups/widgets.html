@@ -6,7 +6,7 @@
 <title>Zen widgets</title>
 <link rel="stylesheet" href="ui.css" />
 <style>
-/* Home screen: 300px device is ~0.76 of a 393pt phone, so small 126, medium 268, large 268x282. */
+/* Home screen: 300px device is ~0.76 of a 393pt phone, so small 126, medium 268. */
 .wall { position: absolute; inset: 0; background: linear-gradient(160deg, #cfd6d2, #e9e2d6 55%, #d8c9bd); }
 .device.dark .wall { background: linear-gradient(160deg, #1b2226, #24201d 60%, #2d2420); }
 .wall + .sb { color: #16181b; }
@@ -16,21 +16,21 @@
 .wg.art { border-radius: 22px; color: #fff; }
 .w-s { width: 126px; height: 126px; }
 .w-m { width: 268px; height: 126px; }
-.w-l { width: 268px; height: 282px; }
 .wg .lab { font-size: 11px; }
-.wg .t { font-size: 16px; line-height: 1.2; margin-top: 4px; }
+.wg .t { font-size: 16px; line-height: 1.2; margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .wg .big { font-size: 20px; }
 .wg .small { font-size: 11.5px; margin-top: 1px; }
 .wg .cap2 { width: 12px; height: 36px; border-radius: 7px; border-width: 1.5px; }
 .wg .cap2 i { border-radius: 5px; left: 1.5px; right: 1.5px; bottom: 1.5px; }
 .wg .meter { gap: 8px; margin-top: auto; }
-.wr { display: flex; align-items: center; gap: 9px; padding: 7px 0; font-size: 13px; font-weight: 600; }
+.wr { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 12px; font-weight: 600; }
 .wr + .wr { box-shadow: 0 -1px 0 var(--line); }
 .wr b { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.wr .tm { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.wr .ck { width: 20px; height: 20px; border-width: 1.3px; }
+.wr .tm { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* muted, not line: a line-coloured ring vanishes on the dark paper */
+.wr .ck { width: 18px; height: 18px; border-width: 1.3px; border-color: var(--muted); }
 .wr .ck.on { background: var(--chip); }
-.wr .sw-art { width: 20px; height: 20px; }
+.wr .sw-art { width: 18px; height: 18px; }
 .wr.done b { text-decoration: line-through; color: var(--muted); }
 .mini-hold { width: 58px; height: 58px; border-radius: 50%; background: var(--ink); color: var(--bg); display: grid; place-items: center; margin: auto auto 0; box-shadow: 0 0 0 6px var(--chip); }
 .apps { width: 100%; display: grid; grid-template-columns: repeat(4, 1fr); row-gap: 18px; justify-items: center; }
@@ -59,7 +59,7 @@
 <body>
 <div class="head">
   <h1>Widgets</h1>
-  <p>Widgets only read; the phone owns the layout and refreshes on its own clock, so every widget shows a time, not a live count. Colour still lives only in sand cards. Tapping a widget opens the matching view; the checkbox in a row is the one control that works in place. A widget cannot hold the mic, so the talk widget and the lock screen control open the app already listening.</p>
+  <p>Widgets only read; the phone owns the layout and refreshes on its own clock, so every widget shows a time, not a live count. Colour still lives only in sand cards. Tapping a widget opens the matching view; the checkbox in a row is the one control that works in place. A widget cannot hold the mic, so the talk widget and the lock screen control open the app already listening, and the capture widget opens it with the camera up.</p>
   <nav><a href="capture.html">Capture</a><a href="views.html">Views</a><a href="marks.html">Marks</a></nav>
 </div>
 <div class="gallery"></div>
@@ -78,21 +78,28 @@ const next = (type = "plan", title = "Ôn Giải tích", big = "10 phút", small
 const exam = next("exam", "Giải tích 2", "11 ngày", when("2026-11-27", "08:00"), "60%", "Sắp thi", 2);
 // Small: talk. Opens the app with the mic already on.
 const talk = `<div class="wg w-s"><div class="lab" style="color:var(--ink)">${LOGO(18)}<span style="color:var(--muted)">Zen</span></div><div class="mini-hold">${ic(I.mic, 24, 1.8)}</div></div>`;
+// Small: capture. Opens the app with the camera up; a notice or exam list goes straight to the reader.
+const scan = `<div class="wg w-s"><div class="lab" style="color:var(--ink)">${LOGO(18)}<span style="color:var(--muted)">Chụp</span></div><div class="mini-hold">${ic(I.camera, 24, 1.8)}</div></div>`;
 // Small, empty: nothing left today. No art, just ink.
 const clear = `<div class="wg w-s"><div class="lab">${LOGO(18)}<span>T2 16</span></div><div style="margin-top:auto;font-size:16px;font-weight:600;line-height:1.25">Xong hết<br>hôm nay</div><div style="font-size:11.5px;color:var(--muted);margin-top:3px">Mai: Cấu trúc dữ liệu 07:00</div></div>`;
 
 // Medium: next on the left, the rest of today on the right.
-const today = `<div class="wg w-m" style="flex-direction:row;gap:12px;padding:10px">
-  <div class="art" style="width:96px;flex:none;border-radius:14px;padding:10px;display:flex;flex-direction:column">${art("plan", { w: 96, h: 106, seed: 4, cls: "bgart" })}<div class="lab" style="color:#fff;opacity:.85;font-size:10.5px">14:30</div><div class="t" style="font-size:13px">Ôn Giải tích</div>${meter("35%", "10′", "còn lại")}</div>
+const today = `<div class="wg w-m" style="flex-direction:row;gap:12px;padding:10px 13px">
+  <div class="art" style="width:96px;flex:none;border-radius:14px;padding:10px 12px;display:flex;flex-direction:column">${art("plan", { w: 96, h: 106, seed: 4, cls: "bgart" })}<div class="lab" style="color:#fff;opacity:.85;font-size:10.5px">14:30</div><div class="t" style="font-size:13px">Ôn Giải tích</div>${meter("35%", "10′", "còn lại")}</div>
   <div style="flex:1;min-width:0;display:flex;flex-direction:column;padding-top:3px"><div class="lab" style="font-size:11px">Hôm nay <span>5 việc</span></div>
   ${row("16:00", "Báo cáo nhóm", "assignment")}${row("17:30", "Cơ sở dữ liệu", "lecture")}${row("19:00", "Ăn tối với Minh", "busy")}</div></div>`;
 const todayTick = today.replace(row("16:00", "Báo cáo nhóm", "assignment"), row("16:00", "Báo cáo nhóm", "assignment", "on"));
 
-// Large: date, next card, the day as rows.
-const large = `<div class="wg w-l"><div class="lab" style="font-size:11px">Thứ hai <span>5 việc, 1 tiết học</span></div><div style="font-size:20px;font-weight:600;letter-spacing:-.02em;margin-top:1px">16 tháng 11</div>
-  <div class="art" style="margin-top:10px;height:96px;border-radius:14px;padding:10px 12px;display:flex;flex-direction:column">${art("plan", { w: 240, h: 96, seed: 4, cls: "bgart" })}<div class="lab" style="color:#fff;opacity:.85;font-size:10.5px">Tiếp theo, còn 10 phút</div><div class="t" style="font-size:15px">Ôn Giải tích</div></div>
-  <div style="margin-top:6px">${row("16:00", "Báo cáo nhóm", "assignment")}${row("17:30", "Cơ sở dữ liệu", "lecture")}${row("19:00", "Ăn tối với Minh", "busy")}${row("20:00", "Đọc sách", "plan")}</div>
-  <div class="lab" style="margin-top:auto;font-size:11px">Xong (2)</div></div>`;
+// Today with nothing left: the right half shows the next day that has anything (within a week), up to three rows, headed like the large count.
+// Left card: the nearest exam on its sand.
+const examCard = `<div class="art" style="width:96px;flex:none;border-radius:14px;padding:10px 12px;display:flex;flex-direction:column">${art("exam", { w: 96, h: 106, seed: 2, cls: "bgart" })}<div class="lab" style="color:#fff;opacity:.85;font-size:10.5px">Sắp thi</div><div class="t" style="font-size:13px">Phân tích và thiết kế phần mềm</div>${meter("60%", "3", "ngày nữa")}</div>`;
+const soon = (head, rows) => `<div style="flex:1;min-width:0;display:flex;flex-direction:column;padding-top:3px"><div class="lab" style="font-size:11px">${head}</div>${rows}</div>`;
+// Ink card for a day with no sand to show: the line, then the count. Tomorrow lives on the right, never repeated here.
+const inkCard = (line, sub) => `<div style="width:96px;flex:none;border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;background:var(--chip)">${LOGO(18)}<div style="margin-top:auto;font-size:13px;font-weight:600;line-height:1.25">${line}</div><div class="small" style="color:var(--muted)">${sub}</div></div>`;
+const tomorrowRows = row("07:00", "Cấu trúc dữ liệu", "lecture") + row("15:00", "Ôn Giải tích", "plan") + row("22:00", "Nộp Lab 3", "assignment");
+const todayDone = `<div class="wg w-m" style="flex-direction:row;gap:12px;padding:10px 13px">${inkCard("Xong hết<br>hôm nay", "5 việc xong")}${soon("Mai <span>2 việc, 1 tiết học</span>", tomorrowRows)}</div>`;
+const todayBare = `<div class="wg w-m" style="flex-direction:row;gap:12px;padding:10px 13px">${inkCard("Hôm nay<br>trống", "Thứ bảy 14")}${soon("Mai <span>2 việc, 1 tiết học</span>", tomorrowRows)}</div>`;
+const todayFree = `<div class="wg w-m" style="flex-direction:row;gap:12px;padding:10px 13px">${examCard}${soon("Thứ tư <span>2 việc, 1 tiết học</span>", row("09:00", "Họp nhóm đồ án", "busy") + row("13:30", "Mạng máy tính", "lecture") + row("22:00", "Nộp bài tập 4", "assignment"))}</div>`;
 
 const icons = (n) => `<div class="apps">${Array.from({ length: n }, () => '<span class="app"></span>').join("")}</div>`;
 const home = (widgets, apps = 8) => `<div class="wall"></div><div class="sb"><span>14:20</span><span>●●● ▮</span></div>
@@ -108,9 +115,12 @@ const lock = (dark) => `<div class="wall-art">${art(dark ? "lecture" : "plan", {
 
 mount([
   { tag: "Home, smalls", sub: "Next thing on its sand with time left; talk opens the app with the mic on.", html: home(next() + talk) },
+  { tag: "Capture", sub: "Opens the app with the camera up. A widget cannot take the photo itself; PDFs stay on the hold button.", html: home(talk + scan) },
   { tag: "Home, medium", sub: "Next on the left, the rest of today on the right. Tap a row to open it, tap its circle to tick it.", html: home(today + exam + clear, 4) },
   { tag: "Ticked in place", sub: "The circle fills, the row strikes through; it drops off on the next refresh, not instantly.", html: home(todayTick, 12) },
-  { tag: "Home, large", sub: "The day view in one glance. Done items fold into a count.", html: home(large, 4) },
+  { tag: "Today, all done", sub: "Everything ticked. The left card keeps the count in ink; the right half shows tomorrow as rows, ticks still work.", dark: true, html: home(todayDone, 8) },
+  { tag: "Today, free, no exam", sub: "Nothing today and no exam coming: the ink card says so, tomorrow fills the right.", html: home(todayBare, 8) },
+  { tag: "Today, nothing today", sub: "A free day: the nearest exam takes the left card on its sand, the next day with anything fills the right (here Wednesday).", html: home(todayFree, 8) },
   { tag: "Dark", sub: "Follows the system. Paper turns ink, sand stays the same.", dark: true, html: home(today + next() + talk, 4) },
   { tag: "Lock screen", sub: "Monochrome, drawn by the system. Inline: nearest exam. Circle: minutes to next. Bottom-right control: tap to talk.", html: lock(false) },
 ]);

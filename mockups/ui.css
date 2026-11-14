@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700;800&display=swap");
 
 :root {
   --page: #ecebe7; --bg: #fbfaf7; --ink: #16181b; --muted: #8d8f8c; --line: #e6e4de; --chip: #f0eee9; --onart: #ffffff; --seal: #d9432b;
@@ -12,13 +12,13 @@ body { font-family: 'Be Vietnam Pro', system-ui, sans-serif; background: var(--p
 .head nav { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
 .head nav a { padding: 6px 14px; border-radius: 99px; border: 1px solid #c9cdd0; color: #0b0b0c; font-size: 13px; font-weight: 600; text-decoration: none; }
 .gallery { max-width: 1240px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 36px; }
-.frame { width: 300px; }
+.frame { width: 402px; }
 .cap { margin-bottom: 12px; min-height: 60px; }
 .cap b { font-size: 13px; font-weight: 600; }
 .cap span { display: block; margin-top: 6px; font-size: 12.5px; color: #6d7378; line-height: 1.4; }
 
 /* Device */
-.device { position: relative; width: 300px; height: 650px; border-radius: 46px; overflow: hidden; background: var(--bg); color: var(--ink); box-shadow: 0 0 0 8px #f7f8f8, 0 0 0 9px #dfe3e2, 0 40px 70px -30px rgba(20, 30, 30, .35); }
+.device { position: relative; width: 402px; height: 874px; border-radius: 46px; overflow: hidden; background: var(--bg); color: var(--ink); box-shadow: 0 0 0 8px #f7f8f8, 0 0 0 9px #dfe3e2, 0 40px 70px -30px rgba(20, 30, 30, .35); }
 .island { position: absolute; top: 10px; left: 50%; width: 90px; height: 26px; margin-left: -45px; border-radius: 20px; background: #000; z-index: 50; }
 .sb { position: absolute; top: 14px; left: 28px; right: 24px; display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; z-index: 40; }
 .hi { position: absolute; bottom: 8px; left: 50%; width: 110px; height: 4px; margin-left: -55px; border-radius: 4px; background: var(--ink); opacity: .3; z-index: 40; }
@@ -36,6 +36,9 @@ body { font-family: 'Be Vietnam Pro', system-ui, sans-serif; background: var(--p
 .pl { white-space: nowrap; height: 44px; padding: 0 20px; border-radius: 99px; border: 1px solid var(--line); display: grid; place-items: center; font-size: 15px; font-weight: 500; }
 .pl.on { background: var(--ink); color: var(--bg); border-color: var(--ink); font-weight: 700; }
 .pl.sm { height: 36px; padding: 0 16px; font-size: 15px; }
+/* Heads-up pills carry task names, so each is a full-width block, one under the other; a title too long still ends in an ellipsis. */
+.pills.blk { flex-direction: column; flex-wrap: nowrap; }
+.pills.blk .pl { display: block; width: 100%; text-align: center; line-height: 34px; overflow: hidden; text-overflow: ellipsis; }
 .btn { height: 56px; border-radius: 99px; display: grid; place-items: center; font-size: 17px; font-weight: 700; background: var(--ink); color: var(--bg); }
 .field { height: 56px; padding: 0 22px; border-radius: 99px; border: 1px solid var(--line); display: flex; align-items: center; font-size: 17px; font-weight: 500; }
 .field.ph { color: var(--muted); }
@@ -156,7 +159,7 @@ body { font-family: 'Be Vietnam Pro', system-ui, sans-serif; background: var(--p
 .lms p { margin: 0 0 6px; }
 .lms ul { margin: 0; padding-left: 18px; }
 .peek { position: absolute; left: 50%; transform: translateX(-50%); z-index: 15; display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 16px 0 10px; border-radius: 99px; background: var(--ink); color: var(--bg); font-size: 15px; font-weight: 700; }
-.peek.done { background: var(--seal); color: #fff; }
+.peek.done { background: #2f8a78; color: #fff; } /* teal, the lecture mid: a go, not a warning */
 .peek svg { display: block; }
 .words { margin-top: 30px; font-size: 24px; line-height: 1.3; font-weight: 600; letter-spacing: -.02em; }
 .words em { font-style: normal; opacity: .35; }
@@ -164,8 +167,24 @@ body { font-family: 'Be Vietnam Pro', system-ui, sans-serif; background: var(--p
 .errt { margin: 8px 0 0 22px; font-size: 15px; font-weight: 600; color: #ff2f52; }
 .note.slow { margin: 12px 0 0; padding: 14px 18px; border-radius: 18px; background: var(--chip); font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 10px; }
 .btn.sm { height: 50px; font-size: 16px; }
-.wave { display: flex; gap: 4px; align-items: center; height: 28px; margin-top: 18px; }
-.wave i { width: 4px; border-radius: 4px; background: var(--seal, #d9432b); }
+.vbars { display: flex; gap: 6px; align-items: center; height: 48px; margin-top: 24px; }
+.vbars i { width: 8px; border-radius: 4px; background: var(--seal); opacity: .25; }
+.vbars i.on { opacity: 1; }
+/* Past four lines the oldest line fades out at the top; the words never scroll. */
+.words.long { max-height: calc(24px * 1.3 * 4); display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; -webkit-mask-image: linear-gradient(transparent, #000 32px); mask-image: linear-gradient(transparent, #000 32px); }
+.o.th .moon, .device.dark .o.th .sun { display: none; }
+.device.dark .o.th .moon { display: block; }
 .sw { position: relative; margin: 0 -10px; border-radius: 16px; overflow: hidden; background: #ff3b30; }
 .sw .bed { position: absolute; right: 20px; top: 50%; transform: translateY(-50%); color: #fff; }
 .sw .r.swiping { position: relative; background: var(--bg); transform: translateX(-96px); padding: 0 10px; }
+
+.o.del { border-color: var(--seal); color: var(--seal); }
+
+/* Dialog: a centred card over a dimmed screen (update and what's new). Not a sheet. */
+.dscrim { position: absolute; inset: 0; z-index: 25; background: rgba(0,0,0,.38); }
+.dlg { position: absolute; left: 20px; right: 20px; top: 50%; transform: translateY(-50%); z-index: 26; padding: 24px 22px 18px; border-radius: 28px; background: var(--bg); box-shadow: 0 24px 48px -20px rgba(0,0,0,.5); }
+.dlg .h { font-size: 24px; margin-top: 4px; }
+.dlg ul { margin: 14px 0 0; padding: 0 0 0 18px; font-size: 15px; line-height: 1.45; color: var(--ink); }
+.dlg li + li { margin-top: 6px; }
+.dlg .btn { margin-top: 22px; }
+.dlg .ghost { margin-top: 12px; text-align: center; font-size: 15px; font-weight: 600; color: var(--muted); }

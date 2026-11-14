@@ -23,7 +23,7 @@ export const holLines = (title: string): [string, string?] => {
   const rest = m ? title.replace(m[0], "").trim().split(/\s+/)[0] : "";
   if (m && rest) return [rest, m[0].toLowerCase()];
   // Narrow column: a long phone-calendar title ("Ngày Nhà giáo Việt Nam") becomes "Tết" or "Lễ", never a clipped half-word.
-  return [title.length <= 7 ? title : /tết/i.test(title) ? "Tết" : "Lễ"];
+  return [title.length <= 8 ? title : /tết/i.test(title) ? "Tết" : "Lễ"];
 };
 
 /** Rules that keep time free on a day ("Tối CN để trống"); kind-only rules ("tập thể dục sau 5 giờ") are not free time. */

@@ -41,8 +41,9 @@ export const PART_ALIAS: Record<string, string> = {
   "cuoi gio chieu": "chieu toi",
   "nua dem": "khuya",
 };
+// "khám răng sáng mai" is teeth then the morning: "rạng sáng" never follows a tooth verb
 export const PART_ALT =
-  "rang sang|sang som|buoi trua|giua trua|xe chieu|cuoi gio chieu|chieu toi|nua dem|khuya|sang|trua|chieu|toi|dem|morning|afternoon|evening|night|noon";
+  "(?<!(?:kham|danh|nho|nieng|tram|lam|tay|chua|boc|nhuc|dau)\\s)rang sang|sang som|buoi trua|giua trua|xe chieu|cuoi gio chieu|chieu toi|nua dem|khuya|sang|trua|chieu|toi|dem|morning|afternoon|evening|night|noon";
 export const PART_WORD = new RegExp(`\\b(${PART_ALT})\\b`);
 /** "trong sáng mai": the span from the part's start to its end. */
 export const IN_PART = new RegExp(

@@ -2,18 +2,17 @@ import {
   Button, Circle, HStack, Image, Link, Rectangle, RoundedRectangle, Spacer, Text, UnevenRoundedRectangle, VStack, ZStack,
 } from "@expo/ui/swift-ui";
 import {
-  aspectRatio, background, buttonStyle, clipShape, clipped, containerBackground, font, foregroundStyle, frame, kerning, lineLimit,
-  monospacedDigit, offset, opacity, padding, resizable, strikethrough, strokeBorder, widgetURL,
+  aspectRatio, background, buttonStyle, clipShape, clipped, containerBackground, font, foregroundStyle, frame, fixedSize, kerning, layoutPriority, lineLimit,
+  lineHeight, monospacedDigit, offset, opacity, padding, resizable, strikethrough, strokeBorder, truncationMode, widgetURL,
 } from "@expo/ui/swift-ui/modifiers";
 import { createWidget, type WidgetEnvironment } from "expo-widgets";
 
 import type { WidgetData, WRow } from "./data";
 
-// Medium: next on the left, the rest of today on the right. Large: date, next card, the day as rows.
-// Sizes are the mockup's px x1.25 (268x126 mockup = 338x158pt medium, 268x282 = 338x354pt large).
+// Medium: next on the left, the rest of today on the right.
+// Sizes are the mockup's px x1.25 (268x126 mockup = 338x158pt).
 const ZenToday = (p: WidgetData, env: WidgetEnvironment) => {
   "widget";
-  const large = env.widgetFamily === "systemLarge";
   const dark = env.colorScheme === "dark";
   const full = (env.widgetRenderingMode ?? "fullColor") === "fullColor";
   const c = dark
@@ -24,6 +23,7 @@ const ZenToday = (p: WidgetData, env: WidgetEnvironment) => {
     assignment: ["#3a2056", "#8a5cc4", "#dccaf5"], busy: ["#8d8f8c", "#bdbcb6", "#e6e4de"],
   };
   const FACE = { regular: "BeVietnamPro-Regular", medium: "BeVietnamPro-Medium", semibold: "BeVietnamPro-SemiBold" } as const;
+  // lineHeight() is the mockup CSS line-height; SwiftUI applies it on iOS 26+ and keeps the font default before.
   const f = (size: number, weight: keyof typeof FACE = "regular") => font({ family: FACE[weight], size, weight });
   const W = "#ffffff";
   const grad = (type: string) => ({
@@ -52,7 +52,7 @@ const ZenToday = (p: WidgetData, env: WidgetEnvironment) => {
   const box = (r: WRow) => {
     if (!r.check) {
       return (
-        <ZStack modifiers={[frame({ width: 25, height: 25 }), background(grad(r.type)), clipShape("circle")]}>
+        <ZStack modifiers={[frame({ width: 22.5, height: 22.5 }), background(grad(r.type)), clipShape("circle")]}>
           {art(p.art?.[r.type]?.square)}
         </ZStack>
       );
@@ -64,19 +64,21 @@ const ZenToday = (p: WidgetData, env: WidgetEnvironment) => {
         onPress={() =>
           r.done ? undefined : {
             rows: p.rows.map((x) => (x.id === r.id ? { ...x, done: true } : x)),
+            ahead: p.ahead.map((x) => (x.id === r.id ? { ...x, done: true } : x)),
             ticked: p.ticked.includes(r.id) ? p.ticked : [...p.ticked, r.id],
           }
         }>
         {r.done ? (
-          <ZStack modifiers={[frame({ width: 25, height: 25 })]}>
+          <ZStack modifiers={[frame({ width: 22.5, height: 22.5 })]}>
             <Circle modifiers={[foregroundStyle(c.chip)]} />
-            <Image systemName="checkmark" modifiers={[font({ size: 11, weight: "bold" }), foregroundStyle(c.ink)]} />
+            <Image systemName="checkmark" modifiers={[font({ size: 13, weight: "bold" }), foregroundStyle(c.ink)]} />
           </ZStack>
         ) : (
           <Circle
             modifiers={[
-              foregroundStyle("clear"), frame({ width: 25, height: 25 }),
-              strokeBorder({ content: c.line, style: { lineWidth: 1.6 }, shape: "circle" }),
+              foregroundStyle("clear"), frame({ width: 22.5, height: 22.5 }),
+              // muted, not line: a line-coloured ring vanishes on the dark paper
+              strokeBorder({ content: c.muted, style: { lineWidth: 1.625 }, shape: "circle" }),
             ]}
           />
         )}
@@ -85,21 +87,21 @@ const ZenToday = (p: WidgetData, env: WidgetEnvironment) => {
   };
 
   const row = (r: WRow, first: boolean) => (
-    <VStack key={r.id} spacing={0} modifiers={large ? [] : [frame({ maxHeight: Infinity })]}>
-      {first ? null : <Rectangle modifiers={[foregroundStyle(c.line), frame({ height: 1 })]} />}
-      <HStack spacing={11} modifiers={[padding({ vertical: 9 }), frame({ maxHeight: large ? undefined : Infinity })]}>
+    <VStack key={r.id} spacing={0}>
+      {first ? null : <Rectangle modifiers={[foregroundStyle(c.line), frame({ height: 1.25 })]} />}
+      <HStack spacing={10} modifiers={[padding({ vertical: 7.5 })]}>
         {box(r)}
         <Link destination={r.url}>
           <HStack spacing={8}>
             <Text
               modifiers={[
-                f(16, "semibold"), foregroundStyle(r.done ? c.muted : c.ink), lineLimit(1),
+                f(15, "semibold"), foregroundStyle(r.done ? c.muted : c.ink), lineLimit(1),
                 strikethrough({ isActive: r.done, pattern: "solid", color: c.muted }),
               ]}>
               {r.title}
             </Text>
             <Spacer minLength={0} />
-            <Text modifiers={[f(15), foregroundStyle(c.muted), monospacedDigit()]}>{r.time}</Text>
+            <Text modifiers={[f(13.75, "semibold"), foregroundStyle(c.muted), monospacedDigit()]}>{r.time}</Text>
           </HStack>
         </Link>
       </HStack>
@@ -109,102 +111,70 @@ const ZenToday = (p: WidgetData, env: WidgetEnvironment) => {
   const meter = (fill: number, big: string, small: string) => (
     <HStack spacing={10}>
       <RoundedRectangle
-        cornerRadius={5}
+        cornerRadius={6.25}
         modifiers={[
-          foregroundStyle(W), frame({ width: 7, height: Math.max(0, Math.min(1, fill)) * 37 }), padding({ bottom: 4 }),
+          foregroundStyle(W), frame({ width: 7.5, height: Math.max(0, Math.min(1, fill)) * 41.25 }), padding({ bottom: 3.75 }),
           frame({ width: 15, height: 45, alignment: "bottom" }),
-          strokeBorder({ content: W, style: { lineWidth: 2 }, shape: "roundedRectangle", cornerRadius: 9 }),
+          strokeBorder({ content: "#ffffffe6", style: { lineWidth: 1.875 }, shape: "roundedRectangle", cornerRadius: 8.75 }),
         ]}
       />
-      <VStack alignment="leading" spacing={1}>
-        <Text modifiers={[f(25, "semibold"), foregroundStyle(W), lineLimit(1)]}>{big}</Text>
-        <Text modifiers={[f(15, "medium"), foregroundStyle(W), opacity(0.9), lineLimit(1)]}>{small}</Text>
+      <VStack alignment="leading" spacing={1.25}>
+        <Text modifiers={[f(25, "semibold"), foregroundStyle(W), lineHeight(25), lineLimit(1)]}>{big}</Text>
+        <Text modifiers={[f(14.375, "medium"), foregroundStyle(W), opacity(0.9), lineLimit(1)]}>{small}</Text>
       </VStack>
     </HStack>
   );
 
-  // Nothing left today: the ZenNext empty treatment on a chip card.
-  const clear = (title: number) => (
-    <VStack alignment="leading" spacing={0} modifiers={[padding({ all: 12.5 }), frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: "bottomLeading" })]}>
-      {large ? null : logo(22, c.muted)}
-      {large ? null : <Spacer minLength={0} />}
-      <Text modifiers={[f(title, "semibold"), foregroundStyle(c.ink), kerning(-0.2)]}>{large ? "Xong hết hôm nay" : "Xong hết\nhôm nay"}</Text>
-      {p.tomorrow ? <Text modifiers={[f(15), foregroundStyle(c.muted), lineLimit(2), padding({ top: 4 })]}>{p.tomorrow}</Text> : null}
+  // Nothing left (mockups/widgets.html `inkCard`): the line in ink at the foot, a muted count under it.
+  const ink = (line: string, sub: string) => (
+    <VStack alignment="leading" spacing={0} modifiers={[padding({ vertical: 12.5, horizontal: 15 }), frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: "bottomLeading" })]}>
+      {logo(22.5, c.ink)}
+      <Spacer minLength={0} />
+      <Text modifiers={[f(16.25, "semibold"), foregroundStyle(c.ink), lineHeight(20.3)]}>{line}</Text>
+      {sub ? <Text modifiers={[f(14.375), foregroundStyle(c.muted), lineLimit(1), padding({ top: 1.25 })]}>{sub}</Text> : null}
     </VStack>
   );
-
-  const n = p.next;
-  const card = [clipShape("roundedRectangle", 17.5)];
-
-  if (large) {
-    return (
-      <VStack
-        alignment="leading"
-        spacing={0}
-        modifiers={[padding({ vertical: 16, horizontal: 18 }), frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: "topLeading" }), containerBackground(c.bg, "widget"), widgetURL(p.home)]}>
-        <HStack>
-          <Text modifiers={[f(15, "medium"), foregroundStyle(c.muted)]}>{p.weekday}</Text>
-          <Spacer />
-          <Text modifiers={[f(15, "medium"), foregroundStyle(c.muted), lineLimit(1)]}>{p.summary}</Text>
-        </HStack>
-        <Text modifiers={[f(25, "semibold"), foregroundStyle(c.ink), kerning(-0.5), padding({ top: 1 })]}>{p.date}</Text>
-        {n ? (
-          <Link destination={n.url} modifiers={[padding({ top: 12 })]}>
-            <ZStack alignment="topLeading" modifiers={[frame({ maxWidth: Infinity, minHeight: 64, maxHeight: 120 }), background(grad(n.type)), ...card]}>
-              {art(p.art?.[n.type]?.wide)}
-              <VStack alignment="leading" spacing={0} modifiers={[padding({ vertical: 12.5, horizontal: 15 }), frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: "topLeading" })]}>
-                <Text modifiers={[f(15, "medium"), foregroundStyle(W), opacity(0.85), lineLimit(1)]}>{`${n.label}, ${n.left}`}</Text>
-                <Text modifiers={[f(19, "semibold"), foregroundStyle(W), kerning(-0.4), lineLimit(1), padding({ top: 5 })]}>{n.title}</Text>
-              </VStack>
-            </ZStack>
-          </Link>
-        ) : (
-          <ZStack modifiers={[padding({ top: 12 }), frame({ maxWidth: Infinity, minHeight: 64, maxHeight: 120 })]}>
-            <ZStack modifiers={[background(c.chip), ...card]}>
-              {clear(19)}
-            </ZStack>
-          </ZStack>
-        )}
-        <VStack spacing={0} modifiers={[padding({ top: 7.5 })]}>
-          {p.rows.slice(0, 4).map((r, i) => row(r, i === 0))}
+  // Sand card on the left: the next thing, or on a free day the nearest exam (`examCard`).
+  const sand = (type: string, url: string, lab: string, title: string, fill: number, big: string, small: string) => (
+    <Link destination={url}>
+      <ZStack alignment="topLeading" modifiers={[frame({ width: 120 }), frame({ maxHeight: Infinity }), background(grad(type)), ...card]}>
+        {art(p.art?.[type as keyof typeof p.art]?.square)}
+        <VStack alignment="leading" spacing={0} modifiers={[padding({ vertical: 12.5, horizontal: 15 }), frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: "topLeading" })]}>
+          <Text modifiers={[f(13.125, "medium"), foregroundStyle(W), opacity(0.85)]}>{lab}</Text>
+          <Text modifiers={[f(16.25, "semibold"), foregroundStyle(W), kerning(-0.325), lineHeight(19.5), lineLimit(2), truncationMode("tail"), fixedSize({ horizontal: false, vertical: true }), layoutPriority(1), padding({ top: 5 })]}>{title}</Text>
+          <Spacer minLength={0} />
+          {meter(fill, big, small)}
         </VStack>
-        <Spacer minLength={0} />
-        {p.doneLabel ? <Text modifiers={[f(15, "medium"), foregroundStyle(c.muted)]}>{p.doneLabel}</Text> : null}
-      </VStack>
-    );
-  }
+      </ZStack>
+    </Link>
+  );
+
+  const n = p.next, ex = p.exam;
+  const card = [clipShape("roundedRectangle", 17.5)];
+  // Nothing left today: the right half turns to the next day that has anything.
+  const empty = !n && !p.rows.length;
+  const list = empty ? p.ahead : p.rows.slice(0, 3);
+  const head = empty && p.aheadHead ? [p.aheadHead, p.aheadCount] : ["Hôm nay", p.count];
 
   return (
-    <HStack spacing={15} modifiers={[padding({ all: 12.5 }), frame({ maxWidth: Infinity, maxHeight: Infinity }), containerBackground(c.bg, "widget"), widgetURL(p.home)]}>
-      {n ? (
-        <Link destination={n.url}>
-          <ZStack alignment="topLeading" modifiers={[frame({ width: 120 }), frame({ maxHeight: Infinity }), background(grad(n.type)), ...card]}>
-            {art(p.art?.[n.type]?.square)}
-            <VStack alignment="leading" spacing={0} modifiers={[padding({ all: 12.5 }), frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: "topLeading" })]}>
-              <Text modifiers={[f(15, "medium"), foregroundStyle(W), opacity(0.85)]}>{n.at}</Text>
-              <Text modifiers={[f(16, "semibold"), foregroundStyle(W), kerning(-0.3), lineLimit(2), padding({ top: 5 })]}>{n.title}</Text>
-              <Spacer minLength={0} />
-              {meter(n.fill, n.mins, "còn lại")}
-            </VStack>
+    <HStack spacing={15} modifiers={[padding({ vertical: 12.5, horizontal: 16.25 }), frame({ maxWidth: Infinity, maxHeight: Infinity }), containerBackground(c.bg, "widget"), widgetURL(p.home)]}>
+      {n ? sand(n.type, n.url, n.at, n.title, n.fill, n.mins, "còn lại")
+        : empty && !p.doneCount && ex ? sand("exam", ex.url, "Sắp thi", ex.title, ex.fill, ex.n, ex.unit)
+        : (
+          <ZStack modifiers={[frame({ width: 120 }), frame({ maxHeight: Infinity }), background(c.chip), ...card]}>
+            {empty && !p.doneCount ? ink("Hôm nay\ntrống", p.dayName) : ink("Xong hết\nhôm nay", p.doneCount)}
           </ZStack>
-        </Link>
-      ) : (
-        <ZStack modifiers={[frame({ width: 120 }), frame({ maxHeight: Infinity }), background(c.chip), ...card]}>
-          {clear(16)}
-        </ZStack>
-      )}
-      <VStack alignment="leading" spacing={0} modifiers={[padding({ top: 4 }), frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: "topLeading" })]}>
-        <HStack modifiers={[padding({ bottom: 2 })]}>
-          <Text modifiers={[f(15, "medium"), foregroundStyle(c.muted)]}>Hôm nay</Text>
-          <Spacer />
-          <Text modifiers={[f(15, "medium"), foregroundStyle(c.muted)]}>{p.count}</Text>
-        </HStack>
-        {p.rows.length ? (
-          p.rows.slice(0, 3).map((r, i) => row(r, i === 0))
-        ) : (
-          <Text modifiers={[f(15), foregroundStyle(c.muted), lineLimit(2), padding({ top: 9 })]}>{p.tomorrow}</Text>
         )}
-        {p.rows.length > 0 && p.rows.length < 3 ? <Spacer minLength={0} /> : null}
+      <VStack alignment="leading" spacing={0} modifiers={[padding({ top: 3.75 }), frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: "topLeading" })]}>
+        <HStack modifiers={[padding({ bottom: 2 })]}>
+          <Text modifiers={[f(13.75, "medium"), foregroundStyle(c.muted)]}>{head[0]}</Text>
+          <Spacer />
+          <Text modifiers={[f(13.75, "medium"), foregroundStyle(c.muted), lineLimit(1)]}>{head[1]}</Text>
+        </HStack>
+        {list.map((r, i) => row(r, i === 0))}
+        {/* shortcut: a week with nothing at all is not in the mockup; one muted line, upgrade if it shows up in use. */}
+        {empty && !list.length ? <Text modifiers={[f(14.375), foregroundStyle(c.muted), padding({ top: 8.75 })]}>7 ngày tới trống</Text> : null}
+        <Spacer minLength={0} />
       </VStack>
     </HStack>
   );
@@ -224,6 +194,7 @@ const SAMPLE: WidgetData = {
     { id: "s5", title: "Đọc sách", type: "plan", time: "20:00", check: true, done: false, url: "zen:///task/s5" },
   ],
   doneLabel: "Xong (2)", tomorrow: "Mai: Cấu trúc dữ liệu 07:00",
+  ahead: [], aheadHead: "", aheadCount: "", doneCount: "", dayName: "Thứ hai 16",
   art: { plan: none, lecture: none, exam: none, assignment: none, busy: none },
   ticked: [], home: "zen:///", listen: "zen:///?listen=1",
 };

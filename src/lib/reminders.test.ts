@@ -14,13 +14,14 @@ it("reminds open timed tasks 10 min ahead, soonest first", () => {
     task("b", now + 3 * h, { location: "A1.2" }),
     task("a", now + h),
     task("done", now + h, { doneAt: now }),
-    task("busy", now + h, { fixed: "busy" }),
+    task("busy", now + h, { fixed: "busy", source: "dlu" }),
+    task("mine", now + 2 * h, { fixed: "busy" }), // the user's own busy block
     task("soon", now + 5 * 60_000),
     task("untimed", undefined),
     task("c", now + 4 * h, { deadline: now + 2 * 24 * h + 13 * h }),
   ], now);
-  expect(r.map((x) => x.id)).toEqual(["a", "b", "c"]);
+  expect(r.map((x) => x.id)).toEqual(["a", "mine", "b", "c"]);
   expect(r[0].at).toBe(now + h - 10 * 60_000);
-  expect(r[1].body).toBe("Bắt đầu lúc 12:00 · A1.2");
-  expect(r[2].body).toBe("Bắt đầu lúc 13:00 · Hạn CN 22:00"); // an assignment block names its deadline
+  expect(r[2].body).toBe("Bắt đầu lúc 12:00 · A1.2");
+  expect(r[3].body).toBe("Bắt đầu lúc 13:00 · Hạn CN 22:00"); // an assignment block names its deadline
 });

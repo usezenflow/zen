@@ -53,10 +53,12 @@ function tomorrowRead(
   if (/^\s*(?:luc|vao|\d)/.test(f.text.slice(fe)))
     return { k: "rel" as const, off: 1 };
   if (/^\p{Lu}/u.test(word) && fs > 0) return null;
+  // "học tiếng Anh mai": the language, then tomorrow
   if (
     /(?:^|\s)(?:anh|chi|ban|em|co|be|ong|ba|bac|thay)\s*$/.test(
       f.text.slice(0, fs),
-    )
+    ) &&
+    !/(?:^|\s)tieng anh\s*$/.test(f.text.slice(0, fs))
   )
     return null;
   return { k: "rel" as const, off: 1 };
@@ -282,6 +284,10 @@ const AFTER_HOUR: Record<string, number> = {
 const STOP_WORD =
   "(?:luc|thu\\s+(?:hai|ba|tu|bon|nam|sau|bay|[2-7])|ngay|tu|vao|den|trong|ghi chu|noi dung|thoi gian|lich|hoc|buoi|truoc|va|hom|mai|sang|chieu|toi|trua|dem|nop|tai|tiet)";
 
+/** Day phrases that end a place or course name the way a stop word does: "quán Highlands tuần sau", "phòng A1 20/11". Folded. */
+const DAY_STOP =
+  "\\s(?:tuan\\s+(?:nay|sau|toi|truoc)|chu\\s+nhat|cn|thang\\s+(?:nay|sau|toi)|mot|\\d{1,2}(?:[/.-]\\d|\\s+(?:thang|tuan|ngay)(?![a-z])))(?![a-z])";
+
 type Rule = [
   Found["kind"],
   RegExp,
@@ -324,8 +330,14 @@ const RULES: Rule[] = [
   // "bài 3", "lab 1-2"; never the day of a date ("bài 20/11")
   [
     "mask",
-    /\b(?:buoi thu|lab|bai|buoi|tuan|lan|cau|muc|trang|slide|doi|nhom)\s*\d+(?![-/]\d{1,2}[-/]\d)(?:\s*-\s*\d+)?(?!\s+(?:lan|tuan|buoi)(?![a-z]))(?![\d/.]*\d)(?![/.]\d)(?!\s*(?:[hg](?![a-z])|gio|tieng|phut|p(?![a-z])|a\.?m(?![a-z])|p\.?m(?![a-z])|:\d))(?!-\s*\d{1,2}\s*(?:h|g|gio)(?![a-z]))/g,
-    () => ({ k: "mask" }),
+    /\b(?:buoi thu|lab|bai|buoi|tuan|lan|cau|muc|trang|slide|doi|nhom)\s*\d+(?![-/]\d{1,2}[-/]\d)(?:\s*-\s*\d+)?(?!\s+(?:lan|tuan|buoi)(?![a-z]))(?!\s+(?:ngay|tuan)\s+(?:nua|toi|sau)(?![a-z])|\s*thang\s*\d)(?![\d/.]*\d)(?![/.]\d)(?!\s*(?:[hg](?![a-z])|gio|tieng|phut|p(?![a-z])|a\.?m(?![a-z])|p\.?m(?![a-z])|:\d))(?!-\s*\d{1,2}\s*(?:h|g|gio)(?![a-z]))/g,
+    (m) => {
+      // "họp nhóm 20-11", "cà phê với Lan 5-12": a day and month, not groups 20 to 11. A count runs upward ("bài 1-3"),
+      // and people, teams and groups are not counted in runs
+      const r = /^(buoi thu|lab|bai|buoi|tuan|lan|cau|muc|trang|slide|doi|nhom)\s*(\d+)\s*-\s*(\d+)$/.exec(m[0]);
+      if (r && (/^(?:lan|doi|nhom)$/.test(r[1]) || +r[3] <= +r[2]) && +r[2] <= 31 && +r[3] <= 12) return null;
+      return { k: "mask" };
+    },
   ],
   ["mask", /\b\d+\s*[/]\s*\d+\s*tiet/g, () => ({ k: "mask" })],
 
@@ -465,7 +477,7 @@ const RULES: Rule[] = [
   // "3 ngày" is a span of days, read as a busy block only with a travel or rest word (see assemble)
   [
     "dur",
-    /(?<![\d.,a-z])(?<!cach\s)(?<!thu\s)(\d{1,2})\s+ngay(?![a-z])(?!\s+(?:nua|toi|sau|tuoi))/g,
+    /(?<![\d.,:a-z])(?<!cach\s)(?<!thu\s)(?<!gio\s)(\d{1,2})\s+ngay(?![a-z])(?!\s+(?:nua|toi|sau|tuoi))/g,
     (m) => ({ k: "dur", min: +m[1] * 1440, days: true }),
   ],
 
@@ -576,7 +588,7 @@ const RULES: Rule[] = [
   ],
   [
     "date",
-    /(?<!\d)(\d{1,2})\s*thang\s*(\d{1,2})(?:\s*nam\s*(\d{4}))?(?!\d)/g,
+    /(?<!\d)(?:(?<![a-z])(?:ngay|mung|mong)\s+)?(\d{1,2})\s*thang\s*(\d{1,2})(?:\s*nam\s*(\d{4}))?(?!\d)/g,
     (m) => {
       const dm = dayMonthOf(+m[1], +m[2], true);
       if (!dm) return null;
@@ -650,7 +662,7 @@ const RULES: Rule[] = [
   [
     "date",
     new RegExp(
-      `(?:(?<![a-z])tuan\\s+(?<pw>${WEEK_WORDS})\\s+)?(?<![a-z])(?:thu\\s?(?<wd>hai|ba|tu|nam|sau|bay|[2-7])|t(?<td>[2-7]))(?![a-z\\d])(?<rest>(?:\\s*(?:,|va)?\\s*(?:thu\\s?|t)?[2-7](?![\\d])(?!\\s*(?:h|g|gio|tieng|phut|p|ngay|tuan|thang|nua|nam)(?![a-z])))*)(?:\\s+tuan\\s+(?<sw>${WEEK_WORDS})(?![a-z])|\\s+(?<bw>nay|toi)(?![a-z]))?`,
+      `(?:(?<![a-z])tuan\\s+(?<pw>${WEEK_WORDS})\\s+)?(?<![a-z])(?:thu\\s?(?<wd>hai|ba|tu|nam|sau|bay|[2-7])|t(?<td>[2-7]))(?![a-z\\d])(?<rest>(?:\\s*(?:,|va)?\\s*(?:thu\\s?|t)?[2-7](?![\\d:./-])(?!\\s*(?:h|g|gio|tieng|phut|p|ngay|tuan|thang|nua|nam|ruoi|kem|am|pm)(?![a-z])))*)(?:\\s+tuan\\s+(?<sw>${WEEK_WORDS})(?![a-z])|\\s+(?<bw>nay|toi)(?![a-z]))?`,
       "g",
     ),
     (m, raw, f) => {
@@ -685,6 +697,32 @@ const RULES: Rule[] = [
         wk: wk === undefined ? undefined : WEEK_OFF[wk.replace(/\s+/g, " ")],
         bare,
         ...(more.length ? { more } : {}),
+      };
+    },
+  ],
+  // "chủ nhật tuần sau", "tuần sau chủ nhật", "CN này", "chủ nhật tới": Sunday with its week, like "thứ 7 tuần sau"
+  [
+    "date",
+    new RegExp(
+      `(?<![a-z])(?:tuan\\s+(?<pw>${WEEK_WORDS})\\s+)?(?:chu nhat|cn)(?:\\s+tuan\\s+(?<sw>${WEEK_WORDS})|\\s+(?<bw>nay|toi))?(?![a-z])`,
+      "g",
+    ),
+    (m, raw, f) => {
+      const g = m.groups ?? {};
+      if (!g.pw && !g.sw && !g.bw) return null;
+      const fs = m.index ?? 0;
+      const word = raw
+        .slice(f.map[fs], f.map[fs + m[0].length - 1] + 1)
+        .normalize("NFC")
+        .toLowerCase();
+      // "chủ nhật tối" is Sunday evening: only "tới" with its mark is the coming Sunday
+      if (g.bw === "toi" && !word.endsWith("tới")) return null;
+      const wk = g.pw ?? g.sw;
+      return {
+        k: "dow",
+        dow: 0,
+        wk: wk === undefined ? undefined : WEEK_OFF[wk.replace(/\s+/g, " ")],
+        bare: g.bw === "nay",
       };
     },
   ],
@@ -829,12 +867,27 @@ const RULES: Rule[] = [
       `(?<![a-z])(?:(sang)\\s+)?tuan(?:\\s+(${WEEK_WORDS}))?(?![a-z])`,
       "g",
     ),
-    (m) =>
-      m[2]
+    (m, raw, f) => {
+      // "8h sáng tuần sau": "sáng" is the morning of the clock before it, not "sang tuần"
+      const at = f.map[m.index ?? 0];
+      if (
+        m[1] &&
+        (raw.slice(at, at + 4).normalize("NFC").toLowerCase() === "sáng" ||
+          /\d\s*(?:h|g|gio|phut)?\s*$/.test(m.input.slice(0, m.index)))
+      )
+        return null;
+      return m[2]
         ? { k: "week", off: WEEK_OFF[m[2].replace(/\s+/g, " ")] }
         : m[1]
           ? { k: "week", off: 1 }
-          : null,
+          : null;
+    },
+  ],
+  // the week word alone, when the "sang" before it was a morning
+  [
+    "date",
+    new RegExp(`(?<![a-z])tuan\\s+(${WEEK_WORDS})(?![a-z])`, "g"),
+    (m) => ({ k: "week", off: WEEK_OFF[m[1].replace(/\s+/g, " ")] }),
   ],
 
   // the clock after an ISO date: "2026-11-12T14:30" or "2026-11-12 14:30"
@@ -845,6 +898,17 @@ const RULES: Rule[] = [
       +m[1] <= 23 && +m[2] <= 59 ? timeVal(+m[1], +m[2], undefined) : null,
   ],
   // times: word clocks need a suffix or a part word, so "hai gio" (two hours) is not a clock
+  // "08:00 SA", "3:30 CH": the phone's own morning and afternoon marks after a clock with minutes
+  [
+    "time",
+    /(?<![\d./a-z])(\d{1,2})[:.](\d{2})\s*(sa|ch)(?![a-z])/g,
+    (m) => {
+      let h = +m[1];
+      if (m[3] === "ch" && h < 12) h += 12;
+      if (m[3] === "sa" && h === 12) h = 0;
+      return clockVal(h, +m[2], m[3] === "ch" ? "chieu" : "sang", true);
+    },
+  ],
   [
     "time",
     /(?<![\d./a-z])(\d{1,2})(?::(\d{2})|h(\d{2})?)?\s*(a\.m\.?|p\.m\.?|am|pm)(?![a-z])/g,
@@ -941,7 +1005,7 @@ const RULES: Rule[] = [
   ],
   [
     "time",
-    /(?<![\d./a-z])(?:(?:dung|khoang|tam)\s+)?(\d{1,2})\s*(?:gio(?:\s+(\d{1,2})(?!\d))?(?:\s+phut)?|h(\d{2})?(?![a-z])|g(\d{2})?(?![a-z\d])|:(\d{2})(?!\d)|\.(00|15|30|45)(?![\d./]))(?:\s*(am|pm)(?![a-z]))?(?:\s*(sang|trua|chieu|toi|dem|khuya)(?![a-z])(?!\s*\d{1,2}\s*(?:h|g|gio|:\d)))?/g,
+    /(?<![\d./a-z])(?:(?:dung|khoang|tam)\s+)?(\d{1,2})\s*(?:gio(?:\s+(\d{1,2})(?!\d)(?!\s*thang\s*\d)(?!\s*(?:tieng|buoi|lan)(?![a-z]))(?!(?<=\s\d)\s*(?:tuan|ngay|thang)\s+(?:nua|toi|sau|truoc)(?![a-z])))?(?:\s+phut)?|h(\d{2})?(?![a-z])|g(\d{2})?(?![a-z\d])|:(\d{2})(?!\d)|\.(00|15|30|45)(?![\d./]))(?:\s*(am|pm)(?![a-z]))?(?:\s*(sang|trua|chieu|toi|dem|khuya)(?![a-z])(?!\s*\d{1,2}\s*(?:h|g|gio|:\d)))?/g,
     (m) => {
       // "09.00": a dotted clock only with minutes no month can be, so "9.11" stays a date
       const mi = +(m[2] ?? m[3] ?? m[4] ?? m[5] ?? m[6] ?? 0);
@@ -972,7 +1036,7 @@ const RULES: Rule[] = [
   ],
   [
     "time",
-    /(?<![a-z])(sang|trua|chieu|toi|dem|khuya)\s+(\d{1,2})\s*(?:gio(?:\s+(\d{1,2})(?!\d))?(?:\s+phut)?|h(\d{2})?(?![a-z])|g(\d{2})(?!\d)|:(\d{2})(?!\d))(?![a-z])/g,
+    /(?<![a-z])(sang|trua|chieu|toi|dem|khuya)\s+(\d{1,2})\s*(?:gio(?:\s+(\d{1,2})(?!\d)(?!\s*thang\s*\d)(?!\s*(?:tieng|buoi|lan)(?![a-z]))(?!(?<=\s\d)\s*(?:tuan|ngay|thang)\s+(?:nua|toi|sau|truoc)(?![a-z])))?(?:\s+phut)?|h(\d{2})?(?![a-z])|g(\d{2})(?!\d)|:(\d{2})(?!\d))(?![a-z])/g,
     (m) => {
       const part = m[1].toLowerCase();
       const h = +m[2];
@@ -1061,17 +1125,30 @@ const RULES: Rule[] = [
   [
     "place",
     new RegExp(
-      `\\b(phong|hoi truong|giang duong|san|tai|o|dia diem|online|zoom|meet)\\b(\\s*:?\\s*)(?!lieu\\b|lien ket\\b|dinh kem\\b|day\\b|sang\\b|chieu\\b|toi\\b|trua\\b|dem\\b|khuya\\b)(?!\\s*nha\\b)([^,;:!?\\n()]+?)(?=\\s*(?:[,;:!?\\n()]|\\.(?:\\s|$)|-\\s|\\b${STOP_WORD}\\b|\\s\\d{1,2}\\s*(?:h|g|gio)(?![a-z])|$))`,
+      `\\b(phong|hoi truong|giang duong|san|tai|o|dia diem|online|zoom|meet)\\b(\\s*:?\\s*)(?!lieu\\b|lien ket\\b|dinh kem\\b|day\\b|sang\\b|chieu\\b|toi\\b|trua\\b|dem\\b|khuya\\b)(?!\\s*nha\\b)([^,;:!?\\n()]+?)(?=\\s*(?:[,;:!?\\n()]|\\.(?:\\s|$)|-\\s|\\b${STOP_WORD}\\b|${DAY_STOP}|\\s\\d{1,2}\\s*(?:h|g|gio)(?![a-z])|$))`,
       "g",
     ),
-    (m) => (m[3].trim() ? { k: "place", text: m[3].trim() } : null),
+    (m) => {
+      // "dọn phòng", "đặt phòng" are chores, and "phòng trước 5h" has no name after it: neither is where the task happens
+      if (
+        m[1] === "phong" &&
+        (/(?<![a-z])(?:don|quet|lau|thue|dat|tim|doi|tra|sua|son|trang tri|sap xep|ve sinh)\s+$/.test(
+          m.input.slice(0, m.index),
+        ) ||
+          /^(?:truoc|sau|han|han chot|deadline|cham nhat|muon nhat|tre nhat|xong|som|gap)(?![a-z])/.test(
+            m[3].trim(),
+          ))
+      )
+        return null;
+      return m[3].trim() ? { k: "place", text: m[3].trim() } : null;
+    },
   ],
 
   // courses: "mon X", "hoc phan X"
   [
     "course",
     new RegExp(
-      `\\b(mon|hoc phan|course)(\\s*:?\\s*)([^,;:!?\\n()]+?)(?=\\s*(?:[,;:!?\\n()]|\\.(?:\\s|$)|-\\s|\\b${STOP_WORD}\\b|$))`,
+      `\\b(mon|hoc phan|course)(?![a-z])(\\s*:?\\s*)([^,;:!?\\n()]+?)(?=\\s*(?:[,;:!?\\n()]|\\.(?:\\s|$)|-\\s|\\b${STOP_WORD}\\b|$))`,
       "g",
     ),
     (m) => ({ k: "course", text: m[3].trim() }),
@@ -1182,6 +1259,9 @@ function timeVal(h: number, mi: number, part: string | undefined): Val | null {
 }
 
 /** The part of the day word closest to a clock match, within 14 folded chars. */
+/** The text `findMentions` is reading, for the checks that need a word's marks. */
+let reading: { raw: string; map: number[] } | undefined;
+
 function partNear(m: RegExpExecArray): string | undefined {
   const s = m.index;
   const e = m.index + m[0].length;
@@ -1190,12 +1270,26 @@ function partNear(m: RegExpExecArray): string | undefined {
   const window = m.input.slice(from, to);
   let best: { word: string; dist: number } | undefined;
   for (const p of window.matchAll(PART)) {
+    // "tuần tới", "tháng tới": the whole text before decides, the window may start mid-phrase
+    if (
+      /(?:tuan|thang|nam)\s+$/.test(m.input.slice(0, from + (p.index ?? 0))) &&
+      p[1] === "toi"
+    )
+      continue;
     if (/tuan\s+$/.test(window.slice(0, p.index))) continue;
+    // "nhắc tôi 8h họp": "tôi" is the speaker
+    if (p[1] === "toi" && reading) {
+      const r0 = reading.map[from + (p.index ?? 0)];
+      if (reading.raw.slice(r0, r0 + 3).normalize("NFC").toLowerCase() === "tôi") continue;
+    }
     // "7h tới 17h": a "tới" between two clocks is a range end, not an evening word
     if (
       p[1] === "toi" &&
       /\d\s*(?:h|g|gio)\s*$/.test(window.slice(0, p.index)) &&
-      /^\s+\d/.test(window.slice((p.index ?? 0) + p[0].length))
+      // the next number must be a clock: "9h tối 20/11" is the evening, then a date
+      /^\s+\d{1,2}\s*(?:h|g|gio|:\d)/.test(
+        m.input.slice(from + (p.index ?? 0) + p[0].length),
+      )
     )
       continue;
     const at = from + (p.index ?? 0);
@@ -1216,6 +1310,7 @@ function partNear(m: RegExpExecArray): string | undefined {
 /** Mentions in `raw`, with raw offsets. Masks come first, so a phrase inside a mask is never read again. */
 export function findMentions(raw: string): Found[] {
   const f = fold(raw);
+  reading = { raw, map: f.map };
   const out: Found[] = [];
   const taken = (s: number, e: number) =>
     out.some((x) => s < x.end && e > x.start);
@@ -1239,6 +1334,9 @@ export function findMentions(raw: string): Found[] {
           .normalize("NFC")
           .toLowerCase();
         if (trigger && ["tài", "sản"].includes(rawTrigger)) continue;
+        // a marked word that folds to a trigger is another word: "khách sạn" is no "sân", "ô" no "ở"
+        const marked: Record<string, string> = { san: "sân", tai: "tại", o: "ở", phong: "phòng" };
+        if (marked[trigger] && rawTrigger !== trigger && rawTrigger !== marked[trigger]) continue;
         const preposition = /^(o|tai|dia diem|room)$/.test(trigger);
         const from = preposition
           ? fs + trigger.length + (m[2]?.length ?? 0)

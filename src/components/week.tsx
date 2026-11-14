@@ -1,13 +1,13 @@
 import * as Haptics from "expo-haptics";
-import { useEffect, useId, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
-import Animated, { Easing, Extrapolation, FadeIn, FadeOut, interpolate, LinearTransition, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import Animated, { Easing, Extrapolation, FadeIn, FadeOut, interpolate, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import Svg, { Defs, Pattern, Rect } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
 import { TypeArt } from "@/components/art";
 import { addDays, holLines, keptOn, onDay, short, startOfDay, type Hols } from "@/components/cal";
-import { Tap, settle } from "@/components/tap";
+import { Tap, glide, settle } from "@/components/tap";
 import { useTheme, ff, motion } from "@/lib/theme";
 import type { Rule, Task } from "@/lib/types";
 import { typeOf } from "@/planner";
@@ -65,7 +65,7 @@ export function Swipe({ onStep, stepKey, children }: { onStep: (d: -1 | 1) => vo
   );
 }
 
-const AREA = 150, GAP = 3, MINH = 16;
+const AREA = 150, GAP = 3, MINH = 16, GRID = 4;
 // Fixed-height column (fit() in views.html): blocks compress proportionally; past the minimum height a "+n" chip takes the rest.
 function fit(hs: number[]) {
   const cap = Math.floor((AREA + GAP) / (MINH + GAP));
@@ -78,12 +78,15 @@ function fit(hs: number[]) {
 
 export function Week({ tasks, hols, monday, selected, now, onSelect, onStep, rules = [] }: { tasks: Task[]; hols: Hols; monday: number; selected: number; now: number; onSelect: (day: number) => void; onStep: (d: -1 | 1) => void; rules?: Rule[] }) {
   const th = useTheme();
+  const [gw, setGw] = useState(0);
+  const cw = (gw - 6 * GRID) / 7;
+  const over: ReactNode[] = [];
   const today = startOfDay(now);
   // A whole empty week keeps its height as dashed slots, so the grid reads as room, not as missing.
   const nil = short.every((_, i) => !hols.has(addDays(monday, i)) && !onDay(tasks, addDays(monday, i)).length);
   return (
     <Swipe onStep={onStep} stepKey={monday}>
-      <View style={s.wk}>
+      <View style={s.wk} onLayout={(e) => setGw(e.nativeEvent.layout.width)}>
         {short.map((d, i) => {
           const day = addDays(monday, i);
           const hol = hols.get(day);
@@ -92,6 +95,23 @@ export function Week({ tasks, hols, monday, selected, now, onSelect, onStep, rul
           const xs: (Task | Rule)[] = hol ? [] : [...onDay(tasks, day), ...keptOn(rules, day)]
             .sort((a, b) => ("text" in a ? day + a.from * 60_000 : a.start!) - ("text" in b ? day + b.from * 60_000 : b.start!));
           const f = fit(xs.map((x) => Math.max(24, Math.min(52, Math.round(("text" in x ? x.to - x.from : (x.end! - x.start!) / 60000) * 0.45)))));
+          if (!nil && !hol) {
+            let top = 0;
+            f.hs.forEach((h, j) => {
+              const x = xs[j], pos = { left: i * (cw + GRID), top, width: cw, height: h };
+              top += h + GAP;
+              over.push("text" in x ? (
+                <Animated.View key={`r${x.id}${day}`} layout={glide} entering={FadeIn} exiting={FadeOut} style={[s.b, pos, { borderWidth: 1, borderColor: th.line }]} accessibilityLabel={x.text}>
+                  <Stripes color={th.line} />
+                </Animated.View>
+              ) : (
+                <Animated.View key={x.id} layout={glide} entering={FadeIn} exiting={FadeOut} style={[s.b, pos]}>
+                  <TypeArt type={typeOf(x)} w={40} h={h} seed={j * 3 + h} />
+                </Animated.View>
+              ));
+            });
+            if (f.more > 0) over.push(<Animated.View key={`m${day}`} layout={glide} entering={FadeIn} exiting={FadeOut} style={[s.more, { left: i * (cw + GRID), top, width: cw, backgroundColor: th.chip }]}><Text style={[s.mt, { color: th.muted }]}>+{f.more}</Text></Animated.View>);
+          }
           return (
             <Tap key={day} style={s.c} scale={0.97} onPress={() => onSelect(day)}>
               <View style={[s.d, { borderColor: day === selected && !on ? th.ink : th.line }, on && { backgroundColor: th.ink, borderColor: th.ink }]}>
@@ -103,42 +123,28 @@ export function Week({ tasks, hols, monday, selected, now, onSelect, onStep, rul
                   <Stripes color={th.line} />
                   {holLines(hol).map((l, k) => <Text key={k} numberOfLines={k ? 1 : 3} style={[s.hl, { color: th.muted }]}>{l}</Text>)}
                 </View>
-              ) : (
-                <View style={s.bs}>
-                  {f.hs.map((h, j) => {
-                    const x = xs[j];
-                    return "text" in x ? (
-                      <Animated.View key={`k${x.id}`} layout={LinearTransition} entering={FadeIn} exiting={FadeOut} style={[s.b, { height: h, borderWidth: 1, borderColor: th.line }]} accessibilityLabel={x.text}>
-                        <Stripes color={th.line} />
-                      </Animated.View>
-                    ) : (
-                      <Animated.View key={x.id} layout={LinearTransition} entering={FadeIn} exiting={FadeOut} style={[s.b, { height: h }]}>
-                        <TypeArt type={typeOf(x)} w={40} h={h} seed={j * 3 + h} />
-                      </Animated.View>
-                    );
-                  })}
-                  {f.more > 0 && <Animated.View layout={LinearTransition} entering={FadeIn} exiting={FadeOut} style={[s.more, { backgroundColor: th.chip }]}><Text style={[s.mt, { color: th.muted }]}>+{f.more}</Text></Animated.View>}
-                </View>
-              )}
+              ) : <View style={s.bs} />}
             </Tap>
           );
         })}
+        {gw > 0 && <View pointerEvents="none" style={s.ov}>{over}</View>}
       </View>
     </Swipe>
   );
 }
 
 const s = StyleSheet.create({
-  wk: { flexDirection: "row", gap: 4, marginTop: 24 },
+  wk: { flexDirection: "row", gap: GRID, marginTop: 20 }, // views.html wk()
   c: { flex: 1, gap: 4 },
   d: { height: 52, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center", marginBottom: 4 },
   dl: { fontSize: 13, fontFamily: ff("600") },
-  dn: { fontSize: 17, fontFamily: ff("800") },
+  dn: { fontSize: 15, fontFamily: ff("800") }, // .wk .d i
   bs: { height: AREA, gap: GAP },
-  b: { borderRadius: 8, overflow: "hidden" },
-  more: { height: MINH, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  ov: { position: "absolute", left: 0, right: 0, top: 60, height: AREA }, // 60 = day pill 52 + its margin 4 + column gap 4
+  b: { position: "absolute", borderRadius: 8, overflow: "hidden" },
+  more: { position: "absolute", height: MINH, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   mt: { fontSize: 12, fontFamily: ff("700") },
   nil: { height: AREA, borderRadius: 10, borderWidth: 1, borderStyle: "dashed" },
   hb: { height: AREA, borderRadius: 10, borderWidth: 1, overflow: "hidden", alignItems: "center", justifyContent: "center", padding: 2 },
-  hl: { fontSize: 12, fontFamily: ff("700"), textAlign: "center", lineHeight: 15 },
+  hl: { fontSize: 12, fontFamily: ff("700"), textAlign: "center", lineHeight: 15.6 },
 });

@@ -8,32 +8,54 @@ export const HALF_LIFE = 21 * 86400000;
 export interface Arm { A: number[]; b: number[] } // A is D*D row-major
 
 // Default daily curve: morning and afternoon bumps, flat low at night.
-export const curve = (h: number) =>
-  0.5 * Math.max(Math.exp(-((h - 10) ** 2) / 18), Math.exp(-((h - 16) ** 2) / 18)) - 0.1;
+const bumps = (h: number) => 0.5 * Math.max(Math.exp(-((h - 10) ** 2) / 18), Math.exp(-((h - 16) ** 2) / 18)) - 0.1;
+const dip = (h: number) => (h === 12 ? 0.15 : h === 18 ? 0.1 : 0); // lunch and dinner
+export const curve = (h: number) => bumps(h) - dip(h);
 
-export function coldArms(): Arm[] {
+// Prior on each kind's one-hot weight (features 4..8: study, exercise, chores, social, other); small, so real outcomes override it.
+const g = (h: number, c: number, s = 6) => Math.exp(-((h - c) ** 2) / s);
+export const KIND_MASS = 1;
+export const kindCurve = (k: number, h: number) => 0.3 * [
+  Math.max(g(h, 10), g(h, 15), g(h, 19)), // study
+  Math.max(g(h, 7), g(h, 17)), // exercise
+  g(h, 17), // chores
+  g(h, 19, 10) - 0.7 * g(h, 10, 10) + dip(h), // social: evenings, not dipped at meals
+  0, // other
+][k];
+
+// v 1 is the prior before per-kind hours, kept to upgrade saved models.
+export function coldArms(v = 2): Arm[] {
   return Array.from({ length: ARMS }, (_, a) => {
     const A = new Array(D * D).fill(0);
     for (let i = 0; i < D; i++) A[i * D + i] = LAMBDA;
     A[0] += N0;
     const b = new Array(D).fill(0);
-    b[0] = N0 * curve(a);
+    b[0] = N0 * (v === 1 ? bumps(a) : curve(a));
+    if (v > 1) for (let k = 0; k < 5; k++) { A[(4 + k) * D + 4 + k] += KIND_MASS; b[4 + k] = KIND_MASS * kindCurve(k, a); }
     return { A, b };
   });
 }
 
-// Evidence fades toward the ridge prior.
+// Evidence fades toward the cold prior, not past it: a model with no outcomes never looks learned.
 export function decayArms(arms: Arm[], dtMs: number) {
   if (dtMs <= 0) return;
-  const g = 0.5 ** (dtMs / HALF_LIFE);
-  for (const arm of arms) {
-    for (let i = 0; i < D; i++) for (let j = 0; j < D; j++) {
-      const k = i * D + j;
-      const base = i === j ? LAMBDA : 0;
-      arm.A[k] = base + g * (arm.A[k] - base);
-    }
-    for (let i = 0; i < D; i++) arm.b[i] *= g;
-  }
+  const f = 0.5 ** (dtMs / HALF_LIFE), cold = coldArms();
+  arms.forEach((arm, a) => {
+    for (let k = 0; k < D * D; k++) arm.A[k] = cold[a].A[k] + f * (arm.A[k] - cold[a].A[k]);
+    for (let i = 0; i < D; i++) arm.b[i] = cold[a].b[i] + f * (arm.b[i] - cold[a].b[i]);
+  });
+}
+
+// Saved models get the new prior once.
+// shortcut: the old prior had partly decayed, so the exact delta is unknowable; add the full difference, drop it if a reset is ever acceptable.
+export function upgradePrior(m: { arms: Arm[]; prior?: number }) {
+  if ((m.prior ?? 1) >= 2) return;
+  const o = coldArms(1), n = coldArms();
+  m.arms.forEach((arm, a) => {
+    for (let k = 0; k < D * D; k++) arm.A[k] += n[a].A[k] - o[a].A[k];
+    for (let i = 0; i < D; i++) arm.b[i] += n[a].b[i] - o[a].b[i];
+  });
+  m.prior = 2;
 }
 
 export function update(arm: Arm, x: number[], r: number, w = 1) {

@@ -32,15 +32,43 @@ export function resolveTerm(now: number): Term {
   return { academicYear: `${y}-${y + 1}`, semester, start: b[semester], end };
 }
 
-/** `tuan` values from this week to the term end, capped. */
-export function weeksToTermEnd(now: number, term: Term, cap = 26): number[] {
-  const out: number[] = [];
-  for (let m = weekStart(vnDate(now)); m < term.end && out.length < cap; m = addDays(m, 7)) out.push(isoWeek(m));
-  return out;
-}
+/** Months of LMS calendar fetched, this one included. */
+export const LMS_MONTHS = 4;
 
-/** Start of the month after next, VN time: LMS coverage ends here. */
+/** Start of the month after the last fetched one, VN time: LMS coverage ends here. */
 export function lmsCoverageEnd(now: number): number {
   const [y, m] = vnDate(now).split("-").map(Number);
-  return Date.UTC(y, m + 1, 1) - VN;
+  return Date.UTC(y, m - 1 + LMS_MONTHS, 1) - VN;
 }
+
+/** The term in progress now, with no lookahead: exams and marks belong to it, not to the one starting in two weeks. */
+export const termNow = (now: number): Term => resolveTerm(now - 14 * DAY);
+
+/** Months the portal publishes and moves exams in: Oct-Nov (HK1), Mar-Apr (HK2), Jun-Jul (HK3). */
+export const examMonth = (now: number): boolean => [3, 4, 6, 7, 10, 11].includes(+vnDate(now).slice(5, 7));
+
+/** Marks of an exam land until the end of Jan (HK1 exams, Aug-Jan), Jun (HK2, Feb-May) or Jul (HK3, Jun-Jul): the start of the next month, VN time. */
+function marksEnd(exam: number): number {
+  const [y, m] = vnDate(exam).split("-").map(Number);
+  const [ey, em] = m >= 8 ? [y + 1, 2] : m === 1 ? [y, 2] : m <= 5 ? [y, 7] : [y, 8];
+  return Date.UTC(ey, em - 1, 1) - VN;
+}
+
+/** Marks are worth fetching from a week after the season's first exam ended to that season's marks end. */
+export const marksOpen = (now: number, examEnds: number[]): boolean => examEnds.some((e) => e + 7 * DAY <= now && now < marksEnd(e));
+
+/** Fees are billed by mid Oct, Mar and Jun: from noon on the 15th to that month's end. Returns that month ("2026-10") or null. */
+export function feeMonth(now: number): string | null {
+  const [y, m, d] = vnDate(now).split("-").map(Number);
+  const h = new Date(now + VN).getUTCHours();
+  return [3, 6, 10].includes(m) && (d > 15 || (d === 15 && h >= 12)) ? `${y}-${String(m).padStart(2, "0")}` : null;
+}
+
+/** Mondays (`YYYY-MM-DD`, VN) from this week to the term end, capped: one timetable job each. */
+export function termMondays(now: number, term: Term, cap = 26): string[] {
+  const out: string[] = [];
+  for (let m = weekStart(vnDate(now)); m < term.end && out.length < cap; m = addDays(m, 7)) out.push(m);
+  return out;
+}
+/** Epoch ms of 00:00 VN on `YYYY-MM-DD`. */
+export const vnMidnight = (s: string) => Date.parse(s) - VN;

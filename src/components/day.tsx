@@ -7,16 +7,18 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
 import { Icon, Logo } from "@/components/art";
-import { addDays, keptOn, keptSpan, live, mondayOf, onDay, shown, type Hols } from "@/components/cal";
+import { addDays, hhmm, keptOn, keptSpan, live, mondayOf, onDay, shown, startOfDay, type Hols } from "@/components/cal";
 import type { Item } from "@/components/menu";
 import { Row, subOf } from "@/components/row";
+import { repeatText } from "@/components/detail-html";
+import { found, parse, PART_VI, type Query } from "@/lib/find";
 import { fadeIn, fadeOut, glide, Tap, settle, EASE } from "@/components/tap";
 import { Stripes } from "@/components/week";
 import { t } from "@/lib/i18n";
 import type { Overlap } from "@/lib/overlap";
 import { useTheme, font, space, ff, motion } from "@/lib/theme";
 import type { Move, Rule, Task, Warn } from "@/lib/types";
-import { day as dayName, when } from "@/lib/when";
+import { dayLabel, day as dayName, when } from "@/lib/when";
 import { typeOf } from "@/planner";
 
 // COMMIT is far enough that the ring visibly fills before the check (~170px of finger travel).
@@ -36,21 +38,22 @@ function pullStep(pull: number, vy: number, at: number): -1 | 0 | 1 {
 }
 
 // Peek pill (views.html .peek): ink pill with a progress ring, vermilion check once past the threshold.
-function Peek({ label, side, pull, at, style }: { label: string; side: 1 | -1; pull: SharedValue<number>; at: number; style: object }) {
+function Peek({ label, side, pull, live, at, style }: { label: string; side: 1 | -1; pull: SharedValue<number>; live: SharedValue<number>; at: number; style: object }) {
   const th = useTheme();
   const box = useAnimatedStyle(() => {
     const p = pull.get(), grow = interpolate(Math.abs(p), [4, at * 0.35], [0, 1], Extrapolation.CLAMP);
-    return { opacity: Math.sign(p) === side ? grow : 0, transform: [{ scale: 0.92 + 0.08 * grow }] };
+    // `live` off once a step commits: the parked content (pull ±0.3 view) must not light the far pill red
+    return { opacity: Math.sign(p) === side ? grow * live.get() : 0, transform: [{ scale: 0.92 + 0.08 * grow }] };
   });
-  const over = () => { "worklet"; return Math.abs(pull.get()) >= at; };
-  const wash = useAnimatedStyle(() => ({ opacity: withTiming(over() ? 1 : 0, { duration: 140 }) }));
-  const tick = useAnimatedStyle(() => ({ opacity: over() ? 1 : 0, transform: [{ scale: settle(over() ? 1 : 0.4, 160) }] }));
-  const ringStyle = useAnimatedStyle(() => ({ opacity: over() ? 0 : 1 }));
-  const labelStyle = useAnimatedStyle(() => ({ color: over() ? "#fff" : th.bg })); // white on vermilion (ui.css .peek.done)
-  const ring = useAnimatedProps(() => ({ strokeDasharray: `${RING_C * clamp(Math.abs(pull.get()) / at, 0, 1)} ${RING_C}` }));
+  // Each style reads `pull` itself: Reanimated only subscribes to shared values in the worklet's own closure, not a helper's.
+  const wash = useAnimatedStyle(() => ({ opacity: withTiming(Math.abs(pull.get()) >= at ? 1 : 0, { duration: 140 }) }));
+  const tick = useAnimatedStyle(() => { const o = Math.abs(pull.get()) >= at; return { opacity: o ? 1 : 0, transform: [{ scale: settle(o ? 1 : 0.4, 160) }] }; });
+  const ringStyle = useAnimatedStyle(() => ({ opacity: Math.abs(pull.get()) >= at ? 0 : 1 }));
+  const labelStyle = useAnimatedStyle(() => ({ color: Math.abs(pull.get()) >= at ? "#fff" : th.bg })); // white on teal (ui.css .peek.done)
+  const ring = useAnimatedProps(() => ({ strokeDasharray: `${(RING_C * clamp(Math.abs(pull.get()) / at, 0, 1)).toFixed(2)} ${RING_C}` }));
   return (
     <Animated.View pointerEvents="none" style={[s.peek, style, box, { backgroundColor: th.ink }]}>
-      <Animated.View style={[StyleSheet.absoluteFill, { borderRadius: 99, backgroundColor: th.seal }, wash]} />
+      <Animated.View style={[StyleSheet.absoluteFill, { borderRadius: 99, backgroundColor: th.art.lecture[1] }, wash]} />
       <View style={s.pr}>
         <Animated.View style={ringStyle}>
           <Svg width={18} height={18} viewBox="0 0 18 18">
@@ -78,7 +81,7 @@ export function DayPull({ dayKey, onStep, prevLabel, nextLabel, enabled, childre
   const stepRef = useRef(onStep);
   useEffect(() => { stepRef.current = onStep; });
   const scrollY = useSharedValue(0), contentH = useSharedValue(0), viewH = useSharedValue(0);
-  const pull = useSharedValue(0), anchor = useSharedValue(0), fade = useSharedValue(1), crossed = useSharedValue(false);
+  const pull = useSharedValue(0), anchor = useSharedValue(0), fade = useSharedValue(1), crossed = useSharedValue(false), live = useSharedValue(1);
   const pending = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const slideIn = useCallback(() => {
@@ -103,7 +106,7 @@ export function DayPull({ dayKey, onStep, prevLabel, nextLabel, enabled, childre
     enabled,
     activeOffsetY: [-8, 8],
     failOffsetX: [-12, 12],
-    onActivate: () => { "worklet"; anchor.set(0); },
+    onActivate: () => { "worklet"; anchor.set(0); live.set(1); },
     onUpdate: (e) => {
       "worklet";
       const top = scrollY.get() <= 0, end = scrollY.get() >= contentH.get() - viewH.get() - 1;
@@ -117,6 +120,7 @@ export function DayPull({ dayKey, onStep, prevLabel, nextLabel, enabled, childre
       "worklet";
       const step = pullStep(pull.get(), e.velocityY, at);
       if (step === 0) { pull.set(settle(0)); return; }
+      live.set(withTiming(0, { duration: 120 }));
       const out = -step * 0.3 * viewH.get();
       fade.set(withTiming(0, { duration: motion.fast, easing: Easing.in(Easing.cubic) }));
       pull.set(withTiming(out, { duration: motion.fast, easing: Easing.in(Easing.cubic) }, (done) => {
@@ -141,27 +145,32 @@ export function DayPull({ dayKey, onStep, prevLabel, nextLabel, enabled, childre
         >
           <Animated.View style={[s.pad, body]}>{children}</Animated.View>
         </ScrollView>
-        <Peek label={prevLabel} side={1} pull={pull} at={at} style={{ top: insets.top + 8 }} />
-        <Peek label={nextLabel} side={-1} pull={pull} at={at} style={{ bottom: 150 }} />
+        <Peek label={prevLabel} side={1} pull={pull} live={live} at={at} style={{ top: insets.top + 2 }} />
+        <Peek label={nextLabel} side={-1} pull={pull} live={live} at={at} style={{ bottom: 150 }} />
       </View>
     </GestureDetector>
   );
 }
 
-/** Right chevron that springs a quarter turn down when open. */
-export function Chevron({ open, color, size = 14 }: { open: boolean; color: string; size?: number }) {
-  const r = useSharedValue(open ? 90 : 0);
-  useEffect(() => { r.set(settle(open ? 90 : 0)); }, [open, r]);
-  const st = useAnimatedStyle(() => ({ transform: [{ rotate: `${r.get()}deg` }] }));
-  return <Animated.View style={st}><Icon name="right" size={size} color={color} /></Animated.View>;
+/** Right chevron that springs a quarter turn down when open; `down` starts pointing down and flips up (the Done group, views.html). */
+export function Chevron({ open, color, size = 14, down }: { open: boolean; color: string; size?: number; down?: boolean }) {
+  const turn = down ? 180 : 90;
+  const r = useSharedValue(open ? turn : 0);
+  useEffect(() => { r.set(settle(open ? turn : 0)); }, [open, r, turn]);
+  const st = useAnimatedStyle(() => ({ transform: [{ rotate: `${r.get().toFixed(2)}deg` }] }));
+  return <Animated.View style={st}><Icon name={down ? "down" : "right"} size={size} color={color} /></Animated.View>;
 }
 
 export type RowActions = {
-  onToggle: (x: Task) => void; onTitle: (x: Task, title: string) => void; onTime: (x: Task, at: Date) => void; onOpen: (x: Task) => void; itemsFor: (x: Task) => Item[]; onSwipeDelete: (x: Task, bottom?: number) => void;
+  onToggle: (x: Task) => void; onTitle: (x: Task, title: string) => void; onTime: (x: Task, at: Date) => void; onOpen: (x: Task) => void; itemsFor: (x: Task) => Item[]; onHold: (x: Task, bottom: number) => void; lifted?: string; onSwipeDelete: (x: Task, bottom?: number) => void;
 };
 
 // The list under the card / week / month: rows, overlap cards, the collapsed Done group.
-const mins = (n: number) => (n >= 60 ? t("hoursN", { h: Math.round(n / 60) }) : t("minsN", { n: Math.round(n) }));
+// 90 -> "1 tiếng rưỡi", 100 -> "1 tiếng 45 phút": quarter hours, the way people say it.
+const mins = (n: number) => {
+  const q = Math.round(n / 15) * 15, h = Math.floor(q / 60), m = q % 60;
+  return h === 0 ? t("minsN", { n: Math.max(15, q) }) : m === 0 ? t("hoursN", { h }) : m === 30 ? t("hoursHalf", { h }) : t("hoursMins", { h, n: m });
+};
 
 // `trail`/`reason`: sub lines by task id, built once per refresh. `moves`: unseen, for ghosts. `warns`: today only.
 // "5 việc, 1 tiết học": the done day's count, as the header says it.
@@ -170,9 +179,10 @@ const doneCount = (xs: Task[]) => {
   return [a ? t("nTasks", { n: a }) : "", l ? t("nLectures", { n: l }) : ""].filter(Boolean).join(", ");
 };
 // Rows under "Sắp tới" carry their day; an assignment's due line already says it.
-const soonSub = (x: Task, now: number) => {
-  const ty = typeOf(x), sub = subOf(x, ty, now);
-  return ty === "assignment" && x.deadline !== undefined ? sub : [dayName(x.start!, now), sub].filter(Boolean).join(", ");
+const soonSub = (x: Task, now: number, all: Task[]) => {
+  const ty = typeOf(x), sub = subOf(x, ty, now, all);
+  // Every row says which day it is on (the list spans days): "T2, Hạn 23:00", and a deadline on another day carries its own date.
+  return [x.start !== undefined ? dayName(x.start, now) : undefined, sub].filter(Boolean).join(", ");
 };
 
 /** .rest in views.html: takes the art card's slot so the layout never collapses. */
@@ -225,6 +235,50 @@ export function First({ onSchool }: { onSchool: () => void }) {
   );
 }
 
+export const TYPE_KEY = { exam: "gotExam", lecture: "gotLecture", assignment: "gotAssignment", busy: "gotBusy", plan: "gotPlan" } as const;
+const STATUS_KEY = { live: "gotLive", done: "gotDone", late: "gotLate" } as const;
+/** views.html "Search, understood": the filters Zen read, as one muted line ("Bài thi · 23 đến 29/11"). Words alone say nothing. */
+export function gotLine(q: Query, now: number) {
+  const today = startOfDay(now), dm = (ms: number) => { const d = new Date(ms); return `${d.getDate()}/${d.getMonth() + 1}`; };
+  const dayText = ([a, b]: [number, number]) => {
+    if (b === addDays(a, 1)) return a === today ? t("today") : a === addDays(today, 1) ? t("tomorrow") : a === addDays(today, -1) ? t("yesterday") : dayName(a, now);
+    const z = addDays(b, -1);
+    return t("rangeTo", { a: new Date(a).getMonth() === new Date(z).getMonth() ? new Date(a).getDate() : dm(a), b: dm(z) });
+  };
+  return [
+    ...[...new Set(q.types.map((c) => c.type))].map((ty) => t(TYPE_KEY[ty])),
+    ...q.days.map((r) => (q.due ? t("gotDue", { d: dayText(r) }) : dayText(r))),
+    q.due && !q.days.length ? t("gotDueAny") : "",
+    q.part ? t("gotPart", { p: PART_VI[q.part.key] ?? q.part.key }) : "",
+    q.at !== undefined ? t("gotAt", { t: hhmm(new Date(2000, 0, 1, 0, q.at).getTime()) }) : "",
+    q.status ? t(STATUS_KEY[q.status]) : "",
+    q.repeat ? t("gotRepeat") : "",
+  ].filter(Boolean).join(" · ");
+}
+
+/** views.html "Search": the query read like a spoken line; matching rows by day, one per series, matched words tinted. */
+export function Found({ tasks, q: raw, now, ...act }: RowActions & { tasks: Task[]; q: string; now: number }) {
+  const th = useTheme();
+  if (!raw.trim()) return null;
+  const q = parse(raw, now), today = startOfDay(now), groups = found(tasks, q, now), got = gotLine(q, now);
+  // A said repeat names its cadence (its detail's repeat line); a prep its sitting; the rest keep the day view's sub.
+  const subFor = (x: Task) => x.rrule && !x.section ? repeatText(x.rrule, x.start!) : x.forId ? subOf(x, "plan", now, tasks) : undefined;
+  return (
+    <>
+      {!!got && <Text style={[s.got, { color: th.muted }]}>{got}</Text>}
+      {!groups.length && <Inl title={t("noFound")} sub={t("noFoundSub")} />}
+      {groups.map((g, k) => (
+        <View key={g.day}>
+          <Text style={[s.lab, { color: th.muted, marginTop: k ? 24 : got ? 22 : 28 }]}>{g.day === today ? t("today") : dayLabel(g.day)}</Text>
+          <View style={{ marginTop: 6 }}>{g.xs.map((x, i) => (
+            <Row key={x.id} task={x} now={now} first={i === 0} done={!live(x)} hl={q} sub={subFor(x)} lifted={act.lifted === x.id} onHold={act.itemsFor(x).length ? (b) => act.onHold(x, b) : undefined} onDelete={() => act.onSwipeDelete(x)} onSeries={(b) => act.onSwipeDelete(x, b)} onToggle={() => act.onToggle(x)} onTitle={(v) => act.onTitle(x, v)} onTime={(a) => act.onTime(x, a)} onOpen={() => act.onOpen(x)} />
+          ))}</View>
+        </View>
+      ))}
+    </>
+  );
+}
+
 // `empty`: what an empty day shows (views.html). rest: the art slot's card plus what's next; week: the whole week is empty; inl: a small note in place of rows.
 export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl", onMove, onKeep, trail, reason, moves, warns, onFix, rules = [], ...act }: RowActions & {
   tasks: Task[]; hols: Hols; day: number; now: number; pop: Set<string>; overlaps: Overlap[]; label?: string; empty?: "rest" | "inl" | "week"; onMove: (o: Overlap) => void; onKeep: (o: Overlap) => void; rules?: Rule[];
@@ -259,7 +313,12 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
     }
     return { lab: t("soon"), xs: after(Math.max(end, now)), dated: true };
   })();
-  const row = (x: Task, i: number, d = false, g?: Move) => <Row key={x.id} task={x} now={now} first={i === 0} done={d || !live(x)} trail={g ? undefined : trail[x.id]} sub={g ? t("ghostTo", { when: when(g.to, now) }) : reason[x.id]} ghost={!!g} items={g ? undefined : act.itemsFor(x)} onDelete={g ? undefined : () => act.onSwipeDelete(x)} onSeries={(b) => act.onSwipeDelete(x, b)} onToggle={() => act.onToggle(x)} onTitle={(v) => act.onTitle(x, v)} onTime={(a) => act.onTime(x, a)} onOpen={() => act.onOpen(x)} />;
+  // views.html "Day, assignment sittings": a split assignment's next sitting after this day, under its own day label.
+  const later = [...new Set(real.map((x) => x.parentId).filter(Boolean))]
+    .flatMap((p) => tasks.filter((x) => x.parentId === p && live(x) && x.start !== undefined && x.start >= end).sort((a, b) => a.start! - b.start!).slice(0, 1));
+  const sitDay = later.length ? startOfDay(Math.min(...later.map((x) => x.start!))) : undefined;
+  const sits = sitDay === undefined ? [] : later.filter((x) => startOfDay(x.start!) === sitDay).sort((a, b) => a.start! - b.start!);
+  const row = (x: Task, i: number, d = false, g?: Move) => <Row key={x.id} task={x} now={now} first={i === 0} done={d || !live(x)} trail={g ? undefined : trail[x.id]} sub={g ? t("ghostTo", { when: when(g.to, now) }) : x.forId ? subOf(x, "plan", now, tasks) : reason[x.id]} ghost={!!g} lifted={act.lifted === x.id} onHold={g || !act.itemsFor(x).length ? undefined : (b) => act.onHold(x, b)} onDelete={g ? undefined : () => act.onSwipeDelete(x)} onSeries={(b) => act.onSwipeDelete(x, b)} onToggle={() => act.onToggle(x)} onTitle={(v) => act.onTitle(x, v)} onTime={(a) => act.onTime(x, a)} onOpen={() => act.onOpen(x)} />;
   const rowAt = ({ x, g }: (typeof rows)[number], i: number) => (
           // Wrapper outside the row's HoldMenu: inserts, moves to Done, undo and re-sorts glide instead of jumping. A moved row arrives with a lift.
           <Animated.View key={g ? `g${x.id}` : x.id} entering={trail[x.id] && !g ? FadeInUp.duration(220).easing(EASE) : fadeIn} exiting={fadeOut} layout={glide}>
@@ -269,8 +328,8 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
                 <Text style={[s.wt, { color: th.seal }]}>{t("clash")}</Text>
                 <Text style={[s.wb, { color: th.muted }]}>{t("clashBody", { a: o.fixed.title, b: o.mine.title })}</Text>
                 <View style={s.pills}>
-                  <Tap onPress={() => onMove(o)} style={[s.pl, { backgroundColor: th.ink }]}><Text style={[s.plt, { color: th.bg, fontFamily: ff("700") }]}>{t("overlapMine")}</Text></Tap>
-                  <Tap onPress={() => onKeep(o)} style={[s.pl, { borderColor: th.line, borderWidth: 1 }]}><Text style={[s.plt, { color: th.ink }]}>{t("overlapKeep")}</Text></Tap>
+                  <Tap onPress={() => onMove(o)} style={[s.pl, { backgroundColor: th.ink }]}><Text numberOfLines={1} style={[s.plt, { color: th.bg, fontFamily: ff("700") }]}>{t("overlapMine")}</Text></Tap>
+                  <Tap onPress={() => onKeep(o)} style={[s.pl, { borderColor: th.line, borderWidth: 1 }]}><Text numberOfLines={1} style={[s.plt, { color: th.ink }]}>{t("overlapKeep")}</Text></Tap>
                 </View>
               </Animated.View>
             ))}
@@ -278,21 +337,32 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
   );
   return (
     <View>
-      {warns.map((w) => (
-        <Animated.View key={w.id} entering={FadeInDown.duration(220).easing(EASE)} exiting={fadeOut} layout={glide} style={[s.warn, { borderColor: th.seal, marginTop: 14, marginBottom: 6 }]}>
-          <Text style={[s.wt, { color: th.seal }]}>{t("warnTitle", { title: w.title })}</Text>
-          <Text style={[s.wb, { color: th.muted }]}>{t("warnBody", { need: mins(w.need), when: when(w.deadline, now), free: mins(w.free) })}</Text>
-          <View style={s.pills}>
-            {w.fixes.map((f, i) => (
-              <Tap key={f.id} onPress={() => onFix(w, f)} style={[s.pl, i === 0 ? { backgroundColor: th.ink } : { borderColor: th.line, borderWidth: 1 }]}>
-                <Text style={[s.plt, i === 0 ? { color: th.bg, fontFamily: ff("700") } : { color: th.ink }]}>{t("warnFix", { title: f.title, day: dayName(f.start, now) })}</Text>
-              </Tap>
-            ))}
-          </View>
-        </Animated.View>
-      ))}
-      {!!label && !(isEmpty && empty !== "inl") && <Text style={[s.lab, { color: th.muted }]}>{label}</Text>}
-      <View style={{ marginTop: 6 }}>
+      {warns.map((w, k) => {
+        const late = w.deadline <= now, own = tasks.find((x) => x.id === w.id), vars = { title: w.title, need: mins(w.need), when: when(w.deadline, now), free: mins(w.free) };
+        // Past due: pushing others can't help, so the one tap is "done" (often it was handed in already).
+        const pills = late ? (own ? [{ key: "done", label: t("warnDone"), go: () => act.onToggle(own) }] : [])
+          : w.fixes.map((f) => ({ key: f.id, label: t("warnFix", { title: f.title, day: dayName(f.start, now) }), go: () => onFix(w, f) }));
+        return (
+          <Animated.View key={w.id} entering={FadeInDown.duration(220).easing(EASE)} exiting={fadeOut} layout={glide} style={[s.warn, { borderColor: th.seal, marginTop: k ? 10 : 0 }]}>
+            {/* The words open the task, so it can be found, done or deleted from the card. */}
+            <Tap onPress={own ? () => act.onOpen(own) : undefined} disabled={!own} scale={0.98} accessibilityRole="button">
+              <Text style={[s.wt, { color: th.seal }]}>{t(late ? "warnLate" : "warnTitle", vars)}</Text>
+              <Text style={[s.wb, { color: th.muted }]}>{t(late ? "warnLateBody" : w.free < 15 ? "warnFull" : "warnBody", vars)}</Text>
+            </Tap>
+            {pills.length > 0 && (
+              <View style={[s.pills, s.blk]}>
+                {pills.map((p, i) => (
+                  <Tap key={p.key} onPress={p.go} style={[s.pl, s.plBlk, i === 0 ? { backgroundColor: th.ink } : { borderColor: th.line, borderWidth: 1 }]}>
+                    <Text numberOfLines={1} style={[s.plt, i === 0 ? { color: th.bg, fontFamily: ff("700") } : { color: th.ink }]}>{p.label}</Text>
+                  </Tap>
+                ))}
+              </View>
+            )}
+          </Animated.View>
+        );
+      })}
+      {!!label && !(isEmpty && empty !== "inl") && <Text style={[s.lab, { color: th.muted }, warns.length > 0 && { marginTop: 26 }]}>{label}</Text>}
+      <View style={{ marginTop: hol || rows.length ? 6 : 0 }}>
         {hol && <Row task={hol} now={now} first allDay done={false} onToggle={() => {}} onTitle={() => {}} onTime={() => {}} onOpen={() => {}} />}
         {[...rows, undefined].map((r, i) => keptBefore(i).map((k) => (
           <Animated.View key={`k${k.id}`} entering={fadeIn} exiting={fadeOut} layout={glide} style={[s.kept, { borderColor: th.line }]} accessibilityLabel={`${k.text}, ${keptSpan(k)}`}>
@@ -311,17 +381,23 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
             <>
               <Text style={[s.lab, { color: th.muted, marginTop: empty === "week" ? 24 : 28 }]}>{next.lab}</Text>
               <View style={{ marginTop: 6 }}>{next.xs.map((x, i) => (
-                <Row key={x.id} task={x} now={now} first={i === 0} done={false} sub={next.dated ? soonSub(x, now) : undefined} items={act.itemsFor(x)} onDelete={() => act.onSwipeDelete(x)} onSeries={(b) => act.onSwipeDelete(x, b)} onToggle={() => act.onToggle(x)} onTitle={(v) => act.onTitle(x, v)} onTime={(a) => act.onTime(x, a)} onOpen={() => act.onOpen(x)} />
+                <Row key={x.id} task={x} now={now} first={i === 0} done={false} sub={next.dated ? soonSub(x, now, tasks) : x.forId ? subOf(x, "plan", now, tasks) : undefined} lifted={act.lifted === x.id} onHold={act.itemsFor(x).length ? (b) => act.onHold(x, b) : undefined} onDelete={() => act.onSwipeDelete(x)} onSeries={(b) => act.onSwipeDelete(x, b)} onToggle={() => act.onToggle(x)} onTitle={(v) => act.onTitle(x, v)} onTime={(a) => act.onTime(x, a)} onOpen={() => act.onOpen(x)} />
               ))}</View>
             </>
           )}
+        </Animated.View>
+      )}
+      {sits.length > 0 && (
+        <Animated.View entering={fadeIn} exiting={fadeOut} layout={glide}>
+          <Text style={[s.lab, { color: th.muted, marginTop: 28 }]}>{dayName(sits[0].start!, now)}</Text>
+          <View style={{ marginTop: 6 }}>{sits.map((x, i) => row(x, i))}</View>
         </Animated.View>
       )}
       {done.length > 0 && (
         <Animated.View entering={fadeIn} layout={glide}>
           <Tap onPress={() => setOpen(!open)} style={s.lab2} scale={0.98}>
             <Text style={[s.lab, { color: th.muted }]}>{t("doneN", { n: done.length })}</Text>
-            <Chevron open={open} color={th.muted} />
+            <Chevron down open={open} color={th.muted} />
           </Tap>
         </Animated.View>
       )}
@@ -332,7 +408,7 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
 
 const s = StyleSheet.create({
   fill: { flex: 1 },
-  pad: { padding: space.gutter, paddingTop: 24, paddingBottom: 200 },
+  pad: { padding: space.gutter, paddingTop: 0, paddingBottom: 200 }, // .scr: the safe area stands in for its 54px top
   peek: { position: "absolute", alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 8, height: 36, paddingLeft: 10, paddingRight: 16, borderRadius: 99, overflow: "hidden", zIndex: 15 },
   pr: { width: 18, height: 18 },
   mid: { alignItems: "center", justifyContent: "center" },
@@ -342,19 +418,22 @@ const s = StyleSheet.create({
   warn: { marginTop: 20, padding: 14, paddingHorizontal: 16, borderRadius: 22, borderWidth: 1.5 },
   kept: { marginTop: 8, minHeight: 56, borderRadius: 16, borderWidth: 1, overflow: "hidden", paddingVertical: 10, paddingHorizontal: 14, justifyContent: "center", alignItems: "flex-start", gap: 2 },
   kt: { fontSize: font.md, fontFamily: ff("600"), paddingHorizontal: 4, borderRadius: 4, overflow: "hidden" },
-  ks: { fontSize: font.label, fontFamily: ff("500"), paddingHorizontal: 4, borderRadius: 4, overflow: "hidden" },
+  ks: { fontSize: 14, fontFamily: ff("500"), paddingHorizontal: 4, borderRadius: 4, overflow: "hidden" },
   wt: { fontSize: font.meta, fontFamily: ff("700") },
   wb: { marginTop: 4, fontFamily: ff(), fontSize: font.sub, lineHeight: 21 },
-  pills: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
-  pl: { height: 36, paddingHorizontal: 16, borderRadius: 99, alignItems: "center", justifyContent: "center" },
+  pills: { flexDirection: "row", gap: 8, marginTop: 12 }, // one row: a long label shrinks its pill to an ellipsis
+  blk: { flexDirection: "column" }, // heads up (magic.html 9): pills name tasks, so each is a full-width block
+  plBlk: { alignSelf: "stretch", height: 44, paddingHorizontal: 18 },
+  pl: { height: 36, paddingHorizontal: 16, borderRadius: 99, alignItems: "center", justifyContent: "center", flexShrink: 1, minWidth: 0 },
   plt: { fontSize: font.sub, fontFamily: ff("500") },
   rest: { marginTop: 16, borderRadius: 28, padding: 20 },
   restLf: { position: "absolute", top: 18, right: 18 },
-  restT: { marginTop: "auto", paddingRight: 58, fontSize: 24, lineHeight: 28, fontFamily: ff("600"), letterSpacing: -0.48 },
+  restT: { marginTop: "auto", paddingRight: 58, fontSize: 24, lineHeight: 32, fontFamily: ff("600"), letterSpacing: -0.48 },
   restS: { marginTop: 6, fontSize: 15, lineHeight: 20, fontFamily: ff("500") },
   inl: { marginTop: 10, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 22, flexDirection: "row", alignItems: "center", gap: 12 },
   inlB: { fontSize: 16, fontFamily: ff("600") },
   inlS: { marginTop: 2, fontSize: 14, fontFamily: ff("500") },
+  got: { marginTop: 10, paddingLeft: 16, fontSize: 14, fontFamily: ff("600") }, // views.html .got
   say: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 13, paddingHorizontal: 16, borderRadius: 99, borderWidth: 1, borderStyle: "dashed" },
   sayT: { flex: 1, fontSize: 15, fontFamily: ff("500") },
 });

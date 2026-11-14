@@ -1,6 +1,7 @@
 // Standing rules ("lời dặn") have their own small language: days, a time window, maybe a kind of task.
 // The Nhịp screen sends everything here; home sends only sentences that sound like a rule. The task NLU never sees them.
 // Spoken shapes handled: numbers as words, self-corrections ("à không"), chains ("và"), exceptions ("trừ"), day ranges, past midnight.
+import { kindsOf } from "./nlu/kind";
 import { fold } from "./nlu/reader/fold";
 import { CORRECTION } from "./nlu/reader/mentions";
 import { repair } from "./nlu/reader/repair";
@@ -35,7 +36,6 @@ const DAYS: [RegExp, number[]][] = ([
 const EVERY = /mỗi ngày|hằng ngày|hàng ngày|ngày nào|(?:sáng|trưa|chiều|tối|đêm) nào|mọi ngày/;
 const DAY_RANGE = new RegExp(`(${DAY_WORD})\\s*(?:đến|tới|-)\\s*(${DAY_WORD})`);
 const PARTS: [RegExp, number, number, string][] = [[/sáng/, 300, 720, "sáng"], [/trưa/, 690, 810, "trưa"], [/chiều/, 720, 1080, "chiều"], [/tối/, 1080, 1440, "tối"], [/đêm|khuya/, 1320, 1440, "đêm"]];
-const KINDS: [RegExp, Kind][] = [[/học|(?:^|\s)ôn(?=\s|$)|bài tập/, "study"], [/thể dục|gym|chạy bộ|(?<!bài\s)tập(?!\s+trung)/, "exercise"], [/việc nhà|dọn|giặt|nấu/, "chores"], [/gặp|đi chơi|hẹn/, "social"]];
 // a clock: digits, an optional minute, then maybe its part of day ("11 giờ đêm", "7h30 sáng")
 const CLOCK = /(\d{1,2})(?:\s*(?:giờ|h|g|:)\s*(\d{1,2})?)?(?:\s*(sáng|trưa|chiều|tối|đêm|khuya))?/g;
 // "từ 9 đến 11 giờ": the unit is often said once, after the second number
@@ -70,7 +70,7 @@ function bits(s: string): Bits {
   else if (c.length && /trước\s+\d/.test(s)) { const to = clock(c[0][1], c[0][2], c[0][3], pm); win = { op: "before", from: 0, to, label: `trước ${hm(to)}` }; }
   else if (c.length) { const at = clock(c[0][1], c[0][2], c[0][3], pm); win = { op: "bare", from: at, to: at, label: hm(at) }; }
   else if (part) win = { op: "part", from: part[1], to: part[2], label: part[3] };
-  const kinds = [...new Set(KINDS.filter(([re]) => re.test(s)).map(([, k]) => k))];
+  const kinds = kindsOf(s);
   return { days: [...days].sort(monFirst), every: EVERY.test(s), win, kinds };
 }
 

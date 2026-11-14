@@ -11,10 +11,10 @@ const MAX = 40; // iOS keeps at most 64 pending notifications; leave room for ot
 const PREFIX = "remind:";
 const hm = (ts: number) => new Date(ts + 7 * 3600_000).toISOString().slice(11, 16); // shortcut: fixed UTC+7 like when.ts
 
-/** Tasks worth a reminder: open, timed, not a device-calendar busy block, soonest first. Split assignments remind per sitting (the parent has no start). */
+/** Tasks worth a reminder: open, timed, not a calendar busy block (the user's own busy block still is), soonest first. Split assignments remind per sitting (the parent has no start). */
 export function upcoming(tasks: Task[], now: number): { id: string; at: number; title: string; body: string }[] {
   return tasks
-    .filter((x) => !x.doneAt && !x.deletedAt && x.fixed !== "busy" && x.start !== undefined && x.start - LEAD > now)
+    .filter((x) => !x.doneAt && !x.deletedAt && (x.fixed !== "busy" || x.source === "user") && x.start !== undefined && x.start - LEAD > now)
     .sort((a, b) => a.start! - b.start!)
     .slice(0, MAX)
     .map((x) => ({ id: x.id, at: x.start! - LEAD, title: x.title, body: t("remindSub", { time: hm(x.start!), room: x.deadline !== undefined ? ` · ${t("due", { time: when(x.deadline, x.start!) })}` : x.location ? ` · ${x.location}` : "" }) }));

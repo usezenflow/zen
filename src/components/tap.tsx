@@ -12,13 +12,14 @@ export const settle = (v: number, duration = 200) => {
 
 const APressable = Animated.createAnimatedComponent(Pressable);
 
-/** Pressable with iOS press feedback: dips a touch ("pop"), or a soft grey highlight for list rows and menu items ("row"). */
+/** Pressable with iOS press feedback: dips a touch ("pop"), a soft grey highlight for list rows and menu items ("row"), or only fades ("fade", settings lines). */
 export function Tap({ variant = "pop", scale = 0.96, style, onPressIn, onPressOut, ...rest }: Omit<PressableProps, "style"> & {
-  variant?: "pop" | "row"; scale?: number; style?: StyleProp<ViewStyle>;
+  variant?: "pop" | "row" | "fade"; scale?: number; style?: StyleProp<ViewStyle>;
 }) {
   const p = useSharedValue(0);
   const fx = useAnimatedStyle(() => variant === "row"
     ? { backgroundColor: interpolateColor(p.get(), [0, 1], ["rgba(127,127,127,0)", "rgba(127,127,127,0.14)"]) }
+    : variant === "fade" ? { opacity: 1 - p.get() * 0.5 }
     : { opacity: 1 - p.get() * 0.3, transform: [{ scale: 1 - p.get() * (1 - scale) }] });
   return (
     <APressable

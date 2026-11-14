@@ -1,32 +1,39 @@
+import { PdfPageImage } from "@dariyd/react-native-pdf-page-image";
+import * as DocumentPicker from "expo-document-picker";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import { extractTextFromPage, getPageCount } from "expo-pdf-text-extract";
 import { extractTextFromImage } from "expo-text-extractor";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Animated, Easing, PanResponder, StyleSheet, Text, View } from "react-native";
-import Reanimated, { useSharedValue, withTiming, ZoomIn, ZoomOut } from "react-native-reanimated";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from "react";
+import { Appearance, AppState, StyleSheet, Text, View } from "react-native";
+import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
+import Reanimated, { interpolate, useAnimatedStyle, useSharedValue, withTiming, ZoomIn, ZoomOut } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { Icon, Logo } from "@/components/art";
 import { Rhythm } from "@/components/rhythm";
 import { addDays, live, mondayOf, monthLabel, onDay, startOfDay, weekday, type Hols } from "@/components/cal";
 import { Day, DayPull, First } from "@/components/day";
-import { PhotoMenu, PhotoView, TypeBar, Veil } from "@/components/capture";
+import { Search, type Origin } from "@/components/search";
+import { PdfView, PhotoMenu, PhotoView, TypeBar, Veil } from "@/components/capture";
 import { Hold, type Aside, type HoldState } from "@/components/hold";
 import type { Item } from "@/components/menu";
 import { Month } from "@/components/month";
 import { Brief, Live, NowCard, Steps, Story, Weekly, type Card } from "@/components/nowcard";
 import { RowMenu } from "@/components/rowmenu";
-import { fadeIn, fadeOut, glide, popIn, Tap, EASE } from "@/components/tap";
+import { fadeIn, fadeOut, glide, popIn, settle, Tap, EASE } from "@/components/tap";
+import { Sweep, useSweep } from "@/components/sweep";
 import { Toast } from "@/components/toast";
 import { Swipe, Week } from "@/components/week";
 import { apply, makeRoom, moveMine, pickNow, addRule, pin, putBack, removeRule, removeScope, swipeDone, swipeLater, take, type Result } from "@/lib/apply";
 import { loadMoves, loadWarn, seeMoves } from "@/lib/moves";
 import { reasonText, stepText, topReason } from "@/lib/reasons";
-import { allDay, dropOldCalendar, readBusy } from "@/lib/calendar";
+import { holidays } from "@/lib/holidays";
 import { askMic, listenLive, micReset, type Heard } from "@/lib/ears";
 import { t } from "@/lib/i18n";
-import { readFull, readNotes } from "@/lib/nlu/adapt";
+import { marksOf, readErrors, readFull, readNotes } from "@/lib/nlu/adapt";
 import { think } from "@/lib/nlu/commands";
 import { affinityOf, calendarOf, committedRows, vocab } from "@/lib/nlu/context";
 import { personalPrior } from "@/lib/nlu/reader/assemble";
@@ -34,15 +41,17 @@ import { isRule, readRule } from "@/lib/rules";
 import { takeFlash } from "@/lib/flash";
 import { keepBoth, pendingOverlaps, type Overlap } from "@/lib/overlap";
 import * as store from "@/lib/store";
-import { getMarks, onForeground } from "@/lib/sync";
+import { getMarks, onForeground, onSynced } from "@/lib/sync";
 import { listenWidgets, pushWidgets } from "@/lib/widgets";
 import { useTheme, font, space, ff } from "@/lib/theme";
-import type { Move, Notice, Rule, Task, Warn } from "@/lib/types";
+import type { Move, Notice, Rule, Step, Task, Warn } from "@/lib/types";
 import { dayLabel, day as dayName, when } from "@/lib/when";
 import { insights, suggest, typeOf, type Insights } from "@/planner";
 
 type View_ = "day" | "week" | "month" | "rhythm"; // rhythm sits apart on the right of the tabs, outside the swipe cycle
 const VIEWS: View_[] = ["day", "week", "month"];
+// A row says only what Zen learned or was told; "the day is free" on every row is noise, so that stays on the detail screen.
+const ROW = new Set(["hour", "after", "similar", "kind", "energy", "weekend", "said", "pace", "rule", "pinned"]);
 type ToastState = { text: string; sub?: string; error?: boolean; action?: { label?: string; run: () => void }; alt?: { label: string; run: () => void } };
 
 const longDate = (ms: number) => { const d = new Date(ms); return `${d.getDate()} tháng ${d.getMonth() + 1}`; };
@@ -51,16 +60,17 @@ const dm = (ms: number) => { const d = new Date(ms); return `${d.getDate()}/${d.
 export default function Home() {
   const th = useTheme();
   const inset = useSafeAreaInsets().top;
-  const [menu, setMenu] = useState<{ task: Task; top: number } | undefined>();
+  const [menu, setMenu] = useState<{ task: Task; top: number; items: Item[] } | undefined>();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [card, setCard] = useState<Card | undefined>();
   const [state, setState] = useState<HoldState>("idle");
   const [words, setWords] = useState("");
   const [toasts, setToasts] = useState<ToastState[]>([]); // [0] is showing, the rest wait their turn
   const toast = toasts[0];
-  const [hols, setHols] = useState<Hols>(new Map());
   const [now, setNow] = useState(() => Date.now());
   const [view, setView] = useState<View_>("day");
+  const [finding, setFinding] = useState<Origin>(); // set = searching, from the circle at this window point (views.html "Search, opening")
+  const findBtn = useRef<ComponentRef<typeof View>>(null);
   const [sel, setSel] = useState(() => startOfDay(Date.now()));
   const [over, setOver] = useState<Overlap[]>([]);
   const [pop, setPop] = useState<Set<string>>(new Set());
@@ -71,14 +81,20 @@ export default function Home() {
   const [maps, setMaps] = useState<{ trail: Record<string, string>; froms: Record<string, number>; reason: Record<string, string>; alts: Record<string, number> }>({ trail: {}, froms: {}, reason: {}, alts: {} });
   const [wk, setWk] = useState<{ title: string; sub: string } | undefined>(); // Sunday card
   const [story, setStory] = useState(false);
+  const shuf = useRef(false); // the plan is playing out on the list; no second run until it ends
+  const [shufOn, setShufOn] = useState(false);
+  const tasksRef = useRef<Task[]>([]);
+  useEffect(() => { tasksRef.current = tasks; }, [tasks]);
   const [lines, setLines] = useState<string[]>([]); // narrated solver steps while thinking
   const [mind, setMind] = useState<{ i: Insights; rules: Rule[] }>();
-  // capture.html: the thumb on a satellite, the type field, the photo dropdown, the photo being read.
+  // capture.html: the thumb on a satellite, the type field, the photo dropdown, the photo or PDF being read.
   const [aside, setAside] = useState<Aside>("");
   const asideRef = useRef<Aside>("");
+  const [pressing, setPressing] = useState(false); // finger down on the mic: the veil rises (capture.html 2)
   const [typing, setTyping] = useState(false);
   const [picking, setPicking] = useState(false);
-  const [photo, setPhoto] = useState<{ uri: string; w: number; h: number }>();
+  const [photo, setPhoto] = useState<{ uri: string; w: number; h: number; text?: string; marks?: { start: number; end: number }[] }>();
+  const [pdf, setPdf] = useState<{ page: number; pages: number; text?: string; marks?: { start: number; end: number }[]; image?: string }>();
 
   const refresh = useCallback(async () => {
     const now = Date.now();
@@ -90,22 +106,24 @@ export default function Home() {
     const [model, mv, wn] = await Promise.all([store.loadModel(now), loadMoves(), loadWarn()]);
     const unseen = mv.filter((m) => !m.seen && all.some((x) => x.id === m.id && !x.deletedAt));
     const trail: Record<string, string> = {}, froms: Record<string, number> = {}, reason: Record<string, string> = {}, alts: Record<string, number> = {};
-    for (const m of unseen) { froms[m.id] = m.from; trail[m.id] = t("trailFrom", { when: when(m.from, now) }); }
+    for (const m of unseen) { froms[m.id] = m.from; trail[m.id] = m.why?.[0]?.key === "missed" ? reasonText(m.why[0]) : t("trailFrom", { when: when(m.from, now) }); }
     for (const x of all) {
       const p = model.placed[x.id];
       if (!p || x.doneAt || x.deletedAt || x.start === undefined) continue;
       if (p.alt !== undefined && p.alt !== x.start) alts[x.id] = p.alt;
-      const why = p.explore ? { key: "explore" as const, w: 1 } : topReason(p.why);
+      const why = p.explore ? { key: "explore" as const, w: 1 } : topReason(p.why?.filter((r) => ROW.has(r.key)));
       // Assignments keep the due-date sub unless the reason says more than "do it early".
       if (why && !x.fixed && !trail[x.id] && (typeOf(x) !== "assignment" || ["pace", "explore", "rule", "pinned"].includes(why.key))) reason[x.id] = reasonText(why);
     }
     const ins = insights(model, now), wkAgo = now - 7 * 86400_000, w = new Date(now).getDay() === 0 ? ins.weekly : undefined;
     setMind({ i: ins, rules: model.rules ?? [] });
-    setMoves(unseen); setWarns(wn); setMaps({ trail, froms, reason, alts });
+    // A saved card outlives its task until the next re-plan: drop it once the task is gone or ticked, or it was never short of time.
+    const open = (id: string) => all.some((x) => x.id === id && !x.doneAt && !x.deletedAt);
+    setMoves(unseen); setWarns(wn.filter((w) => open(w.id) && (w.deadline <= now || w.free < w.need))); setMaps({ trail, froms, reason, alts });
     setWk(w ? { title: w, sub: t("sundaySub", { done: all.filter((x) => x.doneAt && x.doneAt >= wkAgo).length, moved: mv.filter((m) => m.at >= wkAgo).length }) } : undefined);
     const cur = pickNow(all, now);
     if (cur && cur.start! <= now) return setCard({ task: cur, start: cur.start, end: cur.end });
-    const s = suggest(all.filter((x) => !dismissed.current.has(x.id)), await readBusy(now, now + 8 * 3600_000), model, now);
+    const s = suggest(all.filter((x) => !dismissed.current.has(x.id)), [], model, now);
     if (s) return setCard({ task: s.task, start: s.start, end: s.end, gap: true });
     setCard(cur && { task: cur, start: cur.start, end: cur.end });
   }, []);
@@ -134,12 +152,44 @@ export default function Home() {
   const go = useCallback((route: string) => {
     if (route.startsWith("day:")) { setView("day"); setSel(startOfDay(Number(route.slice(4)))); } else router.push(route as "/marks");
   }, []);
+  // Plan done: the list returns in its old state, then one task at a time moves to its new place under a step line; the rest lands at once.
+  const shuffle = useCallback(async (r?: Result, old = tasksRef.current) => {
+    const id = (st: Step) => st.id;
+    const steps = (r?.steps ?? []).slice(0, 4);
+    if (shuf.current || !old.length || !steps.some(id)) return refresh();
+    shuf.current = true;
+    const fresh = new Map((await store.allTasks()).map((x) => [x.id, x]));
+    // A step names the task; when it was split into sittings, its rows are the sittings (the parent only loses its time).
+    const rows = (tid?: string) => { const x = tid ? fresh.get(tid) : undefined; return x ? [x, ...[...fresh.values()].filter((c) => c.parentId === tid && !c.deletedAt)] : []; };
+    const firstAt = Math.min(...rows(steps.find((st) => id(st) && !old.some((o) => o.id === id(st)))?.id).flatMap((x) => x.start ?? []));
+    setTasks(old);
+    if (Number.isFinite(firstAt)) setSel(startOfDay(firstAt));
+    setShufOn(true);
+    setState("thinking");
+    try {
+      for (let i = 0; i < steps.length; i++) {
+        await new Promise((ok) => setTimeout(ok, 350));
+        setLines(steps.slice(0, i + 1).map(stepText));
+        const xs = rows(id(steps[i]));
+        if (!xs.length) continue;
+        setTasks((p) => [...p.filter((a) => !xs.some((x) => x.id === a.id)), ...xs]);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      }
+      await new Promise((ok) => setTimeout(ok, 350));
+      await refresh();
+    } finally {
+      shuf.current = false;
+      setShufOn(false);
+      setLines([]);
+      setState("idle");
+    }
+  }, [refresh]);
   // A sync result: every notice gets its own toast with "Xem"; otherwise the plain result.
   const landed = useCallback((r?: Result & { notices?: Notice[] }) => {
     if (r?.notices?.length) setToasts((q) => [...q, ...r.notices!.map((n): ToastState => ({ text: n.title, sub: n.sub, action: n.route ? { label: t("view"), run: () => go(n.route!) } : undefined }))]);
     else if (r) say(r.toast, r);
-    refresh();
-  }, [say, go, refresh]);
+    void shuffle(r);
+  }, [say, go, shuffle]);
 
   useFocusEffect(useCallback(() => {
     const f = takeFlash();
@@ -155,41 +205,45 @@ export default function Home() {
     return () => sub.remove();
   }, [refresh, landed]);
   useEffect(() => { pushWidgets(); return listenWidgets(refresh); }, [refresh]);
-  useEffect(() => { // once: older builds mirrored tasks into a "Zen" phone calendar
-    store.kvGet("cal.dropped").then(async (v) => { if (v !== "1" && (await dropOldCalendar())) await store.kvSet("cal.dropped", "1"); }).catch(() => {});
-  }, []);
-
+  useEffect(() => onSynced(landed), [landed]); // the campus queue lands its changes here whenever a drain ends
   const monthKey = new Date(sel).getFullYear() * 12 + new Date(sel).getMonth();
-  useEffect(() => { // holidays and all-day phone events across the month grid
-    const first = mondayOf(new Date(new Date(sel).getFullYear(), new Date(sel).getMonth(), 1).getTime());
-    allDay(first, addDays(first, 42)).then((l) => setHols(new Map(l.map((h) => [startOfDay(h.day), h.title])))).catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  const hols = useMemo<Hols>(() => { // public holidays across the month grid
+    const first = mondayOf(new Date(Math.floor(monthKey / 12), monthKey % 12, 1).getTime());
+    return holidays(first, addDays(first, 42));
   }, [monthKey]);
 
   const stopRec = useRef<(() => Promise<Heard>) | undefined>(undefined);
   const held = useRef(false);
   // Opened from the talk widget (zen:///?listen=1): already listening, so the next touch on the button ends it.
   const latched = useRef(false);
-  const { listen } = useLocalSearchParams<{ listen?: string }>();
+  const { listen, scan } = useLocalSearchParams<{ listen?: string; scan?: string }>();
 
   useEffect(() => { micReset(); }, []);
   useEffect(() => { // once: the on-device models (whisper, Qwen, e5) are gone; their ~1.6 GB must not linger
     import("expo-file-system").then(({ Directory, Paths }) => { const d = new Directory(Paths.document, "models"); if (d.exists) d.delete(); }).catch(() => {});
   }, []);
-  useEffect(() => { // leaving the app mid-hold: close the mic and drop the take, nobody is there to see it parsed
-    const sub = AppState.addEventListener("change", (st) => {
-      if (st === "active" || !held.current) return;
-      held.current = false;
-      latched.current = false;
-      const stop = stopRec.current;
-      stopRec.current = undefined;
-      level.set(0);
-      setState("idle");
-      if (stop) stop().catch(() => {}); // no stop yet: start() sees held=false and closes it
-    });
+  // Drop the take: close the mic, clear the veil. Leaving the app mid-hold, or a tap on the veil when a press got stuck.
+  const cancel = () => {
+    held.current = false;
+    latched.current = false;
+    asideRef.current = "";
+    const stop = stopRec.current;
+    stopRec.current = undefined;
+    level.set(0);
+    setPressing(false);
+    setAside("");
+    setWords("");
+    setState("idle");
+    if (stop) stop().catch(() => {}); // no stop yet: start() sees held=false and closes it
+  };
+  const cancelRef = useRef(cancel);
+  useEffect(() => { cancelRef.current = cancel; });
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (st) => { if (st !== "active" && held.current) cancelRef.current(); });
     return () => sub.remove();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
   const start = async () => {
+    if (shuf.current) return;
     held.current = true;
     if (!(await askMic())) { held.current = false; return say(t("mic")); }
     if (!held.current || asideRef.current) return;
@@ -229,8 +283,9 @@ export default function Home() {
     await run(heard.text, "voice", heard.alternatives);
   };
 
-  // One reader for every way in: what was said, typed, or read off a photo.
-  const run = async (text: string, via: "voice" | "type" | "photo", alternatives?: string[]) => {
+  // One reader for every way in: what was said, typed, or read off a photo or a PDF (its text layer, or a scan read like a photo).
+  const run = async (text: string, via: "voice" | "type" | "photo" | "pdf" | "scan", alternatives?: string[]) => {
+    if (shuf.current) return;
     setState("thinking");
     setWords(text);
     try {
@@ -255,44 +310,43 @@ export default function Home() {
       // What the reader cannot know from the words: the timetable, what this user usually saves per title, and the marks.
       const old = JSON.parse((await store.kvGet("nlu.committed").catch(() => null)) ?? "[]");
       const extra = { calendar: calendarOf(all, nowD.getTime()), affinity: affinityOf((await getMarks().catch(() => null))?.marks ?? []), prior: personalPrior(old), alternatives };
-      const source = via === "voice" ? "voice" : "typed";
+      const source = via === "voice" ? "voice" : via === "photo" || via === "scan" ? "ocr" : via === "pdf" ? "paste" : "typed"; // ocr and paste: the reader reads a notice's lines and tables as such
       const actions = think(text, nowD, ctx, source, extra);
+      // dev only: what the recognizer wrote and what was read from it, so a wrong day can be traced to its transcript
+      if (__DEV__) console.log("[heard]", JSON.stringify({ via, text, alternatives, actions, readErrors }));
       const read = actions.some((a) => a.op === "create") ? readFull(text, nowD, source, { ...extra, alternatives: undefined }) : undefined; // offsets in the notes point into this transcript, not a winning alternative
       const notes = read ? readNotes(text, read) : {};
-      if (!actions.length) return via === "photo" ? nothingInPhoto() : say(t("huh"), undefined, { sub: t("huhSub") }); // a command naming no task we know
+      if (!actions.length) return via === "photo" ? nothing("photo") : via === "pdf" || via === "scan" ? nothing("pdf") : say(t("huh"), undefined, { sub: t("huhSub") }); // a command naming no task we know
       const now = nowD.getTime();
-      const applied = await apply(actions, now);
-      const said = (applied.steps ?? []).slice(0, 4).map(stepText);
-      for (let i = 1; i <= said.length; i++) { setLines(said.slice(0, i)); await new Promise((ok) => setTimeout(ok, 300)); }
-      if (said.length) await new Promise((ok) => setTimeout(ok, 300));
-      const r = applied;
+      const r = await apply(actions, now);
       if (read?.items.length) store.kvSet("nlu.committed", JSON.stringify(committedRows(read.items, old))).catch(() => {});
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       const titles = [...new Set(actions.filter((a) => a.op === "create" && a.title).map((a) => a.title!))];
       // Show where the new work landed: the day of its earliest placed piece, not today.
       const made = (await store.allTasks()).filter((x) => x.createdAt === now && x.source === "user" && !x.deletedAt && x.start !== undefined);
       const firstAt = Math.min(...made.map((x) => x.start!));
-      if (titles.length && Number.isFinite(firstAt)) setSel(startOfDay(firstAt));
+      const playing = (r.steps ?? []).some((st) => st.id); // the shuffle picks the day itself
+      if (!playing && titles.length && Number.isFinite(firstAt)) setSel(startOfDay(firstAt));
       if (titles.length > 1) { // bulk: count, first two names, one Undo for all, no alt
         const k = titles.length - 2;
         say(t("addedN", { n: titles.length }), r, { sub: [titles.slice(0, 2).join(", ") + (k > 0 ? ` +${k}` : ""), r.sub, notes.sub].filter(Boolean).join(" · ") });
       } else if (titles.length === 1) {
         // The reader's own ask ("3 giờ": 15:00 or 03:00) takes the chip; else the planner's other slot.
         const alt = notes.alt && { alt: { label: notes.alt.label, run: async () => { await r.undo(); await run(notes.alt!.text, via); } } };
-        say(titles[0], r, { sub: [Number.isFinite(firstAt) ? when(firstAt, now) : undefined, r.sub, notes.sub].filter(Boolean).join(" · ") || undefined, ...(alt ?? (await otherSlot(now))) });
+        say(titles[0], r, { sub: [Number.isFinite(firstAt) ? when(firstAt, now) : undefined, r.sub, notes.sub].filter(Boolean).join(" · ") || undefined, ...(alt ?? (await otherSlot(made, now))) });
       } else say(r.toast, r);
-      if (via === "photo") setPhoto(undefined);
-      refresh();
+      setPhoto(undefined);
+      setPdf(undefined);
+      await shuffle(r, all);
     } catch (e) {
       fail(t("thinkFail"), e);
     } finally {
-      setState("idle");
-      setLines([]);
+      if (!shuf.current) setState("idle");
     }
   };
 
-  // capture.html frame 10: nothing readable, so keep the photo and offer the keyboard.
-  const nothingInPhoto = () => setToasts((q) => [{ text: t("photoNothing"), sub: t("photoNothingSub"), action: { label: t("satType"), run: () => { setPhoto(undefined); setTyping(true); } } }, ...q.slice(1)]);
+  // capture.html frame 11: nothing readable, so keep the photo (or the PDF page) and offer the keyboard.
+  const nothing = (what: "photo" | "pdf") => setToasts((q) => [{ text: t(what === "pdf" ? "pdfNothing" : "photoNothing"), sub: t(what === "pdf" ? "pdfNothingSub" : "photoNothingSub"), action: { label: t("satType"), run: () => { setPhoto(undefined); setPdf(undefined); setTyping(true); } } }, ...q.slice(1)]);
 
   // The thumb moved onto a satellite (drop the take) or back onto the mic (listen again).
   const onAside = (a: Aside) => {
@@ -307,12 +361,13 @@ export default function Home() {
     if (stop) stop().catch(() => {});
   };
   const onEnd = (a: Aside) => {
+    setPressing(false);
     latched.current = false;
     asideRef.current = "";
     setAside("");
     if (!a) return void end();
     held.current = false;
-    if (a === "type") setTyping(true); else setPicking(true);
+    if (a === "type") setTyping(true); else if (a === "pdf") void readPdf(); else setPicking(true);
   };
   const readPhoto = async (src: "camera" | "library") => {
     setPicking(false);
@@ -324,7 +379,10 @@ export default function Home() {
       setPhoto({ uri, w: width, h: height });
       setState("thinking");
       const text = (await extractTextFromImage(uri)).map((l) => l.trim()).filter(Boolean).join("\n");
-      if (!text) { setState("idle"); return nothingInPhoto(); }
+      if (!text) { setState("idle"); return nothing("photo"); }
+      // capture.html 8: the read text with what the reader found lit up, held a beat so you see it, then added as usual.
+      const marks = marksOf(text, readFull(text, new Date(), "ocr"));
+      if (marks.length) { setPhoto({ uri, w: width, h: height, text, marks }); await new Promise((ok) => setTimeout(ok, 1400)); }
       await run(text, "photo");
     } catch (e) {
       setState("idle");
@@ -332,11 +390,60 @@ export default function Home() {
     }
   };
 
-  // The "other slot": a placement logged at `now` whose other policy chose a different start.
-  const otherSlot = async (now: number) => {
-    const ev = (await store.allEvents()).find((e) => e.at === now && e.type === "placed" && typeof e.data?.otherStart === "number");
-    const task = ev && (await store.allTasks()).find((x) => x.id === ev.taskId);
-    const alt = ev?.data?.otherStart as number | undefined;
+  // Opened from the capture widget (zen:///?scan=1): the camera straight away.
+  useEffect(() => {
+    if (scan !== "1") return;
+    const id = setTimeout(() => { router.setParams({ scan: undefined }); void readPhoto("camera"); }, 0);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scan]);
+
+  // capture.html 5 and 12: the system picker straight away, then every page read on the phone, nothing uploaded.
+  const readPdf = async () => {
+    let uri: string | undefined;
+    try {
+      const r = await DocumentPicker.getDocumentAsync({ type: "application/pdf" });
+      if (r.canceled || !r.assets[0]) return;
+      uri = r.assets[0].uri;
+      setState("thinking");
+      const pages = await getPageCount(uri);
+      setPdf({ page: 1, pages });
+      const beat = Math.min(1400, 2800 / pages); // a beat on each page with finds, the whole file held under 3 s
+      const texts: string[] = [];
+      for (let n = 1; n <= pages; n++) {
+        const text = (await extractTextFromPage(uri, n)).trim();
+        texts.push(text);
+        if (!text) continue;
+        const marks = marksOf(text, readFull(text, new Date(), "paste"));
+        setPdf({ page: n, pages, text, marks });
+        if (marks.length) await new Promise((ok) => setTimeout(ok, beat));
+      }
+      let all = texts.filter(Boolean).join("\n\n"), via: "pdf" | "scan" = "pdf";
+      if (!all) { // no text layer: a scan, each page drawn and read like a photo, under the same sweep
+        via = "scan";
+        const lines: string[] = [];
+        for (let n = 0; n < pages; n++) {
+          const img = await PdfPageImage.generate(uri, n, 2, { maxDimension: 2400 });
+          setPdf({ page: n + 1, pages, image: img.uri });
+          lines.push(...(await extractTextFromImage(img.uri)).map((l) => l.trim()).filter(Boolean));
+        }
+        all = lines.join("\n");
+      }
+      if (!all) { setState("idle"); return nothing("pdf"); }
+      await run(all, via);
+    } catch (e) {
+      setState("idle");
+      setPdf(undefined);
+      fail(t("pdfFail"), e);
+    } finally {
+      if (uri) PdfPageImage.close(uri).catch(() => {}); // drops the drawn pages; a no-op for a text PDF
+    }
+  };
+
+  // The planner's own second-best start for a single new flexible task.
+  const otherSlot = async (made: Task[], now: number) => {
+    const task = made.length === 1 && !made[0].fixed ? made[0] : undefined;
+    const alt = task && (await store.loadModel(now)).placed[task.id]?.alt;
     if (!task || alt === undefined || alt === task.start) return;
     return { alt: { label: when(alt, now), run: async () => { const a = await apply([{ op: "edit", target: task.id, when: new Date(alt).toISOString() }]); say(task.title, a, { sub: when(alt, now) }); refresh(); } } };
   };
@@ -375,10 +482,10 @@ export default function Home() {
     onTime: (x: Task, at: Date) => { const d = new Date(x.start ?? Date.now()); d.setHours(at.getHours(), at.getMinutes(), 0, 0); edit(x, { when: d.toISOString() }); },
     onOpen: (x: Task) => router.push(`/task/${x.id}`),
     // Swipe right: a plain task is deleted at once; a series opens the scope dropdown under the row.
-    onSwipeDelete: (x: Task, bottom?: number) => (bottom === undefined ? del(x, "this") : setMenu({ task: x, top: bottom - inset + 4 })),
+    onSwipeDelete: (x: Task, bottom?: number) => (bottom === undefined ? del(x, "this") : setMenu({ task: x, top: bottom - inset + 4, items: seriesItems(x) })),
+    onHold: (x: Task, bottom: number) => setMenu({ task: x, top: bottom - inset + 4, items: itemsFor(x) }), lifted: menu?.task.id,
   };
 
-  const [x] = useState(() => new Animated.ValueXY());
   const cardRef = useRef(card);
   useEffect(() => { cardRef.current = card; }, [card]);
   const commit = async (dir: "done" | "later") => {
@@ -391,24 +498,22 @@ export default function Home() {
       else dismissed.current.add(c.task.id);
     } else r = await (dir === "done" ? swipeDone(c.task.id) : swipeLater(c.task.id));
     if (r) say(r.toast, r);
-    await refresh();
+    await shuffle(r);
   };
-  const [latest] = useState<{ commit?: typeof commit }>({}); // read by the long-lived PanResponder
-  useEffect(() => { Object.assign(latest, { commit }); });
-  const [pan] = useState(() => PanResponder.create({
-    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 12,
-    onPanResponderMove: Animated.event([null, { dx: x.x, dy: x.y }], { useNativeDriver: false }),
-    onPanResponderRelease: (_, g) => {
-      if (Math.abs(g.dx) > 110) {
-        Animated.timing(x, { toValue: { x: g.dx > 0 ? 500 : -500, y: 0 }, duration: 180, useNativeDriver: false }).start(async () => {
-          await latest.commit!(g.dx > 0 ? "done" : "later");
-          x.setValue({ x: 0, y: 0 });
-        });
-        return;
-      }
-      Animated.timing(x, { toValue: { x: 0, y: 0 }, duration: 200, easing: Easing.bezier(0.25, 1, 0.5, 1), useNativeDriver: false }).start();
+  const cx = useSharedValue(0);
+  const finish = async (dir: "done" | "later") => { await commit(dir); cx.set(0); };
+  const swipe = usePanGesture({
+    activeOffsetX: [-12, 12],
+    failOffsetY: [-10, 10],
+    onUpdate: (e) => { "worklet"; cx.set(e.translationX); },
+    onDeactivate: (e) => {
+      "worklet";
+      if (Math.abs(e.translationX) <= 110) { cx.set(settle(0)); return; }
+      const dir = e.translationX > 0 ? "done" : "later";
+      cx.set(withTiming(e.translationX > 0 ? 500 : -500, { duration: 180 }, (ok) => { if (ok) scheduleOnRN(finish, dir); }));
     },
-  }));
+  });
+  const flick = useAnimatedStyle(() => ({ transform: [{ translateX: cx.get() }, { rotate: `${interpolate(cx.get(), [-300, 300], [-8, 8]).toFixed(2)}deg` }] }));
 
   const mon = mondayOf(sel);
   const today0 = startOfDay(now);
@@ -417,17 +522,23 @@ export default function Home() {
     const n = { a: 0, l: 0, e: 0 };
     for (const a of tasks) if (inView(a) && a.start! >= from && a.start! < to) { const ty = typeOf(a); n[ty === "lecture" ? "l" : ty === "exam" ? "e" : "a"]++; }
     const hs = [...hols].filter(([d]) => d >= from && d < to && days);
-    return [n.a || !(n.l || n.e || hs.length) ? t("nTasks", { n: n.a }) : "", n.l ? t("nLectures", { n: n.l }) : "", n.e ? t("nExams", { n: n.e }) : "", hs.length ? t("nHols", { n: hs.length, name: hs.some(([, h]) => /tết/i.test(h)) ? "Tết" : "lễ" }) : ""].filter(Boolean).join(", ");
+    if (!(n.a || n.l || n.e || hs.length)) return ""; // the caller says what an empty span reads as
+    return [n.a ? t("nTasks", { n: n.a }) : "", n.l ? t("nLectures", { n: n.l }) : "", n.e ? t("nExams", { n: n.e }) : "", hs.length ? t("nHols", { n: hs.length, name: hs.some(([, h]) => /tết/i.test(h)) ? "Tết" : "lễ" }) : ""].filter(Boolean).join(", ");
+  };
+  // views.html "Day, empty" / "Day, all done": nothing left reads "Không có việc", everything ticked "5 việc, xong hết".
+  const dayDone = (d: number) => {
+    const n = tasks.filter((a) => a.doneAt && a.start !== undefined && a.start >= d && a.start < addDays(d, 1) && !tasks.some((c) => c.parentId === a.id)).length;
+    return n ? t("nAllDone", { n }) : t("noTasks");
   };
   const sd = new Date(sel);
   const sun = addDays(mon, 6), sm = new Date(mon), em = new Date(sun);
   const head = view === "day"
-    ? { hello: weekday(sel), h: longDate(sel), n: count(sel, addDays(sel, 1)) }
+    ? { hello: weekday(sel), h: longDate(sel), n: count(sel, addDays(sel, 1)) || dayDone(sel) }
     : view === "week"
-      ? { hello: mon === mondayOf(today0) ? t("thisWeek") : t("yearN", { y: sm.getFullYear() }), h: t("rangeTo", { a: sm.getMonth() === em.getMonth() ? sm.getDate() : dm(mon), b: dm(sun) }), n: count(mon, addDays(mon, 7), 1) }
+      ? { hello: mon === mondayOf(today0) ? t("thisWeek") : mon === addDays(mondayOf(today0), 7) ? t("nextWeek") : t("yearN", { y: sm.getFullYear() }), h: t("rangeTo", { a: sm.getMonth() === em.getMonth() ? sm.getDate() : dm(mon), b: dm(sun) }), n: count(mon, addDays(mon, 7), 1) || t("nothingYet") }
       : view === "rhythm"
         ? { hello: t("rhythmHello"), h: t("rhythm"), n: mind?.i.golden ? t("goldenRange", { a: mind.i.golden.from, b: mind.i.golden.to }) : t("stillLearning") }
-      : { hello: t("yearN", { y: sd.getFullYear() }), h: monthLabel(sel), n: count(new Date(sd.getFullYear(), sd.getMonth(), 1).getTime(), new Date(sd.getFullYear(), sd.getMonth() + 1, 1).getTime(), 1) };
+      : { hello: t("yearN", { y: sd.getFullYear() }), h: monthLabel(sel), n: count(new Date(sd.getFullYear(), sd.getMonth(), 1).getTime(), new Date(sd.getFullYear(), sd.getMonth() + 1, 1).getTime(), 1) || t("nothingYet") };
   const stepWeek = (d: -1 | 1) => setSel(addDays(sel, 7 * d));
   const stepMonth = (d: -1 | 1) => setSel(new Date(sd.getFullYear(), sd.getMonth() + d, 1).getTime());
   const stepDay = (d: -1 | 1) => setSel(addDays(sel, d));
@@ -435,25 +546,30 @@ export default function Home() {
   const isToday = sel === today0;
   const running = !!card && !card.gap && card.start! <= now && now < card.end!;
   const quiet = isToday && view === "day" && !running;
-  const briefOn = quiet && moves.length > 0; // the running card keeps priority
+  const said = moves.filter((m) => !m.self); // the user's own moves keep the trail dot, not the brief
+  const briefOn = quiet && said.length > 0; // the running card keeps priority
   const sunOn = quiet && !briefOn && !!wk;
   const showStory = briefOn && story;
-  const closeStory = async () => { setStory(false); await seeMoves(); refresh(); };
+  const closeStory = async () => { setStory(false); await seeMoves(said.map((m) => m.id)); refresh(); };
   const busy = state !== "idle";
+  const listing = busy && !shufOn && !!words; // the day stays under the veil until words are heard; while the plan plays out the list stays, the dock keeps thinking
   const firstRun = !tasks.length && view === "day" && !busy; // views.html "Day, first launch"
   const selEmpty = !hols.has(sel) && !onDay(tasks, sel).length;
+  // The first-launch card also teaches on any empty day with nothing ahead of it: no rows, nothing ticked, nothing coming.
+  const nothingAhead = view === "day" && !busy && selEmpty && !(isToday && card)
+    && !tasks.some((a) => a.doneAt && !a.deletedAt && a.start !== undefined && a.start >= sel && a.start < addDays(sel, 1))
+    && !tasks.some((a) => inView(a) && a.start! >= Math.max(addDays(sel, 1), now));
   const weekEmpty = view === "week" && Array.from({ length: 7 }, (_, i) => addDays(mon, i)).every((d) => !hols.has(d) && !onDay(tasks, d).length);
   // Rest card only where the art card would sit: day view, and no now-card above it.
   const empty = weekEmpty ? "week" : view === "day" && selEmpty && !(isToday && card) && !briefOn && !sunOn ? "rest" : "inl";
   const hero = briefOn ? (story ? "story" : "brief") : sunOn ? "sun" : card ? card.task.id : "none";
 
   const cardView = card && (
-    <Animated.View
-      {...pan.panHandlers}
-      style={{ transform: [{ translateX: x.x }, { rotate: x.x.interpolate({ inputRange: [-300, 300], outputRange: ["-8deg", "8deg"] }) }] }}
-    >
-      <NowCard card={card} onDone={() => commit("done")} />
-    </Animated.View>
+    <GestureDetector gesture={swipe}>
+      <Reanimated.View style={flick}>
+        <NowCard card={card} onDone={() => commit("done")} />
+      </Reanimated.View>
+    </GestureDetector>
   );
 
   const first = (hello: string, h: string, sub?: string) => (
@@ -463,9 +579,24 @@ export default function Home() {
         <Text style={[s.h, { color: th.ink }]}>{h}</Text>
         {!!sub && <Text style={[s.sub, { color: th.muted }]}>{sub}</Text>}
       </View>
-      <Tap onPress={() => router.push("/settings")} hitSlop={12} style={[s.o, { borderColor: th.line, backgroundColor: th.bg }]}>
-        <Icon name="gear" size={20} color={th.ink} />
-      </Tap>
+      <View style={{ flexDirection: "row", gap: 8 }}>
+        {/* Hidden while open: the field grows out of this circle and shrinks back into it. */}
+        <View ref={findBtn} collapsable={false} style={{ opacity: finding ? 0 : 1 }}>
+          <Tap onPress={() => findBtn.current?.measureInWindow((x, y) => setFinding({ x, y }))} hitSlop={8} style={[s.o, { borderColor: th.line, backgroundColor: th.bg }]} accessibilityRole="button" accessibilityLabel={t("search")}>
+            <Icon name="search" size={20} color={th.ink} />
+          </Tap>
+        </View>
+        <ThemeTap />
+        <Tap onPress={() => router.push("/settings")} hitSlop={8} style={[s.o, { borderColor: th.line, backgroundColor: th.bg }]} accessibilityRole="button" accessibilityLabel={t("settings")}>
+          <Icon name="gear" size={20} color={th.ink} />
+        </Tap>
+      </View>
+      {/* Back to today from any other day: bottom right, level with the count line. */}
+      {!firstRun && view !== "rhythm" && !isToday && (
+        <Tap onPress={() => setSel(today0)} hitSlop={8} accessibilityRole="button" style={[s.go, { borderColor: th.line }]}>
+          <Text style={{ color: th.ink, fontSize: font.md - 1, fontFamily: ff("600") }}>{t("today")}</Text>
+        </Tap>
+      )}
     </View>
   );
   const header = (
@@ -476,8 +607,8 @@ export default function Home() {
         <Reanimated.View entering={fadeIn} style={s.tabs}>
           <View style={s.tabL}>
             {VIEWS.map((v) => (
-              <Tap key={v} onPress={() => setView(v)} hitSlop={10} style={{ paddingVertical: 12 }}>
-                <Text style={{ fontSize: 17, fontFamily: ff(view === v ? "600" : "500"), color: view === v ? th.ink : th.muted }}>{t(v === "day" ? "tabDay" : v === "week" ? "tabWeek" : "tabMonth")}</Text>
+              <Tap key={v} onPress={() => setView(v)} hitSlop={10} style={{ paddingVertical: 10 }}>
+                <Text style={{ fontSize: font.md, fontFamily: ff(view === v ? "600" : "500"), color: view === v ? th.ink : th.muted }}>{t(v === "day" ? "tabDay" : v === "week" ? "tabWeek" : "tabMonth")}</Text>
                 {view === v && <Reanimated.View entering={ZoomIn.duration(180).easing(EASE)} exiting={ZoomOut.duration(120)} style={[s.tabDot, { backgroundColor: th.seal }]} />}
               </Tap>
             ))}
@@ -485,8 +616,8 @@ export default function Home() {
           {/* Not a calendar view: a hairline pill with the leaf, so it reads as Zen talking about you. */}
           <Tap onPress={() => setView("rhythm")} hitSlop={8} accessibilityRole="tab" accessibilityState={{ selected: view === "rhythm" }} accessibilityLabel={t("rhythm")}
             style={[s.mind, view === "rhythm" ? { backgroundColor: th.ink, borderColor: th.ink } : { borderColor: th.line }]}>
-            <Logo size={17} mode="line" color={view === "rhythm" ? th.bg : th.ink} />
-            <Text style={{ fontSize: 17, fontFamily: ff("600"), color: view === "rhythm" ? th.bg : th.ink }}>{t("rhythmTab")}</Text>
+            <Logo size={14} mode="line" color={view === "rhythm" ? th.bg : th.ink} />
+            <Text style={{ fontSize: 14, fontFamily: ff("600"), color: view === "rhythm" ? th.bg : th.ink }}>{t("rhythmTab")}</Text>
           </Tap>
         </Reanimated.View>
         </Swipe>
@@ -494,10 +625,13 @@ export default function Home() {
     );
 
   return (
+    <Sweep>
     <SafeAreaView style={[s.root, { backgroundColor: th.bg }]}>
       {photo ? (
-        <PhotoView key="photo" uri={photo.uri} w={photo.w} h={photo.h} reading={busy} onClose={() => setPhoto(undefined)} />
-      ) : busy ? (
+        <PhotoView key="photo" uri={photo.uri} w={photo.w} h={photo.h} text={photo.text} marks={photo.marks} reading={busy} />
+      ) : pdf ? (
+        <PdfView key="pdf" {...pdf} />
+      ) : listing ? (
         // Listening / thinking: only the live words (views.html "Day, listening").
         <Reanimated.View key="busy" entering={fadeIn} exiting={fadeOut} style={s.pad}>
           <Live state={state} words={words} level={level} />
@@ -512,7 +646,7 @@ export default function Home() {
           {view === "day" && isToday && (
             // Keyed per branch so hero swaps cross-fade; a new now-card lands with a small pop.
             <Reanimated.View key={hero} entering={card && hero === card.task.id ? popIn : fadeIn} exiting={fadeOut} layout={glide}>
-              {briefOn ? (story ? <Story moves={moves} now={now} onClose={closeStory} /> : <Brief moves={moves} now={now} onOpen={() => setStory(true)} />) : sunOn ? <Weekly title={wk!.title} sub={wk!.sub} onPress={() => setView("rhythm")} /> : cardView}
+              {briefOn ? (story ? <Story moves={said} now={now} onClose={closeStory} /> : <Brief moves={said} now={now} onOpen={() => setStory(true)} />) : sunOn ? <Weekly title={wk!.title} sub={wk!.sub} onPress={() => setView("rhythm")} /> : cardView}
             </Reanimated.View>
           )}
           {view === "rhythm" && mind && <Rhythm i={mind.i} rules={mind.rules} onForget={async (x) => { const r = await removeRule(x.id); say(r.toast, r); refresh(); }} />}
@@ -523,8 +657,8 @@ export default function Home() {
                 : <Month tasks={tasks} hols={hols} now={now} selected={sel} onSelect={setSel} onStep={stepMonth} />}
             </Reanimated.View>
           )}
-          {firstRun ? <First onSchool={() => router.push("/settings")} /> : !showStory && view !== "rhythm" && (
-            <Reanimated.View entering={fadeIn} exiting={fadeOut} layout={glide} style={{ marginTop: empty === "rest" ? 0 : empty === "week" ? 0 : 28 }}>
+          {firstRun || (nothingAhead && !briefOn && !sunOn) ? <First onSchool={() => router.push("/settings")} /> : !showStory && view !== "rhythm" && (
+            <Reanimated.View entering={fadeIn} exiting={fadeOut} layout={glide} style={{ marginTop: empty === "rest" || empty === "week" ? 0 : isToday && view === "day" && warns.length ? 20 : view === "month" ? 24 : 28 }}>
               <Day {...share} empty={empty} warns={isToday ? warns : []} day={sel} label={view === "day" ? (isToday ? (card && !briefOn && !sunOn ? t("after") : t("today")) : dayLabel(sel)) : dayLabel(sel)} />
             </Reanimated.View>
           )}
@@ -535,30 +669,44 @@ export default function Home() {
         <Defs><LinearGradient id="fd" x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor={th.bg} stopOpacity={0} /><Stop offset="0.6" stopColor={th.bg} stopOpacity={1} /></LinearGradient></Defs>
         <Rect width="100%" height={120} fill="url(#fd)" />
       </Svg>
-      {(aside || picking) && <Veil onPress={picking ? () => setPicking(false) : undefined} />}
-      {/* capture.html frame 10: a photo with nothing in it hides the button; the toast offers Gõ instead. */}
-      {!(photo && !busy) && (
-        <View style={s.dock} pointerEvents="box-none"><Hold state={state} pinned={picking ? "photo" : ""} onAside={onAside} onStart={() => { if (!latched.current) void start(); }} onEnd={onEnd} idle={view === "rhythm" ? "holdRule" : "hold"} /></View>
-      )}
+      {/* The finger on the mic owns the touch, so the veil only hears a tap once a press is stuck: that tap lets go. Steps sit on it too. */}
+      {(pressing || aside || picking || lines.length > 0) && <Veil onPress={picking ? () => setPicking(false) : pressing || aside ? cancel : undefined} />}
+      {/* Over a photo or PDF too: thinking while it is read (capture.html 9, 12), then pressing it puts it away and listens, no close button. */}
+      {!showStory && !finding && <View style={s.dock} pointerEvents="box-none"><Hold state={state} pinned={picking ? "photo" : ""} onAside={onAside} onStart={() => { setPressing(true); setPhoto(undefined); setPdf(undefined); if (!latched.current) void start(); }} onEnd={onEnd} idle={view === "rhythm" ? "holdRule" : "hold"} /></View>}
       {picking && <PhotoMenu onPick={readPhoto} />}
       {typing && <><Veil z={9} onPress={() => setTyping(false)} /><TypeBar onClose={() => setTyping(false)} onSend={(text) => { setTyping(false); void run(text, "type"); }} /></>}
-      {busy && lines.length > 0 && <Steps lines={lines} />}
-      {menu && <RowMenu items={seriesItems(menu.task)} top={menu.top} onClose={() => setMenu(undefined)} />}
-      {toast && <Toast key={`${toast.text}|${toast.sub ?? ""}`} error={toast.error} text={toast.text} sub={toast.sub} onAction={toast.action?.run} actionLabel={toast.action?.label} onAlt={toast.alt?.run} altLabel={toast.alt?.label} />}
+      {lines.length > 0 && <Steps lines={lines} />}
+      {finding && <Search origin={finding} tasks={tasks} now={now} acts={rowActs} onClose={() => setFinding(undefined)} />}
+      {menu && <RowMenu items={menu.items} top={menu.top} onClose={() => setMenu(undefined)} />}
+      {toast && <Toast key={`${toast.text}|${toast.sub ?? ""}`} onDismiss={() => setToasts((q) => q.slice(1))} error={toast.error} text={toast.text} sub={toast.sub} onAction={toast.action?.run} actionLabel={toast.action?.label} onAlt={toast.alt?.run} altLabel={toast.alt?.label} />}
     </SafeAreaView>
+    </Sweep>
+  );
+}
+
+/** Sun in light, moon in dark: flips the theme with the same circle sweep as Settings, grown from the tap. */
+function ThemeTap() {
+  const th = useTheme();
+  const run = useSweep();
+  const flip = () => { const m = th.dark ? "light" : "dark"; Appearance.setColorScheme(m); store.kvSet("theme", m); };
+  return (
+    <Tap onPress={(e) => run(e.nativeEvent.pageX, e.nativeEvent.pageY, flip)} hitSlop={8} style={[s.o, { borderColor: th.line, backgroundColor: th.bg }]} accessibilityRole="button" accessibilityLabel={t(th.dark ? "themeLight" : "themeDark")}>
+      <Icon name={th.dark ? "moon" : "sun"} size={20} color={th.ink} />
+    </Tap>
   );
 }
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-  pad: { padding: space.gutter, paddingTop: 24 },
+  pad: { padding: space.gutter, paddingTop: 0 }, // .scr: the safe area stands in for its 54px top
   top: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginTop: 6 },
-  h: { fontSize: font.h, lineHeight: 36, fontFamily: ff("600"), letterSpacing: -0.7, marginTop: 2 },
+  h: { fontSize: font.h, lineHeight: 36, fontFamily: ff("600"), letterSpacing: -0.75, marginTop: 2 },
+  go: { position: "absolute", right: 0, bottom: 0, height: 30, paddingHorizontal: 12, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   sub: { marginTop: 6, fontFamily: ff(), fontSize: font.md },
   o: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, alignItems: "center", justifyContent: "center", marginTop: 2 },
-  tabs: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 10 }, // text and the Nhịp pill share a centre line
-  tabL: { flexDirection: "row", gap: 28 },
-  mind: { flexDirection: "row", alignItems: "center", gap: 7, height: 38, paddingHorizontal: 14, borderRadius: 99, borderWidth: 1 }, // .mind in magic.html, text level with the day/week/month tabs (17)
+  tabs: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 18 }, // magic.html .tabs: text and the Nhịp pill share a centre line
+  tabL: { flexDirection: "row", gap: 20 },
+  mind: { flexDirection: "row", alignItems: "center", gap: 6, height: 30, paddingHorizontal: 11, borderRadius: 99, borderWidth: 1 }, // magic.html .mind
   tabDot: { position: "absolute", bottom: 0, left: "50%", width: 5, height: 5, marginLeft: -2.5, borderRadius: 3 },
   fade: { position: "absolute", left: 0, right: 0, bottom: 0, height: 120 },
   dock: { position: "absolute", left: 0, right: 0, bottom: 0 },

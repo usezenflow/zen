@@ -14,7 +14,8 @@ export function overlaps(tasks: Task[], now: number, dismissed: Iterable<string>
   const fixed = tasks.filter((x) => live(x) && x.source === "dlu" && x.fixed && x.end! > now);
   const out: Overlap[] = [];
   for (const mine of tasks) {
-    if (!live(mine) || mine.fixed || !mine.userEdited?.includes("start") || mine.start === undefined || mine.end === undefined || mine.start <= now) continue;
+    const own = mine.fixed === "busy" && mine.source === "user"; // the user's own busy block counts like a hand-timed task
+    if (!live(mine) || (mine.fixed && !own) || (!own && !mine.userEdited?.includes("start")) || mine.start === undefined || mine.end === undefined || mine.start <= now) continue;
     for (const f of fixed) if (mine.start < f.end! && f.start! < mine.end) out.push({ mine, fixed: f });
   }
   return out.filter((o) => !skip.has(pair(o)));

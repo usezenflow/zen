@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Kind, Task } from "../lib/types";
-import { DAY, HOUR, MIN, features, hourOf } from "./features";
-import { ALPHA, N0, coldArms, decayArms, prepare, primeBatch, ucb, ucbAt, update } from "./linucb";
+import { DAY, HOUR, MIN, dayStart, features, hourOf } from "./features";
+import { coldArms, prepare, primeBatch, ucb, ucbAt, update } from "./linucb";
+import { reasonText, stepText } from "../lib/reasons";
 import { learn, newModel, outcome, plan, suggest, typeOf } from "./index";
 import { awake, solve } from "./place";
 import { split } from "./split";
@@ -114,28 +115,6 @@ describe("understanding", () => {
     expect(a.placed[0].end - a.placed[0].start).toBe(120 * MIN);
     const b = plan([task("y", { effort: 0, kind: "chores" })], [], newModel(now), now).diff;
     expect(b.placed[0].end - b.placed[0].start).toBe(30 * MIN);
-  });
-});
-
-describe("linucb", () => {
-  it("updates toward the reward and decays to the prior", () => {
-    const arms = coldArms();
-    const x = new Array(16).fill(0); x[0] = 1;
-    const before = prepare(arms).theta[3][0];
-    for (let i = 0; i < 20; i++) update(arms[3], x, 1);
-    expect(prepare(arms).theta[3][0]).toBeGreaterThan(before);
-    const a0 = arms[3].A[0];
-    decayArms(arms, 21 * DAY);
-    expect(arms[3].A[0]).toBeCloseTo(1 + (a0 - 1) / 2, 6);
-    expect(arms[3].b[0]).toBeGreaterThan(0);
-    expect(N0).toBe(3);
-    expect(ALPHA).toBe(0.15);
-  });
-
-  it("cold arms follow the default daily curve", () => {
-    const p = prepare(coldArms());
-    const x = new Array(16).fill(0); x[0] = 1;
-    expect(ucb(p, 16, x)).toBeGreaterThan(ucb(p, 3, x));
   });
 });
 
@@ -305,10 +284,22 @@ describe("reasons, rules, pins, moves", () => {
   });
 
   it("an impossible deadline yields a warn with fixes", () => {
-    const ts = [task("big", { effort: 90, deadline: now + 30 * MIN }), task("other", { effort: 60 })];
+    const ts = [task("big", { effort: 240, deadline: now + 4 * 60 * MIN }), task("other", { effort: 60, notBefore: now, notAfter: now + 2 * 60 * MIN })]; // "other" is kept before the deadline, so it can give way
     const { diff } = plan(ts, [], newModel(now), now);
-    expect(diff.warn?.[0]).toMatchObject({ id: "big", need: 90, deadline: now + 30 * MIN });
-    expect(diff.warn![0].free).toBeLessThan(90);
+    expect(diff.warn?.[0]).toMatchObject({ id: "big", need: 240 });
+    expect(diff.warn![0].free).toBeLessThan(240);
+    expect(diff.warn![0].fixes.length).toBeGreaterThan(0);
+  });
+
+  it("no card when nothing can give way; a past due task still gets one, with no pushes", () => {
+    expect(plan([task("big", { effort: 90, deadline: now + 30 * MIN }), task("other", { effort: 60 })], [], newModel(now), now).diff.warn).toBeUndefined();
+    const late = plan([task("late", { effort: 60, deadline: now - 60 * MIN }), task("other", { effort: 60 })], [], newModel(now), now).diff.warn;
+    expect(late?.[0]).toMatchObject({ id: "late", fixes: [] });
+  });
+
+  it("no card for a task late by its own pin while free time far exceeds the need", () => {
+    const ts = [task("pin", { effort: 60, deadline: now + 10 * 24 * 60 * MIN, start: now + 12 * 24 * 60 * MIN, pinned: true }), task("other", { effort: 60 })];
+    expect(plan(ts, [], newModel(now), now).diff.warn).toBeUndefined();
   });
 
   it("deadline pieces never explore", () => {
@@ -343,5 +334,175 @@ describe("drag teaches both ends", () => {
     const p1 = prepare(m2.arms), hf = Math.floor(hourOf(from));
     expect(ucb(p1, hf, pl.x, 0)).toBeLessThan(ucb(p0, hf, pl.x, 0));
     expect(ucb(p1, 19, pl.x, 0)).toBeGreaterThan(ucb(p0, 19, pl.x, 0));
+  });
+});
+
+describe("scheduler behaviour", () => {
+  const place = (ts: Task[], diff: { placed: { id: string; start: number; end: number }[] }) =>
+    ts.map((t) => { const p = diff.placed.find((q) => q.id === t.id); return p ? { ...t, start: p.start, end: p.end } : t; });
+  const LEARNED = ["hour", "weekend", "busy", "deadline", "kind", "after", "energy", "similar"];
+
+  it("40 tasks: 8 replans with nothing changed move 0; same plan at 08:00 and 08:01", () => {
+    const kinds: Kind[] = ["study", "exercise", "chores", "social", "other"];
+    let ts = Array.from({ length: 40 }, (_, i) => task(`t${i}`, { kind: kinds[i % 5], effort: 30 + (i % 4) * 30, ...(i % 3 ? { deadline: at(2 + (i % 9), 20) } : {}) }));
+    const busy = [{ start: at(0, 9), end: at(0, 12) }, { start: at(1, 13), end: at(1, 17) }];
+    let r = plan(ts, busy, newModel(now), now);
+    ts = place(ts, r.diff);
+    const go = (i: number) => { r = plan(ts, busy, r.model, now + i * MIN); ts = place(ts, r.diff); return r.diff.placed.filter((p) => p.from !== undefined).length; };
+    let moved = 0;
+    for (let i = 1; i <= 8; i++) moved += go(i);
+    expect(moved).toBe(0);
+    // A new task finds its own room: nothing already placed moves for it.
+    ts = [...ts, task("new", { kind: "study", effort: 60 })];
+    r = plan(ts, busy, r.model, now + 20 * MIN);
+    expect(r.diff.placed.map((p) => p.id)).toEqual(["new"]);
+    // A class landing on a placed task moves that task and no other.
+    ts = place(ts, r.diff);
+    const hit = ts.find((t) => t.start !== undefined && t.start > at(2, 0))!;
+    r = plan(ts, [...busy, { start: hit.start!, end: hit.end! }], r.model, now + 21 * MIN);
+    const over = ts.filter((t) => t.start !== undefined && t.start < hit.end! && t.end! > hit.start!).map((t) => t.id).sort();
+    expect(r.diff.placed.map((p) => p.id).sort()).toEqual(over);
+  });
+
+  it("a time set by hand stays through later replans", () => {
+    const mine = task("gym", { kind: "exercise", start: at(2, 20), end: at(2, 21), notBefore: at(2, 20), userEdited: ["start"] });
+    const r = plan([mine, task("x"), task("y", { deadline: at(3, 12) })], [], newModel(now), at(1, 8));
+    expect(r.diff.placed.find((p) => p.id === "gym")?.start ?? mine.start).toBe(at(2, 20));
+    expect(r.diff.displaced).toHaveLength(0);
+    const a = plan([task("a"), task("b", { deadline: at(3, 12) })], [], newModel(now), now).diff.placed.map((p) => p.start);
+    const b = plan([task("a"), task("b", { deadline: at(3, 12) })], [], newModel(now + MIN), now + MIN).diff.placed.map((p) => p.start);
+    expect(b).toEqual(a);
+  });
+
+  it("a task due in 10 days does not drift across mornings while its day is ahead", () => {
+    const t = task("far", { kind: "study", deadline: at(10, 18) });
+    const starts = Array.from({ length: 6 }, (_, d) => { const n = at(d, 8); return plan([t], [], newModel(n), n).diff.placed[0].start; });
+    expect(new Set(starts).size).toBe(1);
+  });
+
+  it("a window under a day aims at its start", () => {
+    const n = new Date(2026, 10, 16, 19, 40).getTime();
+    const p = plan([task("u", { createdAt: n, effort: 60, deadline: new Date(2026, 10, 16, 23, 59).getTime() })], [], newModel(n), n).diff.placed[0];
+    expect(p.start).toBeLessThanOrEqual(at(0, 20)); // used to land mid-window, 21:00 or later
+  });
+
+  it("a late tick records no duration and no hour; an early one credits the hour it happened", () => {
+    const v = new Float32Array(4).fill(1);
+    const t = task("a", { kind: "study", vec: v });
+    const m = plan([t], [], newModel(now), now).model;
+    const placed = { ...t, start: m.placed.a.start, end: m.placed.a.start + HOUR };
+    const ok = learn(m, { id: "e", taskId: "a", type: "done", at: placed.end }, placed);
+    expect(ok.efforts).toHaveLength(1);
+    expect(ok.doneHours).toHaveLength(1);
+    const late = learn(m, { id: "e", taskId: "a", type: "done", at: placed.end + 20 * HOUR }, placed);
+    expect(late.efforts).toHaveLength(0);
+    expect(late.doneHours).toHaveLength(0);
+    expect(late.arms[m.placed.a.arm].A[0]).toBe(m.arms[m.placed.a.arm].A[0]);
+    const tick = new Date(placed.start - 4 * HOUR).setMinutes(0, 0, 0), ah = Math.floor(hourOf(tick));
+    const early = learn(m, { id: "e", taskId: "a", type: "done", at: tick }, placed);
+    expect(early.arms[ah].A[0]).toBeGreaterThan(m.arms[ah].A[0]);
+    expect(early.arms[m.placed.a.arm].A[0]).toBe(m.arms[m.placed.a.arm].A[0]);
+  });
+
+  it("effort ignores unlike titles and rounds down to 15", () => {
+    const m = newModel(now);
+    const a = new Float32Array(4).fill(0); a[0] = 1;
+    const b = new Float32Array(4).fill(0); b[1] = 1;
+    m.efforts.push({ vec: Array.from(a), minutes: 120, at: now });
+    const d = plan([task("x", { effort: 0, kind: "chores", vec: b }), task("y", { effort: 10 })], [], m, now).diff;
+    expect(d.placed.find((p) => p.id === "x")!.end - d.placed.find((p) => p.id === "x")!.start).toBe(30 * MIN);
+    expect(d.placed.find((p) => p.id === "y")!.end - d.placed.find((p) => p.id === "y")!.start).toBe(15 * MIN);
+  });
+
+  it("six 15 minute errands pay no per-day count penalty", () => {
+    const ps: Piece[] = Array.from({ length: 6 }, (_, i) => ({ id: `e${i}`, task: task(`e${i}`), effort: 15, k: 1, n: 1, slip: 0 }));
+    const r = solve(ps, { busy: [], fixedEnds: [], now, util: () => 0 }, 1);
+    expect(new Set([...r.starts.values()].map(dayStart)).size).toBe(1);
+  });
+
+  it("a missed task lands within 2 days and its hour's score drops", () => {
+    const n = at(0, 14), old = at(0, 10);
+    const m = newModel(n), x = new Array(16).fill(0); x[0] = 1;
+    m.placed.a = { arm: 10, x, start: old };
+    const t = task("a", { start: old, end: old + HOUR, vec: new Float32Array(4).fill(1) });
+    const r = plan([t], [], m, n);
+    expect(r.diff.placed[0].start).toBeLessThanOrEqual(n + 2 * DAY);
+    expect(ucb(prepare(r.model.arms), 10, x, 0)).toBeLessThan(ucb(prepare(m.arms), 10, x, 0));
+    expect(r.model.hist.at(-1)?.r).toBe(-1);
+  });
+
+  it("later moves the running task, and lands within 2 days", () => {
+    const run = task("a", { start: now - 30 * MIN, end: now + 30 * MIN });
+    expect(plan([run], [], newModel(now), now).diff.placed).toHaveLength(0);
+    const r = plan([run], [], newModel(now), now, { later: "a" }).diff.placed[0];
+    expect(r.start >= run.end! || r.end <= run.start!).toBe(true);
+    expect(r.start).toBeLessThanOrEqual(now + 2 * DAY);
+    expect(r.from).toBe(run.start);
+  });
+
+  it("a drag leaves the intercept alone", () => {
+    const { model } = plan([task("a", { kind: "exercise", notBefore: at(0, 9) })], [], newModel(now), now);
+    const from = model.placed.a.start, to = new Date(from).setHours(20, 0, 0, 0);
+    const m2 = learn(model, { id: "e", taskId: "a", type: "drag", at: now, data: { fromStart: from, toStart: to } }, task("a"));
+    model.arms.forEach((a, i) => { expect(m2.arms[i].A[0]).toBe(a.A[0]); expect(m2.arms[i].b[0]).toBe(a.b[0]); });
+    expect(m2.arms.some((a, i) => a.b[4] !== model.arms[i].b[4] || a.b[5] !== model.arms[i].b[5])).toBe(true);
+  });
+
+  it("alt is free of other pieces", () => {
+    const ts = ["a", "b", "c", "d", "e", "f"].map((id) => task(id));
+    const { diff } = plan(ts, [], newModel(now), now);
+    for (const p of diff.placed) if (p.alt !== undefined) for (const q of diff.placed) if (q !== p) expect(p.alt < q.end && p.alt + HOUR > q.start).toBe(false);
+  });
+
+  it("steps name only tasks that were placed or moved", () => {
+    let ts = ["a", "b", "c", "d", "e"].map((id) => task(id, { deadline: at(4, 20) }));
+    const r = plan(ts, [], newModel(now), now);
+    ts = [...place(ts, r.diff), task("new", { deadline: at(4, 20) })];
+    const { diff } = plan(ts, [], r.model, now);
+    const named = diff.steps!.filter((s) => s.key === "place" || s.key === "move");
+    expect(named.every((s) => s.id === "new" && s.vars.title === "new")).toBe(true);
+    expect(named.length).toBeGreaterThan(0);
+    expect(stepText(named[0])).toContain("new");
+  });
+
+  it("a cold plan flags no explore and says guess, never a learned reason", () => {
+    const { diff } = plan([task("a", { kind: "study" }), task("b"), task("c", { kind: "exercise" })], [], newModel(now), now);
+    for (const p of diff.placed) {
+      expect(p.explore).toBe(false);
+      expect(p.why!.some((r) => LEARNED.includes(r.key))).toBe(false);
+      expect(p.why!.every((r) => r.w > 0)).toBe(true);
+    }
+    expect(diff.placed.some((p) => p.why![0].key === "guess")).toBe(true);
+    expect(diff.insight).toBeUndefined();
+  });
+
+  it("a warm model lets only one new piece explore; two outcomes on an hour are not enough to name it", () => {
+    const m = newModel(now), x = new Array(16).fill(0); x[0] = 1;
+    for (let i = 0; i < 24; i++) update(m.arms[i], x, i % 3);
+    for (let i = 0; i < 5; i++) m.doneHours.push({ hour: 10, at: now });
+    const { diff } = plan(["a", "b", "c", "d", "e", "f"].map((id) => task(id)), [], m, now);
+    expect(diff.placed.filter((p) => p.explore).length).toBeLessThanOrEqual(1);
+    for (const p of diff.placed) expect(p.why!.some((r) => LEARNED.includes(r.key))).toBe(false); // 1 update per hour, under 3
+  });
+
+  it("a planned said window is kept and named", () => {
+    const { diff } = plan([task("w", { notBefore: at(1, 18), notAfter: at(1, 21) })], [], newModel(now), now);
+    const p = diff.placed[0];
+    expect(p.start).toBeGreaterThanOrEqual(at(1, 18));
+    expect(p.end).toBeLessThanOrEqual(at(1, 21));
+    expect(p.why![0]).toEqual({ key: "said", w: 1 });
+  });
+
+  it("the gap card skips a task not yet due and offers nothing next to a planned task", () => {
+    const busy = [{ start: now + 90 * MIN, end: now + 5 * HOUR }];
+    expect(suggest([task("later", { effort: 30, notBefore: at(7, 9) })], busy, newModel(now), now)).toBeUndefined();
+    expect(suggest([task("c", { effort: 30 }), task("p", { start: now + 15 * MIN, end: now + 75 * MIN })], busy, newModel(now), now)).toBeUndefined();
+    expect(suggest([task("c", { effort: 30 })], busy, newModel(now), now)?.task.id).toBe("c");
+    expect(suggest([task("c", { effort: 30 }), task("p", { start: now + 15 * MIN, end: now + 75 * MIN, effort: 60 })], [], newModel(now), now)).toBeUndefined();
+  });
+
+  it("negative reasons are comparisons", () => {
+    expect(reasonText({ key: "hour", w: -1 })).toBe("Giờ khác hợp hơn một chút");
+    expect(reasonText({ key: "after", w: 1, vars: { prev: "study" } })).toBe("Sau giờ học, như mọi khi");
   });
 });

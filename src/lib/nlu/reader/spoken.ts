@@ -26,7 +26,7 @@ const UNIT_RE = "mot|hai|ba|bon|tu|nam|lam|nham|sau|bay|tam|chin";
 const NUM_RE = `(?:(?:(?:hai|ba|bon|nam|sau|bay|tam|chin) muoi|ham|muoi)(?: (?:${UNIT_RE}))?|(?:hai|ba|bon|nam|sau|bay|tam|chin) (?:mot|tu|lam|nham)|${UNIT_RE})`;
 /** Unit words: the numbers sit next to them ("ba chương" is a count of chapters). Few per text, so the scan starts here. */
 const ANCHOR =
-  /(?<![a-z])(gio|tieng|phut|ngay|thang|mung|mong|ruoi|chuong|bai|trang)(?![a-z])/g;
+  /(?<![a-z])(gio|tieng|phut|ngay|tuan|thang|mung|mong|ruoi|chuong|bai|trang)(?![a-z])/g;
 /** A number word ending before the window's end, after spaces. */
 const LEFT_NUM = new RegExp(`(?<![a-z\\d])(${NUM_RE})(\\s+)$`);
 /** A number word starting the window, after spaces. */
@@ -74,7 +74,7 @@ interface Word {
 export function spokenEdits(raw: string): SpokenEdit[] {
   const f = fold(raw);
   const t = f.text;
-  if (!/gio|tieng|phut|ngay|thang|mung|mong|ruoi|chuong|bai|trang/.test(t))
+  if (!/gio|tieng|phut|ngay|tuan|thang|mung|mong|ruoi|chuong|bai|trang/.test(t))
     return [];
   const rawOf = (s: number, e: number) =>
     raw.slice(f.map[s], f.map[e - 1] + 1).normalize("NFC");
@@ -90,6 +90,12 @@ export function spokenEdits(raw: string): SpokenEdit[] {
     const [w0, ...rest] = m[1].split(" ");
     if (rest.length && AMBIGUOUS.has(w0) && rawOf(s, s + w0.length).normalize("NFD") === rawOf(s, s + w0.length) && parseSpokenNumber(rest.join(" ")) !== undefined)
       return { s: s + w0.length + 1, e: s + m[1].length, word: rest.join(" ") };
+    // "thứ hai mười giờ" is Monday at ten: "mười" with its mark is ten, only "mươi" makes "hai mươi" twenty
+    if (rest[0] === "muoi" && rawOf(s + w0.length + 1, s + w0.length + 5).toLowerCase() === "mười" && parseSpokenNumber(rest.join(" ")) !== undefined)
+      return { s: s + w0.length + 1, e: s + m[1].length, word: rest.join(" ") };
+    // "tháng mười hai một giờ" is December at one: "một" is one, only "mốt" makes "hai mốt" twenty-one
+    if (rest.length === 1 && rest[0] === "mot" && w0 !== "muoi" && w0 !== "ham" && rawOf(s + w0.length + 1, s + m[1].length).toLowerCase() === "một")
+      return { s: s + w0.length + 1, e: s + m[1].length, word: "mot" };
     return { s, e: s + m[1].length, word: m[1] };
   };
   const numAfter = (at: number): Word | undefined => {
@@ -97,6 +103,11 @@ export function spokenEdits(raw: string): SpokenEdit[] {
     if (!m) return undefined;
     const s = at + m[1].length;
     return { s, e: s + m[2].length, word: m[2] };
+  };
+  /** The next word is "mươi", the tens of another number ("hai | hai mươi"). "mười" with its mark is ten and opens its own number. */
+  const tensNext = (at: number) => {
+    const m = /^\s+muoi(?![a-z])/.exec(t.slice(at, at + 7));
+    return !!m && rawOf(at + m[0].length - 4, at + m[0].length).toLowerCase() === "mươi";
   };
   /** A number word here: not a weekday ("thứ hai"), and not an ambiguous word without its mark. */
   const countable = (n: Word) => {
@@ -106,6 +117,13 @@ export function spokenEdits(raw: string): SpokenEdit[] {
       rawOf(n.s, n.e).normalize("NFD") === rawOf(n.s, n.e)
     )
       return false;
+    // "tháng sau làm slide" is next month then a verb, not month 65: "làm" is never "lăm", and "sau lam" with no marks is two words
+    const parts = n.word.split(" ");
+    if (parts.length === 2 && parts[1] === "lam") {
+      const first = rawOf(n.s, n.s + parts[0].length);
+      const last = rawOf(n.e - 3, n.e);
+      if (last.toLowerCase() === "làm" || (AMBIGUOUS.has(parts[0]) && first.normalize("NFD") === first)) return false;
+    }
     // "làm" (to do) is not "lăm" (five), so "làm bài tập" keeps its verb
     if (
       n.word === "lam" &&
@@ -138,12 +156,46 @@ export function spokenEdits(raw: string): SpokenEdit[] {
           hourDone.has(from + (hm.index ?? 0) + hm[1].length))
       )
         hits.set(us, { e: ue, text: "30" });
+      if (hm) continue;
+      // "8 rưỡi", "8h rưỡi", "tám rưỡi": half past with no "giờ"; a count has its unit first ("2 tiếng rưỡi")
+      const before = t.slice(from, us);
+      const bare = /(?<![a-z\d.,:/])(\d{1,2})(\s*h)?(\s+)$/.exec(before);
+      if (bare && +bare[1] <= 23) {
+        hits.set(us - bare[3].length, { e: ue, text: bare[2] ? "30" : "h30" });
+        continue;
+      }
+      let left = numBefore(us);
+      // "ngày hai mươi tám rưỡi": the 20th at half past eight
+      const hw = left?.word.split(" ") ?? [];
+      if (left && hw.length > 1 && /(?:ngay|mung|mong|thang)\s+$/.test(t.slice(Math.max(0, left.s - 8), left.s))) {
+        const last = hw[hw.length - 1];
+        left = { s: left.e - last.length, e: left.e, word: last };
+      }
+      const h = left && countable(left) ? (parseSpokenNumber(left.word) ?? 99) : 99;
+      // "một năm rưỡi" is a year and a half: "năm" is five only before a part of the day
+      const year = left?.word === "nam" && !/^\s+(?:sang|trua|chieu|toi|dem|khuya)(?![a-z])/.test(t.slice(ue, ue + 8));
+      if (left && h <= 12 && !year) {
+        put(left);
+        hits.set(left.e, { e: ue, text: "h30" });
+      }
       continue;
     }
 
     if (unit === "gio") {
       // the hour: a number word before "giờ" that is a clock here
-      const left = numBefore(us);
+      let left = numBefore(us);
+      // "ngày hai mươi tám giờ": no day has a 28th hour, so the last word is the hour and the rest the day
+      const lw = left?.word.split(" ") ?? [];
+      // after a day word the split holds for "lăm" too ("ngày hai mươi lăm giờ" is the 20th at five); alone, "hai mươi lăm giờ" stays 25
+      if (
+        left &&
+        lw.length > 1 &&
+        (/(?:ngay|mung|mong|thang)\s+$/.test(t.slice(Math.max(0, left.s - 8), left.s)) ||
+          ((parseSpokenNumber(left.word) ?? 0) > 24 && !["lam", "nham"].includes(lw[lw.length - 1])))
+      ) {
+        const last = lw[lw.length - 1];
+        left = { s: left.e - last.length, e: left.e, word: last };
+      }
       let hourOk = /\d\s+$/.test(t.slice(Math.max(0, us - 6), us));
       if (left && countable(left)) {
         const v = parseSpokenNumber(left.word) ?? 0;
@@ -160,12 +212,21 @@ export function spokenEdits(raw: string): SpokenEdit[] {
         }
       }
       // the minutes after it: "giờ ba mươi"
-      const right = numAfter(ue);
+      let right = numAfter(ue);
+      // "giờ ba mươi ba ngày nữa": thirty minutes, then three days from now
+      const mw = right?.word.split(" ") ?? [];
+      // "giờ ba mươi hai mươi tháng": thirty minutes, then the 20th
+      if (right && mw.length > 2 && (/^\s+(?:ngay|tuan|thang)\s+(?:nua|toi|sau|truoc)(?![a-z])/.test(t.slice(right.e, right.e + 16)) || tensNext(right.e))) {
+        const cut = mw[mw.length - 1].length + 1;
+        right = { s: right.s, e: right.e - cut, word: mw.slice(0, -1).join(" ") };
+      }
       if (
         right &&
         hourOk &&
         countable(right) &&
-        !/^\s*(ngay|thang|tieng)(?![a-z])/.test(t.slice(right.e, right.e + 12))
+        // "giờ ba mươi ngày hai mươi": minutes, then a date. "giờ hai mươi tháng mười một": a clock, then the 20th of a month.
+        // "giờ hai tuần nữa", "giờ ba ngày nữa": a clock, then a count
+        !/^\s*(?:ngay(?![a-z])(?!\s+(?:\d|mung|hai|ba|bon|nam|sau|bay|tam|chin|muoi)(?![a-z])(?!\s+(?:nua|sau|toi|truoc)))|(?:thang|tieng|tuan)(?![a-z]))/.test(t.slice(right.e, right.e + 30))
       ) {
         const v = parseSpokenNumber(right.word) ?? 0;
         if (v >= 1 && v <= 59) put(right);
@@ -182,9 +243,14 @@ export function spokenEdits(raw: string): SpokenEdit[] {
       continue;
     }
 
+    // "hai tuần nữa" counts weeks from now; "3 buổi một tuần" is a rate and keeps its word
+    if (unit === "tuan" && !/^\s+(?:nua|sau|toi|truoc)(?![a-z])/.test(t.slice(ue, ue + 7))) continue;
     // "hai tiếng", "ba mươi phút", "hai ngày", "một tháng": the number before is the count
     if (unit !== "mung" && unit !== "mong") {
-      const left = numBefore(us);
+      let left = numBefore(us);
+      // "giờ ba mươi ba ngày nữa": the minutes are read already, the count is what is left of the number
+      const read = left && hits.get(left.s);
+      if (left && read && read.e < left.e) left = { s: read.e + 1, e: left.e, word: t.slice(read.e + 1, left.e) };
       // "lam bai" is the verb to do, not five exercises
       const verbLam = left?.word === "lam" && /^(chuong|bai|trang)$/.test(unit);
       if (left && countable(left) && !verbLam) put(left);
@@ -196,7 +262,18 @@ export function spokenEdits(raw: string): SpokenEdit[] {
       unit === "mung" ||
       unit === "mong"
     ) {
-      const right = numAfter(ue);
+      let right = numAfter(ue);
+      // "ngày hai mươi tám giờ": the last word is the hour of the clock after the day
+      const rw = right?.word.split(" ") ?? [];
+      if (
+        right &&
+        rw.length > 1 &&
+        // or the tens of the hour: "ngày hai mươi hai mươi giờ" is the 20th at twenty
+        (/^\s+(?:gio|ruoi)(?![a-z])/.test(t.slice(right.e, right.e + 7)) || tensNext(right.e))
+      ) {
+        const cut = rw[rw.length - 1].length + 1;
+        right = { s: right.s, e: right.e - cut, word: rw.slice(0, -1).join(" ") };
+      }
       if (right && countable(right) && right.word !== "mot") put(right);
     }
   }

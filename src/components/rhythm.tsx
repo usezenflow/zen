@@ -1,10 +1,9 @@
 import { StyleSheet, Text, View } from "react-native";
-import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
-import Animated, { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
-import { scheduleOnRN } from "react-native-worklets";
-import { Icon, TypeArt } from "@/components/art";
+import Animated from "react-native-reanimated";
+import { TypeArt } from "@/components/art";
 import { Meter } from "@/components/meter";
-import { fadeIn, settle } from "@/components/tap";
+import { SwipeDelete } from "@/components/row";
+import { fadeIn } from "@/components/tap";
 import { t } from "@/lib/i18n";
 import { KIND_VI } from "@/lib/reasons";
 import { useTheme, font, ff } from "@/lib/theme";
@@ -20,25 +19,6 @@ const ruleSub = (r: Rule) => {
   return tm ? `${d} · ${tm}` : d;
 };
 const sureWord = (v: number) => t(v >= 0.75 ? "sureHigh" : v >= 0.5 ? "sureMid" : "sureLow");
-const SWIPE = 80;
-
-function Forget({ onForget, children }: { onForget: () => void; children: React.ReactNode }) {
-  const th = useTheme();
-  const tx = useSharedValue(0);
-  const pan = usePanGesture({
-    activeOffsetX: [-16, 9999], failOffsetY: [-10, 10],
-    onUpdate: (e) => { "worklet"; tx.set(Math.min(0, e.translationX)); },
-    onDeactivate: (e) => { "worklet"; const go = e.translationX <= -SWIPE; tx.set(settle(0)); if (go) scheduleOnRN(onForget); },
-  });
-  const slide = useAnimatedStyle(() => ({ transform: [{ translateX: tx.get() }] }));
-  return (
-    <View>
-      <View style={[s.trash, { backgroundColor: th.seal }]}><Icon name="trash" size={20} color="#fff" /></View>
-      <GestureDetector gesture={pan}><Animated.View style={[slide, { backgroundColor: th.bg }]}>{children}</Animated.View></GestureDetector>
-    </View>
-  );
-}
-
 const Card = ({ title, sub, children }: { title: string; sub: string; children?: React.ReactNode }) => {
   const th = useTheme();
   return (
@@ -89,11 +69,11 @@ export function Rhythm({ i, rules, onForget }: { i: Insights; rules: Rule[]; onF
 
       <Text style={[s.lab2, { color: th.muted }]}>{t("saidByYou")}</Text>
       {rules.length ? rules.map((r) => (
-        <Forget key={r.id} onForget={() => onForget(r)}>
+        <SwipeDelete key={r.id} onDelete={() => onForget(r)}>
           <View style={line} accessibilityHint={t("swipeForget")}>
             <View style={s.tx}><Text style={[s.b, { color: th.ink }]}>{r.text}</Text><Text style={[s.small2, { color: th.muted }]}>{ruleSub(r)}</Text></View>
           </View>
-        </Forget>
+        </SwipeDelete>
       )) : <Empty title={t("noRulesT")} sub={t("noRules")} />}
       <Text style={[s.lab2, { color: th.muted }]}>{t("myGuess")}</Text>
       {/* shortcut: guesses cannot be forgotten yet (no per-guess reset in the model); only rules swipe. Upgrade when the planner can zero a weight. */}
@@ -126,5 +106,4 @@ const s = StyleSheet.create({
   chipT: { fontSize: 14, fontFamily: ff("600") },
   set: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 17, borderBottomWidth: 1 },
   tx: { flex: 1, minWidth: 0, gap: 2 },
-  trash: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, alignItems: "flex-end", justifyContent: "center", paddingRight: 24 },
 });

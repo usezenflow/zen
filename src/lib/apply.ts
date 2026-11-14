@@ -1,6 +1,6 @@
 import { titleVec } from "./nlu/vec";
 import { learn, outcome, plan, type Model, type Opts } from "../planner";
-import { readBusy } from "./calendar";
+import { cosine, effort } from "../planner/habits";
 import { fill, t } from "./i18n";
 import { when as at12 } from "./when";
 import * as stats from "./stats";
@@ -9,7 +9,6 @@ import { recordMoves, saveWarn, seeMoves } from "./moves";
 import type { Action, Diff, EventType, Gone, Kind, Move, Note, Notice, Rule, Step, Task, TaskEvent, Warn } from "./types";
 
 const DAY = 86400_000;
-const HORIZON = 60 * DAY;
 const kv: stats.Storage = { get: store.kvGet, set: store.kvSet };
 let seq = 0;
 
@@ -160,12 +159,15 @@ function missing(tasks: Task[], gone: Gone, now: number): Task[] {
     const p = rule(last.rrule!);
     const cut = gone.series[key];
     if (!xs.some((x) => !x.deletedAt) || cut === 0) continue;
-    const copy = (o: { notBefore?: number; deadline: number }): Task => ({
+    const fx = last.fixed === "busy" && last.start !== undefined, len = (last.end ?? 0) - (last.start ?? 0);
+    // a fixed block keeps its clock: the new day gets start and end, or the planner drops it
+    const copy = (o: { notBefore?: number; deadline?: number }): Task => ({
       ...last, ...o, id: uid(), start: undefined, end: undefined, doneAt: undefined, deletedAt: undefined, userEdited: undefined, note: undefined, createdAt: now,
+      ...(fx ? { start: o.notBefore, end: o.notBefore! + len, notBefore: undefined, deadline: undefined } : {}),
     });
     if (byDay(p) && !p.COUNT) {
-      const have = new Set(xs.map((x) => dayStart((x.deadline ?? 0) - 1)));
-      const days = daysOf(p), clock = last.notBefore !== undefined && tod(last.notBefore) ? tod(last.notBefore) : undefined;
+      const have = new Set(xs.map((x) => dayStart(fx ? x.start ?? 0 : (x.deadline ?? 0) - 1)));
+      const days = daysOf(p), clock = fx ? tod(last.start!) : last.notBefore !== undefined && tod(last.notBefore) ? tod(last.notBefore) : undefined;
       const due = last.deadline !== undefined && tod(last.deadline) ? tod(last.deadline) : DAY;
       for (let d = dayStart(now); d <= horizon; d += DAY) {
         if (days?.length && !days.includes(new Date(d).getDay())) continue;
@@ -173,9 +175,9 @@ function missing(tasks: Task[], gone: Gone, now: number): Task[] {
       }
     } else if (p.FREQ === "WEEKLY") {
       const n = Math.min(Number(p.COUNT) > 0 ? Number(p.COUNT) : 1, 7);
-      const newest = Math.max(...xs.map((x) => x.deadline ?? 0));
+      const newest = Math.max(...xs.map((x) => (fx ? x.start : x.deadline) ?? 0));
       for (let d = newest + 7 * DAY; d <= horizon; d += 7 * DAY) {
-        if (d > now && (cut === undefined || d - 7 * DAY < cut)) for (let i = 0; i < n; i++) out.push(copy({ notBefore: d - 7 * DAY, deadline: d }));
+        if (d > now && (cut === undefined || d - 7 * DAY < cut)) for (let i = 0; i < n; i++) out.push(copy({ notBefore: fx ? d : d - 7 * DAY, deadline: d }));
       }
     }
   }
@@ -185,7 +187,7 @@ function missing(tasks: Task[], gone: Gone, now: number): Task[] {
 /** Keeps live repeating series ~14 days ahead (a foreground hook); replans only when something was added. */
 export async function topUp(now = Date.now()): Promise<Result | undefined> {
   const add = missing(await store.allTasks(), await loadGone(), now);
-  return add.length ? transact(now, (w) => { for (const x of add) w.tasks.set(x.id, x); }) : undefined;
+  return add.length ? transact(now, (w) => { for (const x of add) w.tasks.set(x.id, x); }, { self: false }) : undefined;
 }
 
 /** Resolves an id the model gave; a split parent resolves to its sittings. */
@@ -219,11 +221,20 @@ async function act(w: Work, a: Action) {
     }
     const occ = occurrences(a.repeat, now, when, ms(a.deadline));
     if (occ.short) w.short = true;
+    const vec = titleVec(title);
+    // A kind the user corrected on a title that reads alike wins.
+    const near = [...w.tasks.values()].filter((x) => x.vec && x.userEdited?.includes("kind")).map((x) => ({ c: cosine(vec, x.vec!), k: x.kind })).filter((n) => n.c > 0.6).sort((p, q) => q.c - p.c)[0];
+    const fixed = a.fixed && when !== undefined ? a.fixed : undefined;
+    const notAfter = a.repeat ? undefined : ms(a.notAfter); // shortcut: a repeat drops the said window, give each occurrence its own notAfter if that matters
     for (const o of occ.list) {
       const task: Task = {
-        id: uid(), title, vec: titleVec(title), kind: a.kind ?? "other", source: "user", effort: a.effortMinutes ?? 0, createdAt: now,
-        deadline: o.deadline, notBefore: o.notBefore, rrule: a.repeat, ...(a.location ? { location: a.location } : {}),
+        id: uid(), title, vec, kind: near?.k ?? a.kind ?? "other", source: "user", effort: a.effortMinutes ?? 0, createdAt: now,
+        deadline: o.deadline, notBefore: o.notBefore, rrule: a.repeat, ...(a.location ? { location: a.location } : {}), ...(a.note ? { note: a.note } : {}), ...(notAfter !== undefined ? { notAfter } : {}),
       };
+      if (fixed && o.notBefore !== undefined) { // an exact said time is a busy block, not a plan
+        task.effort = effort(task, w.model);
+        Object.assign(task, { fixed, start: o.notBefore, end: o.notBefore + task.effort * 60_000, notBefore: undefined, deadline: undefined, notAfter: undefined });
+      }
       w.tasks.set(task.id, task);
     }
     w.toast = t("added", { title });
@@ -234,6 +245,7 @@ async function act(w: Work, a: Action) {
       const next = { ...tk, doneAt: now };
       w.tasks.set(tk.id, next);
       w.log("done", next);
+      for (const c of [...w.tasks.values()]) if (c.parentId === tk.id && !c.doneAt && !c.deletedAt) w.tasks.set(c.id, { ...c, doneAt: now }); // the whole task done: its sittings too
       const p = tk.parentId && w.tasks.get(tk.parentId);
       if (p && ![...w.tasks.values()].some((c) => c.parentId === p.id && !c.doneAt && !c.deletedAt)) w.tasks.set(p.id, { ...p, doneAt: now });
       w.toast = t("done");
@@ -245,17 +257,20 @@ async function act(w: Work, a: Action) {
       const when = ms(a.when);
       const edited = new Set(tk.userEdited);
       const next: Task = { ...tk };
-      if (a.title) { next.title = a.title; edited.add("title"); }
+      if (a.title) { next.title = a.title; edited.add("title"); w.toast = t("renamed", { title: a.title }); }
       if (a.effortMinutes) { next.effort = a.effortMinutes; edited.add("effort"); }
-      if (a.kind) next.kind = a.kind as Kind;
+      if (a.kind) { next.kind = a.kind as Kind; edited.add("kind"); }
+      if (a.location) { next.location = a.location; edited.add("location"); }
+      if (a.deadline === "") { next.deadline = undefined; edited.add("deadline"); }
       if (a.note !== undefined) { next.note = a.note; edited.add("note"); }
       const dl = ms(a.deadline);
       if (dl) { next.deadline = dl; edited.add("deadline"); }
       if (when !== undefined) {
         next.notBefore = when;
         next.start = when;
+        next.pinned = true; // a time you set stays: notBefore only bounds the planner, which would pick another slot (and never a past one)
         edited.add("start");
-        next.end = when + Math.max(30, tk.effort || 30) * 60_000;
+        next.end = when + Math.max(30, next.effort || 30) * 60_000; // next.effort: the length may be edited in the same action
         w.log("drag", tk, { fromStart: tk.start, toStart: when });
         w.toast = t("moved", { title: next.title, time: at12(when, now) });
       }
@@ -267,7 +282,7 @@ async function act(w: Work, a: Action) {
 }
 
 /** Runs one mutation, optionally replans, mirrors to the calendar and persists. One call is one undo group. */
-async function transact(now: number, mutate: (w: Work) => Promise<void> | void, o: { replan?: boolean; plan?: Opts; text?: (d: Diff | undefined, w: Work) => string | undefined } = {}): Promise<Result> {
+async function transact(now: number, mutate: (w: Work) => Promise<void> | void, o: { replan?: boolean; self?: boolean; plan?: Opts; text?: (d: Diff | undefined, w: Work) => string | undefined } = {}): Promise<Result> {
   const model0 = await store.loadModel(now);
   const before = new Map((await store.allTasks()).map((x) => [x.id, x]));
   const w: Work = {
@@ -284,19 +299,26 @@ async function transact(now: number, mutate: (w: Work) => Promise<void> | void, 
 
   let diff: Diff | undefined;
   if (o.replan !== false) {
-    const busy = await readBusy(now, now + HORIZON);
-    const r = plan([...w.tasks.values()], busy, w.model, now, o.plan);
+    const r = plan([...w.tasks.values()], [], w.model, now, o.plan);
     diff = r.diff;
     w.model = r.model;
     const dragged = new Set(w.events.filter((e) => e.type === "drag").map((e) => e.taskId));
     // What changed under the plan this time: new or moved fixed/pinned items, and new rules. A move's cause is the one over its old slot.
-    // shortcut: phone-calendar busy blocks aren't diffed (no before snapshot), so moves they force read as knock-ons; snapshot readBusy if that matters.
     const hit = [...w.tasks.values()].filter((x) => (x.fixed || x.pinned) && !x.deletedAt && x.start !== undefined && x.end !== undefined
       && (before.get(x.id)?.start !== x.start || before.get(x.id)?.end !== x.end || !!before.get(x.id)?.deletedAt));
     const ids0 = new Set((model0.rules ?? []).map((x) => x.id)), rules = (w.model.rules ?? []).filter((x) => !ids0.has(x.id));
     const causeOf = (task: Task, a: number, b: number) => {
       const f = hit.find((x) => x.start! < b && x.end! > a);
-      if (f) return t("causeAt", { title: f.title, time: at12(f.start!, now) });
+      if (f) {
+        const old = before.get(f.id);
+        const key = f.source !== "dlu" ? "causeAt" : old && !old.deletedAt ? "causeMoved" : "causeNew";
+        return t(key, { title: f.title, time: at12(f.start!, now) });
+      }
+      const par = task.parentId ? w.tasks.get(task.parentId) : undefined;
+      for (const x of [task, par]) { // its own due date, or its parent's, changed in this transaction
+        const old = x && before.get(x.id);
+        if (x && old && old.deadline !== x.deadline && x.deadline !== undefined) return t("causeDue", { title: x.title, when: at12(x.deadline, now) });
+      }
       const d = new Date(a), m0 = d.getHours() * 60 + d.getMinutes(), m1 = m0 + (b - a) / 60_000;
       const rl = rules.find((x) => (!x.days.length || x.days.includes(d.getDay())) && (!x.kinds.length || x.kinds.includes(task.kind)) && m0 < x.to && m1 > x.from);
       return rl && t("causeRule", { text: rl.text });
@@ -310,7 +332,7 @@ async function transact(now: number, mutate: (w: Work) => Promise<void> | void, 
         w.tasks.set(parent.id, { ...parent, start: undefined, end: undefined });
       }
       w.tasks.set(pl.id, { ...task, start: pl.start, end: pl.end, effort: Math.round((pl.end - pl.start) / 60_000) });
-      if (pl.from !== undefined && pl.from !== pl.start && !dragged.has(pl.id)) w.moves.push({ id: pl.id, title: task.title, from: pl.from, to: pl.start, why: pl.why, cause: causeOf(task, pl.from, pl.from + pl.end - pl.start), at: now });
+      if (pl.from !== undefined && pl.from !== pl.start && !dragged.has(pl.id)) w.moves.push({ id: pl.id, title: task.title, from: pl.from, to: pl.start, why: pl.why, cause: causeOf(task, pl.from, pl.from + pl.end - pl.start), at: now, ...(o.self === false ? {} : { self: true }) });
       w.events.push({ id: uid(), taskId: pl.id, type: "placed", at: now, data: { policy: pl.policy, arm: pl.arm, x: pl.x } });
     }
     if (w.moves.some((m) => m.cause)) for (const m of w.moves) m.cause ??= t("causeKnock"); // moved to make room for a caused move
@@ -348,7 +370,10 @@ async function transact(now: number, mutate: (w: Work) => Promise<void> | void, 
 
 /** One spoken line: all actions, one plan, one undo. */
 export function apply(actions: Action[], now = Date.now()): Promise<Result> {
+  // Only a create, or a change of an existing task's time, due date or length, moves the plan.
+  const replan = actions.some((a) => a.op === "create" || (a.op === "edit" && (a.when !== undefined || a.deadline !== undefined || !!a.effortMinutes)));
   return transact(now, async (w) => { for (const a of actions) await act(w, a); }, {
+    replan,
     text: (d, w) => {
       const created = d?.placed.length && actions.some((a) => a.op === "create");
       if (created && d.placed.length > 1) {
@@ -381,7 +406,7 @@ export const pin = (id: string, on = true, now = Date.now()) =>
     if (!tk) return;
     w.tasks.set(id, { ...tk, pinned: on, userEdited: on ? [...new Set([...(tk.userEdited ?? []), "start"])] : tk.userEdited });
     w.toast = t(on ? "pinned" : "unpinned", { title: tk.title });
-  });
+  }, { replan: false });
 
 export const makeRoom = (fixId: string, deadline: number, now = Date.now()) =>
   transact(now, (w) => {
@@ -411,7 +436,7 @@ export const removeRule = (id: string | string[], now = Date.now()) =>
   });
 
 export function replan(now = Date.now(), toast?: (d: Diff) => string | undefined) {
-  return transact(now, () => {}, { text: (d) => (d && toast ? toast(d) : undefined) });
+  return transact(now, () => {}, { self: false, text: (d) => (d && toast ? toast(d) : undefined) });
 }
 
 /** Applies upstream upserts and soft deletes, replans, and reports moved tasks. */
@@ -420,6 +445,7 @@ export function ingest(upserts: Task[], deletes: string[], now = Date.now(), not
     for (const u of upserts) w.tasks.set(u.id, u);
     for (const id of deletes) { const x = w.tasks.get(id); if (x) w.tasks.set(id, { ...x, deletedAt: now }); }
   }, {
+    self: false,
     text: (d, w) => {
       if (notices.length === 1) w.sub = notices[0].sub;
       return notices.length ? notices.map((n) => n.title).join(". ") : d?.displaced.length ? t("synced", { n: d.displaced.length }) : t("syncedNew");
@@ -455,7 +481,7 @@ export function pickNow(tasks: Task[], now: number): Task | undefined {
 export const moveMine = (id: string, now = Date.now()) =>
   transact(now, (w) => {
     const tk = w.tasks.get(id);
-    if (tk) w.tasks.set(id, { ...tk, start: undefined, end: undefined, notBefore: tk.notBefore === tk.start ? undefined : tk.notBefore, userEdited: tk.userEdited?.filter((f) => f !== "start") });
+    if (tk) w.tasks.set(id, { ...tk, fixed: tk.source === "user" ? undefined : tk.fixed, start: undefined, end: undefined, pinned: false, notBefore: tk.notBefore === tk.start ? undefined : tk.notBefore, userEdited: tk.userEdited?.filter((f) => f !== "start") });
   });
 
 /** Future upstream tasks (lectures, exams, assignments, preps) to drop when the campus is disconnected; past ones stay. */

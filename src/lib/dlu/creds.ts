@@ -12,7 +12,13 @@ export interface Creds {
   lmsOff?: boolean;
   portalUrl?: string;
   lmsUrl?: string;
+  /** Sessions kept between syncs so a login is not repeated each time; `exp` is epoch ms. A refused one is replaced by a fresh login. */
+  portalToken?: PortalToken;
+  lmsSession?: LmsSession;
 }
+export type PortalToken = { t: string; exp: number };
+/** `cookie` is the signed-in `MoodleSession=…`; sessions kept from before it was carried lack it and get replaced. */
+export type LmsSession = { sesskey: string; cookie?: string; exp: number };
 
 const KEY = "dlu.creds";
 
@@ -21,9 +27,7 @@ export const clearCreds = () => SecureStore.deleteItemAsync(KEY);
 export async function loadCreds(): Promise<Creds | null> {
   const raw = await SecureStore.getItemAsync(KEY);
   if (!raw) return null;
-  const c = JSON.parse(raw) as Creds;
-  // Older installs used the portal password for the LMS when it had none of its own: keep those connected.
-  return !c.lmsOff && !c.lmsPassword && c.password ? { ...c, lmsPassword: c.password } : c;
+  return JSON.parse(raw) as Creds; // a blank LMS password stays blank: no falling back to the portal one
 }
 
 /** Each account has its own password; a blank one means that source is not connected. */
@@ -32,4 +36,4 @@ export const hasLms = (c: Creds) => !c.lmsOff && !!c.lmsPassword;
 
 /** The creds with one account forgotten. */
 export const forget = (c: Creds, which: "portal" | "lms"): Creds =>
-  which === "lms" ? { ...c, lmsOff: true, lmsPassword: undefined } : { ...c, password: "" };
+  which === "lms" ? { ...c, lmsOff: true, lmsPassword: undefined, lmsSession: undefined } : { ...c, password: "", portalToken: undefined };

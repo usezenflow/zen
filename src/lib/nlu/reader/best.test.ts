@@ -18,6 +18,13 @@ describe("readBest", () => {
     expect(readBest(["nộp bài thứ sáu", alt], opts)).toEqual(read(alt, opts));
   });
 
+  it("never lets another hearing move the day the main text read", () => {
+    const main = "báo cáo môn web thứ 7 tuần sau 8 giờ sáng";
+    // more mentions, another day: the user saw the main text, so it stands
+    const alt = "báo cáo môn web thứ 7 tuần sau 8 giờ sáng ngày 20 tháng 6 lúc 9 giờ";
+    expect(readBest([main, alt], opts)).toEqual(read(main, opts));
+  });
+
   it("reads at most five transcripts", () => {
     const weak = "nộp bài";
     const strong = "họp nhóm 9 giờ sáng mai";
