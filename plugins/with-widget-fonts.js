@@ -2,7 +2,9 @@
 // List this plugin BEFORE "expo-widgets" in app.json: mods run in reverse order, and expo-widgets rewrites ios/ExpoWidgetsTarget.
 const fs = require("fs");
 const path = require("path");
-const plist = require("@expo/plist").default;
+// @expo/plist is not a direct dependency (pnpm hides it in CI); load the copy @expo/config-plugins depends on.
+const configPlugins = path.dirname(require.resolve("@expo/config-plugins/package.json", { paths: [path.dirname(require.resolve("expo/package.json"))] }));
+const plist = require(require.resolve("@expo/plist", { paths: [configPlugins] })).default;
 const { withDangerousMod, withXcodeProject } = require("expo/config-plugins");
 
 const TARGET = "ExpoWidgetsTarget";
