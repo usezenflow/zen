@@ -8,4 +8,4 @@ declare module "node:path" {
   export function join(...p: string[]): string;
 }
 declare const __dirname: string;
-declare const process: { env: Record<string, string | undefined>; stdout: { write(s: string): void }; cpuUsage(prev?: { user: number; system: number }): { user: number; system: number } };
+declare const process: { argv: string[]; env: Record<string, string | undefined>; stdout: { write(s: string): void }; cpuUsage(prev?: { user: number; system: number }): { user: number; system: number } };
