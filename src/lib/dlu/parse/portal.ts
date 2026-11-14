@@ -172,8 +172,8 @@ function parseDisplayBlob(html: string | null | undefined): {
  *
  * A row is skipped (and the reason returned) when it lacks any of the three
  * fields the key is built from (`ScheduleStudyUnitID`, a parseable `Ngay`, a
- * `PeriodID` span `period-map.ts` accepts — the last of which today means
- * anything touching the undocumented periods 5–6).
+ * `PeriodID` span `period-map.ts` accepts — the last of which means a
+ * period it has no clock for, 15 and up).
  *
  * Note the narrowing since issue #56: a row with a usable date and period but no
  * `ScheduleStudyUnitID` used to still yield a meeting (with a null section id).
@@ -213,7 +213,7 @@ export function parseTimetable(
     if (!span || periodId === null || periodId === undefined) {
       skipped.push({
         ref,
-        reason: `no time mapping for periods ${row.PeriodID}+${row.NumberOfPeriods} (periods 5–6 are undocumented)`,
+        reason: `no time mapping for periods ${row.PeriodID}+${row.NumberOfPeriods}`,
       });
       continue;
     }

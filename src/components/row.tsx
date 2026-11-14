@@ -3,12 +3,12 @@ import { DateTimePicker } from "@expo/ui/community/datetime-picker";
 import { useEffect, useRef, useState, type ComponentRef } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
-import Animated, { Extrapolation, interpolate, useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming, ZoomIn } from "react-native-reanimated";
+import Animated, { Extrapolation, interpolate, useAnimatedStyle, useSharedValue, withSequence, withTiming, ZoomIn } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { Icon, TypeArt } from "@/components/art";
 import { hhmm, startOfDay } from "@/components/cal";
 import { HoldMenu, type Item } from "@/components/menu";
-import { fadeIn, glide, Tap } from "@/components/tap";
+import { fadeIn, glide, Tap, settle, EASE } from "@/components/tap";
 import { t } from "@/lib/i18n";
 import { when } from "@/lib/when";
 import { useTheme, font, space, ff, motion } from "@/lib/theme";
@@ -43,7 +43,7 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
   const sub = subOver ?? (allDay ? t("noPlan") : subOf(task, type, now));
   const scale = useSharedValue(1);
   const pop = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
-  useEffect(() => { if (done) scale.set(withSequence(withTiming(1.12, { duration: 110 }), withSpring(1, motion.bouncy))); }, [done, scale]);
+  useEffect(() => { if (done) scale.set(withSequence(withTiming(1.12, { duration: 110 }), settle(1, 160))); }, [done, scale]);
   const ring = task.source === "dlu" && type === "lecture"; // campus lecture: glow ring (pull.html)
   const body = (
     <Tap variant="row" onPress={onOpen} style={[s.r, ghost && { opacity: 0.45 }]}>
@@ -52,7 +52,7 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
       ) : check ? (
         <Pressable onPress={() => { if (!done) { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {}); onToggle(); } }} hitSlop={8}>
           <Animated.View style={[s.ck, { borderColor: late ? th.seal : th.line }, done && { borderWidth: 0, backgroundColor: th.ink, shadowColor: th.chip }, pop]}>
-            {done && <Animated.View entering={ZoomIn.springify().damping(12).stiffness(300)}><Icon name="check" size={16} color={th.bg} w={2.4} /></Animated.View>}
+            {done && <Animated.View entering={ZoomIn.duration(180).easing(EASE)}><Icon name="check" size={16} color={th.bg} w={2.4} /></Animated.View>}
           </Animated.View>
         </Pressable>
       ) : (
@@ -99,7 +99,7 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
   );
   const box = useRef<ComponentRef<typeof View>>(null);
   const tx = useSharedValue(0), hgt = useSharedValue(-1), w = useSharedValue(0), h = useSharedValue(0), crossed = useSharedValue(false);
-  const series = !!(task.section || task.rrule);
+  const series = !!(task.section || task.rrule || task.parentId);
   const tick = () => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
   const ask = () => box.current?.measureInWindow((_x: number, y: number, _w: number, h: number) => onSeries?.(y + h));
   const swipe = usePanGesture({
@@ -115,8 +115,8 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
     onDeactivate: (e) => {
       "worklet";
       crossed.set(false);
-      if (e.translationX > -SWIPE) { tx.set(withSpring(0, motion.snappy)); return; }
-      if (series) { tx.set(withSpring(0, motion.snappy)); scheduleOnRN(ask); return; }
+      if (e.translationX > -SWIPE) { tx.set(settle(0)); return; }
+      if (series) { tx.set(settle(0)); scheduleOnRN(ask); return; }
       tx.set(withTiming(-w.get(), { duration: 150 }, (ok) => {
         if (!ok) return;
         hgt.set(h.get()); // collapse from the measured height, so rows with a sub line don't snap first
@@ -127,7 +127,7 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
   const slide = useAnimatedStyle(() => ({ transform: [{ translateX: tx.get() }] }));
   const wrap = useAnimatedStyle(() => (hgt.get() >= 0 ? { height: hgt.get(), overflow: "hidden" as const } : {}));
   const trash = useAnimatedStyle(() => ({ opacity: interpolate(tx.get(), [0, -SWIPE * 0.6], [0, 1], Extrapolation.CLAMP) }));
-  const bin = useAnimatedStyle(() => ({ transform: [{ scale: withSpring(tx.get() <= -SWIPE ? 1.15 : 1, motion.bouncy) }] }));
+  const bin = useAnimatedStyle(() => ({ transform: [{ scale: settle(tx.get() <= -SWIPE ? 1.15 : 1, 160) }] }));
   return (
     <View ref={box} onLayout={(e) => { w.set(e.nativeEvent.layout.width); h.set(e.nativeEvent.layout.height); }}><Animated.View style={wrap}>
       <Animated.View style={[s.trash, trash]}><Animated.View style={bin}><Icon name="trash" size={20} color="#fff" /></Animated.View></Animated.View>

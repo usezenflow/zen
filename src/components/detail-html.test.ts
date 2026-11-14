@@ -20,5 +20,8 @@ describe("repeatText", () => {
     expect(repeatText("FREQ=DAILY", 0)).toBe("Mỗi ngày");
     expect(repeatText("FREQ=WEEKLY;BYDAY=TU", 0)).toBe("Mỗi T3");
     expect(repeatText("FREQ=WEEKLY", Date.UTC(2026, 10, 18))).toBe("Mỗi T4");
+    expect(repeatText("FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR,SA", 0)).toBe("Mỗi ngày trừ CN");
+    expect(repeatText("FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR", 0)).toBe("Ngày thường");
+    expect(repeatText("FREQ=WEEKLY;BYDAY=MO,TH", 0)).toBe("Mỗi T2, T5");
   });
 });

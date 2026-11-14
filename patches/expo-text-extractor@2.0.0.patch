@@ -1,0 +1,27 @@
+diff --git a/android/src/main/java/expo/modules/textextractor/ExpoTextExtractorModule.kt b/android/src/main/java/expo/modules/textextractor/ExpoTextExtractorModule.kt
+index 3ffdf31ade41862a871692eb2b9ee21a8e2bdd6a..e7515cee9821af75cb19dc5b81fee7277f223dd7 100644
+--- a/android/src/main/java/expo/modules/textextractor/ExpoTextExtractorModule.kt
++++ b/android/src/main/java/expo/modules/textextractor/ExpoTextExtractorModule.kt
+@@ -21,7 +21,7 @@ class ExpoTextExtractorModule : Module() {
+     AsyncFunction("extractTextFromImage") { uriString: String, promise: Promise ->
+       try {
+         val context = appContext.reactContext!!
+-        val uri = if (uriString.startsWith("content://")) {
++        val uri = if (uriString.startsWith("content://") || uriString.startsWith("file://")) {
+           Uri.parse(uriString)
+         } else {
+           val file = File(uriString)
+diff --git a/ios/ExpoTextExtractorModule.swift b/ios/ExpoTextExtractorModule.swift
+index 102a7a08eb2f70f9cc343f002ca89e75862563ad..ef80dd153bc1c0df1dabf07afd16ff46ad318fd2 100644
+--- a/ios/ExpoTextExtractorModule.swift
++++ b/ios/ExpoTextExtractorModule.swift
+@@ -29,6 +29,9 @@ public class ExpoTextExtractorModule: Module {
+ 
+                     promise.resolve(recognizedTexts)
+                 }
++                // Vision reads English only by default; Vietnamese keeps its diacritics only when asked for.
++                request.recognitionLanguages = ["vi-VT", "en-US"]
++                request.usesLanguageCorrection = true
+ 
+                 try requestHandler.perform([request])
+             } catch {

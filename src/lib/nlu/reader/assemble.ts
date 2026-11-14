@@ -1294,6 +1294,7 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
     !all.some((m) => m.kind === "recur") &&
     !taskLed &&
     !all.some((m) => m.kind === "time") &&
+    !all.some((m) => m.kind === "period" && m.v.k === "period") &&
     !all.some((m) => m.kind === "dur" && !(m.v.k === "dur" && m.v.days))
   )
     return out;
@@ -1581,13 +1582,22 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
         }
         return piecePart ? withPart(m, piecePart) : m;
       });
+    const periodMention =
+      piece.find((m) => m.kind === "period" && m.v.k === "period") ??
+      all.find((m) => m.kind === "period" && m.v.k === "period");
+    const periodRes =
+      periodMention && periodMention.v.k === "period"
+        ? resolvePeriods(periodMention.v.p1, periodMention.v.p2)
+        : null;
+    const periodUnknown = !!periodMention && !periodRes;
     // a task with no date and no clock: no deadline, its length inferred
     const undatedTask =
       pieceUndated &&
       !pTimes.length &&
-      (taskLed || all.some((m) => m.kind === "dur")) &&
-      (TASK_VERB.test(fpiece.trimStart()) ||
-        piece.some((m) => m.kind === "dur"));
+      ((taskLed || all.some((m) => m.kind === "dur")) &&
+        (TASK_VERB.test(fpiece.trimStart()) ||
+          piece.some((m) => m.kind === "dur")) ||
+        !!periodMention);
     const weekday = pDates.find((m) => m.v.k === "dow");
     // a weekday list ("t2, t4, t6") repeats weekly on all its days
     const plainRule =
@@ -1698,13 +1708,6 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
         }
       }
     }
-    const periodMention =
-      piece.find((m) => m.kind === "period" && m.v.k === "period") ??
-      all.find((m) => m.kind === "period" && m.v.k === "period");
-    const periodRes =
-      periodMention && periodMention.v.k === "period"
-        ? resolvePeriods(periodMention.v.p1, periodMention.v.p2)
-        : null;
     const timeFound =
       sortedTimes[0] ??
       (explicitHere && explicitPieces === 1 ? undatedTimes[0] : undefined);
@@ -1905,6 +1908,8 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
           : DNDCUE.test(cueText) && !(holidayBefore && TASK_WORD.test(fpiece))
             ? "BUSY"
             : "PLAN";
+    // a period the table does not know (15 and up, or a span over them): no clock to give, so a plain task
+    if (type === "LECTURE" && periodUnknown && !c.timetable) type = "PLAN";
     if (type === "PLAN" && hasTimeHint && !due && !range && !fromCue)
       type = "BUSY";
     if (isPresentation && hasTimeHint && !due && !range) type = "BUSY";
@@ -2198,14 +2203,18 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
       if (kind === "EXAM" || kind === "LECTURE" || kind === "BUSY") {
         let c: [number, number];
         if (clock) c = clock;
-        else {
+        else if (periodUnknown) {
+          // the portal has no clock for this period: the day only, the app picks the hour
+          item.days = [stamp(date, 0, 0).slice(0, 10)];
+          timeF = 0.8;
+        } else {
           c = partSpec ? partSpec.start : [8, 0];
           if (partSpec) item.windows = partWindows;
           timeF = 0.8;
           inferred.push("startsAt");
         }
         // a fixed start rounds to the 30-minute grid: "9h10" is 9:00, "9h15" is 9:30
-        item.startsAt = startOn(date, c);
+        if (!periodUnknown || clock) item.startsAt = startOn(date, c!);
       } else if (range && to) {
         if (evalRange) {
           // Evaluation window: preparation must finish before the window opens
@@ -2441,13 +2450,20 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
       // a fixed kind has no start without a clock: an undated task stays a task
       // "trong vòng 3 ngày" is due that many days out, by the end of the day
       const within = withinDays(fpiece);
+      // an undated exam in a period stays an exam, with no day and no clock
+      const keep = !!periodMention && type === "EXAM";
       const it = emit(
-        type === "BUSY" || type === "EXAM" || type === "LECTURE"
+        !keep && (type === "BUSY" || type === "EXAM" || type === "LECTURE")
           ? "PLAN"
           : type,
         addDays(ctx.ref, within ?? 0),
         "rel",
       );
+      if (keep) {
+        delete it.days;
+        delete it.startsAt;
+        it.inferred = it.inferred.filter((x) => x !== "startsAt");
+      }
       if (within === undefined) {
         delete it.deadline;
         it.inferred = it.inferred.filter((x) => x !== "deadline");

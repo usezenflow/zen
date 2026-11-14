@@ -188,6 +188,14 @@
           ]
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Zen đọc ảnh bạn chọn để tìm lịch thi, hạn nộp trong đó.",
+          "cameraPermission": "Zen dùng camera để đọc thông báo, lịch thi bạn chụp.",
+          "microphonePermission": false
+        }
+      ],
       "expo-asset"
     ],
     "experiments": {

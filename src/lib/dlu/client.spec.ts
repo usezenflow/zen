@@ -4,7 +4,7 @@ vi.mock("expo-secure-store", () => ({}));
 import { checkLogin, fetchAll } from "./client";
 import type { Creds } from "./creds";
 
-const C: Creds = { studentId: "1", password: "p", portalApiKey: "k" };
+const C: Creds = { studentId: "1", password: "p", lmsPassword: "q", portalApiKey: "k" };
 const NOW = Date.UTC(2026, 8, 1);
 const res = (status: number, body = "") => new Response(body, { status });
 const stub = (portal: () => Response | Promise<Response>, lms: () => Response | Promise<Response>) =>
@@ -20,6 +20,9 @@ it("tells a refused password from a slow campus, per account", async () => {
   expect(await checkLogin(C)).toEqual({ portal: "slow", lms: "ok" });
   stub(() => res(200, JSON.stringify({ Token: "x" })), () => res(200, "<p>loginerror</p>"));
   expect(await checkLogin(C)).toEqual({ portal: "ok", lms: "wrong" });
+  stub(() => res(200, JSON.stringify({ Token: "x" })), () => res(200, "<p>signed in, no key</p>"));
+  expect((await checkLogin(C)).lms).toBe("slow"); // no sesskey is a hiccup, not a wrong password
+  expect(await checkLogin({ ...C, lmsPassword: undefined })).toMatchObject({ lms: "off" }); // blank: not tried, no fallback
 });
 
 it("fetchAll reports both outcomes and skips a disconnected account", async () => {

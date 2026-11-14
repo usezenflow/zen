@@ -66,16 +66,10 @@ describe("periodsToWallClock — single periods and partial spans", () => {
 });
 
 describe("periodsToWallClock — unmapped input yields null", () => {
-  it("returns null for the undocumented periods 5 and 6", () => {
-    expect(periodsToWallClock(5, 1)).toBeNull();
-    expect(periodsToWallClock(6, 2)).toBeNull();
-  });
-
-  it("returns null for a span that reaches over periods 5–6", () => {
-    // Both ends are known, but 5 and 6 in the middle are not — the span must
-    // not silently become 10:20 → 13:50.
-    expect(periodsToWallClock(4, 4)).toBeNull();
-    expect(periodsToWallClock(4, 3)).toBeNull();
+  it("maps periods 5 and 6 as the user decided: 11:10–12:00 and 12:00–12:50", () => {
+    expect(periodsToWallClock(5, 1)).toEqual({ startMin: hm(11, 10), endMin: hm(12, 0) });
+    expect(periodsToWallClock(6, 1)).toEqual({ startMin: hm(12, 0), endMin: hm(12, 50) });
+    expect(periodsToWallClock(4, 4)).toEqual({ startMin: hm(10, 20), endMin: hm(13, 50) });
   });
 
   it("returns null past the end of the day and before the first period", () => {

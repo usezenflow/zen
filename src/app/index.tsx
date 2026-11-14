@@ -1,7 +1,9 @@
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
+import { extractTextFromImage } from "expo-text-extractor";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Animated, PanResponder, StyleSheet, Text, View } from "react-native";
+import { AppState, Animated, Easing, PanResponder, StyleSheet, Text, View } from "react-native";
 import Reanimated, { useSharedValue, withTiming, ZoomIn, ZoomOut } from "react-native-reanimated";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
@@ -9,26 +11,30 @@ import { Icon, Logo } from "@/components/art";
 import { Rhythm } from "@/components/rhythm";
 import { addDays, live, mondayOf, monthLabel, onDay, startOfDay, weekday, type Hols } from "@/components/cal";
 import { Day, DayPull, First } from "@/components/day";
-import { Hold, type HoldState } from "@/components/hold";
+import { PhotoMenu, PhotoView, TypeBar, Veil } from "@/components/capture";
+import { Hold, type Aside, type HoldState } from "@/components/hold";
 import type { Item } from "@/components/menu";
 import { Month } from "@/components/month";
 import { Brief, Live, NowCard, Steps, Story, Weekly, type Card } from "@/components/nowcard";
 import { RowMenu } from "@/components/rowmenu";
-import { fadeIn, fadeOut, glide, popIn, Tap } from "@/components/tap";
+import { fadeIn, fadeOut, glide, popIn, Tap, EASE } from "@/components/tap";
 import { Toast } from "@/components/toast";
 import { Swipe, Week } from "@/components/week";
 import { apply, makeRoom, moveMine, pickNow, addRule, pin, putBack, removeRule, removeScope, swipeDone, swipeLater, take, type Result } from "@/lib/apply";
 import { loadMoves, loadWarn, seeMoves } from "@/lib/moves";
 import { reasonText, stepText, topReason } from "@/lib/reasons";
 import { allDay, dropOldCalendar, readBusy } from "@/lib/calendar";
-import { askMic, listenLive, micReset } from "@/lib/ears";
+import { askMic, listenLive, micReset, type Heard } from "@/lib/ears";
 import { t } from "@/lib/i18n";
+import { readFull, readNotes } from "@/lib/nlu/adapt";
 import { think } from "@/lib/nlu/commands";
+import { affinityOf, calendarOf, committedRows, vocab } from "@/lib/nlu/context";
+import { personalPrior } from "@/lib/nlu/reader/assemble";
 import { isRule, readRule } from "@/lib/rules";
 import { takeFlash } from "@/lib/flash";
 import { keepBoth, pendingOverlaps, type Overlap } from "@/lib/overlap";
 import * as store from "@/lib/store";
-import { onForeground } from "@/lib/sync";
+import { getMarks, onForeground } from "@/lib/sync";
 import { listenWidgets, pushWidgets } from "@/lib/widgets";
 import { useTheme, font, space, ff } from "@/lib/theme";
 import type { Move, Notice, Rule, Task, Warn } from "@/lib/types";
@@ -67,6 +73,12 @@ export default function Home() {
   const [story, setStory] = useState(false);
   const [lines, setLines] = useState<string[]>([]); // narrated solver steps while thinking
   const [mind, setMind] = useState<{ i: Insights; rules: Rule[] }>();
+  // capture.html: the thumb on a satellite, the type field, the photo dropdown, the photo being read.
+  const [aside, setAside] = useState<Aside>("");
+  const asideRef = useRef<Aside>("");
+  const [typing, setTyping] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const [photo, setPhoto] = useState<{ uri: string; w: number; h: number }>();
 
   const refresh = useCallback(async () => {
     const now = Date.now();
@@ -154,7 +166,7 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monthKey]);
 
-  const stopRec = useRef<(() => Promise<string>) | undefined>(undefined);
+  const stopRec = useRef<(() => Promise<Heard>) | undefined>(undefined);
   const held = useRef(false);
   // Opened from the talk widget (zen:///?listen=1): already listening, so the next touch on the button ends it.
   const latched = useRef(false);
@@ -180,12 +192,12 @@ export default function Home() {
   const start = async () => {
     held.current = true;
     if (!(await askMic())) { held.current = false; return say(t("mic")); }
-    if (!held.current) return;
+    if (!held.current || asideRef.current) return;
     setWords("");
     setState("listening"); // at once, before the recognizer is up, so the button never reads as broken
     try {
-      const rec = await listenLive({ onPartial: setWords, onLevel: (l: number) => level.set(withTiming(l, { duration: 90 })) });
-      if (!held.current) return void rec.stop().catch(() => {}); // released while the mic was starting
+      const rec = await listenLive({ hints: vocab(await store.allTasks()), onPartial: setWords, onLevel: (l: number) => level.set(withTiming(l, { duration: 90 })) });
+      if (!held.current || asideRef.current) return void rec.stop().catch(() => {}); // released, or moved to a satellite, while the mic was starting
       stopRec.current = rec.stop;
     } catch (e) {
       held.current = false;
@@ -211,10 +223,17 @@ export default function Home() {
     if (!stop) return setState("idle"); // start() sees held=false and closes the mic itself
     setState("thinking");
     level.set(0);
+    let heard: Heard;
+    try { heard = await stop(); } catch (e) { setState("idle"); return fail(t("thinkFail"), e); }
+    if (!heard.text) { setState("idle"); return say(t("heardNothing"), undefined, { sub: t("heardNothingSub") }); }
+    await run(heard.text, "voice", heard.alternatives);
+  };
+
+  // One reader for every way in: what was said, typed, or read off a photo.
+  const run = async (text: string, via: "voice" | "type" | "photo", alternatives?: string[]) => {
+    setState("thinking");
+    setWords(text);
     try {
-      const text = await stop();
-      if (!text) return say(t("heardNothing"), undefined, { sub: t("heardNothingSub") });
-      setWords(text);
       // Nhịp hears every sentence as a standing rule; home sends only rule-sounding ones, and falls back to tasks when they don't parse.
       if (view === "rhythm" || isRule(text)) {
         const rules = (await store.loadModel(new Date().getTime())).rules ?? [];
@@ -233,29 +252,83 @@ export default function Home() {
         .sort((a, b) => (a.start ?? Infinity) - (b.start ?? Infinity))
         .map((x) => ({ id: x.id, title: x.title, start: x.start }));
       const nowD = new Date();
-      const actions = think(text, nowD, ctx);
-      if (!actions.length) return say(t("huh"), undefined, { sub: t("huhSub") }); // a command naming no task we know
+      // What the reader cannot know from the words: the timetable, what this user usually saves per title, and the marks.
+      const old = JSON.parse((await store.kvGet("nlu.committed").catch(() => null)) ?? "[]");
+      const extra = { calendar: calendarOf(all, nowD.getTime()), affinity: affinityOf((await getMarks().catch(() => null))?.marks ?? []), prior: personalPrior(old), alternatives };
+      const source = via === "voice" ? "voice" : "typed";
+      const actions = think(text, nowD, ctx, source, extra);
+      const read = actions.some((a) => a.op === "create") ? readFull(text, nowD, source, { ...extra, alternatives: undefined }) : undefined; // offsets in the notes point into this transcript, not a winning alternative
+      const notes = read ? readNotes(text, read) : {};
+      if (!actions.length) return via === "photo" ? nothingInPhoto() : say(t("huh"), undefined, { sub: t("huhSub") }); // a command naming no task we know
       const now = nowD.getTime();
       const applied = await apply(actions, now);
       const said = (applied.steps ?? []).slice(0, 4).map(stepText);
       for (let i = 1; i <= said.length; i++) { setLines(said.slice(0, i)); await new Promise((ok) => setTimeout(ok, 300)); }
       if (said.length) await new Promise((ok) => setTimeout(ok, 300));
       const r = applied;
+      if (read?.items.length) store.kvSet("nlu.committed", JSON.stringify(committedRows(read.items, old))).catch(() => {});
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       const titles = [...new Set(actions.filter((a) => a.op === "create" && a.title).map((a) => a.title!))];
+      // Show where the new work landed: the day of its earliest placed piece, not today.
+      const made = (await store.allTasks()).filter((x) => x.createdAt === now && x.source === "user" && !x.deletedAt && x.start !== undefined);
+      const firstAt = Math.min(...made.map((x) => x.start!));
+      if (titles.length && Number.isFinite(firstAt)) setSel(startOfDay(firstAt));
       if (titles.length > 1) { // bulk: count, first two names, one Undo for all, no alt
         const k = titles.length - 2;
-        say(t("addedN", { n: titles.length }), r, { sub: titles.slice(0, 2).join(", ") + (k > 0 ? ` +${k}` : "") });
+        say(t("addedN", { n: titles.length }), r, { sub: [titles.slice(0, 2).join(", ") + (k > 0 ? ` +${k}` : ""), r.sub, notes.sub].filter(Boolean).join(" · ") });
       } else if (titles.length === 1) {
-        const task = (await store.allTasks()).find((x) => x.createdAt === now && x.source === "user" && !x.deletedAt);
-        say(titles[0], r, { sub: task?.start !== undefined ? when(task.start, now) : undefined, ...(await otherSlot(now)) });
+        // The reader's own ask ("3 giờ": 15:00 or 03:00) takes the chip; else the planner's other slot.
+        const alt = notes.alt && { alt: { label: notes.alt.label, run: async () => { await r.undo(); await run(notes.alt!.text, via); } } };
+        say(titles[0], r, { sub: [Number.isFinite(firstAt) ? when(firstAt, now) : undefined, r.sub, notes.sub].filter(Boolean).join(" · ") || undefined, ...(alt ?? (await otherSlot(now))) });
       } else say(r.toast, r);
+      if (via === "photo") setPhoto(undefined);
       refresh();
     } catch (e) {
       fail(t("thinkFail"), e);
     } finally {
       setState("idle");
       setLines([]);
+    }
+  };
+
+  // capture.html frame 10: nothing readable, so keep the photo and offer the keyboard.
+  const nothingInPhoto = () => setToasts((q) => [{ text: t("photoNothing"), sub: t("photoNothingSub"), action: { label: t("satType"), run: () => { setPhoto(undefined); setTyping(true); } } }, ...q.slice(1)]);
+
+  // The thumb moved onto a satellite (drop the take) or back onto the mic (listen again).
+  const onAside = (a: Aside) => {
+    asideRef.current = a;
+    setAside(a);
+    if (!a) { if (held.current) void start(); return; }
+    const stop = stopRec.current;
+    stopRec.current = undefined;
+    level.set(0);
+    setWords("");
+    setState("idle");
+    if (stop) stop().catch(() => {});
+  };
+  const onEnd = (a: Aside) => {
+    latched.current = false;
+    asideRef.current = "";
+    setAside("");
+    if (!a) return void end();
+    held.current = false;
+    if (a === "type") setTyping(true); else setPicking(true);
+  };
+  const readPhoto = async (src: "camera" | "library") => {
+    setPicking(false);
+    try {
+      if (src === "camera" && !(await ImagePicker.requestCameraPermissionsAsync()).granted) return say(t("camDenied"));
+      const r = await (src === "camera" ? ImagePicker.launchCameraAsync : ImagePicker.launchImageLibraryAsync)({ mediaTypes: ["images"] });
+      if (r.canceled || !r.assets[0]) return;
+      const { uri, width, height } = r.assets[0];
+      setPhoto({ uri, w: width, h: height });
+      setState("thinking");
+      const text = (await extractTextFromImage(uri)).map((l) => l.trim()).filter(Boolean).join("\n");
+      if (!text) { setState("idle"); return nothingInPhoto(); }
+      await run(text, "photo");
+    } catch (e) {
+      setState("idle");
+      fail(t("photoFail"), e);
     }
   };
 
@@ -284,8 +357,8 @@ export default function Home() {
     say(t(scope === "all" ? "removedAll" : "removed", { title: x.title }), r, { sub });
     refresh();
   };
-  // Series (campus section or repeat): long-press or swipe opens three scopes. Plain tasks: swipe deletes. Undo is the net.
-  const seriesItems = (x: Task): Item[] => x.section || x.rrule
+  // Series (campus section, repeat, or split sittings): long-press or swipe opens three scopes. Plain tasks: swipe deletes. Undo is the net.
+  const seriesItems = (x: Task): Item[] => x.section || x.rrule || x.parentId
     ? [{ label: t("delThis"), onPress: () => del(x, "this") }, { label: t("delFollowing"), onPress: () => del(x, "following") }, { label: t("delAll"), destructive: true, onPress: () => del(x, "all") }]
     : [];
   // Long-press adds the lessons: put it back, take the other good time, pin.
@@ -333,7 +406,7 @@ export default function Home() {
         });
         return;
       }
-      Animated.spring(x, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
+      Animated.timing(x, { toValue: { x: 0, y: 0 }, duration: 200, easing: Easing.bezier(0.25, 1, 0.5, 1), useNativeDriver: false }).start();
     },
   }));
 
@@ -358,7 +431,7 @@ export default function Home() {
   const stepWeek = (d: -1 | 1) => setSel(addDays(sel, 7 * d));
   const stepMonth = (d: -1 | 1) => setSel(new Date(sd.getFullYear(), sd.getMonth() + d, 1).getTime());
   const stepDay = (d: -1 | 1) => setSel(addDays(sel, d));
-  const share = { tasks, hols, now, pop, overlaps: over, onMove: async (o: Overlap) => { const r = await moveMine(o.mine.id); say(r.toast, r); refresh(); }, onKeep: async (o: Overlap) => { await keepBoth(o); refresh(); }, trail: maps.trail, reason: maps.reason, moves, onFix: async (w: Warn, f: Warn["fixes"][number]) => { const r = await makeRoom(f.id, w.deadline); say(r.toast, r); refresh(); }, ...rowActs };
+  const share = { tasks, hols, now, pop, rules: mind?.rules ?? [], overlaps: over, onMove: async (o: Overlap) => { const r = await moveMine(o.mine.id); say(r.toast, r); refresh(); }, onKeep: async (o: Overlap) => { await keepBoth(o); refresh(); }, trail: maps.trail, reason: maps.reason, moves, onFix: async (w: Warn, f: Warn["fixes"][number]) => { const r = await makeRoom(f.id, w.deadline); say(r.toast, r); refresh(); }, ...rowActs };
   const isToday = sel === today0;
   const running = !!card && !card.gap && card.start! <= now && now < card.end!;
   const quiet = isToday && view === "day" && !running;
@@ -405,15 +478,15 @@ export default function Home() {
             {VIEWS.map((v) => (
               <Tap key={v} onPress={() => setView(v)} hitSlop={10} style={{ paddingVertical: 12 }}>
                 <Text style={{ fontSize: 17, fontFamily: ff(view === v ? "600" : "500"), color: view === v ? th.ink : th.muted }}>{t(v === "day" ? "tabDay" : v === "week" ? "tabWeek" : "tabMonth")}</Text>
-                {view === v && <Reanimated.View entering={ZoomIn.springify()} exiting={ZoomOut.duration(120)} style={[s.tabDot, { backgroundColor: th.seal }]} />}
+                {view === v && <Reanimated.View entering={ZoomIn.duration(180).easing(EASE)} exiting={ZoomOut.duration(120)} style={[s.tabDot, { backgroundColor: th.seal }]} />}
               </Tap>
             ))}
           </View>
           {/* Not a calendar view: a hairline pill with the leaf, so it reads as Zen talking about you. */}
           <Tap onPress={() => setView("rhythm")} hitSlop={8} accessibilityRole="tab" accessibilityState={{ selected: view === "rhythm" }} accessibilityLabel={t("rhythm")}
             style={[s.mind, view === "rhythm" ? { backgroundColor: th.ink, borderColor: th.ink } : { borderColor: th.line }]}>
-            <Logo size={14} mode="line" color={view === "rhythm" ? th.bg : th.ink} />
-            <Text style={{ fontSize: 14, fontFamily: ff("600"), color: view === "rhythm" ? th.bg : th.ink }}>{t("rhythmTab")}</Text>
+            <Logo size={17} mode="line" color={view === "rhythm" ? th.bg : th.ink} />
+            <Text style={{ fontSize: 17, fontFamily: ff("600"), color: view === "rhythm" ? th.bg : th.ink }}>{t("rhythmTab")}</Text>
           </Tap>
         </Reanimated.View>
         </Swipe>
@@ -422,7 +495,9 @@ export default function Home() {
 
   return (
     <SafeAreaView style={[s.root, { backgroundColor: th.bg }]}>
-      {busy ? (
+      {photo ? (
+        <PhotoView key="photo" uri={photo.uri} w={photo.w} h={photo.h} reading={busy} onClose={() => setPhoto(undefined)} />
+      ) : busy ? (
         // Listening / thinking: only the live words (views.html "Day, listening").
         <Reanimated.View key="busy" entering={fadeIn} exiting={fadeOut} style={s.pad}>
           <Live state={state} words={words} level={level} />
@@ -444,7 +519,7 @@ export default function Home() {
           {(view === "week" || view === "month") && (
             <Reanimated.View key={view} entering={fadeIn}>
               {view === "week"
-                ? <Week tasks={tasks} hols={hols} now={now} monday={mon} selected={sel} onSelect={setSel} onStep={stepWeek} />
+                ? <Week tasks={tasks} hols={hols} rules={mind?.rules ?? []} now={now} monday={mon} selected={sel} onSelect={setSel} onStep={stepWeek} />
                 : <Month tasks={tasks} hols={hols} now={now} selected={sel} onSelect={setSel} onStep={stepMonth} />}
             </Reanimated.View>
           )}
@@ -460,7 +535,13 @@ export default function Home() {
         <Defs><LinearGradient id="fd" x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor={th.bg} stopOpacity={0} /><Stop offset="0.6" stopColor={th.bg} stopOpacity={1} /></LinearGradient></Defs>
         <Rect width="100%" height={120} fill="url(#fd)" />
       </Svg>
-      <View style={s.dock} pointerEvents="box-none"><Hold state={state} onStart={() => { if (!latched.current) void start(); }} onEnd={() => { latched.current = false; void end(); }} idle={view === "rhythm" ? "holdRule" : "hold"} /></View>
+      {(aside || picking) && <Veil onPress={picking ? () => setPicking(false) : undefined} />}
+      {/* capture.html frame 10: a photo with nothing in it hides the button; the toast offers Gõ instead. */}
+      {!(photo && !busy) && (
+        <View style={s.dock} pointerEvents="box-none"><Hold state={state} pinned={picking ? "photo" : ""} onAside={onAside} onStart={() => { if (!latched.current) void start(); }} onEnd={onEnd} idle={view === "rhythm" ? "holdRule" : "hold"} /></View>
+      )}
+      {picking && <PhotoMenu onPick={readPhoto} />}
+      {typing && <><Veil z={9} onPress={() => setTyping(false)} /><TypeBar onClose={() => setTyping(false)} onSend={(text) => { setTyping(false); void run(text, "type"); }} /></>}
       {busy && lines.length > 0 && <Steps lines={lines} />}
       {menu && <RowMenu items={seriesItems(menu.task)} top={menu.top} onClose={() => setMenu(undefined)} />}
       {toast && <Toast key={`${toast.text}|${toast.sub ?? ""}`} error={toast.error} text={toast.text} sub={toast.sub} onAction={toast.action?.run} actionLabel={toast.action?.label} onAlt={toast.alt?.run} altLabel={toast.alt?.label} />}
@@ -477,7 +558,7 @@ const s = StyleSheet.create({
   o: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, alignItems: "center", justifyContent: "center", marginTop: 2 },
   tabs: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 10 }, // text and the Nhịp pill share a centre line
   tabL: { flexDirection: "row", gap: 28 },
-  mind: { flexDirection: "row", alignItems: "center", gap: 6, height: 30, paddingHorizontal: 11, borderRadius: 99, borderWidth: 1 }, // .mind in magic.html
+  mind: { flexDirection: "row", alignItems: "center", gap: 7, height: 38, paddingHorizontal: 14, borderRadius: 99, borderWidth: 1 }, // .mind in magic.html, text level with the day/week/month tabs (17)
   tabDot: { position: "absolute", bottom: 0, left: "50%", width: 5, height: 5, marginLeft: -2.5, borderRadius: 3 },
   fade: { position: "absolute", left: 0, right: 0, bottom: 0, height: 120 },
   dock: { position: "absolute", left: 0, right: 0, bottom: 0 },

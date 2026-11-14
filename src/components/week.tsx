@@ -2,14 +2,14 @@ import * as Haptics from "expo-haptics";
 import { useEffect, useId, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
-import Animated, { Easing, Extrapolation, FadeIn, FadeOut, interpolate, LinearTransition, useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
+import Animated, { Easing, Extrapolation, FadeIn, FadeOut, interpolate, LinearTransition, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import Svg, { Defs, Pattern, Rect } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
 import { TypeArt } from "@/components/art";
-import { addDays, holLines, onDay, short, startOfDay, type Hols } from "@/components/cal";
-import { Tap } from "@/components/tap";
+import { addDays, holLines, keptOn, onDay, short, startOfDay, type Hols } from "@/components/cal";
+import { Tap, settle } from "@/components/tap";
 import { useTheme, ff, motion } from "@/lib/theme";
-import type { Task } from "@/lib/types";
+import type { Rule, Task } from "@/lib/types";
 import { typeOf } from "@/planner";
 
 /** Diagonal hairline stripes (.hb / .hol in ui.css): lines every `gap` px, 1.5px thick. */
@@ -35,14 +35,14 @@ const tick = () => void Haptics.selectionAsync().catch(() => {});
  */
 export function Swipe({ onStep, stepKey, children }: { onStep: (d: -1 | 1) => void; stepKey: number; children: ReactNode }) {
   const tx = useSharedValue(0), w = useSharedValue(1);
-  useEffect(() => { tx.set(withSpring(0, motion.snappy)); }, [stepKey, tx]);
+  useEffect(() => { tx.set(settle(0)); }, [stepKey, tx]);
   const pan = usePanGesture({
     activeOffsetX: [-20, 20],
     failOffsetY: [-14, 14],
     onUpdate: (e) => { "worklet"; tx.set(e.translationX); },
     onDeactivate: (e) => {
       "worklet";
-      if (Math.abs(e.translationX) <= 50 && Math.abs(e.velocityX) <= 600) { tx.set(withSpring(0, motion.snappy)); return; }
+      if (Math.abs(e.translationX) <= 50 && Math.abs(e.velocityX) <= 600) { tx.set(settle(0)); return; }
       const d = e.translationX < 0 ? 1 : -1;
       scheduleOnRN(tick);
       tx.set(withTiming(-d * w.get(), { duration: motion.fast, easing: Easing.out(Easing.cubic) }, (ok) => {
@@ -76,7 +76,7 @@ function fit(hs: number[]) {
   return { hs: list.map((h) => Math.max(MINH, Math.floor(h * sc))), more };
 }
 
-export function Week({ tasks, hols, monday, selected, now, onSelect, onStep }: { tasks: Task[]; hols: Hols; monday: number; selected: number; now: number; onSelect: (day: number) => void; onStep: (d: -1 | 1) => void }) {
+export function Week({ tasks, hols, monday, selected, now, onSelect, onStep, rules = [] }: { tasks: Task[]; hols: Hols; monday: number; selected: number; now: number; onSelect: (day: number) => void; onStep: (d: -1 | 1) => void; rules?: Rule[] }) {
   const th = useTheme();
   const today = startOfDay(now);
   // A whole empty week keeps its height as dashed slots, so the grid reads as room, not as missing.
@@ -88,8 +88,10 @@ export function Week({ tasks, hols, monday, selected, now, onSelect, onStep }: {
           const day = addDays(monday, i);
           const hol = hols.get(day);
           const on = day === today;
-          const xs = hol ? [] : onDay(tasks, day);
-          const f = fit(xs.map((x) => Math.max(24, Math.min(52, Math.round((x.end! - x.start!) / 60000 * 0.45)))));
+          // Tasks and kept-free rule windows in time order; a rule block is striped and sized like a task of its length.
+          const xs: (Task | Rule)[] = hol ? [] : [...onDay(tasks, day), ...keptOn(rules, day)]
+            .sort((a, b) => ("text" in a ? day + a.from * 60_000 : a.start!) - ("text" in b ? day + b.from * 60_000 : b.start!));
+          const f = fit(xs.map((x) => Math.max(24, Math.min(52, Math.round(("text" in x ? x.to - x.from : (x.end! - x.start!) / 60000) * 0.45)))));
           return (
             <Tap key={day} style={s.c} scale={0.97} onPress={() => onSelect(day)}>
               <View style={[s.d, { borderColor: day === selected && !on ? th.ink : th.line }, on && { backgroundColor: th.ink, borderColor: th.ink }]}>
@@ -105,7 +107,11 @@ export function Week({ tasks, hols, monday, selected, now, onSelect, onStep }: {
                 <View style={s.bs}>
                   {f.hs.map((h, j) => {
                     const x = xs[j];
-                    return (
+                    return "text" in x ? (
+                      <Animated.View key={`k${x.id}`} layout={LinearTransition} entering={FadeIn} exiting={FadeOut} style={[s.b, { height: h, borderWidth: 1, borderColor: th.line }]} accessibilityLabel={x.text}>
+                        <Stripes color={th.line} />
+                      </Animated.View>
+                    ) : (
                       <Animated.View key={x.id} layout={LinearTransition} entering={FadeIn} exiting={FadeOut} style={[s.b, { height: h }]}>
                         <TypeArt type={typeOf(x)} w={40} h={h} seed={j * 3 + h} />
                       </Animated.View>

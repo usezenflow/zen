@@ -12,6 +12,7 @@ export interface LogEntry { kind: "place" | "swap" | "reinsert" | "chain" | "day
 export interface Solved { starts: Map<string, number>; score: number; greedyScore: number; log: LogEntry[] }
 
 export const SLOT = 30 * MIN;
+export const WAKE_FROM = 7 * 60, WAKE_TO = 22 * 60;
 const HALO = 60 * MIN;
 const TAIL = 6 * HOUR; // a block this far past a day's end can still halo an item that spills over midnight
 const W_GAP = 0.1;
@@ -38,6 +39,14 @@ export function cells(p: Piece, now: number): number[] {
   const out: number[] = [];
   for (let c = lo; c < hi; c += SLOT) out.push(c);
   return out;
+}
+
+/** Flexible work starts from 7:00 and ends by 22:00; a clock the user said ("6 giờ sáng chạy bộ") stands. Cells stay contiguous (index = offset / SLOT), so the policy masks the rest. */
+export function awake(p: Piece, c: number): boolean {
+  const nb = p.task.notBefore;
+  if (nb !== undefined && nb !== dayStart(nb) && c === ceil(nb)) return true;
+  const m = (c - dayStart(c)) / MIN;
+  return m >= WAKE_FROM && m + p.effort <= WAKE_TO;
 }
 
 type Mv = [number, number][]; // piece index -> new start (-1 = unplaced)

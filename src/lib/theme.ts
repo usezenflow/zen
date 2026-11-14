@@ -52,10 +52,8 @@ const FACES: Record<string, string> = {
   "600": "BeVietnamPro-SemiBold", "700": "BeVietnamPro-Bold", "800": "BeVietnamPro-ExtraBold",
 };
 export const ff = (w: string | number = "400") => FACES[String(w)] ?? FACES["400"];
-// Shared motion: one spring for slides and snap-backs, one for pops, two timings.
+// Shared timings; the curve is EASE in components/tap.
 export const motion = {
-  snappy: { damping: 20, stiffness: 260, mass: 0.9 },
-  bouncy: { damping: 9, stiffness: 260 },
   fast: 180,
   progress: 400,
 } as const;

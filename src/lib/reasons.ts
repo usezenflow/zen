@@ -14,7 +14,7 @@ const R: Record<ReasonKey, { short: string; long: string; neg?: string }> = {
   busy: { short: "Ngày nhẹ lịch", long: "Hôm đó ít lịch, dễ thở hơn", neg: "Hôm đó lịch đã dày" },
   kind: { short: "Hợp việc {kind}", long: "Giờ này hợp với việc {kind}", neg: "Giờ này ít hợp việc {kind}" },
   deadline: { short: "Hạn {due}, làm sớm", long: "Hạn {due}. Làm sớm cho đỡ dồn", neg: "Hơi sát hạn {due}" },
-  pace: { short: "Buổi {k} trên {n}", long: "Còn {n} buổi, chia đều cho kịp", neg: "Các buổi hơi dồn" },
+  pace: { short: "Buổi {k}/{n}", long: "Buổi {k}/{n}, rải đều tới hạn", neg: "Các buổi hơi dồn" },
   load: { short: "Ngày này còn rộng", long: "Ngày này còn rộng, không quá tải", neg: "Ngày này đã {h} tiếng" },
   gap: { short: "Có khoảng nghỉ", long: "Có khoảng nghỉ trước và sau", neg: "Hơi sát {title}" },
   stable: { short: "Giữ giờ cũ", long: "Giữ gần giờ bạn đã thấy, đỡ xáo trộn" },

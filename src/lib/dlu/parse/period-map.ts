@@ -12,16 +12,16 @@ const FIXED_GRANULARITY = 15;
  *
  * ```
  *   periods  1– 4   07:30 – 11:10   50/50 · 20-min break · 50/50
+ *   periods  5– 6   11:10 – 12:50   50/50, no break (user decision)
  *   periods  7–10   13:00 – 16:30   50/50 · 10-min break · 50/50
  *   periods 11–14   16:40 – 20:00   50/50/50/50, no break
  * ```
  *
- * **Periods 5 and 6 are undocumented** — they sit in the 11:10–13:00 lunch gap
- * and we have never seen a row use them. Rather than invent times, anything
- * touching them (or any other unknown period) maps to `null`; the caller skips
- * the row and records the reason on the job item. Guessing here would silently
- * put a class on the calendar at the wrong hour, which is strictly worse than
- * not putting it there at all.
+ * **Periods 5 and 6 are the user's decision** — the portal never documented
+ * them and no row has used them, so by decision (plan 1.14) they continue at 50
+ * minutes each after period 4 with no break: 5 = 11:10–12:00, 6 = 12:00–12:50.
+ * Any other unknown period (15 and up, 0) still maps to `null`; the caller
+ * skips the row and records the reason on the job item.
  *
  * Pure: a lookup table and integer arithmetic.
  */
@@ -46,6 +46,9 @@ const PERIODS: ReadonlyMap<number, PeriodSpan> = new Map([
   [2, { startMin: hm(8, 20), endMin: hm(9, 10) }],
   [3, { startMin: hm(9, 30), endMin: hm(10, 20) }],
   [4, { startMin: hm(10, 20), endMin: hm(11, 10) }],
+  // Lunch block — not in the portal; the user's decision, continuing without a break.
+  [5, { startMin: hm(11, 10), endMin: hm(12, 0) }],
+  [6, { startMin: hm(12, 0), endMin: hm(12, 50) }],
   // Afternoon block — 10-minute break between periods 8 and 9.
   [7, { startMin: hm(13, 0), endMin: hm(13, 50) }],
   [8, { startMin: hm(13, 50), endMin: hm(14, 40) }],
@@ -65,8 +68,8 @@ const PERIODS: ReadonlyMap<number, PeriodSpan> = new Map([
  * Partial spans work (`periodId: 3, numberOfPeriods: 2` ⇒ 09:30–11:10), and so
  * do spans that straddle two blocks (10 → 11 crosses the 16:30–16:40 gap),
  * because the span is `[first.startMin, last.endMin)` and any intervening
- * break is simply included. A span that reaches across the undocumented
- * periods 5–6 (e.g. 4 → 7) is `null` by construction, which is the intent.
+ * break is simply included. A span that reaches an unknown period (e.g. 14 → 15)
+ * is `null` by construction, which is the intent.
  *
  * The returned span is **raw** — this function does no grid-snapping. Most
  * boundaries are off the 15-minute grid, so callers must run the span through
@@ -86,7 +89,7 @@ export function periodsToWallClock(
   if (!first || !last) return null;
 
   // Every period in between must be known too, or the span silently swallows
-  // an undocumented one (4 + 4 would otherwise "work" as 10:30 → 13:45).
+  // an unknown one (a hole in the table would otherwise be swallowed).
   for (let p = periodId + 1; p < periodId + numberOfPeriods - 1; p++) {
     if (!PERIODS.has(p)) return null;
   }

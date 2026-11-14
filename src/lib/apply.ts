@@ -35,24 +35,84 @@ interface Work {
   now: number;
   toast?: string;
   sub?: string;
+  short?: boolean; // a repeat was only partly expanded
   moves: Move[];
   log(type: EventType, task: Task, data?: TaskEvent["data"]): void;
 }
 
-/** Expands a simple rrule into occurrences; the planner places each one. */
-function occurrences(rrule: string | undefined, now: number): { notBefore?: number; deadline?: number }[] {
-  if (!rrule) return [{}];
-  const p = Object.fromEntries(rrule.split(";").map((kv) => kv.split("=")));
+const BYDAY = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
+const rule = (rrule: string) => Object.fromEntries(rrule.split(";").map((kv) => kv.split("="))) as Record<string, string | undefined>;
+/** Weekdays a rule keeps (JS getDay), or undefined for every day. */
+const daysOf = (p: Record<string, string | undefined>) => p.BYDAY?.split(",").map((d) => BYDAY.indexOf(d.slice(-2))).filter((d) => d >= 0);
+/** Day-by-day rules: DAILY, or any rule naming weekdays ("thứ 2 hàng tuần", "ngày thường", "mỗi ngày trừ CN"). */
+const byDay = (p: Record<string, string | undefined>) => p.FREQ === "DAILY" || (p.FREQ === "WEEKLY" && !!daysOf(p)?.length);
+const tod = (ms: number) => ms - dayStart(ms);
+
+type Occ = { notBefore?: number; deadline?: number };
+const MAX_OCC = 30;
+
+/** Day starts a DAILY, WEEKLY-with-days, MONTHLY or YEARLY rule lands on from `d0`, and whether the list stops short of the rule's own end. */
+function ruleDays(p: Record<string, string | undefined>, d0: number, now: number): { days: number[]; short: boolean } {
+  const n = Math.max(1, Number(p.INTERVAL) || 1), want = Number(p.COUNT) > 0 ? Number(p.COUNT) : undefined, cap = Math.min(want ?? MAX_OCC, MAX_OCC);
+  const u = /^(\d{4})(\d\d)(\d\d)/.exec(p.UNTIL ?? ""), until = u ? new Date(+u[1], +u[2] - 1, +u[3]).getTime() : undefined;
+  const monthly = p.FREQ === "MONTHLY", yearly = p.FREQ === "YEARLY";
+  const span = want ? (monthly ? 800 : yearly ? 4000 : 90) : monthly ? 92 : yearly ? 400 : (p.FREQ === "WEEKLY" && n > 1) || until !== undefined ? 60 : 7;
+  const end = d0 + (span - 1) * DAY, out: number[] = [];
+  const lo = Math.max(d0, dayStart(now)), wd = daysOf(p);
+  const push = (d: number) => { if (d >= lo && d <= end && (until === undefined || d <= until) && out.length < cap) out.push(d); };
+  if (monthly || yearly) {
+    const b = new Date(d0);
+    for (let k = 0; k < 60 && out.length < cap; k++) {
+      const first = yearly ? new Date(b.getFullYear() + k * n, p.BYMONTH ? Number(p.BYMONTH) - 1 : b.getMonth(), 1) : new Date(b.getFullYear(), b.getMonth() + k * n, 1);
+      if (first.getTime() > end) break;
+      const len = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate(), set = Number(p.BYSETPOS);
+      let day = Number(p.BYMONTHDAY) || b.getDate();
+      if (day < 0) day = len + 1 + day;
+      if (wd?.length && set) { // "thứ 2 đầu tiên": the nth (or last, -1) weekday of the month
+        const same = Array.from({ length: len }, (_, i) => i + 1).filter((x) => new Date(first.getFullYear(), first.getMonth(), x).getDay() === wd[0]);
+        day = same.at(set > 0 ? set - 1 : set) ?? 0;
+      }
+      if (day > 0) push(new Date(first.getFullYear(), first.getMonth(), Math.min(day, len)).getTime());
+    }
+  } else {
+    for (let i = 0; d0 + i * DAY <= end && out.length < cap; i++) {
+      const d = d0 + i * DAY;
+      if (p.FREQ === "DAILY" ? i % n === 0 && (!wd?.length || wd.includes(new Date(d).getDay())) : Math.floor(i / 7) % n === 0 && (!wd?.length ? i % 7 === 0 : wd.includes(new Date(d).getDay()))) push(d);
+    }
+  }
+  const open = n > 1 || monthly || yearly;
+  return { days: out, short: (!want && !until && open) || (until !== undefined && until > end) || (want !== undefined && want > MAX_OCC) };
+}
+
+/** Expands an rrule into occurrences, each on its own day with the said clock and due time moved onto that day. `short` is set when
+ *  only the next stretch of an open-ended rule was made, or the rule is not one we expand, so the toast can say so. */
+function occurrences(rrule: string | undefined, now: number, when?: number, due?: number): { list: Occ[]; short?: boolean } {
+  if (!rrule) return { list: [{ notBefore: when, deadline: due }] };
+  const p = rule(rrule);
   const count = Number(p.COUNT);
-  if (p.FREQ === "DAILY") {
-    const n = Math.min(Number.isFinite(count) && count > 0 ? count : 7, 30);
-    return Array.from({ length: n }, (_, i) => ({ notBefore: Math.max(now, dayStart(now) + i * DAY), deadline: dayStart(now) + (i + 1) * DAY }));
+  if (p.FREQ === "HOURLY") { // "mỗi 3 tiếng": one task per hour step of the day, from the first hour left
+    const n = Math.max(1, Number(p.INTERVAL) || 1), hrs = (p.BYHOUR?.split(",").map(Number) ?? [...Array(24).keys()]).filter(Number.isFinite);
+    const d0 = dayStart(when ?? due ?? now), left = (d: number) => hrs.filter((h, i) => i % n === 0 && d + h * 3600_000 >= now).slice(0, MAX_OCC);
+    const d = left(d0).length ? d0 : d0 + DAY, at = left(d); // nothing left today: tomorrow's
+    return { list: at.map((h) => ({ notBefore: d + h * 3600_000, deadline: d + (h + n) * 3600_000 })), short: true };
+  }
+  const known = byDay(p) || p.FREQ === "MONTHLY" || p.FREQ === "YEARLY" || (p.FREQ === "WEEKLY" && Number(p.INTERVAL) > 1);
+  if (known) {
+    const { days, short } = ruleDays(p, dayStart(when ?? (p.FREQ === "MONTHLY" || p.FREQ === "YEARLY" ? due : undefined) ?? now), now);
+    return {
+      short,
+      list: days.map((d) => {
+        // A due time before the clock (or at midnight) means "by the end of that day".
+        const end = due !== undefined && tod(due) > 0 && (when === undefined || tod(due) > tod(when)) ? d + tod(due) : d + DAY;
+        return { notBefore: when !== undefined ? d + tod(when) : Math.max(now, d), deadline: end };
+      }),
+    };
   }
   if (p.FREQ === "WEEKLY") {
     const n = Math.min(Number.isFinite(count) && count > 0 ? count : 1, 7);
-    return Array.from({ length: n }, () => ({ deadline: dayStart(now) + 7 * DAY }));
+    return { list: Array.from({ length: n }, () => ({ notBefore: when, deadline: due ?? dayStart(now) + 7 * DAY })) };
   }
-  return [{}];
+  return { list: [{ notBefore: when, deadline: due }], short: true };
 }
 
 const at = (x: Task) => x.start ?? x.notBefore ?? x.deadline ?? 0;
@@ -62,9 +122,11 @@ const seriesKey = (x: Task) => `${x.rrule}|${x.title}`;
  *  "following" is this one and later ones, "all" the whole series, "this" just itself. */
 export function scopeIds(tasks: Task[], id: string, scope: "this" | "following" | "all"): string[] {
   const me = tasks.find((x) => x.id === id);
-  const kin = (x: Task) => (me?.section ? x.section === me.section : !!me?.rrule && x.rrule === me.rrule && x.title === me.title);
-  if (!me || scope === "this") return [id];
-  return tasks.filter((x) => x.id === id || (kin(x) && !x.deletedAt && !x.doneAt && (scope === "all" || at(x) >= at(me)))).map((x) => x.id);
+  const kin = (x: Task) => (me?.section ? x.section === me.section : me?.parentId ? x.parentId === me.parentId : !!me?.rrule && x.rrule === me.rrule && x.title === me.title);
+  const ids = !me || scope === "this" ? [id] : tasks.filter((x) => x.id === id || (kin(x) && !x.deletedAt && !x.doneAt && (scope === "all" || at(x) >= at(me)))).map((x) => x.id);
+  // Last live sitting gone: the parent goes too (last, after its sittings), or the planner splits it again.
+  if (me?.parentId && tasks.every((x) => x.parentId !== me.parentId || x.deletedAt || x.doneAt || ids.includes(x.id))) ids.push(me.parentId);
+  return ids;
 }
 
 export async function loadGone(): Promise<Gone> {
@@ -82,11 +144,12 @@ export async function removeScope(id: string, scope: "this" | "following" | "all
     if (me.section) gone.sections[me.section] = cut; else gone.series[seriesKey(me)] = cut;
     await store.kvSet("gone", JSON.stringify(gone));
   }
-  const r = await apply(scopeIds(tasks, id, scope).map((target) => ({ op: "delete" as const, target })), now);
+  // No replan: freed time needs nothing moved, and the rest of the calendar should not reshuffle under the user.
+  const r = await transact(now, async (w) => { for (const target of scopeIds(tasks, id, scope)) await act(w, { op: "delete", target }); }, { replan: false });
   return { ...r, undo: async () => { await store.kvSet("gone", raw ?? "{}"); await r.undo(); } };
 }
 
-/** Occurrences a live user series is missing so it reaches ~14 days ahead; one per day (daily) or `COUNT` per week (weekly). */
+/** Occurrences a live user series is missing so it reaches ~14 days ahead; one per kept day (daily or weekdays) or `COUNT` per week (weekly). */
 function missing(tasks: Task[], gone: Gone, now: number): Task[] {
   const horizon = now + 14 * DAY;
   const series = new Map<string, Task[]>();
@@ -94,16 +157,19 @@ function missing(tasks: Task[], gone: Gone, now: number): Task[] {
   const out: Task[] = [];
   for (const [key, xs] of series) {
     const last = xs.reduce((a, b) => (at(b) > at(a) ? b : a));
-    const p = Object.fromEntries(last.rrule!.split(";").map((kv) => kv.split("=")));
+    const p = rule(last.rrule!);
     const cut = gone.series[key];
     if (!xs.some((x) => !x.deletedAt) || cut === 0) continue;
     const copy = (o: { notBefore?: number; deadline: number }): Task => ({
       ...last, ...o, id: uid(), start: undefined, end: undefined, doneAt: undefined, deletedAt: undefined, userEdited: undefined, note: undefined, createdAt: now,
     });
-    if (p.FREQ === "DAILY" && !p.COUNT) {
+    if (byDay(p) && !p.COUNT) {
       const have = new Set(xs.map((x) => dayStart((x.deadline ?? 0) - 1)));
+      const days = daysOf(p), clock = last.notBefore !== undefined && tod(last.notBefore) ? tod(last.notBefore) : undefined;
+      const due = last.deadline !== undefined && tod(last.deadline) ? tod(last.deadline) : DAY;
       for (let d = dayStart(now); d <= horizon; d += DAY) {
-        if (!have.has(d) && (cut === undefined || d < cut)) out.push(copy({ notBefore: Math.max(now, d), deadline: d + DAY }));
+        if (days?.length && !days.includes(new Date(d).getDay())) continue;
+        if (!have.has(d) && (cut === undefined || d < cut)) out.push(copy({ notBefore: clock !== undefined ? d + clock : Math.max(now, d), deadline: d + due }));
       }
     } else if (p.FREQ === "WEEKLY") {
       const n = Math.min(Number(p.COUNT) > 0 ? Number(p.COUNT) : 1, 7);
@@ -146,15 +212,17 @@ async function act(w: Work, a: Action) {
   if (a.op === "create") {
     const title = a.title?.trim();
     if (!title) return;
-    const when = ms(a.when);
+    const when = ms(a.when) ?? ms(a.notBefore);
     if (a.repeat) {
       const gone = await loadGone();
       if (delete gone.series[`${a.repeat}|${title}`]) await store.kvSet("gone", JSON.stringify(gone)); // a fresh series replaces the deleted one
     }
-    for (const o of occurrences(a.repeat, now)) {
+    const occ = occurrences(a.repeat, now, when, ms(a.deadline));
+    if (occ.short) w.short = true;
+    for (const o of occ.list) {
       const task: Task = {
         id: uid(), title, vec: titleVec(title), kind: a.kind ?? "other", source: "user", effort: a.effortMinutes ?? 0, createdAt: now,
-        deadline: ms(a.deadline) ?? o.deadline, notBefore: when ?? o.notBefore, rrule: a.repeat,
+        deadline: o.deadline, notBefore: o.notBefore, rrule: a.repeat, ...(a.location ? { location: a.location } : {}),
       };
       w.tasks.set(task.id, task);
     }
@@ -260,7 +328,7 @@ async function transact(now: number, mutate: (w: Work) => Promise<void> | void, 
   const toast = o.text?.(diff, w) ?? insTitle ?? w.toast ?? t("nothing");
   return {
     toast,
-    sub: w.sub ?? (ins && toast === insTitle ? fill(ins.sub, ins.vars) : undefined),
+    sub: [w.sub ?? (ins && toast === insTitle ? fill(ins.sub, ins.vars) : undefined), w.short ? t("repeatShort") : undefined].filter(Boolean).join(". ") || undefined,
     changed: changed.length > 0,
     steps: diff?.steps,
     warn: diff?.warn,

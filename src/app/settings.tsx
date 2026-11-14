@@ -1,7 +1,7 @@
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { Appearance, Dimensions, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { Appearance, Dimensions, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import Animated from "react-native-reanimated";
 import { Icon, TypeArt } from "@/components/art";
 import { Chevron } from "@/components/day";
@@ -34,9 +34,11 @@ const Pill = ({ label, on, onPress, sweep }: { label: string; on: boolean; onPre
 function Row({ label, right, onPress, flat }: { label: string; right?: React.ReactNode; onPress?: () => void; flat?: boolean }) {
   const th = useTheme();
   return (
-    <Tap variant="row" onPress={onPress} disabled={!onPress} style={[s.row, { borderColor: th.line }, flat && { borderBottomWidth: 0, paddingBottom: 4 }]}>
+    // The press highlight bleeds 14px past the text; the hairline stays on the text column.
+    <Tap variant="row" onPress={onPress} disabled={!onPress} style={[s.row, flat && { paddingBottom: 4 }]}>
       <Text style={{ fontSize: font.base, fontFamily: ff("600"), color: th.ink }}>{label}</Text>
       <View style={s.right}>{right}</View>
+      {!flat && <View style={[s.hair, { backgroundColor: th.line }]} />}
     </Tap>
   );
 }
@@ -72,7 +74,9 @@ export default function Settings() {
   // Appearance.setColorScheme makes useColorScheme (and so useTheme) follow; _layout must re-apply kv "theme" at launch.
   const pickMode = async (m: Mode) => { setMode(m); Appearance.setColorScheme(m === "system" ? "unspecified" : m); await kvSet("theme", m); };
 
-  const done = (r: Res) => { setOk(r); if (r.portal === "ok" && r.lms === "ok") { setOpen(false); setOk(null); } refresh(); };
+  // Closes once nothing needs retyping; a source left blank ("off") is a choice, not a problem.
+  const fine = (c: Res["portal"]) => c === "ok" || c === "off";
+  const done = (r: Res) => { setOk(r); if (fine(r.portal) && fine(r.lms) && (r.portal === "ok" || r.lms === "ok")) { setOpen(false); setOk(null); } refresh(); };
   const off = async (which: "lms" | "portal" | "both") => {
     await disconnect(which);
     setToast({ text: t("disconnected"), sub: t(which === "lms" ? "offdLms" : which === "portal" ? "offdPortal" : "pwRemoved") });
@@ -88,7 +92,9 @@ export default function Settings() {
   return (
     <Sweep>
     <SafeAreaView style={[s.root, { backgroundColor: th.bg }]}>
-      <ScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
+      {/* iOS: insets follow the keyboard. Android (edge-to-edge, no adjustResize): pad the view by the keyboard. */}
+      <KeyboardAvoidingView style={s.root} behavior={Platform.OS === "android" ? "padding" : undefined}>
+      <ScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets keyboardDismissMode="interactive">
         <Tap onPress={() => router.back()} hitSlop={8} style={[s.o, { borderColor: th.line }]} accessibilityRole="button" accessibilityLabel={t("back")}>
           <Icon name="x" size={20} color={th.ink} />
         </Tap>
@@ -107,7 +113,6 @@ export default function Settings() {
           <Animated.View entering={fadeIn} exiting={fadeOut} layout={glide}>
             <Tap onPress={() => (bad ? fix() : sync().then(refresh))} scale={0.98} style={s.art}>
               <View style={StyleSheet.absoluteFill}><TypeArt type={bad ? "exam" : "lecture"} seed={5} w={264} h={118} /></View>
-              <Text style={s.artLab}>{t("campusCard")}</Text>
               <Text style={[s.artId, bad ? { fontFamily: ff(), fontSize: 17 } : null]} numberOfLines={2}>{title}</Text>
               <Text style={s.artSub}>{sub}</Text>
               <View style={s.glass}><Icon name={bad ? "right" : "sync"} size={18} color="#fff" /></View>
@@ -136,6 +141,7 @@ export default function Settings() {
           </Animated.View>
         )}
       </ScrollView>
+      </KeyboardAvoidingView>
       {toast ? <Toast key={toast.text + toast.sub} text={toast.text} sub={toast.sub} /> : null}
     </SafeAreaView>
     </Sweep>
@@ -150,11 +156,11 @@ const s = StyleSheet.create({
   lab: { fontSize: font.label, fontFamily: ff("500") },
   pills: { flexDirection: "row", gap: 8, marginTop: 10 },
   pill: { height: 36, paddingHorizontal: 16, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  row: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 17, borderBottomWidth: StyleSheet.hairlineWidth },
+  row: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 17, paddingHorizontal: 14, marginHorizontal: -14, borderRadius: 14 },
+  hair: { position: "absolute", left: 14, right: 14, bottom: 0, height: StyleSheet.hairlineWidth },
   right: { marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 8 },
   art: { marginTop: 12, height: 132, borderRadius: 28, overflow: "hidden", padding: 16, paddingHorizontal: 18 },
-  artLab: { color: "#fff", opacity: 0.85, fontSize: font.label, fontFamily: ff("500") },
-  artId: { color: "#fff", fontSize: 20, fontFamily: ff("600"), marginTop: 6 },
+  artId: { color: "#fff", fontSize: 20, fontFamily: ff("600") },
   artSub: { color: "#fff", opacity: 0.9, fontFamily: ff(), fontSize: font.sub, paddingRight: 50 },
   chevO: { width: 30, height: 30, marginLeft: -6, borderRadius: 15, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   off: { paddingVertical: 17, alignItems: "flex-start" },

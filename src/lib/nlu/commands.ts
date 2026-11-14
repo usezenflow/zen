@@ -1,5 +1,6 @@
 import type { Action } from "../types";
-import { readActions } from "./adapt";
+import { readActions, type ReadExtra } from "./adapt";
+import type { ReaderSource } from "./shared";
 import { fold } from "./reader/fold";
 
 // Pure rule-based voice commands: done / delete / move / note on existing tasks, else the reader's creates.
@@ -29,7 +30,7 @@ const wallHm = (ms: number) => new Date(ms + 7 * 3600_000).toISOString().slice(1
  * Actions for one spoken line. Commands need a task they can name; when the words point at none, the line is
  * not a command and returns [] (the caller says it didn't understand) rather than creating "xong bài tập".
  */
-export function think(text: string, now: Date, tasks: Known[]): Action[] {
+export function think(text: string, now: Date, tasks: Known[], source: ReaderSource = "typed", extra: ReadExtra = {}): Action[] {
   const { text: f, map } = fold(text.trim());
   const orig = (g: string) => text.trim().slice(map[f.length - g.length]); // every group used here ends the line
   const note = NOTE.exec(f);
@@ -43,11 +44,11 @@ export function think(text: string, now: Date, tasks: Known[]): Action[] {
   const mv = MOVE.exec(f);
   if (mv) {
     const x = target(mv[1], tasks);
-    const a = readActions(orig(mv[2]), now)[0];
+    const a = readActions(orig(mv[2]), now, source, { ...extra, alternatives: undefined })[0];
     // A day without a clock ("sang thứ sáu") keeps the task's own time on that day.
     const at = a?.when ?? (a?.deadline && (a.deadline.endsWith("23:59:00") ? `${a.deadline.slice(0, 10)}T${x?.start !== undefined ? wallHm(x.start) : "09:00"}:00` : a.deadline));
     return x && at ? [{ op: "edit", target: x.id, when: at }] : [];
   }
-  const a = readActions(text, now);
+  const a = readActions(text, now, source, extra);
   return a.length ? a : [{ op: "create", title: text.trim() }];
 }

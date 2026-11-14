@@ -23,6 +23,9 @@ const I = {
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   dots: '<circle cx="6" cy="12" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="18" cy="12" r="1" fill="currentColor"/>',
   sync: '<path d="M20 11a8 8 0 0 0-14.5-4.5M4 13a8 8 0 0 0 14.5 4.5"/><path d="M5 3v4h4M19 21v-4h-4"/>',
+  image: '<rect x="3.5" y="4.5" width="17" height="15" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M4 17l5-4.5 4 3.5 3-2.5 4 3.5"/>',
+  type: '<path d="M5 6.5h14M12 6.5V19M9 19h6"/>',
+  send: '<path d="M12 19V5M6 11l6-6 6 6"/>',
 };
 export type IconName = keyof typeof I;
 

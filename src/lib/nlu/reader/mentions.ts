@@ -392,7 +392,7 @@ const RULES: Rule[] = [
   ],
   [
     "recur",
-    /(?<![a-z])moi(?=\s+(?:sang|trua|chieu|toi|dem)(?![a-z]))/g,
+    /(?<![a-z])(?:moi|hang)(?=\s+(?:sang|trua|chieu|toi|dem|khuya)(?![a-z]))/g, // "mỗi tối", "hằng đêm"
     () => ({ k: "recur", freq: "DAILY" }),
   ],
   [

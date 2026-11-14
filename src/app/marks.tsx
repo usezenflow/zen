@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { Fill } from "@/components/meter";
-import { fadeIn, Tap } from "@/components/tap";
+import { fadeIn, Tap, EASE } from "@/components/tap";
 import type { ParsedMarks } from "@/lib/dlu/parse/student";
 import { Icon, TypeArt } from "@/components/art";
 import { t } from "@/lib/i18n";
@@ -41,7 +41,7 @@ export default function Marks() {
               </View>
             </Animated.View>
             {terms.map((tm, ti) => (
-              <Animated.View key={`${tm.yearStudy}|${tm.termId}`} entering={FadeInDown.delay(60 + Math.min(ti, 8) * 30).springify().damping(20)}>
+              <Animated.View key={`${tm.yearStudy}|${tm.termId}`} entering={FadeInDown.delay(60 + Math.min(ti, 8) * 30).duration(220).easing(EASE)}>
                 <View style={[s.labRow, ti > 0 && { marginTop: 20 }]}>
                   <Text style={[s.labT, { color: th.muted }]}>{t("termOf", { t: tm.termId, y: tm.yearStudy })}</Text>
                   <Text style={[s.labT, { color: th.muted }]}>{num(tm.gpa4)}</Text>

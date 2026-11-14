@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Linking, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import Animated from "react-native-reanimated";
 import { fadeIn, Tap } from "@/components/tap";
 import { Icon, TypeArt } from "@/components/art";
@@ -15,12 +15,12 @@ import { setFlash } from "@/lib/flash";
 import { allTasks, loadModel } from "@/lib/store";
 import { reasonText } from "@/lib/reasons";
 import { useTheme, type TypeName, font, space, ff } from "@/lib/theme";
+import { typeOf } from "@/planner";
 import type { Placed } from "@/planner/model";
 import type { Task } from "@/lib/types";
 import { dayLabel, when } from "@/lib/when";
 
 type Scope = "this" | "following" | "all";
-const typeOf = (x: Task): TypeName => x.fixed ?? (x.source === "dlu" && x.deadline ? "assignment" : "plan");
 
 export default function Detail() {
   const th = useTheme();
@@ -56,8 +56,8 @@ export default function Detail() {
   const typing = (v: string) => { setNote(v); latest.current = v; clearTimeout(noteTimer.current); noteTimer.current = setTimeout(saveNote, 800); };
 
   if (!task) return <SafeAreaView style={{ flex: 1, backgroundColor: th.bg }} />;
-  const type = task.forId ? "plan" : typeOf(task);
-  const series = !!(task.section || task.rrule);
+  const type: TypeName = typeOf(task);
+  const series = !!(task.section || task.rrule || task.parentId);
   const at = (ts: number) => when(ts, now);
 
   const del = async (scope: Scope) => {
@@ -81,11 +81,12 @@ export default function Detail() {
     if (task.deadline !== undefined && task.source === "dlu" && !task.forId) lines.push(<Meta key="d" icon="clock" tone="red" text={t("dueAt", { t: at(task.deadline) })} />);
     if (task.start !== undefined) lines.push(<Meta key="t" icon="clock" text={task.rrule ? `${hm(task.start)}${mins}` : `${t("planAt", { t: at(task.start) })}${mins}`} />);
   }
+  // The repeat sits right under the time (views.html "Detail, repeating"); lectures have none, the timetable is the repeat.
+  if (task.rrule && !task.section) lines.push(<Meta key="r" icon="repeat" text={repeatText(task.rrule, task.start ?? task.deadline ?? now)} />);
   if (task.location && task.fixed) lines.push(<Meta key="l" icon="pin" text={task.location} />);
   if (task.fixed === "lecture" && task.teacher) lines.push(<Meta key="g" icon="person" text={t("teacherIs", { n: task.teacher })} />);
   if (task.course) lines.push(<Meta key="c" icon="book" text={task.course} />);
   if (exam) lines.push(<Meta key="e" icon="book" tone="link" text={t("prepFor", { format: exam.format ? exam.format.toLowerCase() : "thi" })} onPress={() => router.push(`/task/${exam.id}`)} />);
-  if (task.rrule && !task.section) lines.push(<Meta key="r" icon="repeat" text={repeatText(task.rrule, task.start ?? task.deadline ?? now)} />);
   if (task.url) lines.push(<Meta key="u" icon="link" tone="link" text={t("openLms")} onPress={() => Linking.openURL(task.url!)} />);
 
   const why = !task.fixed ? plc?.why?.slice(0, 4) : undefined;
@@ -99,27 +100,28 @@ export default function Detail() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: th.bg }}>
       {/* iOS insets follow the keyboard curve and drag-to-dismiss; KeyboardAvoidingView jumped instead. */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "android" ? "padding" : undefined}>
       <ScrollView contentContainerStyle={{ padding: space.gutter, paddingBottom: 60 }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets keyboardDismissMode="interactive">
         <Animated.View entering={fadeIn}>
           <View style={s.bar}>
             <Tap onPress={() => router.back()} accessibilityLabel={t("back")} style={circle}><Icon name="back" size={18} color={th.ink} /></Tap>
             {series ? (
               <View style={circle}>
-                <DropMenu sf="trash" color={th.ink} size={18} icon={<Gly name="trash" size={18} color={th.ink} />} items={[
+                <DropMenu sf="trash" color={th.seal} size={18} icon={<Gly name="trash" size={18} color={th.seal} />} items={[
                   { label: t("deleteThis"), onPress: () => del("this") },
                   { label: t("deleteFollowing"), onPress: () => del("following") },
                   { label: t("deleteAll"), destructive: true, onPress: () => del("all") },
                 ]} />
               </View>
             ) : (
-              <Tap onPress={() => del("this")} accessibilityLabel={t("delete")} style={circle}><Gly name="trash" size={18} color={th.ink} /></Tap>
+              <Tap onPress={() => del("this")} accessibilityLabel={t("delete")} style={circle}><Gly name="trash" size={18} color={th.seal} /></Tap>
             )}
           </View>
           <View style={s.who}>
             <View style={s.sw}><TypeArt type={type} w={40} h={40} seed={7} /></View>
             <Text style={[s.sub, { color: th.muted }]}>{task.source === "dlu" && !task.forId ? (task.fixed ? t("fromCampus") : t("fromLms")) : t("fromYou")}</Text>
           </View>
-          <TextInput value={title} onChangeText={setTitle} onEndEditing={submitTitle} returnKeyType="done" submitBehavior="blurAndSubmit" multiline style={[s.h, { color: th.ink }]} />
+          <TextInput value={title} onChangeText={setTitle} selectionColor={th.seal} cursorColor={th.seal} onEndEditing={submitTitle} returnKeyType="done" submitBehavior="blurAndSubmit" multiline style={[s.h, { color: th.ink }]} />
           {lines.length > 0 && <View style={s.meta}>{lines}</View>}
           {!!task.content?.trim() && (
             <View style={[s.lms, { borderColor: th.line }]}>
@@ -148,10 +150,11 @@ export default function Detail() {
               )}
             </View>
           )}
-          <TextInput value={note} onChangeText={typing} onBlur={saveNote} multiline scrollEnabled={false} placeholder={t("addNote")} placeholderTextColor={th.muted}
+          <TextInput value={note} onChangeText={typing} selectionColor={th.seal} cursorColor={th.seal} onBlur={saveNote} multiline scrollEnabled={false} placeholder={t("addNote")} placeholderTextColor={th.muted}
             style={[s.note, { color: th.ink }]} />
         </Animated.View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

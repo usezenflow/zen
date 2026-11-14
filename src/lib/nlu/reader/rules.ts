@@ -7,7 +7,7 @@ import { fold } from "./fold";
  * comma, which names no day of its own.
  */
 const EXCEPT =
-  /(?<![a-z])(?:tru|except)\s+(?:(?:thu\s*[2-7]|t[2-7]|cn|chu nhat|mon|tue|wed|thu|fri|sat|sun)(?![a-z])|(?:cac\s+)?(?:hom|ngay|buoi)\b[^,;.!?\n]*)/g;
+  /(?<![a-z])(?:tru|except)\s+(?:(?:thu\s*[2-7]|t[2-7]|cn|chu nhat|mon|tue|wed|thu|fri|sat|sun)(?![a-z])(?:\s*(?:,|va|voi)\s*(?:thu\s*[2-7]|t[2-7]|cn|chu nhat)(?![a-z]))*|(?:cac\s+)?(?:hom|ngay|buoi)\b[^,;.!?\n]*)/g;
 
 /** Raw spans of the "trừ thứ N" phrases, to blank before the mention pass. */
 export function exceptSpans(raw: string): [number, number][] {
@@ -41,6 +41,13 @@ export const SPREAD: Record<number, string> = {
 };
 const pad = (n: number) => String(n).padStart(2, "0");
 
+const DAY_WORD = /(?<![a-z])(?:thu\s*([2-7])|t([2-7])|(cn|chu nhat))(?![a-z\d])/g;
+/** JS weekdays named after "trừ", through a list joined by "và" or commas: "trừ thứ 7 và CN". */
+function droppedDays(clause: string): Set<number> {
+  const m = /(?<![a-z])(?:tru|except)\s+((?:(?:thu\s*[2-7]|t[2-7]|cn|chu nhat)(?:\s*(?:,|va|voi)\s*)?)+)/.exec(clause);
+  return new Set(m ? [...m[1].matchAll(DAY_WORD)].map((d) => (d[3] ? 0 : Number(d[1] ?? d[2]) - 1)) : []);
+}
+
 /**
  * The base RRULE of a phrase, for a folded text with a recurrence cue. Undefined when the phrase
  * names no rule this module reads: the caller keeps its own rule (a weekday list, "hàng tuần" with a weekday).
@@ -54,6 +61,11 @@ export function ruleBase(f: string, clause: string = f): string | undefined {
   ) {
     const drop = /tru (?:thu 4|t4)|except wed/.test(clause);
     return `FREQ=WEEKLY;BYDAY=${["MO", "TU", "WE", "TH", "FR"].filter((d) => !(drop && d === "WE")).join(",")}`;
+  }
+  // "mỗi ngày trừ chủ nhật", "hằng ngày trừ thứ 7 và CN": a daily rule limited to the days left
+  if (/(?<![a-z])(?:moi|hang) ngay(?![a-z])(?! trong tuan)/.test(f)) {
+    const out = droppedDays(clause);
+    if (out.size) return `FREQ=DAILY;BYDAY=${[1, 2, 3, 4, 5, 6, 0].filter((d) => !out.has(d)).map((d) => DAYS[d]).join(",")}`;
   }
   if (
     /(?<![a-z])(?:moi|hang) cuoi tuan(?![a-z])|weekends?|(?<![a-z])(?:thu ?7|t7) (?:va )?(?:cn|chu nhat)(?![a-z])/.test(

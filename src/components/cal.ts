@@ -1,4 +1,4 @@
-import type { Task } from "@/lib/types";
+import type { Rule, Task } from "@/lib/types";
 
 export const DAY = 86400_000;
 export const startOfDay = (ms: number) => new Date(ms).setHours(0, 0, 0, 0);
@@ -25,3 +25,9 @@ export const holLines = (title: string): [string, string?] => {
   // Narrow column: a long phone-calendar title ("Ngày Nhà giáo Việt Nam") becomes "Tết" or "Lễ", never a clipped half-word.
   return [title.length <= 7 ? title : /tết/i.test(title) ? "Tết" : "Lễ"];
 };
+
+/** Rules that keep time free on a day ("Tối CN để trống"); kind-only rules ("tập thể dục sau 5 giờ") are not free time. */
+export const keptOn = (rules: Rule[], day: number) =>
+  rules.filter((r) => !r.kinds.length && (!r.days.length || r.days.includes(new Date(day).getDay())) && r.to > r.from).sort((a, b) => a.from - b.from);
+const hm = (min: number) => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+export const keptSpan = (r: Rule) => `${hm(r.from)}–${hm(r.to)}`;

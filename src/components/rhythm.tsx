@@ -1,13 +1,13 @@
 import { StyleSheet, Text, View } from "react-native";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { Icon, TypeArt } from "@/components/art";
 import { Meter } from "@/components/meter";
-import { fadeIn } from "@/components/tap";
+import { fadeIn, settle } from "@/components/tap";
 import { t } from "@/lib/i18n";
 import { KIND_VI } from "@/lib/reasons";
-import { useTheme, font, ff, motion } from "@/lib/theme";
+import { useTheme, font, ff } from "@/lib/theme";
 import type { Kind, Rule } from "@/lib/types";
 import type { Insights } from "@/planner";
 
@@ -28,7 +28,7 @@ function Forget({ onForget, children }: { onForget: () => void; children: React.
   const pan = usePanGesture({
     activeOffsetX: [-16, 9999], failOffsetY: [-10, 10],
     onUpdate: (e) => { "worklet"; tx.set(Math.min(0, e.translationX)); },
-    onDeactivate: (e) => { "worklet"; const go = e.translationX <= -SWIPE; tx.set(withSpring(0, motion.snappy)); if (go) scheduleOnRN(onForget); },
+    onDeactivate: (e) => { "worklet"; const go = e.translationX <= -SWIPE; tx.set(settle(0)); if (go) scheduleOnRN(onForget); },
   });
   const slide = useAnimatedStyle(() => ({ transform: [{ translateX: tx.get() }] }));
   return (
@@ -39,13 +39,13 @@ function Forget({ onForget, children }: { onForget: () => void; children: React.
   );
 }
 
-const Card = ({ title, sub, children }: { title: string; sub: string; children: React.ReactNode }) => {
+const Card = ({ title, sub, children }: { title: string; sub: string; children?: React.ReactNode }) => {
   const th = useTheme();
   return (
     <Animated.View entering={fadeIn} style={[s.ins, { backgroundColor: th.chip }]}>
       <Text style={[s.b, { color: th.ink }]}>{title}</Text>
       <Text style={[s.small, { color: th.muted, marginTop: 4 }]}>{sub}</Text>
-      <View style={s.viz}>{children}</View>
+      {children ? <View style={s.viz}>{children}</View> : null}
     </Animated.View>
   );
 };
@@ -81,11 +81,11 @@ export function Rhythm({ i, rules, onForget }: { i: Insights; rules: Rule[]; onF
         </View>
         <View style={s.hrs}>{[0, 6, 12, 18, 24].map((h) => <Text key={h} style={s.hr}>{h}</Text>)}</View>
       </View>
-      {!g && <Card title={t("learningT")} sub={t("learningSub")}><Meter v={0.1} guess /></Card>}
+      {!g && <Card title={t("learningT")} sub={t("learningSub")} />}
       {pair && <Card title={t("pairTitle", { k: KIND_VI[pair.before] })} sub={t("pairSub")}><Chip kind={pair.before} /></Card>}
       {kind && <Card title={t("kindTitle", { k: KIND_VI[kind.kind], a: kind.from, b: kind.to })} sub={t("kindSub")}><Chip kind={kind.kind} /><Meter v={kind.sure} /></Card>}
       {slip && <Card title={t("slipTitle", { k: KIND_VI[slip.kind] })} sub={t("slipSub", { n: Math.round(slip.rate * 10) })}><Meter v={slip.rate} /></Card>}
-      {un && <Card title={t("unsureTitle", { a: un.from, b: un.to })} sub={t("unsureSub")}><Meter v={0.25} guess /></Card>}
+      {un && <Card title={t("unsureTitle", { a: un.from, b: un.to })} sub={t("unsureSub")} />}
 
       <Text style={[s.lab2, { color: th.muted }]}>{t("saidByYou")}</Text>
       {rules.length ? rules.map((r) => (
@@ -100,7 +100,6 @@ export function Rhythm({ i, rules, onForget }: { i: Insights; rules: Rule[]; onF
       {i.guesses.length ? i.guesses.map((x) => (
         <View key={x.text} style={line}>
           <View style={s.tx}><Text style={[s.b, { color: th.ink }]}>{x.text}</Text><Text style={[s.small2, { color: th.muted }]}>{sureWord(x.sure)}</Text></View>
-          <Meter v={x.sure} guess={x.sure < 0.5} width={56} />
         </View>
       )) : <Empty title={t("noGuessesT")} sub={t("noGuesses")} />}
       {rules.length > 0 && <Text style={[s.small, { color: th.muted, marginTop: 16, fontSize: 14 }]}>{t("swipeForget")}</Text>}

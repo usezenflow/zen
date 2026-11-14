@@ -8,11 +8,11 @@ const exam = (over: Partial<Task> = {}): Task => ({
 });
 
 describe("preps", () => {
-  it("gives 2 or 3 sittings of 30 min due at the exam", () => {
-    for (const [weak, n] of [[0, 2], [0.4, 2], [0.5, 3], [1, 3]] as const) {
+  it("gives 1 or 2 sittings of 45 min due at the exam", () => {
+    for (const [weak, n] of [[0, 1], [0.4, 1], [0.5, 2], [1, 2]] as const) {
       const [p] = preps(exam(), weak);
-      expect(p).toMatchObject({ title: "Ôn Toán", source: "user", forId: "dlu:e", deadline: 1e12, maxSitting: 30, effort: 30 * n });
-      expect(split(p.effort, p.maxSitting)).toEqual(Array(n).fill(30));
+      expect(p).toMatchObject({ title: "Ôn Toán", source: "user", forId: "dlu:e", deadline: 1e12, maxSitting: 45, effort: 45 * n });
+      expect(split(p.effort, p.maxSitting)).toEqual(Array(n).fill(45));
     }
   });
   it("gives none for a report exam", () => {

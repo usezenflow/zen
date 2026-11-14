@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { newModel } from "../planner";
 import type { Note, Task, TaskEvent } from "./types";
 
@@ -153,6 +153,15 @@ it("scope covers a lecture section by section id; all includes earlier ones", ()
   expect(scopeIds(ts, "b", "all")).toEqual(["a", "b", "c"]);
 });
 
+it("split sittings are a series; the parent goes once no sitting is left, so it is not split again", () => {
+  const sit = (id: string, d: number) => T({ id, parentId: "p", start: NOW + d * DAYMS, end: NOW + d * DAYMS + H1 });
+  const ts = [T({ id: "p" }), sit("p#1", 1), sit("p#2", 2), sit("p#3", 3)];
+  expect(scopeIds(ts, "p#2", "this")).toEqual(["p#2"]);
+  expect(scopeIds(ts, "p#2", "following")).toEqual(["p#2", "p#3"]);
+  expect(scopeIds(ts, "p#2", "all")).toEqual(["p#1", "p#2", "p#3", "p"]);
+  expect(scopeIds([ts[0], { ...ts[1], deletedAt: NOW }, ts[2]], "p#2", "this")).toEqual(["p#2", "p"]);
+});
+
 it("removeScope tombstones the section and a fresh repeating create clears a series tombstone", async () => {
   for (const [id, d] of [["a", 1], ["b", 8]] as const) db.tasks.set(id, T({ id, source: "dlu", section: "S1", fixed: "lecture", start: NOW + d * DAYMS, end: NOW + d * DAYMS + H1 }));
   const r = await removeScope("b", "following", NOW);
@@ -233,4 +242,65 @@ it("a move's cause is the new class over its old slot", async () => {
   const m = (await loadMoves()).find((x) => x.id === read.id)!;
   expect(m.from).toBe(s0);
   expect(m.cause).toMatch(/^Vì Tiết bù /);
+});
+
+it("a repeat puts each occurrence on its own day, with the said clock and due time, and skips left-out weekdays", async () => {
+  const d0 = new Date(NOW); d0.setHours(0, 0, 0, 0);
+  const day0 = d0.getTime(), at = (d: number, h: number, m = 0) => day0 + d * DAYMS + (h * 60 + m) * 60_000;
+  await apply([{ op: "create", title: "Đọc", repeat: "FREQ=DAILY", when: new Date(at(1, 20)).toISOString() }], NOW);
+  const reads = live().filter((x: Task) => x.title === "Đọc").sort((a: Task, b: Task) => a.notBefore! - b.notBefore!);
+  expect(reads.map((x: Task) => x.notBefore)).toEqual(Array.from({ length: 7 }, (_, i) => at(1 + i, 20)));
+  expect(reads.map((x: Task) => x.deadline)).toEqual(Array.from({ length: 7 }, (_, i) => at(2 + i, 0)));
+  await apply([{ op: "create", title: "Yoga", repeat: "FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR,SA", deadline: new Date(at(0, 23, 59)).toISOString() }], NOW);
+  const yoga = live().filter((x: Task) => x.title === "Yoga");
+  expect(yoga.length).toBe(6);
+  expect(yoga.every((x: Task) => new Date(x.deadline!).getDay() !== 0 && new Date(x.deadline!).getHours() === 23)).toBe(true);
+  expect(new Set(yoga.map((x: Task) => new Date(x.deadline!).toDateString())).size).toBe(6);
+});
+
+// Plan 1.12: every repeat shape is expanded or flagged, never dropped to one silent task.
+describe("repeat shapes", () => {
+  const day = (ms?: number) => (ms === undefined ? "" : new Date(ms).toLocaleDateString("sv")); // YYYY-MM-DD, local; notBefore is the occurrence's own start
+  const make = async (repeat: string, extra: Partial<Parameters<typeof apply>[0][number]> = {}) => {
+    const r = await apply([{ op: "create", title: "Việc", repeat, ...extra }], NOW);
+    const own = live().filter((x) => x.rrule === repeat && !x.parentId).sort((a, b) => (a.notBefore ?? 0) - (b.notBefore ?? 0));
+    return { r, own, days: own.map((x) => day(x.notBefore)) };
+  };
+  it("INTERVAL: every other week lands two weeks apart", async () => {
+    const { days } = await make("FREQ=WEEKLY;INTERVAL=2", { when: "2026-11-14T08:00:00" });
+    expect(days.slice(0, 3)).toEqual(["2026-11-14", "2026-11-28", "2026-12-12"]);
+  });
+  it("INTERVAL: every other day", async () => {
+    const { days } = await make("FREQ=DAILY;INTERVAL=2");
+    expect(days).toEqual(["2026-11-13", "2026-11-15", "2026-11-17", "2026-11-19"]);
+  });
+  it("UNTIL stops the series on that day", async () => {
+    const { days, r } = await make("FREQ=WEEKLY;BYDAY=MO,WE,FR;UNTIL=20261120T235959");
+    expect(days).toEqual(["2026-11-13", "2026-11-16", "2026-11-18", "2026-11-20"]);
+    expect(r.sub ?? "").not.toMatch(/gần nhất/); // complete, so nothing to flag
+  });
+  it("MONTHLY with BYMONTHDAY: the 15th of each month, flagged as the next stretch only", async () => {
+    const { days, r } = await make("FREQ=MONTHLY;BYMONTHDAY=15", { deadline: "2026-11-15T23:59:00" });
+    expect(days).toEqual(["2026-11-15", "2026-12-15", "2027-01-15"]);
+    expect(r.sub).toMatch(/gần nhất/);
+  });
+  it("BYSETPOS: the first Monday of each month", async () => {
+    const { own } = await make("FREQ=MONTHLY;BYDAY=MO;BYSETPOS=1", { when: "2026-12-07T08:00:00" });
+    expect(own.map((x) => day(x.notBefore)).slice(0, 2)).toEqual(["2026-12-07", "2027-01-04"]);
+  });
+  it("YEARLY: the next birthday, flagged, not a year of copies", async () => {
+    const { days, r } = await make("FREQ=YEARLY;BYMONTH=8;BYMONTHDAY=15", { deadline: "2026-08-15T23:59:00" });
+    expect(days).toEqual(["2027-08-15"]);
+    expect(r.sub).toMatch(/gần nhất/);
+  });
+  it("HOURLY: one task per step for the rest of today, flagged", async () => {
+    const { own, r } = await make("FREQ=HOURLY;INTERVAL=3;BYHOUR=7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22", { deadline: "2026-11-13T23:59:00" });
+    expect(own.map((x) => new Date(x.notBefore!).getHours())).toEqual([10, 13, 16, 19, 22]);
+    expect(r.sub).toMatch(/gần nhất/);
+  });
+  it("an unknown FREQ keeps one task and says so", async () => {
+    const { own, r } = await make("FREQ=SECONDLY");
+    expect(own).toHaveLength(1);
+    expect(r.sub).toMatch(/gần nhất/);
+  });
 });

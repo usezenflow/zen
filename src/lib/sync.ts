@@ -71,7 +71,7 @@ export async function disconnect(which: "lms" | "portal" | "both"): Promise<void
 /** Validates each account and saves the ones that did not say "wrong"; with both wrong nothing is saved, so existing creds survive. */
 export async function connect(c: Creds): Promise<{ portal: Check; lms: Check }> {
   const r = await checkLogin(c);
-  if (r.portal === "wrong" && r.lms === "wrong") return r;
+  if (r.portal !== "ok" && r.portal !== "slow" && r.lms !== "ok" && r.lms !== "slow") return r; // nothing usable: keep what was saved
   let next = c;
   if (r.portal === "wrong") next = forget(next, "portal");
   if (r.lms === "wrong") next = forget(next, "lms");

@@ -196,16 +196,16 @@ describe("parseTimetable", () => {
     expect(sections[0]).toMatchObject({ curriculumId: null, groupNo: null });
   });
 
-  it("skips undocumented periods 5–6 and says why", () => {
+  it("skips a period the table does not know and says why", () => {
     const { items, skipped } = parseTimetable(
-      [{ ...LECTURE_ROW, PeriodID: 5, NumberOfPeriods: 2 }],
+      [{ ...LECTURE_ROW, PeriodID: 15, NumberOfPeriods: 2 }],
       VN,
     );
 
     expect(items).toEqual([]);
     expect(skipped).toHaveLength(1);
     expect(skipped[0].ref).toBe("portal:lecture:99910AB100101");
-    expect(skipped[0].reason).toMatch(/periods 5–6 are undocumented/);
+    expect(skipped[0].reason).toMatch(/no time mapping for periods 15\+2/);
   });
 
   it("skips a row with no ScheduleStudyUnitID or an unparseable Ngay", () => {

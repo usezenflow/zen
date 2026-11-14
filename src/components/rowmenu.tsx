@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text } from "react-native";
 import Animated, { FadeOut, ZoomIn } from "react-native-reanimated";
-import { Tap } from "@/components/tap";
+import { Tap, EASE } from "@/components/tap";
 import type { Item } from "@/components/menu";
 import { useTheme, font, space, ff } from "@/lib/theme";
 
@@ -10,7 +10,7 @@ export function RowMenu({ items, top, onClose }: { items: Item[]; top: number; o
   return (
     <>
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-      <Animated.View entering={ZoomIn.springify().damping(22).stiffness(320)} exiting={FadeOut.duration(120)} style={[s.menu, { transformOrigin: "top right" }, { top, backgroundColor: th.dark ? "rgba(44,44,46,0.94)" : "rgba(250,250,248,0.94)" }]}>
+      <Animated.View entering={ZoomIn.duration(180).easing(EASE)} exiting={FadeOut.duration(120)} style={[s.menu, { transformOrigin: "top right" }, { top, backgroundColor: th.dark ? "rgba(44,44,46,0.94)" : "rgba(250,250,248,0.94)" }]}>
         {items.map((i, k) => (
           <Tap variant="row" key={i.label} onPress={() => { onClose(); i.onPress(); }} style={[s.mi, k > 0 && s.sep]}>
             <Text style={[s.t, { color: i.destructive ? "#ff3b30" : th.ink }]}>{i.label}</Text>

@@ -1,12 +1,16 @@
 import { StyleSheet, Text, View } from "react-native";
-import Animated, { FadeInUp, FadeOutUp } from "react-native-reanimated";
-import { Tap } from "@/components/tap";
+import Animated, { Keyframe } from "react-native-reanimated";
+import { EASE, Tap } from "@/components/tap";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { t } from "@/lib/i18n";
 import { useTheme, font, ff } from "@/lib/theme";
 
+// A short drop-in and lift-out: 8px and a touch of scale, no bounce.
+const toastIn = new Keyframe({ 0: { opacity: 0, transform: [{ translateY: -8 }, { scale: 0.98 }] }, 100: { opacity: 1, transform: [{ translateY: 0 }, { scale: 1 }], easing: EASE } }).duration(200);
+const toastOut = new Keyframe({ 0: { opacity: 1, transform: [{ translateY: 0 }, { scale: 1 }] }, 100: { opacity: 0, transform: [{ translateY: -6 }, { scale: 0.98 }], easing: EASE } }).duration(150);
+
 /**
- * ui.js toast(): title and sub wrap (two lines each); actions sit in a bottom row, right-aligned.
+ * ui.js toast(): title and sub wrap (two lines each); actions sit right beside the text, vertically centred.
  * The alternative slot is an outline pill left of Undo ("hoặc T7 09:00").
  * `error`: vermilion with white text, for failures (model not ready, mic, download).
  */
@@ -18,8 +22,8 @@ export function Toast({ text, sub, onAction, actionLabel, onAlt, altLabel, error
   const alt = onAlt && altLabel;
   const bg = error ? th.seal : th.ink, fg = error ? "#fff" : th.bg;
   return (
-    <Animated.View entering={FadeInUp.springify().damping(18).stiffness(220)} exiting={FadeOutUp.duration(160)} style={[s.toast, { top, backgroundColor: bg }]}>
-      <View accessibilityRole={error ? "alert" : undefined}>
+    <Animated.View entering={toastIn} exiting={toastOut} style={[s.toast, { top, backgroundColor: bg }]}>
+      <View style={s.tx} accessibilityRole={error ? "alert" : undefined}>
         <Text numberOfLines={2} style={[s.t1, { color: fg }]}>{text}</Text>
         {!!sub && <Text numberOfLines={2} style={[s.sub, error && { color: "rgba(255,255,255,0.85)" }]}>{sub}</Text>}
       </View>
@@ -38,10 +42,11 @@ export function Toast({ text, sub, onAction, actionLabel, onAlt, altLabel, error
 }
 
 const s = StyleSheet.create({
-  toast: { position: "absolute", left: 12, right: 12, zIndex: 30, gap: 10, paddingVertical: 12, paddingLeft: 18, paddingRight: 12, borderRadius: 24, shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 20, shadowOffset: { width: 0, height: 12 } },
-  row: { flexDirection: "row", justifyContent: "flex-end", gap: 8 },
+  toast: { position: "absolute", left: 12, right: 12, zIndex: 30, flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingLeft: 16, paddingRight: 10, borderRadius: 20, shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 16, shadowOffset: { width: 0, height: 8 } },
+  tx: { flex: 1, minWidth: 0 },
+  row: { flexDirection: "row", alignItems: "center", gap: 6 },
   t1: { fontSize: font.md, fontFamily: ff("700"), lineHeight: 20 },
   sub: { marginTop: 1, fontSize: font.label, fontFamily: ff("500"), lineHeight: 19, color: "#7f7f7f" },
-  a: { height: 36, paddingHorizontal: 13, borderRadius: 99, alignItems: "center", justifyContent: "center" },
+  a: { height: 32, paddingHorizontal: 12, borderRadius: 99, alignItems: "center", justifyContent: "center" },
   at: { fontSize: font.sub, fontFamily: ff("700") },
 });

@@ -1,9 +1,9 @@
 import type { Diff, Reason, ReasonKey, Step, Task, TaskEvent, TaskType, Warn } from "../lib/types";
 import { DAY, HOUR, I_AFTER, I_ENERGY, I_SIM, KINDS, MIN, type FeatCtx, cdist, dayStart, features, hourOf } from "./features";
 import { effort, neighbors, peakHour, slipOf } from "./habits";
-import { ALPHA, D, type Primed, decayArms, prepare, primeBatch, ucb, ucbAt, update } from "./linucb";
+import { ALPHA, D, LAMBDA, N0, type Primed, decayArms, prepare, primeBatch, ucb, ucbAt, update } from "./linucb";
 import { type Model, newModel } from "./model";
-import { type Busy, type End, type Util, SLOT, cells, fixedHours, gap, solve } from "./place";
+import { type Busy, type End, type Util, SLOT, awake, cells, fixedHours, gap, solve } from "./place";
 import { day, when } from "../lib/when";
 import { split } from "./split";
 import { type Piece, bell, dur, lateH, moveCost, startValue } from "./value";
@@ -11,9 +11,11 @@ import { type Piece, bell, dur, lateH, moveCost, startValue } from "./value";
 export interface Opts { later?: string; hourOnly?: boolean }
 
 const HALF = 21 * DAY;
+const COLD_A0 = LAMBDA + N0;
 type Titled = Busy & { title?: string };
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
-export const typeOf = (t: Task): TaskType => t.fixed ?? (t.deadline !== undefined ? "assignment" : "plan");
+// One colour per task everywhere (rows, week, month, detail): a prep is the user's plan even though it has a due time.
+export const typeOf = (t: Task): TaskType => t.fixed ?? (t.deadline !== undefined && !t.forId ? "assignment" : "plan");
 const round15 = (m: number) => Math.max(30, Math.ceil(m / 15) * 15);
 
 function decay(m: Model, now: number) {
@@ -65,7 +67,7 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
       continue;
     }
     const eff = round15(effort(t, m));
-    const cap = t.maxSitting ?? 90;
+    const cap = t.maxSitting ?? 120;
     if (eff > cap) {
       const sizes = split(eff, cap);
       const ids = sizes.map((_, i) => `${t.id}#${i + 1}`);
@@ -84,6 +86,7 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
   const ctx = (p: Piece, ends: End[]): FeatCtx => ({ fixedH, peak, nb: nbs.get(p.id)!, ends });
   const xOf = (p: Piece, s: number, ends: End[]) => features(p.task, s, ctx(p, ends));
   const prep = prepare(m.arms);
+  const seen = (a: number) => m.arms[a].A[0] - COLD_A0 >= 1; // at least one outcome's worth of evidence on this hour
   const rules = m.rules ?? [];
   const hits = (p: Piece, s: number) => rules.filter((r) => {
     if (r.kinds.length && !r.kinds.includes(p.task.kind)) return false;
@@ -92,7 +95,7 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
     return a < r.to && a + p.effort > r.from;
   });
   const used = new Set<string>();
-  const BLOCK = -1000; // like `later`: only when nothing else fits
+  const BLOCK = -1000; // like `later` and asleep: only when nothing else fits
   const spanLater = (p: Piece, s: number) =>
     opts.later === p.id && p.task.start !== undefined && s < p.task.start + dur(p) && s + dur(p) > p.task.start;
   // shortcut: exploring is not capped to once a day, add the cap when users see too many "thử giờ mới" in one day.
@@ -111,7 +114,7 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
       arm[i] = Math.floor(hourOf(c));
       const h = hits(p, c);
       for (const r of h) used.add(r.id);
-      masked[i] = h.length || spanLater(p, c) ? 1 : 0;
+      masked[i] = h.length || spanLater(p, c) || !awake(p, c) ? 1 : 0;
     }
     batches.set(p.id, { lo: cs[0], n, prim: primeBatch(prep, X, arm, I_AFTER, 5), masked });
   }
@@ -132,7 +135,7 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
     return out;
   };
   const linUtil: Util = (p, s, ends) => {
-    if (spanLater(p, s) || hits(p, s).length) return BLOCK;
+    if (spanLater(p, s) || hits(p, s).length || !awake(p, s)) return BLOCK;
     const b = batches.get(p.id)!, i = gridAt(b, s);
     if (i >= 0) {
       let best: End | undefined;
@@ -178,7 +181,10 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
     const ths = prep.theta[as], thc = prep.theta[ac], a = alphaOf(p);
     const raw: Reason[] = [];
     const put = (key: ReasonKey, w: number, vars?: Reason["vars"]) => { if (w) raw.push({ key, w, vars }); };
+    // The intercept starts as the default daily curve; "bạn hay…" is only true once both hours have outcomes of their own.
+    const known = seen(as) && seen(ac);
     for (const [key, k0, k1] of GROUPS) {
+      if (key === "hour" && !known) continue;
       const w = dot(ths, xs, k0, k1) - dot(thc, xc, k0, k1);
       const ai = xs.slice(I_AFTER, I_AFTER + 5).indexOf(1), aj = ai >= 0 ? ai : xc.slice(I_AFTER, I_AFTER + 5).indexOf(1);
       put(key, w, key === "deadline" ? { due: p.task.deadline === undefined ? "" : when(p.task.deadline, now) }
@@ -189,7 +195,7 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
     const bonus = a ? ucb(prep, as, xs, a) - meanS - (ucb(prep, ac, xc, a) - meanC) : 0;
     const explore = bonus > 0 && meanS < meanC;
     if (explore) put("explore", bonus);
-    put("pace", bell(p, now, s) - bell(p, now, c), { k: p.k, n: p.n });
+    if (p.n > 1) put("pace", bell(p, now, s) - bell(p, now, c), { k: p.k, n: p.n });
     put("late", 100 * (lateH(p, c) - lateH(p, s)));
     const stab = moveCost(p, c, now) - moveCost(p, s, now);
     if (stab > 0) put("stable", stab); // no wording for "moving cost us"

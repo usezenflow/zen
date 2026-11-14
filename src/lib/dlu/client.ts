@@ -69,14 +69,15 @@ async function lmsLogin(c: Creds, base: string): Promise<{ cookie?: string; sess
   const sent = await timed("lms", `${base}/login/index.php`, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded", ...(cookie ? { cookie } : {}) },
-    body: new URLSearchParams({ username: c.studentId, password: c.lmsPassword || c.password, anchor: "", ...(logintoken ? { logintoken } : {}) }).toString(),
+    body: new URLSearchParams({ username: c.studentId, password: c.lmsPassword ?? "", anchor: "", ...(logintoken ? { logintoken } : {}) }).toString(),
   });
   cookie = sessionCookie(sent) ?? cookie;
   const body = (await sent.text()).toLowerCase();
   if (LOGIN_ERROR_MARKERS.some((m) => body.includes(m))) throw new CampusLoginError("lms");
   const dash = await timed("lms", `${base}/my/`, { headers: cookie ? { cookie } : {} });
   const sesskey = /"sesskey":"([A-Za-z0-9]+)"/.exec(await dash.text())?.[1];
-  if (!sesskey) throw new CampusLoginError("lms");
+  // Signed in but no sesskey: an LMS hiccup, not a wrong password (as the backend reads it).
+  if (!sesskey) throw new Error("lms signed in but no sesskey");
   return { cookie, sesskey };
 }
 
@@ -110,12 +111,12 @@ export async function fetchMarks(c: Creds): Promise<ParsedMarks> {
   return parseMarks(years);
 }
 
-export type Check = "ok" | "wrong" | "slow";
+export type Check = "ok" | "wrong" | "slow" | "off";
 
-/** Logs in to each account once: refused is "wrong", anything else that failed is "slow". */
+/** Logs in to each account once: refused is "wrong", anything else that failed is "slow", no password is "off". */
 export async function checkLogin(c: Creds): Promise<{ portal: Check; lms: Check }> {
-  const run = (p: Promise<unknown>): Promise<Check> => p.then(() => "ok" as const, (e) => (e instanceof CampusLoginError ? "wrong" : "slow"));
-  const [portal, lms] = await Promise.all([run(portalLogin(c, c.portalUrl ?? PORTAL)), run(lmsLogin(c, c.lmsUrl ?? LMS))]);
+  const run = (on: boolean, p: () => Promise<unknown>): Promise<Check> => (on ? p().then(() => "ok" as const, (e) => (e instanceof CampusLoginError ? "wrong" : "slow")) : Promise.resolve("off"));
+  const [portal, lms] = await Promise.all([run(hasPortal(c), () => portalLogin(c, c.portalUrl ?? PORTAL)), run(hasLms(c), () => lmsLogin(c, c.lmsUrl ?? LMS))]);
   return { portal, lms };
 }
 

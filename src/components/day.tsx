@@ -2,19 +2,20 @@ import * as Haptics from "expo-haptics";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { StyleSheet, Text, View, type ScrollViewInstance } from "react-native";
 import { GestureDetector, ScrollView, usePanGesture } from "react-native-gesture-handler";
-import Animated, { clamp, Easing, FadeInDown, FadeInUp, interpolate, Extrapolation, useAnimatedProps, useAnimatedStyle, useSharedValue, withSpring, withTiming, type SharedValue } from "react-native-reanimated";
+import Animated, { clamp, Easing, FadeInDown, FadeInUp, interpolate, Extrapolation, useAnimatedProps, useAnimatedStyle, useSharedValue, withTiming, type SharedValue } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
 import { Icon, Logo } from "@/components/art";
-import { addDays, live, mondayOf, onDay, shown, type Hols } from "@/components/cal";
+import { addDays, keptOn, keptSpan, live, mondayOf, onDay, shown, type Hols } from "@/components/cal";
 import type { Item } from "@/components/menu";
 import { Row, subOf } from "@/components/row";
-import { fadeIn, fadeOut, glide, Tap } from "@/components/tap";
+import { fadeIn, fadeOut, glide, Tap, settle, EASE } from "@/components/tap";
+import { Stripes } from "@/components/week";
 import { t } from "@/lib/i18n";
 import type { Overlap } from "@/lib/overlap";
 import { useTheme, font, space, ff, motion } from "@/lib/theme";
-import type { Move, Task, Warn } from "@/lib/types";
+import type { Move, Rule, Task, Warn } from "@/lib/types";
 import { day as dayName, when } from "@/lib/when";
 import { typeOf } from "@/planner";
 
@@ -43,7 +44,7 @@ function Peek({ label, side, pull, at, style }: { label: string; side: 1 | -1; p
   });
   const over = () => { "worklet"; return Math.abs(pull.get()) >= at; };
   const wash = useAnimatedStyle(() => ({ opacity: withTiming(over() ? 1 : 0, { duration: 140 }) }));
-  const tick = useAnimatedStyle(() => ({ opacity: over() ? 1 : 0, transform: [{ scale: withSpring(over() ? 1 : 0.4, { damping: 9, stiffness: 260 }) }] }));
+  const tick = useAnimatedStyle(() => ({ opacity: over() ? 1 : 0, transform: [{ scale: settle(over() ? 1 : 0.4, 160) }] }));
   const ringStyle = useAnimatedStyle(() => ({ opacity: over() ? 0 : 1 }));
   const labelStyle = useAnimatedStyle(() => ({ color: over() ? "#fff" : th.bg })); // white on vermilion (ui.css .peek.done)
   const ring = useAnimatedProps(() => ({ strokeDasharray: `${RING_C * clamp(Math.abs(pull.get()) / at, 0, 1)} ${RING_C}` }));
@@ -84,7 +85,7 @@ export function DayPull({ dayKey, onStep, prevLabel, nextLabel, enabled, childre
     if (!pending.current) return;
     clearTimeout(pending.current);
     pending.current = null;
-    pull.set(withSpring(0, motion.snappy));
+    pull.set(settle(0));
     fade.set(withTiming(1, { duration: motion.fast, easing: Easing.out(Easing.cubic) }));
   }, [pull, fade]);
   // The timeout shows the list again if the parent ignored the step.
@@ -115,7 +116,7 @@ export function DayPull({ dayKey, onStep, prevLabel, nextLabel, enabled, childre
     onDeactivate: (e) => {
       "worklet";
       const step = pullStep(pull.get(), e.velocityY, at);
-      if (step === 0) { pull.set(withSpring(0, motion.snappy)); return; }
+      if (step === 0) { pull.set(settle(0)); return; }
       const out = -step * 0.3 * viewH.get();
       fade.set(withTiming(0, { duration: motion.fast, easing: Easing.in(Easing.cubic) }));
       pull.set(withTiming(out, { duration: motion.fast, easing: Easing.in(Easing.cubic) }, (done) => {
@@ -131,6 +132,7 @@ export function DayPull({ dayKey, onStep, prevLabel, nextLabel, enabled, childre
       <View style={s.fill}>
         <ScrollView
           ref={list} simultaneousWith={pan} bounces={false} scrollEventThrottle={16} showsVerticalScrollIndicator={false}
+          automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive"
           onScroll={(e) => scrollY.set(e.nativeEvent.contentOffset.y)}
           onLayout={(e) => viewH.set(e.nativeEvent.layout.height)}
           onContentSizeChange={(_, h) => contentH.set(h)}
@@ -149,7 +151,7 @@ export function DayPull({ dayKey, onStep, prevLabel, nextLabel, enabled, childre
 /** Right chevron that springs a quarter turn down when open. */
 export function Chevron({ open, color, size = 14 }: { open: boolean; color: string; size?: number }) {
   const r = useSharedValue(open ? 90 : 0);
-  useEffect(() => { r.set(withSpring(open ? 90 : 0, motion.snappy)); }, [open, r]);
+  useEffect(() => { r.set(settle(open ? 90 : 0)); }, [open, r]);
   const st = useAnimatedStyle(() => ({ transform: [{ rotate: `${r.get()}deg` }] }));
   return <Animated.View style={st}><Icon name="right" size={size} color={color} /></Animated.View>;
 }
@@ -224,8 +226,8 @@ export function First({ onSchool }: { onSchool: () => void }) {
 }
 
 // `empty`: what an empty day shows (views.html). rest: the art slot's card plus what's next; week: the whole week is empty; inl: a small note in place of rows.
-export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl", onMove, onKeep, trail, reason, moves, warns, onFix, ...act }: RowActions & {
-  tasks: Task[]; hols: Hols; day: number; now: number; pop: Set<string>; overlaps: Overlap[]; label?: string; empty?: "rest" | "inl" | "week"; onMove: (o: Overlap) => void; onKeep: (o: Overlap) => void;
+export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl", onMove, onKeep, trail, reason, moves, warns, onFix, rules = [], ...act }: RowActions & {
+  tasks: Task[]; hols: Hols; day: number; now: number; pop: Set<string>; overlaps: Overlap[]; label?: string; empty?: "rest" | "inl" | "week"; onMove: (o: Overlap) => void; onKeep: (o: Overlap) => void; rules?: Rule[];
   trail: Record<string, string>; reason: Record<string, string>; moves: Move[]; warns: Warn[]; onFix: (w: Warn, f: Warn["fixes"][number]) => void;
 }) {
   const th = useTheme();
@@ -239,6 +241,9 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
     return x && !x.deletedAt && !x.doneAt ? [{ x: { ...x, start: m.from }, g: m }] : [];
   });
   const rows = [...real.map((x) => ({ x, g: undefined as Move | undefined })), ...ghosts].sort((a, b) => a.x.start! - b.x.start!);
+  // A spoken "để trống" window, striped in time order among the rows (magic.html 9: the kept evening shows as stripes).
+  const kept = hols.has(day) ? [] : keptOn(rules, day);
+  const keptBefore = (i: number) => kept.filter((r) => day + r.from * 60_000 <= (rows[i]?.x.start ?? Infinity) && (i === 0 || day + r.from * 60_000 > rows[i - 1].x.start!));
   const done = tasks.filter((x) => x.doneAt && !x.deletedAt && !pop.has(x.id) && x.start !== undefined && x.start >= day && x.start < end && !tasks.some((c) => c.parentId === x.id));
   const title = hols.get(day);
   const hol: Task | undefined = title === undefined ? undefined : { id: `hol${day}`, title, kind: "other", source: "user", fixed: "busy", effort: 0, start: day, end: day + 86400_000, createdAt: 0 };
@@ -255,10 +260,26 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
     return { lab: t("soon"), xs: after(Math.max(end, now)), dated: true };
   })();
   const row = (x: Task, i: number, d = false, g?: Move) => <Row key={x.id} task={x} now={now} first={i === 0} done={d || !live(x)} trail={g ? undefined : trail[x.id]} sub={g ? t("ghostTo", { when: when(g.to, now) }) : reason[x.id]} ghost={!!g} items={g ? undefined : act.itemsFor(x)} onDelete={g ? undefined : () => act.onSwipeDelete(x)} onSeries={(b) => act.onSwipeDelete(x, b)} onToggle={() => act.onToggle(x)} onTitle={(v) => act.onTitle(x, v)} onTime={(a) => act.onTime(x, a)} onOpen={() => act.onOpen(x)} />;
+  const rowAt = ({ x, g }: (typeof rows)[number], i: number) => (
+          // Wrapper outside the row's HoldMenu: inserts, moves to Done, undo and re-sorts glide instead of jumping. A moved row arrives with a lift.
+          <Animated.View key={g ? `g${x.id}` : x.id} entering={trail[x.id] && !g ? FadeInUp.duration(220).easing(EASE) : fadeIn} exiting={fadeOut} layout={glide}>
+            {row(x, i, false, g)}
+            {overlaps.filter((o) => (o.mine.start! >= o.fixed.start! ? o.mine.id : o.fixed.id) === x.id).map((o) => (
+              <Animated.View key={o.mine.id + o.fixed.id} entering={FadeInDown.duration(220).easing(EASE)} exiting={fadeOut} layout={glide} style={[s.warn, { borderColor: th.seal }]}>
+                <Text style={[s.wt, { color: th.seal }]}>{t("clash")}</Text>
+                <Text style={[s.wb, { color: th.muted }]}>{t("clashBody", { a: o.fixed.title, b: o.mine.title })}</Text>
+                <View style={s.pills}>
+                  <Tap onPress={() => onMove(o)} style={[s.pl, { backgroundColor: th.ink }]}><Text style={[s.plt, { color: th.bg, fontFamily: ff("700") }]}>{t("overlapMine")}</Text></Tap>
+                  <Tap onPress={() => onKeep(o)} style={[s.pl, { borderColor: th.line, borderWidth: 1 }]}><Text style={[s.plt, { color: th.ink }]}>{t("overlapKeep")}</Text></Tap>
+                </View>
+              </Animated.View>
+            ))}
+          </Animated.View>
+  );
   return (
     <View>
       {warns.map((w) => (
-        <Animated.View key={w.id} entering={FadeInDown.springify().damping(18)} exiting={fadeOut} layout={glide} style={[s.warn, { borderColor: th.seal, marginTop: 14, marginBottom: 6 }]}>
+        <Animated.View key={w.id} entering={FadeInDown.duration(220).easing(EASE)} exiting={fadeOut} layout={glide} style={[s.warn, { borderColor: th.seal, marginTop: 14, marginBottom: 6 }]}>
           <Text style={[s.wt, { color: th.seal }]}>{t("warnTitle", { title: w.title })}</Text>
           <Text style={[s.wb, { color: th.muted }]}>{t("warnBody", { need: mins(w.need), when: when(w.deadline, now), free: mins(w.free) })}</Text>
           <View style={s.pills}>
@@ -273,22 +294,13 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
       {!!label && !(isEmpty && empty !== "inl") && <Text style={[s.lab, { color: th.muted }]}>{label}</Text>}
       <View style={{ marginTop: 6 }}>
         {hol && <Row task={hol} now={now} first allDay done={false} onToggle={() => {}} onTitle={() => {}} onTime={() => {}} onOpen={() => {}} />}
-        {rows.map(({ x, g }, i) => (
-          // Wrapper outside the row's HoldMenu: inserts, moves to Done, undo and re-sorts glide instead of jumping. A moved row arrives with a lift.
-          <Animated.View key={g ? `g${x.id}` : x.id} entering={trail[x.id] && !g ? FadeInUp.springify().damping(16).stiffness(170) : fadeIn} exiting={fadeOut} layout={glide}>
-            {row(x, i, false, g)}
-            {overlaps.filter((o) => (o.mine.start! >= o.fixed.start! ? o.mine.id : o.fixed.id) === x.id).map((o) => (
-              <Animated.View key={o.mine.id + o.fixed.id} entering={FadeInDown.springify().damping(18)} exiting={fadeOut} layout={glide} style={[s.warn, { borderColor: th.seal }]}>
-                <Text style={[s.wt, { color: th.seal }]}>{t("clash")}</Text>
-                <Text style={[s.wb, { color: th.muted }]}>{t("clashBody", { a: o.fixed.title, b: o.mine.title })}</Text>
-                <View style={s.pills}>
-                  <Tap onPress={() => onMove(o)} style={[s.pl, { backgroundColor: th.ink }]}><Text style={[s.plt, { color: th.bg, fontFamily: ff("700") }]}>{t("overlapMine")}</Text></Tap>
-                  <Tap onPress={() => onKeep(o)} style={[s.pl, { borderColor: th.line, borderWidth: 1 }]}><Text style={[s.plt, { color: th.ink }]}>{t("overlapKeep")}</Text></Tap>
-                </View>
-              </Animated.View>
-            ))}
+        {[...rows, undefined].map((r, i) => keptBefore(i).map((k) => (
+          <Animated.View key={`k${k.id}`} entering={fadeIn} exiting={fadeOut} layout={glide} style={[s.kept, { borderColor: th.line }]} accessibilityLabel={`${k.text}, ${keptSpan(k)}`}>
+            <Stripes color={th.line} />
+            <Text style={[s.kt, { color: th.ink, backgroundColor: th.bg }]}>{k.text}</Text>
+            <Text style={[s.ks, { color: th.muted, backgroundColor: th.bg }]}>{keptSpan(k)}</Text>
           </Animated.View>
-        ))}
+        )).concat(r ? [rowAt(r, i)] : []))}
       </View>
       {isEmpty && (
         <Animated.View entering={fadeIn} exiting={fadeOut} layout={glide}>
@@ -328,6 +340,9 @@ const s = StyleSheet.create({
   lab: { fontSize: font.label, fontFamily: ff("500") },
   lab2: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 20, marginBottom: 6 },
   warn: { marginTop: 20, padding: 14, paddingHorizontal: 16, borderRadius: 22, borderWidth: 1.5 },
+  kept: { marginTop: 8, minHeight: 56, borderRadius: 16, borderWidth: 1, overflow: "hidden", paddingVertical: 10, paddingHorizontal: 14, justifyContent: "center", alignItems: "flex-start", gap: 2 },
+  kt: { fontSize: font.md, fontFamily: ff("600"), paddingHorizontal: 4, borderRadius: 4, overflow: "hidden" },
+  ks: { fontSize: font.label, fontFamily: ff("500"), paddingHorizontal: 4, borderRadius: 4, overflow: "hidden" },
   wt: { fontSize: font.meta, fontFamily: ff("700") },
   wb: { marginTop: 4, fontFamily: ff(), fontSize: font.sub, lineHeight: 21 },
   pills: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },

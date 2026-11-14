@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Animated, { Easing, FadeInDown, useAnimatedStyle, useSharedValue, withRepeat, withTiming, type SharedValue } from "react-native-reanimated";
 import { Fill } from "@/components/meter";
-import { fadeIn, fadeOut, Tap } from "@/components/tap";
+import { fadeIn, fadeOut, Tap, EASE } from "@/components/tap";
 import { Icon, Logo, TypeArt } from "@/components/art";
 import { hhmm } from "@/components/cal";
 import type { HoldState } from "@/components/hold";
@@ -53,7 +53,7 @@ function Rise({ text, style }: { text: string; style: object }) {
   const parts = text.split(/(\d)/).filter(Boolean);
   return (
     <View style={s.rise} accessible accessibilityLabel={text}>
-      {parts.map((c, i) => <Animated.Text key={`${i}${c}`} entering={FadeInDown.springify().damping(16).stiffness(180).delay(i * 40)} style={style}>{c}</Animated.Text>)}
+      {parts.map((c, i) => <Animated.Text key={`${i}${c}`} entering={FadeInDown.duration(220).easing(EASE).delay(i * 40)} style={style}>{c}</Animated.Text>)}
     </View>
   );
 }
@@ -166,7 +166,7 @@ export function Steps({ lines }: { lines: string[] }) {
       {lines.map((l, i) => {
         const now = i === lines.length - 1;
         return (
-          <Animated.View key={i} entering={FadeInDown.springify().damping(18)} style={s.st}>
+          <Animated.View key={i} entering={FadeInDown.duration(220).easing(EASE)} style={s.st}>
             {now ? <Spin /> : <Icon name="check" size={16} color={th.muted} w={2.4} />}
             <Text style={{ color: now ? th.ink : th.muted, fontSize: font.base - 1, fontFamily: ff(now ? "600" : "500") }}>{l}</Text>
           </Animated.View>

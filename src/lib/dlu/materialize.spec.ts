@@ -156,7 +156,7 @@ describe("materialize", () => {
     it("adds one prep with a new exam, sized by weak", () => {
       const { upserts } = materialize([exam()] as Fetched, [], NOW, 0.8);
       const prep = upserts.find((t) => t.id.startsWith("prep:"))!;
-      expect(prep).toMatchObject({ id: "prep:dlu:portal:exam:9", effort: 90, maxSitting: 30, deadline: NOW + 5 * D });
+      expect(prep).toMatchObject({ id: "prep:dlu:portal:exam:9", effort: 90, maxSitting: 45, deadline: NOW + 5 * D });
     });
     it("adds none for a report exam", () => {
       const { upserts } = materialize([exam(NOW + 5 * D, { examFormat: "Báo cáo(TL)" })] as Fetched, [], NOW);

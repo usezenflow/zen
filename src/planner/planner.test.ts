@@ -3,7 +3,7 @@ import type { Kind, Task } from "../lib/types";
 import { DAY, HOUR, MIN, features, hourOf } from "./features";
 import { ALPHA, N0, coldArms, decayArms, prepare, primeBatch, ucb, ucbAt, update } from "./linucb";
 import { learn, newModel, outcome, plan, suggest, typeOf } from "./index";
-import { solve } from "./place";
+import { awake, solve } from "./place";
 import { split } from "./split";
 import type { Piece } from "./value";
 import { simulate } from "./sim";
@@ -16,13 +16,30 @@ const task = (id: string, o: Partial<Task> = {}): Task =>
 describe("split and deadline", () => {
   it("splits effort over 90 into sittings of at most 90", () => {
     expect(split(60)).toEqual([60]);
-    expect(split(240)).toEqual([90, 90, 90]);
+    expect(split(240)).toEqual([120, 120]);
     expect(split(150)).toEqual([75, 75]);
+    expect(split(120)).toEqual([120]);
+  });
+
+  it("keeps flexible work between 7:00 and 22:00 unless the user said the time", () => {
+    const eve = new Date(2026, 10, 16, 20, 0).getTime();
+    const lec = [{ start: at(1, 7), end: at(1, 11) }, { start: at(1, 13), end: at(1, 17) }];
+    const { diff } = plan([task("a", { deadline: at(1, 23) }), task("b", { deadline: at(2, 23) }), task("c", { deadline: at(2, 23) })], lec, newModel(eve), eve);
+    for (const p of diff.placed) {
+      const d = new Date(p.start), e = new Date(p.end);
+      expect(d.getHours()).toBeGreaterThanOrEqual(7);
+      expect(e.getHours() * 60 + e.getMinutes()).toBeLessThanOrEqual(22 * 60);
+    }
+    const pc = (o: Partial<Task>) => ({ id: "r", task: task("r", o), effort: 60, k: 1, n: 1, slip: 0 });
+    expect(awake(pc({ notBefore: at(1, 6) }), at(1, 6))).toBe(true); // said "6 giờ sáng"
+    expect(awake(pc({ notBefore: at(1, 0) }), at(1, 6))).toBe(false); // a day's start is not a said time
+    expect(awake(pc({}), at(1, 21))).toBe(true);
+    expect(awake(pc({}), at(1, 21) + 30 * MIN)).toBe(false); // would end 22:30
   });
 
   it("lands every sitting before the deadline in order", () => {
     const deadline = at(4, 18);
-    const { diff } = plan([task("essay", { effort: 240, deadline })], [], newModel(now), now);
+    const { diff } = plan([task("essay", { effort: 300, deadline })], [], newModel(now), now);
     expect(diff.split[0].ids).toHaveLength(3);
     expect(diff.placed).toHaveLength(3);
     const ps = diff.split[0].ids.map((id) => diff.placed.find((p) => p.id === id)!);
@@ -93,7 +110,8 @@ describe("understanding", () => {
     const v = new Float32Array(4).fill(0); v[1] = 1;
     m.efforts.push({ vec: Array.from(v), minutes: 120, at: now });
     const a = plan([task("x", { effort: 0, vec: v })], [], m, now).diff;
-    expect(a.split.length ? a.placed.length : 0).toBe(2);
+    expect(a.split).toHaveLength(0); // 120 min is one sitting now
+    expect(a.placed[0].end - a.placed[0].start).toBe(120 * MIN);
     const b = plan([task("y", { effort: 0, kind: "chores" })], [], newModel(now), now).diff;
     expect(b.placed[0].end - b.placed[0].start).toBe(30 * MIN);
   });

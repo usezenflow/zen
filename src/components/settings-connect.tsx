@@ -1,15 +1,18 @@
 import * as Haptics from "expo-haptics";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, TextInput, View } from "react-native";
-import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from "react-native-reanimated";
-import { fadeIn, fadeOut, glide, Tap } from "@/components/tap";
+import Animated, { useAnimatedStyle, useSharedValue, withSequence, withTiming } from "react-native-reanimated";
+import { fadeIn, fadeOut, glide, Tap, settle } from "@/components/tap";
 import { t } from "@/lib/i18n";
 import { connect, sync } from "@/lib/sync";
-import { useTheme, font, ff, motion } from "@/lib/theme";
+import { useTheme, font, ff } from "@/lib/theme";
 
 const RED = "#ff2f52";
 const API_KEY = process.env.EXPO_PUBLIC_DLU_API_KEY ?? "";
-type Check = "ok" | "wrong" | "slow";
+// unset falls back to the campus defaults in dlu/client.ts
+const PORTAL_URL = process.env.EXPO_PUBLIC_DLU_PORTAL_URL || undefined;
+const LMS_URL = process.env.EXPO_PUBLIC_DLU_LMS_URL || undefined;
+type Check = "ok" | "wrong" | "slow" | "off";
 export type Res = { portal: Check; lms: Check };
 
 function Field({ label, note, bad, ph, ...p }: { label: string; note?: string; bad?: boolean; ph?: string } & React.ComponentProps<typeof TextInput>) {
@@ -19,7 +22,7 @@ function Field({ label, note, bad, ph, ...p }: { label: string; note?: string; b
   useEffect(() => {
     if (!bad) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
-    x.set(withSequence(withTiming(-8, { duration: 50 }), withTiming(8, { duration: 70 }), withTiming(-5, { duration: 60 }), withSpring(0, motion.bouncy)));
+    x.set(withSequence(withTiming(-8, { duration: 50 }), withTiming(8, { duration: 70 }), withTiming(-5, { duration: 60 }), settle(0, 160)));
   }, [bad, x]);
   const shake = useAnimatedStyle(() => ({ transform: [{ translateX: x.get() }] }));
   return (
@@ -42,22 +45,22 @@ export function ConnectForm({ initialId, focus, hideId, onResult }: { initialId:
   const [res, setRes] = useState<Res | null>(null);
   const [busy, setBusy] = useState(false);
   const go = async () => {
-    if (!id.trim() || !pw || busy) return;
+    if (!id.trim() || (!pw && !lms) || busy) return; // a blank password skips that source; one is needed
     setBusy(true);
-    const r = await connect({ studentId: id.trim(), password: pw, lmsPassword: lms || undefined, portalApiKey: API_KEY });
+    const r = await connect({ studentId: id.trim(), password: pw, lmsPassword: lms || undefined, portalApiKey: API_KEY, portalUrl: PORTAL_URL, lmsUrl: LMS_URL });
     setRes(r);
-    if (r.portal !== "wrong" || r.lms !== "wrong") await sync();
+    if ([r.portal, r.lms].some((c) => c === "ok" || c === "slow")) await sync();
     setBusy(false);
     onResult(r);
   };
   const note = (c: Check | undefined, wrong: string, slow: string) => (c === "wrong" ? wrong : c === "slow" ? slow : undefined);
-  const retry = !!res && (res.portal !== "ok" || res.lms !== "ok");
+  const retry = !!res && (res.portal === "wrong" || res.portal === "slow" || res.lms === "wrong" || res.lms === "slow");
   return (
     <View>
       {!hideId && <Field label={t("studentId")} value={id} onChangeText={setId} keyboardType="number-pad" />}
-      <Field label={t("portalPwLab")} value={pw} onChangeText={setPw} secureTextEntry autoFocus={focus === "portal"}
+      <Field label={t("portalPwLab")} ph={t("pwSkipPh")} value={pw} onChangeText={setPw} secureTextEntry autoFocus={focus === "portal"}
         bad={res?.portal === "wrong"} note={note(res?.portal, t("wrongPortal"), t("slowPortal"))} />
-      <Field label={t("lmsPwLab")} ph={t("lmsPwPh")} value={lms} onChangeText={setLms} secureTextEntry autoFocus={focus === "lms"}
+      <Field label={t("lmsPwLab")} ph={t("pwSkipPh")} value={lms} onChangeText={setLms} secureTextEntry autoFocus={focus === "lms"}
         bad={res?.lms === "wrong"} note={note(res?.lms, t("wrongLms"), t("slowLms"))} />
       <Animated.View layout={glide}>
         <Tap onPress={go} disabled={busy} style={[s.btn, { backgroundColor: th.ink }]}>

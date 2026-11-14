@@ -58,6 +58,19 @@ export interface Action {
   repeat?: string; // rrule
   note?: string; // edit: the task's note
   kind?: Kind;
+  // What the reader knew beyond the one start: all its days, clocks and parts of the day, a place, an "after" clock,
+  // its place in an order chain (`ref`, `after` = the ref it follows), how sure it was, and what it flagged.
+  notBefore?: string; // ISO
+  location?: string;
+  days?: string[];
+  clocks?: { from: string; to: string }[];
+  windows?: string[];
+  ref?: string;
+  after?: string;
+  confidence?: number;
+  checked?: boolean;
+  flags?: string[];
+  alternatives?: string[];
 }
 
 export type Policy = "linucb" | "heuristic" | "tie";
