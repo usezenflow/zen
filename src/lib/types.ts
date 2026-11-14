@@ -25,6 +25,7 @@ export interface Task {
   maxSitting?: number; // longest sitting in minutes when split
   deadline?: number;
   notBefore?: number;
+  notAfter?: number; // end of a said window ("tối thứ 5"): the planner keeps the whole task inside notBefore..notAfter
   rrule?: string;
   parentId?: string; // sitting of a split task
   start?: number;
@@ -44,7 +45,7 @@ export interface TaskEvent {
   taskId: string;
   type: EventType;
   at: number;
-  data?: Record<string, unknown>; // drag: { fromStart, toStart }, placed: { policy, arm, x, otherStart }
+  data?: Record<string, unknown>; // drag: { fromStart, toStart }, placed: { policy, arm, x }
 }
 
 export type Op = "create" | "edit" | "done" | "delete" | "note"; // standing rules have their own reader (lib/rules.ts)
@@ -58,6 +59,8 @@ export interface Action {
   repeat?: string; // rrule
   note?: string; // edit: the task's note
   kind?: Kind;
+  fixed?: Fixed; // an exact said time ("6 giờ chiều thứ 4 đi gym"): a busy block at `when`, never a flexible plan
+  notAfter?: string; // ISO; end of a said part of day or day, for a flexible plan
   // What the reader knew beyond the one start: all its days, clocks and parts of the day, a place, an "after" clock,
   // its place in an order chain (`ref`, `after` = the ref it follows), how sure it was, and what it flagged.
   notBefore?: string; // ISO
@@ -81,7 +84,6 @@ export interface Placement {
   policy: Policy;
   arm?: number; // hour arm of start, logged for learning
   x?: number[]; // linucb context of the placed cell
-  otherStart?: number; // start the other policy chose
   alt?: number; // second-best start at least 1 h away
   from?: number; // start before this plan, when it moved
   why?: Reason[]; // top reasons for this start over the runner-up, strongest first, at most 4
@@ -92,11 +94,13 @@ export interface Placement {
 export type ReasonKey =
   | "hour" | "after" | "similar" | "energy" | "weekend" | "busy" | "kind" // linucb features
   | "deadline" | "pace" | "load" | "gap" | "stable" | "late" // solver terms (value.ts, place.ts dayCost)
-  | "explore" | "rule" | "missed" | "pinned";
+  | "explore" | "rule" | "missed" | "pinned"
+  | "said" // placed inside the window the user said
+  | "guess"; // nothing learned yet speaks for this time: an honest default
 export interface Reason { key: ReasonKey; w: number; vars?: Record<string, string | number> }
 
 /** One accepted solver move, for the narrated "thinking" lines. */
-export interface Step { key: "read" | "place" | "lighten" | "swap" | "chain" | "rule" | "missed"; vars: Record<string, string | number> }
+export interface Step { key: "read" | "place" | "move" | "lighten" | "swap" | "chain" | "rule" | "missed"; vars: Record<string, string | number> }
 
 /** A deadline the plan cannot meet in free time; fixes push one other flexible task past the deadline. */
 export interface Warn { id: string; title: string; deadline: number; need: number; free: number; fixes: { id: string; title: string; start: number }[] } // need/free in minutes
@@ -105,7 +109,7 @@ export interface Warn { id: string; title: string; deadline: number; need: numbe
 export interface Rule { id: string; text: string; days: number[]; from: number; to: number; kinds: Kind[]; at: number }
 
 /** A move the user has not seen yet: drives the brief, the trail dot and the ghost row. */
-export interface Move { id: string; title: string; from: number; to: number; why?: Reason[]; cause?: string; at: number; seen?: boolean }
+export interface Move { id: string; title: string; from: number; to: number; why?: Reason[]; cause?: string; at: number; seen?: boolean; self?: boolean } // self: from the user's own action just now, so it shows the trail but not the brief
 
 export interface Diff {
   placed: Placement[];

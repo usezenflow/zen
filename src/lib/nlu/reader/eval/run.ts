@@ -1,5 +1,5 @@
 // Golden runner: checks each reader case against its expectations. Shared by the golden, mutation and speed tests.
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fold } from "../fold";
 import { PLAYFUL_TITLES } from "../assemble";
@@ -46,8 +46,9 @@ export type Exp = {
   after?: string;
 };
 
-/** The plan phase the cases are held to: every case with `phase` <= this must pass. Raise it as each phase lands. */
-export const CURRENT_PHASE = 1;
+/** The plan phases that have landed: every case whose `phase` is in here must pass. Phases run in parallel worktrees, so each adds only its own number; a merge is the union. */
+export const DONE_PHASES = new Set([0, 1]);
+export const held = (phase = 0) => DONE_PHASES.has(phase);
 
 export interface Case {
   name: string;
@@ -76,17 +77,18 @@ export interface Case {
   calendar?: CalDay[];
 }
 
-const FILES = ["reader", "probes", "blends"];
+/** Every golden/*.jsonl: the reference corpus, the audit probes, the blends, and one file per later phase (phase-N.jsonl), so parallel phases never edit the same file. */
+const FILES = readdirSync(join(__dirname, "golden")).filter((f) => f.endsWith(".jsonl")).sort();
 
-/** Golden cases held to the current phase (all of them with `all`): the reference corpus, the audit probes, the blends. */
+/** Golden cases of the landed phases (all of them with `all`). */
 export function loadCases(all = false): Case[] {
   const cases = FILES.flatMap((f) =>
-    readFileSync(join(__dirname, `golden/${f}.jsonl`), "utf8")
+    readFileSync(join(__dirname, "golden", f), "utf8")
       .split("\n")
       .filter((l) => l.trim())
       .map((l) => JSON.parse(l) as Case),
   );
-  return all ? cases : cases.filter((c) => (c.phase ?? 0) <= CURRENT_PHASE);
+  return all ? cases : cases.filter((c) => held(c.phase));
 }
 
 const folded = (s: string) => fold(s).text;

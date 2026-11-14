@@ -2,11 +2,11 @@
 import { describe, expect, it } from "vitest";
 import { read } from "../reader";
 import { NEGATIVES } from "./negatives";
-import { CURRENT_PHASE } from "./run";
+import { held } from "./run";
 
 describe("reader: texts that must not become dated tasks", () => {
   for (const n of NEGATIVES) {
-    const gated = (n.phase ?? 0) <= CURRENT_PHASE;
+    const gated = held(n.phase);
     (gated ? it : it.skip)(n.text, () => {
       const res = read(n.text, { ref: { y: 2026, m: 11, d: 14, h: 9, mi: 0 }, source: n.source ?? "typed" });
       const bad = res.items.filter((i) => i.deadline || i.startsAt || i.rrule || i.clocks?.length || i.type === "EXAM");

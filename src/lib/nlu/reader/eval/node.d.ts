@@ -1,6 +1,7 @@
 // Just what the eval harness uses of Node, so no @types/node is needed.
 declare module "node:fs" {
   export function readFileSync(path: string, enc: "utf8"): string;
+  export function readdirSync(path: string): string[];
   export function writeFileSync(path: string, data: string): void;
 }
 declare module "node:path" {

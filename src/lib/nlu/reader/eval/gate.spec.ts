@@ -1,16 +1,16 @@
-// The phase gate: hard cases with phase <= CURRENT_PHASE pass, and nothing the baseline recorded as passing regresses.
+// The phase gate: hard cases with phase in DONE_PHASES pass, and nothing the baseline recorded as passing regresses.
 // The golden cases of the same gate run in golden.spec.ts; the baseline is written by `pnpm eval:write`.
 import { describe, expect, it } from "vitest";
 import { HARD_PHASE } from "./hard";
 import { hardScores } from "./hard-score";
 import { readBaseline } from "./metrics";
 import { FAMILIES, NOISY, score, scoreNoisy } from "./mutate";
-import { CURRENT_PHASE, loadCases, loadReference, runCase } from "./run";
+import { held, loadCases, loadReference, runCase } from "./run";
 
 describe("gate: hard cases", () => {
   for (const { c, s } of hardScores()) {
     const phase = HARD_PHASE[c.id]?.phase ?? 0;
-    (phase <= CURRENT_PHASE ? it : it.skip)(`${c.id} (phase ${phase})`, () => expect(s.misses).toEqual([]));
+    (held(phase) ? it : it.skip)(`${c.id} (phase ${phase})`, () => expect(s.misses).toEqual([]));
   }
 });
 

@@ -23,6 +23,8 @@ const R: Record<ReasonKey, { short: string; long: string; neg?: string }> = {
   rule: { short: "Theo lời bạn dặn", long: "Bạn dặn: {text}" },
   missed: { short: "Lỡ lúc {time}, không sao", long: "Lúc {time} chưa làm được, mình dời sang đây" },
   pinned: { short: "Bạn đã ghim giờ này", long: "Bạn đã ghim giờ này, mình không dời" },
+  said: { short: "Đúng buổi bạn nói", long: "Bạn nói làm vào buổi này" },
+  guess: { short: "Mình đoán giờ này hợp", long: "Mình chưa biết nhiều về bạn, nên đoán giờ này hợp" },
 };
 
 const vars = (r: Reason) => {
@@ -44,6 +46,7 @@ export const topReason = (why?: Reason[]) => why?.find((r) => r.w > 0);
 const S: Record<Step["key"], string> = {
   read: "Đọc lịch {what}",
   place: "Đặt {title} vào {time}",
+  move: "Dời {title} sang {time}",
   lighten: "{day} đã {h} tiếng, để nhẹ bớt",
   swap: "Đổi {a} với {b}",
   chain: "Dời {b} để {a} có giờ đẹp",
