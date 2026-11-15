@@ -16,6 +16,15 @@
     - Ngày dày việc vẫn hiện gọn: một con số như "12 việc"
     - Còn ít việc thì hiện thêm việc sắp tới, kèm ngày như "Mai 07:00"
 - Tên thứ gọn hơn: "T4" thay cho "Thứ tư"
+- Hiểu đúng việc lặp lại
+    - "Tối nào cũng đọc sách", "sáng nào cũng chạy bộ", "tuần nào cũng dọn phòng" là việc lặp, không còn thành một việc tên dài
+    - Ngày thường, cuối tuần, "thứ 2, 4, 6", "thứ hai đến thứ sáu", "các ngày trong tuần"
+    - "2 ngày một lần", "tuần một lần", "tháng 1 lần", "ba buổi một tuần", "mỗi tuần 2 lần", "2 lần/tuần"
+    - Trừ ngày: "mỗi ngày trừ chủ nhật", "tối nào cũng trừ thứ 7", "mỗi ngày trừ cuối tuần"
+    - "Từ 1/12" là ngày bắt đầu; "đến 20/12", "đến hết tháng 12", "trong 120 ngày" là ngày kết thúc
+    - Có ngày kết thúc vẫn giữ buổi đã nói: "tối nào cũng … đến 20/12" vẫn xếp vào buổi tối
+    - Không nói giờ thì việc lặp linh hoạt trong buổi; nói giờ thì giữ đúng giờ
+    - Câu không nói lặp thì không bao giờ tự lặp
 
 ## 26.0.0
 

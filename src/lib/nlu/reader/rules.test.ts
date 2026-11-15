@@ -55,7 +55,8 @@ describe("rules: phrases to a base rule", () => {
   });
 
   it("leaves a plain weekday rule to the caller", () => {
-    expect(ruleBase("thu 2 hang tuan hop nhom 9h")).toBeUndefined();
+    // "hàng tuần" is weekly like "mỗi tuần"; the caller puts the said weekday in BYDAY
+    expect(ruleBase("thu 2 hang tuan hop nhom 9h")).toBe("FREQ=WEEKLY");
     expect(ruleBase("hang ngay doc sach")).toBeUndefined();
   });
 });

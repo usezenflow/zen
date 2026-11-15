@@ -63,7 +63,7 @@ export function ruleBase(f: string, clause: string = f): string | undefined {
     return `FREQ=WEEKLY;BYDAY=${["MO", "TU", "WE", "TH", "FR"].filter((d) => !(drop && d === "WE")).join(",")}`;
   }
   // "mỗi ngày trừ chủ nhật", "hằng ngày trừ thứ 7 và CN": a daily rule limited to the days left
-  if (/(?<![a-z])(?:moi|hang) ngay(?![a-z])(?! trong tuan)/.test(f)) {
+  if (/(?<![a-z])(?:moi|hang) (?:ngay|sang|trua|chieu|toi|dem|khuya)(?![a-z])(?! trong tuan)/.test(f)) {
     const out = droppedDays(clause);
     if (out.size) return `FREQ=DAILY;BYDAY=${[1, 2, 3, 4, 5, 6, 0].filter((d) => !out.has(d)).map((d) => DAYS[d]).join(",")}`;
   }
@@ -99,7 +99,7 @@ export function ruleBase(f: string, clause: string = f): string | undefined {
     );
   if (per)
     return `FREQ=WEEKLY;BYDAY=${SPREAD[+(per[1] ?? per[2])] ?? SPREAD[5]}`;
-  if (/(?<![a-z])moi tuan(?![a-z])/.test(f)) return "FREQ=WEEKLY";
+  if (/(?<![a-z])(?:moi|hang) tuan(?![a-z])/.test(f)) return "FREQ=WEEKLY";
   // yearly on the day and month named beside it
   if (/(?<![a-z])(?:moi|hang) nam(?![a-z])|every year/.test(f)) {
     const d = /(\d{1,2})[/.](\d{1,2})/.exec(f);
@@ -140,7 +140,7 @@ export function ruleBase(f: string, clause: string = f): string | undefined {
 export function withBounds(rule: string, f: string, until?: ReaderWC): string {
   const parts = [rule];
   const count =
-    /(?<![\d/.a-z])(?<!tuan )(?<!ngay )(\d{1,2}) (?:buoi|lan)(?![a-z])(?!\s*(?:\/|mot |moi )?\s*tuan)(?!\s+trong\s+\d{1,2}\s+tuan)/.exec(
+    /(?<![\d/.a-z])(?<!tuan )(?<!ngay )(\d{1,2}) (?:buoi|lan)(?![a-z])(?! (?:sang|trua|chieu|toi|dem)(?![a-z]))(?!\s*(?:\/|mot |moi )?\s*tuan)(?!\s+trong\s+\d{1,2}\s+tuan)/.exec(
       f,
     );
   const weeks = /(?<![a-z\d])trong (\d{1,2}) tuan(?![a-z])/.exec(f);

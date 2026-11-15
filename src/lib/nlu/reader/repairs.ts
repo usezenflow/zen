@@ -1,7 +1,7 @@
 // The fixes `repair` made, as offsets into the raw input: what the app underlines and offers.
 import type { ReaderRepair } from "../shared";
 import { fold } from "./fold";
-import type { Repaired } from "./repair";
+import { repeatSpans, type Repaired } from "./repair";
 
 const WORD = /[\p{L}\p{N}]/u;
 /** Longest raw phrase a repair covers; longer runs are layout fixes, not typos. */
@@ -33,6 +33,7 @@ export function repairsOf(raw: string, rep: Repaired): ReaderRepair[] {
   close(raw.length, text.length);
 
   const out: ReaderRepair[] = [];
+  const quiet = repeatSpans(raw);
   let last = 0;
   for (const r of runs) {
     if (r.rs === r.re) continue;
@@ -44,6 +45,7 @@ export function repairsOf(raw: string, rep: Repaired): ReaderRepair[] {
     if (!WORD.test(was) || !WORD.test(to) || was === to) continue;
     const strip = (s: string) => s.normalize("NFC").replace(/\s+/g, "");
     if (strip(was) === strip(to)) continue;
+    if (quiet.some(([a, b]) => start < b && end > a)) continue;
     out.push({ start, end, to });
     last = end;
   }

@@ -685,6 +685,85 @@ function plainPhrase(phrase: string): string {
 const word = (phrase: string) =>
   new RegExp(`(?<!\\p{L})${plainPhrase(phrase)}(?!\\p{L})`, "giu");
 
+/** Tone-blind, case-blind source for a phrase; defined after SAME_PLAIN is filled. */
+const NUM_WORDS = ["một", "hai", "ba", "bốn", "năm", "sáu", "bảy", "tám", "chín", "mười"];
+const numOf = (w: string) => (/^\d/.test(w) ? +w : NUM_WORDS.findIndex((x) => fold(x).text === fold(w).text.toLowerCase()) + 1);
+const unitOf = (w: string) => ({ ngay: "ngày", tuan: "tuần", thang: "tháng", nam: "năm" })[fold(w).text.toLowerCase()] ?? w;
+const EN_DAY: Record<string, string> = { monday: "thứ 2", tuesday: "thứ 3", wednesday: "thứ 4", thursday: "thứ 5", friday: "thứ 6", saturday: "thứ 7", sunday: "chủ nhật" };
+let REPEATS: [RegExp, (m: RegExpExecArray) => string][] | undefined;
+/** Every way of saying a repeat, rewritten to the one form the mentions and rules read: "tối nào cũng" is "mỗi tối", "2 tuần một lần" is "mỗi 2 tuần". */
+function repeats(): [RegExp, (m: RegExpExecArray) => string][] {
+  if (REPEATS) return REPEATS;
+  const P = plainPhrase;
+  const L = "(?<![\\p{L}\\d])";
+  const R = "(?![\\p{L}\\d])";
+  const NUM = `(\\d{1,2}|${NUM_WORDS.map(P).join("|")})`;
+  const ONE = `(?:1|${P("một")})`;
+  const UNIT = `(${["ngày", "tuần", "tháng", "năm"].map(P).join("|")})`;
+  const TIMES = `(?:${P("buổi")}|${P("lần")})`;
+  const WD = `(?:${P("thứ")}\\s*(?:[2-7]|${["hai", "ba", "tư", "năm", "sáu", "bảy"].map(P).join("|")})|${P("chủ nhật")}|cn|t[2-7])`;
+  const HEAD = `(${WD}|${["ngày thường", "cuối tuần", "sáng", "trưa", "chiều", "tối", "đêm", "khuya", "ngày", "hôm", "tuần", "tháng", "năm"].map(P).join("|")})`;
+  const EN = `(${Object.keys(EN_DAY).join("|")})s?`;
+  const re = (s: string) => new RegExp(s, "giu");
+  REPEATS = [
+    // "tối nào cũng", "ngày nào mình cũng", "thứ 3, thứ 5 nào cũng"; "thứ 2 nào cũng được" is any Monday, not every one
+    [
+      re(`${L}${HEAD}((?:\\s*(?:,|${P("và")})\\s*${WD})*)\\s+${P("nào")}(?:\\s+\\p{L}+){0,2}?\\s+${P("cũng")}${R}(?!\\s+${P("được")}${R})`),
+      (m) => {
+        const head = fold(m[1]).text.toLowerCase();
+        if (head === "ngay thuong") return "ngày thường";
+        return `mỗi ${head === "hom" ? "ngày" : m[1].toLowerCase()}${m[2]}`;
+      },
+    ],
+    // once every n: "tuần 1 lần", "một tháng một lần", "2 tuần 1 lần", "hai ngày một lần", "mỗi tuần một lần"
+    [
+      re(`${L}(?:(?:${P("mỗi")}|${ONE})\\s+)?(?:${NUM}\\s+)?${UNIT}\\s+${ONE}\\s+${P("lần")}${R}`),
+      (m) => {
+        const n = m[1] ? numOf(m[1]) : 1;
+        // "2 tuần 1 lần" is the form the weekly rule reads with a count after it ("2 tuần 1 lần 10 buổi")
+        const u = unitOf(m[2]);
+        return n < 2 ? `mỗi ${u}` : u === "tuần" ? `${n} tuần 1 lần` : `mỗi ${n} ${u}`;
+      },
+    ],
+    // n a week: "tuần 3 buổi", "mỗi tuần 2 lần", "ba buổi một tuần", "2 lần/tuần"
+    [
+      // never after a count of weeks: "2 tuần 1 lần 10 buổi" is every other week
+      re(`${L}(?<!${NUM.replace("(", "(?:")}\\s+)(?:(?:${P("mỗi")}|${ONE})\\s+)?${P("tuần")}\\s+${NUM}\\s+${TIMES}${R}`),
+      (m) => `${numOf(m[1])} buổi một tuần`,
+    ],
+    [
+      re(`${L}${NUM}\\s+${TIMES}\\s*(?:\\/|${P("một")}|${P("mỗi")}|${P("trên")}|1)\\s*${P("tuần")}${R}`),
+      (m) => `${numOf(m[1])} buổi một tuần`,
+    ],
+    // weekdays: "các ngày trong tuần", "mỗi ngày trừ cuối tuần", "từ thứ hai tới thứ sáu" (a span "đến thứ 6 tuần sau" is dates, not a repeat)
+    [re(`${L}(?:${P("các")}|${P("mỗi")}|${P("hàng")}|${P("hằng")})\\s+${P("ngày trong tuần")}${R}`), () => "ngày thường"],
+    [re(`${L}(?:${P("mỗi")}|${P("hàng")}|${P("hằng")})\\s+${P("ngày trừ cuối tuần")}${R}`), () => "ngày thường"],
+    [
+      re(`${L}(${P("từ")}\\s+)?${P("thứ")}\\s*(?:2|${P("hai")})\\s*(?:${P("đến")}|${P("tới")}|-)\\s*${P("thứ")}\\s*(?:6|${P("sáu")})${R}(?!\\s+${P("tuần")}${R})`),
+      (m) => `${m[1] ? "từ " : ""}thứ 2 đến thứ 6`,
+    ],
+    // "đến hết tháng 12": the month's last day ("31/11" reads as 30/11), where "hết tháng" alone is this month's
+    [re(`${L}(?:(${P("đến")}|${P("cho đến")})\\s+)?${P("hết")}\\s+${P("tháng")}\\s+(1[0-2]|0?[1-9])${R}(?![/.]\\d)`), (m) => (m[1] ? `${m[1]} 31/${+m[2]}` : `hết 31/${+m[2]}`)],
+    // "tới 31/12", "tới ngày 31/12": until, never the evening "tối"
+    [/(?<!\p{L})([Tt])ới(?=\s+(?:ngày\s+)?\d{1,2}[/.]\d{1,2}(?![\d:]))/gu, (m) => `${m[1] === "T" ? "Đ" : "đ"}ến`],
+    // English
+    [/(?<![a-z])every\s+week\s?days?(?![a-z])/gi, () => "ngày thường"],
+    [/(?<![a-z])every\s+week\s?ends?(?![a-z])/gi, () => "mỗi cuối tuần"],
+    [/(?<![a-z])(?:every\s?day|daily)(?![a-z])/gi, () => "mỗi ngày"],
+    [new RegExp(`(?<![a-z])except\\s+${EN}(?:\\s*(?:,|and|&)\\s*${EN})?(?![a-z])`, "gi"), (m) => `trừ ${EN_DAY[m[1].toLowerCase()]}${m[2] ? ` và ${EN_DAY[m[2].toLowerCase()]}` : ""}`],
+  ];
+  return REPEATS;
+}
+function repairRepeats(src: Repaired): Repaired {
+  let r = src;
+  for (const [re, rep] of repeats()) r = sub(r, re, rep);
+  return r;
+}
+/** Raw spans a repeat rewrite covers: a reworded repeat is the reader's own wording, not a typo to show. */
+export function repeatSpans(raw: string): [number, number][] {
+  return repeats().flatMap(([re]) => [...raw.matchAll(re)].map((m): [number, number] => [m.index, m.index + m[0].length]));
+}
+
 /** Voice: a folded word for anchor checks. */
 const folded = (w: string) => fold(w).text.replace(/[^a-z0-9:]/g, "");
 const wordsBefore = (text: string, at: number, n: number) =>
@@ -1548,5 +1627,5 @@ export function repair(raw: string, source: ReaderSource): Repaired {
   for (const [re, rep] of ENGLISH_NUMBERS) r = sub(r, re, rep);
   // 9 typos on time and cue words, then spoken numbers, which read the decoded words
   r = repairTypos(r);
-  return repairSpoken(r);
+  return repairRepeats(repairSpoken(r));
 }

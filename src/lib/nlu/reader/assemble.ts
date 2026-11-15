@@ -238,7 +238,7 @@ const TRUOC_NGAY =
 /** Cues that make a part of the day the deadline's clock before it. */
 const BEFORE_CUE = /\b(truoc|trc|cham nhat|muon nhat|tre nhat|kip)\b/;
 const PHRASE_CUE =
-  /\b(trong gio hanh chinh|ngoai gio hoc|dau tien (?=(?:moi |hang |cua )?thang)|cuoi cung (?=(?:moi |hang |cua )?thang)|cham nhat|muon nhat|tre nhat|kip|(?<!(?:kham|danh|nho|nieng|tram|lam|tay|chua|boc|nhuc|dau) )rang sang|sang som|buoi trua|giua trua|xe chieu|cuoi gio chieu|chieu toi|nua dem|trong (?:vong|khoang) \d{1,2} ?(?:ngay|tuan)|trong \d{1,2} tuan|\d{1,2} (?:buoi|lan)|bat dau|keo dai|ket thuc(?=\s*:|\s+\d)|mat(?=\s+(?:khoang\s+|hon\s+|gan\s+|tam\s+)?\d)|tong cong|tong(?=\s+(?:khoang\s+|hon\s+|gan\s+|tam\s+)?\d)|in total|sau (?:bua|an) (?:trua|toi)|truoc khi ngu|sau khi thuc day|viec dau tien)\b/g;
+  /\b(trong gio hanh chinh|ngoai gio hoc|dau tien (?=(?:moi |hang |cua )?thang)|cuoi cung (?=(?:moi |hang |cua )?thang)|cham nhat|muon nhat|tre nhat|kip|(?<!(?:kham|danh|nho|nieng|tram|lam|tay|chua|boc|nhuc|dau) )rang sang|sang som|buoi trua|giua trua|xe chieu|cuoi gio chieu|chieu toi|nua dem|trong (?:vong |khoang )?\d{1,3} ?(?:ngay|tuan|thang)|\d{1,2} (?:buoi|lan)|bat dau|keo dai|ket thuc(?=\s*:|\s+\d)|mat(?=\s+(?:khoang\s+|hon\s+|gan\s+|tam\s+)?\d)|tong cong|tong(?=\s+(?:khoang\s+|hon\s+|gan\s+|tam\s+)?\d)|in total|sau (?:bua|an) (?:trua|toi)|truoc khi ngu|sau khi thuc day|viec dau tien)\b/g;
 /** Raw spans of the deadline cues and multi-word parts of the day in `text`: they are cues, not title words. */
 function phraseCueSpans(text: string): [number, number][] {
   // a list of parts ("sáng/tối", "sáng hoặc tối") is a cue too, separators included
@@ -1567,14 +1567,27 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
       ? piece.find(
           (m) =>
             m.kind === "date" &&
-            (m.v.k === "date" || m.v.k === "holiday") &&
+            (m.v.k === "date" || m.v.k === "holiday" || m.v.k === "month_end") &&
             roleOf(
               blank.slice(a, m.start).replace(/\s*(?:ngày|ngay)\s*$/iu, ""),
             )?.role === "until",
         )
       : undefined;
+    // "từ 1/12", "bắt đầu từ thứ 2 tuần sau" in a recurring piece: the day the series starts, not a day of it
+    const fromDate = piece.some((m) => m.kind === "recur")
+      ? piece.find(
+          (m) =>
+            m.kind === "date" &&
+            m !== untilDate &&
+            (m.v.k === "date" || m.v.k === "dow" || m.v.k === "rel") &&
+            roleOf(
+              blank.slice(a, m.start).replace(/\s*(?:ngày|ngay)\s*$/iu, ""),
+            )?.role === "from",
+        )
+      : undefined;
+    const seriesFrom = (fromDate && resolveDate(fromDate, ctx.ref)?.wc) || ctx.ref;
     const pieceDates = piece.filter(
-      (m) => m.kind === "date" && m !== untilDate,
+      (m) => m.kind === "date" && m !== untilDate && m !== fromDate,
     );
     const holidayM = piece.find(
       (m) => m.kind === "date" && m.v.k === "holiday" && m !== untilDate,
@@ -1696,9 +1709,15 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
     // a phrase rule (rules.ts) beats the plain one; a weekday names the days of a weekly rule without its own
     const phraseRule = recur ? ruleBase(fpiece, folded) : undefined;
     // "đến hết Tết" ends on the fifth day of Tết; "trước Tết" on the eve, the day before the holiday
+    // "trong 120 ngày", "trong 3 tháng": a repeat that long from its first day ("trong 4 tuần" is a COUNT)
+    const lasting = recur
+      ? /(?<![a-z])trong\s+(?:vong\s+|khoang\s+)?(\d{1,3})\s+(ngay|thang)(?![a-z])/.exec(fpiece)
+      : null;
     const untilWc =
-      untilDate?.v.k === "date"
+      untilDate?.v.k === "date" || untilDate?.v.k === "month_end"
         ? resolveDate(untilDate, ctx.ref)?.wc
+        : lasting
+          ? addDays(seriesFrom, +lasting[1] * (lasting[2] === "thang" ? 30 : 1) - 1)
         : untilDate?.v.k === "holiday"
           ? holidayEnd(untilDate, blank.slice(a, untilDate.start), ctx.ref)
           : holidayBefore && holidayM
@@ -2287,8 +2306,9 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
         (how === "inherit" && inherited.some((m) => m.v.k === "dow"));
       if (passed && !saidToday && (how === "rel" || (how === "inherit" && byWeekday)))
         date = addDays(date, byWeekday ? 7 : 1);
-      // a relative start of a BYDAY rule is its first listed day
-      if (recur && rrule && (how === "rel" || how === "inherit"))
+      // a said start moves the series' first day; a relative start of a BYDAY rule is its first listed day
+      if (recur && rrule && fromDate && dayNo(date) < dayNo(seriesFrom)) date = seriesFrom;
+      if (recur && rrule && (how === "rel" || how === "inherit" || fromDate))
         date = firstByDay(date, rrule);
       const inferred: string[] = [];
       const noteHtml =
@@ -2568,11 +2588,8 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
       const planKey = `recur${produced.length}`;
       const monthly = recur.v.k === "recur" && recur.v.freq === "MONTHLY";
       if (rrule && /;(?:UNTIL|COUNT)=/.test(rrule)) {
-        // a bounded rule is one row: its UNTIL or COUNT ends it, so no deadline of its own
-        const it = emit("PLAN", ctx.ref, "rel");
-        delete it.deadline;
-        it.inferred = it.inferred.filter((x) => x !== "deadline");
-        produced.push({ ...it, rrule });
+        // a bounded rule is one row: its UNTIL or COUNT ends the series; the row keeps its first day and its window, as an open one does
+        produced.push({ ...emit("PLAN", ctx.ref, "rel"), rrule });
       } else if (!pieceDates.length)
         produced.push({ ...emit("PLAN", ctx.ref, "rel"), rrule });
       else if (monthly) {

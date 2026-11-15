@@ -611,10 +611,10 @@ const RULES: Rule[] = [
       };
     },
   ],
-  // "21-22/11", "từ 15 đến 22/11": the first day takes the month and year of the second date
+  // "21-22/11", "từ 15 đến 22/11": the first day takes the month and year of the second date; "thứ 4 đến 20/12" is a weekday, not the 4th
   [
     "date",
-    /(?<![\d/.a-z-])(\d{1,2})(?=\s*(?:-|den|toi|ket thuc)\s*:?\s*(?:het\s*)?(?:ngay\s*:?\s*)?\d{1,2}[/.-]\d{1,2})/g,
+    /(?<![\d/.a-z-])(?<!(?:thu|t)\s*(?:[2-7]\s*(?:,|va)\s*)*)(\d{1,2})(?=\s*(?:-|den|toi|ket thuc)\s*:?\s*(?:het\s*)?(?:ngay\s*:?\s*)?\d{1,2}[/.-]\d{1,2})/g,
     (m) => {
       const t = RANGE_TAIL.exec(m.input.slice((m.index ?? 0) + m[0].length));
       return t ? dayMonth(m[1], t[2], t[3], t[0].includes("/")) : null;
