@@ -1,0 +1,16 @@
+# Open a task from search, rename it in its detail screen, and see the new title back home.
+appId: com.alpha.zen
+---
+- runFlow: sub/start.yaml
+- openLink: "zen:///?type=1"
+- inputText: "đọc sách 8h tối nay"
+- tapOn: "Gửi"
+- tapOn: "Tìm việc"
+- inputText: "đọc sách"
+- tapOn: "Đọc sách"
+- tapOn: "Đọc sách"
+- eraseText: 20
+- inputText: "Đọc sách AI"
+- hideKeyboard
+- tapOn: "Quay lại"
+- assertVisible: "Đọc sách AI"

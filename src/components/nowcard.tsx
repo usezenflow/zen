@@ -117,6 +117,7 @@ const biggest = (ms: Move[]) => ms.reduce((a, b) => (Math.abs(b.to - b.from) > M
 // views.html magic 1: the art slot's replacement on a day something moved. Tap opens the story in place.
 export function Brief({ moves, now, onOpen }: { moves: Move[]; now: number; onOpen: () => void }) {
   const th = useTheme();
+  if (!moves.length) return null; // nothing moved: no brief (biggest() needs one)
   const direct = moves.filter((x) => x.cause && x.cause !== t("causeKnock")); // the sentence names a real cause, not a knock-on
   const m = biggest(direct.length ? direct : moves), r = topReason(m.why?.filter((x) => x.key !== "guess"));
   const to = when(m.to, now), what = t("briefMove", { title: m.title, when: to });

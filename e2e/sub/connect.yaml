@@ -1,0 +1,16 @@
+# Settings → Kết nối trường → both passwords → Kết nối, against the campus mock (pnpm mock).
+appId: com.alpha.zen
+---
+- tapOn: "Cài đặt"
+- tapOn: "Kết nối trường"
+- tapOn: "Mã sinh viên"
+- inputText: "2112345"
+- tapOn: "Mật khẩu Online"
+- inputText: "p"
+- tapOn: "Mật khẩu LMS"
+- inputText: "q"
+- hideKeyboard
+- tapOn: "Kết nối"
+- extendedWaitUntil:
+    visible: "Lịch học"
+    timeout: 60000

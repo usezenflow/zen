@@ -47,7 +47,7 @@ export function EdLine({ icon, tone, children, ref }: { icon: Glyph; tone?: "red
 }
 
 const s = StyleSheet.create({
-  ed: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 },
+  ed: { flexDirection: "row", alignItems: "center", gap: 5 }, // one line: its chips shrink their text to fit rather than wrap
   edIcon: { opacity: 0.85, marginRight: 4 }, // .meta svg opacity, .meta .ed svg margin-right
   row: { flexDirection: "row", alignItems: "center", gap: 10 },
   t: { fontFamily: ff(), fontSize: font.meta, lineHeight: 22.4, flexShrink: 1 },

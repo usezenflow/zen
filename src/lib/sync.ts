@@ -6,6 +6,7 @@ import { CampusLoginError, type Fetched, type Source } from "./dlu/client";
 import { examMonth, feeMonth, marksOpen, resolveTerm, termMondays, vnMidnight } from "./dlu/season";
 import { t } from "./i18n";
 import { digestNotices, marksNotice, type Digest } from "./dlu/materialize";
+import { pushWidgetsNow } from "./widgets";
 import { ingest, keepSweep, loadGone, replan, topUp, type Result } from "./apply";
 import type { Notice } from "./types";
 import type { ParsedMarks } from "./dlu/parse/student";
@@ -277,5 +278,6 @@ export async function onForeground(now = Date.now()): Promise<Synced | undefined
 }
 
 // iOS gives a background task about 30 s: stop picking new jobs after 25; the rest waits for the next run or app open.
-export const setupBackground = () => registerBackgroundSync(async () => { await schedule(); await drain({ budget: 25_000 }); }).catch(() => {});
+// Each run also re-pushes the widgets, so their timeline (through the end of tomorrow) keeps rolling without the app opened.
+export const setupBackground = () => registerBackgroundSync(async () => { await schedule(); await drain({ budget: 25_000 }); await pushWidgetsNow(); }).catch(() => {});
 export { kvStorage };

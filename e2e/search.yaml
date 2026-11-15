@@ -1,0 +1,10 @@
+# After connecting: the LMS assignment from the mock is found by name and opens its detail with the course.
+appId: com.alpha.zen
+---
+- runFlow: sub/start.yaml
+- runFlow: sub/connect.yaml
+- tapOn: "Quay lại"
+- tapOn: "Tìm việc"
+- inputText: "bài tập lớn"
+- tapOn: ".*Bài tập lớn 01.*"
+- assertVisible: ".*Trí tuệ nhân tạo.*"

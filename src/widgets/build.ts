@@ -82,10 +82,11 @@ export function abbr(title: string): string {
   return w.length < 2 ? title.trim() : w.map((x) => (/^\d+$/.test(x) ? x : x[0].toUpperCase())).join("");
 }
 
-/** Instants where the widgets change: now, every 5 minutes for 6 hours, each start/end, and midnight. */
+/** Instants where the widgets change, through the end of tomorrow so an unopened app never leaves yesterday on screen:
+ *  now, every 5 minutes for 6 hours, every 30 after, each start/end, and both midnights (about 170 entries). */
 export function instants(tasks: Task[], now: number): number[] {
-  const end = now + 6 * 3600_000, set = new Set<number>([now, addDays(startOfDay(now), 1)]);
-  for (let x = Math.ceil(now / (5 * MIN)) * 5 * MIN; x < end; x += 5 * MIN) set.add(x);
-  for (const k of tasks) for (const v of [k.start, k.end]) if (v !== undefined && v > now && v < end) set.add(v);
+  const near = now + 6 * 3600_000, end = addDays(startOfDay(now), 2), set = new Set<number>([now, addDays(startOfDay(now), 1), end]);
+  for (let x = Math.ceil(now / (5 * MIN)) * 5 * MIN; x < end; x += (x < near ? 5 : 30) * MIN) set.add(x);
+  for (const k of tasks) for (const v of [k.start, k.end]) if (v !== undefined && v > now && v <= end) set.add(v);
   return [...set].sort((a, b) => a - b);
 }

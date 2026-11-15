@@ -215,3 +215,12 @@ describe("materialize", () => {
     });
   });
 });
+
+it("an exam list scoped with `only` deletes only exams it listed before (semester 2 leaves semester 1 alone)", () => {
+  const ex = (k: string): Fetched[number] => ({ ...lecture(k), type: "EXAM", durationMinutes: 90, scheduledStartTime: new Date(NOW + 30 * 86_400_000) });
+  const hk1 = materialize([ex("portal:exam:1")] as Fetched, [], NOW).upserts;
+  const hk2old = materialize([ex("portal:exam:2")] as Fetched, [], NOW).upserts;
+  const reply = Object.assign([] as Fetched, { failed: ["lms"], skipped: ["portal:lecture"], only: ["portal:exam:2"] }) as Fetched;
+  const { deletes } = materialize(reply, [...hk1, ...hk2old], NOW);
+  expect(deletes).toEqual(hk2old.map((x) => x.id)); // the cancelled semester-2 exam goes; semester 1's stays
+});

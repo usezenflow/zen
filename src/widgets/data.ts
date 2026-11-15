@@ -60,6 +60,9 @@ export interface WidgetData {
   ticked: string[]; // ids ticked on the widget, not yet seen by the app
   home: string; // "zen:///"
   listen: string; // "zen:///?listen=1"
+  // Android only: what the widget shows from each time on (epoch ms), the same entries an iOS timeline gets. The layout shows the one due
+  // now and the expo-widgets patch redraws at the next, so it rolls without the app. `art` and `ticked` stay on the top level.
+  tl?: { at: number; p: Omit<WidgetData, "art" | "ticked" | "tl"> }[];
 }
 
 export const WIDGET_NAMES = ["ZenNext", "ZenTalk", "ZenScan", "ZenExam", "ZenToday", "ZenLock"] as const;

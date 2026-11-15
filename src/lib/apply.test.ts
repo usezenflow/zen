@@ -28,7 +28,7 @@ vi.mock("../planner", async (orig) => {
   } };
 });
 
-import { addRule, apply, ingest, pickNow, pin, putBack, removeRule, scopeIds, swipeDone } from "./apply";
+import { addRule, apply, ingest, liveEdit, pickNow, pin, putBack, removeRule, retime, scopeIds, swipeDone } from "./apply";
 import { loadMoves } from "./moves";
 import { preps } from "../planner/prep";
 
@@ -432,4 +432,131 @@ it("a time set by hand stays put, even one already past, and its length counts",
   const past = NOW - 3 * 3600_000;
   await apply([{ op: "edit", target: id, when: new Date(past).toISOString(), effortMinutes: 120 }], NOW);
   expect(db.tasks.get(id)).toMatchObject({ start: past, end: past + 120 * 60_000, pinned: true });
+});
+
+const plan = (id: string, start: number, min: number): Task => ({ id, title: id, kind: "study", source: "user", effort: min, createdAt: NOW, start, end: start + min * 60_000 } as Task);
+const H = 3600_000;
+
+it("concurrent edits to one task all land", async () => {
+  db.tasks.set("a", plan("a", NOW + H, 60));
+  await Promise.all([apply([{ op: "edit", target: "a", title: "New" }], NOW), apply([{ op: "edit", target: "a", location: "A2" }], NOW), apply([{ op: "edit", target: "a", note: "n" }], NOW)]);
+  expect(db.tasks.get("a")).toMatchObject({ title: "New", location: "A2", note: "n" });
+});
+
+it("clearing a place removes it; a short length stays short", async () => {
+  db.tasks.set("a", { ...plan("a", NOW + H, 60), location: "A2" });
+  await apply([{ op: "edit", target: "a", location: "" }], NOW);
+  expect(db.tasks.get("a").location).toBeUndefined();
+  await apply([{ op: "edit", target: "a", when: new Date(NOW + 2 * H).toISOString(), effortMinutes: 15 }], NOW);
+  expect(db.tasks.get("a").end - db.tasks.get("a").start).toBe(15 * 60_000);
+});
+
+it("retime: wheel picks in one session leave only the last one's knock-on moves", async () => {
+  db.tasks.set("a", plan("a", NOW + 6 * H, 60));
+  db.tasks.set("b", plan("b", NOW + 2 * H, 60));
+  void retime("a", NOW + 2 * H, 60, NOW); // passes over b on the way
+  await retime("a", NOW + 4 * H, 60, NOW + 1000);
+  expect(db.tasks.get("a").start).toBe(NOW + 4 * H);
+  expect(db.tasks.get("b").start).toBe(NOW + 2 * H); // b was knocked by the first pick, then put back
+});
+
+it("retime: a rename between two picks survives the second pick", async () => {
+  db.tasks.set("a", plan("a", NOW + 6 * H, 60));
+  await retime("a", NOW + 2 * H, 60, NOW);
+  await apply([{ op: "edit", target: "a", title: "Renamed", note: "n" }], NOW + 500);
+  await retime("a", NOW + 4 * H, 60, NOW + 1000);
+  expect(db.tasks.get("a")).toMatchObject({ title: "Renamed", note: "n", start: NOW + 4 * H });
+});
+
+it("a late undo leaves edits made after it alone", async () => {
+  db.tasks.set("a", plan("a", NOW + 6 * H, 60));
+  const r = await apply([{ op: "edit", target: "a", title: "One" }], NOW);
+  await apply([{ op: "edit", target: "a", note: "later" }], NOW + 500);
+  await r.undo();
+  expect(db.tasks.get("a")).toMatchObject({ title: "One", note: "later" });
+});
+
+describe("repeats, splits and deletes (review fixes)", () => {
+  const day = (ms?: number) => (ms === undefined ? "" : new Date(ms).toLocaleDateString("sv"));
+  const WED = new Date("2026-11-18T08:00:00").getTime();
+  const own = (rr: string) => live().filter((x) => x.rrule === rr && !x.parentId).sort((a, b) => (a.deadline ?? 0) - (b.deadline ?? 0));
+  it("every other week Mon and Fri counts calendar weeks, not 7 days from the creation day", async () => {
+    await apply([{ op: "create", title: "Việc", repeat: "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,FR" }], WED);
+    expect(own("FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,FR").map((x) => day(x.notBefore)).slice(0, 3)).toEqual(["2026-11-20", "2026-11-30", "2026-12-04"]);
+  });
+  it("top-up keeps COUNT as a total, on the rule's weekday, due that day", async () => {
+    const rr = "FREQ=WEEKLY;BYDAY=MO;COUNT=4";
+    await apply([{ op: "create", title: "Việc", repeat: rr }], WED);
+    await topUp(WED + 20 * DAYMS);
+    await topUp(WED + 40 * DAYMS);
+    const xs = own(rr);
+    expect(xs.map((x) => day(x.notBefore))).toEqual(["2026-11-23", "2026-11-30", "2026-12-07", "2026-12-14"]);
+    expect(xs.every((x) => day(x.deadline! - 1) === day(x.notBefore))).toBe(true);
+  });
+  it("top-up of every other week keeps the two-week step", async () => {
+    const rr = "FREQ=WEEKLY;INTERVAL=2";
+    await apply([{ op: "create", title: "Việc", repeat: rr }], WED);
+    await topUp(WED + 50 * DAYMS);
+    const ds = own(rr).map((x) => dayStartOf(x.deadline! - 1));
+    expect(ds.length).toBeGreaterThan(3);
+    for (let i = 1; i < ds.length; i++) expect(Math.round((ds[i] - ds[i - 1]) / DAYMS)).toBe(14);
+  });
+  it("deleting a split parent deletes it too, so a replan does not split it again", async () => {
+    await apply([{ op: "create", title: "Essay", effortMinutes: 300, deadline: "2026-11-18T23:00:00" }], NOW);
+    const parent = [...db.tasks.values()].find((x) => !x.parentId)!;
+    expect([...db.tasks.values()].filter((x) => x.parentId === parent.id).length).toBeGreaterThan(1);
+    await apply([{ op: "delete", target: parent.id }], NOW + 1000);
+    expect(db.tasks.get(parent.id).deletedAt).toBeDefined();
+    await apply([{ op: "create", title: "Khác" }], NOW + 2000); // a replan
+    expect(live().filter((x) => x.parentId === parent.id)).toEqual([]);
+  });
+  it("a parent whose sittings are all done or pinned is never re-split over them", async () => {
+    await apply([{ op: "create", title: "Essay", effortMinutes: 300, deadline: "2026-11-18T23:00:00" }], NOW);
+    const pid = [...db.tasks.values()].find((x) => !x.parentId)!.id, kids = () => [...db.tasks.values()].filter((x) => x.parentId === pid);
+    const before = kids().length;
+    await swipeDone(`${pid}#1`, NOW + 1); await swipeDone(`${pid}#2`, NOW + 2);
+    const done = kids().filter((x) => x.doneAt).map((x) => ({ ...x }));
+    const at = new Date("2026-11-18T15:00:00").getTime();
+    await apply([{ op: "edit", target: `${pid}#${before}`, when: new Date(at).toISOString() }], NOW + 3);
+    const last = db.tasks.get(`${pid}#${before}`);
+    expect([last.start, last.end, last.pinned]).toEqual([at, at + last.effort * 60_000, true]);
+    expect(kids()).toHaveLength(before);
+    for (const d of done) expect(db.tasks.get(d.id)).toEqual(d); // done sittings untouched
+  });
+});
+
+it("moving a split task puts its first sitting at the time and plans the rest after, never stacked", async () => {
+  await apply([{ op: "create", title: "Essay", kind: "study", effortMinutes: 240, deadline: "2026-11-20T23:00:00" }], NOW);
+  const parent = live().find((x) => x.title === "Essay" && !x.parentId)!;
+  const at = new Date("2026-11-16T15:00:00").getTime();
+  await apply([{ op: "edit", target: parent.id, when: new Date(at).toISOString() }], NOW);
+  const kids = live().filter((x) => x.parentId === parent.id).sort((a, b) => a.start - b.start);
+  expect(kids.length).toBeGreaterThan(1);
+  expect(kids[0].start).toBe(at);
+  for (let i = 1; i < kids.length; i++) expect(kids[i].start).toBeGreaterThanOrEqual(kids[i - 1].end);
+});
+
+it("liveEdit saves the value at once with nothing else moved, and replans once it rests", async () => {
+  db.tasks.set("a", plan("a", NOW + 6 * H, 60));
+  db.tasks.set("b", plan("b", NOW + 2 * H, 60));
+  const first = liveEdit("a", { when: NOW + 2 * H }, NOW, 50);
+  await new Promise((r) => setTimeout(r, 10));
+  expect(db.tasks.get("a").start).toBe(NOW + 2 * H); // a force quit now keeps it
+  expect(db.tasks.get("b").start).toBe(NOW + 2 * H); // not moved yet: still mid-edit
+  const last = liveEdit("a", { when: NOW + 4 * H }, NOW + 20, 50);
+  expect(await first).toBeUndefined(); // taken over
+  expect((await last)?.changed).toBe(true);
+  expect(db.tasks.get("a").start).toBe(NOW + 4 * H);
+  expect(db.tasks.get("b").start).toBe(NOW + 2 * H);
+});
+
+it("liveEdit holds a due date at once and clears it with ''", async () => {
+  db.tasks.set("a", plan("a", NOW + 6 * H, 60));
+  const d = new Date("2026-11-20T23:00:00").getTime();
+  const r = liveEdit("a", { deadline: d }, NOW, 20);
+  await new Promise((x) => setTimeout(x, 5));
+  expect(db.tasks.get("a").deadline).toBe(d);
+  await r;
+  await liveEdit("a", { deadline: "" }, NOW + 10, 20);
+  expect(db.tasks.get("a").deadline).toBeUndefined();
 });

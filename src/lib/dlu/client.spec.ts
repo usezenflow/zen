@@ -86,3 +86,26 @@ it("sums what is owed across terms and links the pay page", () => {
   expect(owed([{ ConNo: 0, PaidLeft: 0 }, { ConNo: 1_590_000 }, { ConNo: null, PaidLeft: 683_100 }, { ConNo: -5 }])).toBe(2_273_100);
   expect(payUrl("2123456")).toBe("https://e-bills.vn/pay/dlu?customer=2123456");
 });
+
+it("a data request refused right after a good login is a retry, not a wrong password", async () => {
+  stub((url) => (url.includes("authpsc") ? res(200, JSON.stringify({ Token: "x" })) : res(403)), lmsOk);
+  const term = { academicYear: "2026-2027", semester: "HK01" as const };
+  const e = await fetchWeek(C, term, "2026-09-07", NOW, {}).catch((x) => x);
+  expect(e).toBeInstanceOf(Error);
+  expect(e).not.toBeInstanceOf(CampusLoginError);
+});
+
+it("a reply that is not a list fails the fetch instead of reading as an empty week", async () => {
+  stub((url) => res(200, url.includes("authpsc") ? JSON.stringify({ Token: "x" }) : JSON.stringify({ Message: "bảo trì" })), lmsOk);
+  await expect(fetchWeek(C, { academicYear: "2026-2027", semester: "HK01" }, "2026-09-07", NOW, {})).rejects.toThrow(/not a list/);
+});
+
+it("keeps the LMS session as long as the page's M.cfg sessiontimeout says, minus 5 min; 55 min without it", async () => {
+  const lms = (page: string) => new Response(page, { status: 200, headers: { "set-cookie": "MoodleSession=s; path=/" } });
+  for (const [page, life] of [['name="logintoken" value="t" "sesskey":"abc","sessiontimeout":"3600"', 55], ['name="logintoken" value="t" "sesskey":"abc"', 55], ['name="logintoken" value="t" "sesskey":"abc","sessiontimeout":"7200"', 115]] as const) {
+    stub(() => res(200, JSON.stringify({ Token: "x" })), () => lms(page));
+    const r = await checkLogin({ ...C, password: "" });
+    expect(r.sessions.lmsSession!.exp - Date.now()).toBeGreaterThan((life - 1) * 60_000);
+    expect(r.sessions.lmsSession!.exp - Date.now()).toBeLessThanOrEqual(life * 60_000);
+  }
+});

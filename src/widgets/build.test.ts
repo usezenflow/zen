@@ -61,3 +61,11 @@ it("turns an empty today to the next day with anything", () => {
   expect(free.exam).toMatchObject({ n: "8", unit: "ngày nữa" });
   expect(widgetData(tasks, at(7, 0, 27), art).exam).toMatchObject({ n: "08:00", unit: "hôm nay" });
 });
+
+it("the timeline runs through the end of tomorrow, so it never freezes on yesterday", () => {
+  const ts = instants(tasks, at(20));
+  expect(ts[ts.length - 1]).toBe(at(0, 0, 18));
+  expect(ts).toContain(at(7, 0, 17)); // tomorrow's lecture start
+  expect(ts.length).toBeLessThan(250);
+  expect(widgetData(tasks, at(7, 30, 17), art).next?.id).toBe("e");
+});

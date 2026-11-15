@@ -1,6 +1,7 @@
 allowBuilds:
   llama.rn: true
   "@parcel/watcher": false
+  msw: false
 minimumReleaseAgeExclude:
   - expo-calendar@58.0.7
   - expo-sqlite@58.0.17

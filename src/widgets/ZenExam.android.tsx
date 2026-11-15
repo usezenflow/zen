@@ -5,8 +5,11 @@ import type { WidgetData } from "./data";
 import { SAMPLE } from "./ZenNext.android";
 
 // Small: exam countdown on the exam sand. Same frame as ZenNext; the runtime cannot share helpers between widgets.
-function ZenExam(p: WidgetData, env: WidgetEnvironment) {
+function ZenExam(p0: WidgetData, env: WidgetEnvironment) {
   "widget";
+  // The timeline entry due now (data.ts tl); ticks and art stay on the stored top level.
+  const now = Date.now(), due = (p0.tl ?? []).reduce<NonNullable<WidgetData["tl"]>[number] | undefined>((a, x) => (x.at <= now ? x : a), undefined);
+  const p: WidgetData = due ? { ...p0, ...due.p } : p0;
   const c = env.colorScheme === "dark"
     ? { bg: "#121314", ink: "#ecebe6", muted: "#7f817e" }
     : { bg: "#fbfaf7", ink: "#16181b", muted: "#8d8f8c" };

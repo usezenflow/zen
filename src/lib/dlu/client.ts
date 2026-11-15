@@ -17,7 +17,8 @@ export type Source = "portal" | "lms";
 /** One job's answer. Only what it asked for is authoritative, so materialize reads no other absence as removal:
  *  `failed` lists sources not asked, `skipped` key prefixes of portal parts not asked ("portal:lecture", "portal:exam"),
  *  and `window` limits lectures to the one week fetched. */
-export type Fetched = UpstreamItem[] & { failed?: Source[]; skipped?: string[]; window?: [number, number] };
+/** `only`: when set, the answer may delete only these keys (exams this term listed before), not every key of its kind. */
+export type Fetched = UpstreamItem[] & { failed?: Source[]; skipped?: string[]; window?: [number, number]; only?: string[] };
 /** Sessions a fetch opened, kept for the next one so a login is not repeated. */
 export type Sessions = { portalToken?: PortalToken; lmsSession?: LmsSession };
 
@@ -96,6 +97,11 @@ async function portalLogin(c: Creds, base: string, now: number): Promise<PortalT
 }
 
 /** Runs `fn` with the kept token while it is good; a refused one is replaced by a fresh login, once. The fresh token is reported through `out`. */
+/** The login just worked, so a refusal now is that one request (a gateway blip, a page this student can't see), not a wrong password:
+ *  a plain error, retried later with nothing changed, instead of marking the account refused. */
+const refusedLater = <T>(p: Promise<T>): Promise<T> =>
+  p.catch((e) => { throw e instanceof CampusLoginError ? new Error(`${e.message}: refused after a good login`) : e; });
+
 async function withPortal<T>(c: Creds, base: string, now: number, out: Sessions | undefined, fn: (token: string) => Promise<T>): Promise<T> {
   const kept = c.portalToken;
   if (kept && kept.exp - MIN > now) {
@@ -103,7 +109,7 @@ async function withPortal<T>(c: Creds, base: string, now: number, out: Sessions 
   }
   const fresh = await portalLogin(c, base, now);
   if (out) out.portalToken = fresh;
-  return fn(fresh.t);
+  return refusedLater(fn(fresh.t));
 }
 
 async function portalGet<T>(c: Creds, base: string, token: string, path: string): Promise<T[]> {
@@ -111,7 +117,8 @@ async function portalGet<T>(c: Creds, base: string, token: string, path: string)
   if (res.status === 401 || res.status === 403) throw new CampusLoginError("portal");
   if (!res.ok) throw new Error(`portal ${path.split("?")[0]} ${res.status}`);
   const json: unknown = await res.json();
-  return Array.isArray(json) ? (json as T[]) : [];
+  if (!Array.isArray(json)) throw new Error(`portal ${path.split("?")[0]} not a list`); // a maintenance page must not read as "nothing there", which deletes
+  return json as T[];
 }
 
 // The LMS is driven as the backend does: no native cookie jar, no redirect chase. Moodle regenerates the session id on a good login
@@ -145,10 +152,13 @@ async function lmsLogin(c: Creds, base: string, now: number): Promise<LmsSession
   }
   if (!cookie) throw new Error("lms signed in but set no cookie");
   const dash = await timed("lms", `${base}/my/`, lmsInit(cookie));
-  const sesskey = /"sesskey":"([A-Za-z0-9]+)"/.exec(await dash.text())?.[1];
+  const page = await dash.text();
+  const sesskey = /"sesskey":"([A-Za-z0-9]+)"/.exec(page)?.[1];
   // Signed in but no sesskey: an LMS hiccup, not a wrong password (as the backend reads it).
   if (!sesskey) throw new Error("lms signed in but no sesskey");
-  return { sesskey, cookie, exp: now + 100 * MIN }; // the site's session lasts 7200 s
+  // M.cfg in the page's script tag says how long the session lives ("sessiontimeout":"3600"); kept 5 min short of it, else 55 min.
+  const life = Number(/"sessiontimeout":"?(\d+)/.exec(page)?.[1]) * 1000;
+  return { sesskey, cookie, exp: now + (life > 10 * MIN ? life - 5 * MIN : 55 * MIN) };
 }
 
 async function withLms<T>(c: Creds, base: string, now: number, out: Sessions | undefined, fn: (s: LmsSession) => Promise<T>): Promise<T> {
@@ -158,7 +168,7 @@ async function withLms<T>(c: Creds, base: string, now: number, out: Sessions | u
   }
   const fresh = await lmsLogin(c, base, now);
   if (out) out.lmsSession = fresh;
-  return fn(fresh);
+  return refusedLater(fn(fresh));
 }
 
 async function lmsMonth(base: string, s: LmsSession, year: number, month: number): Promise<MoodleMonthlyView> {
@@ -176,7 +186,8 @@ async function lmsMonth(base: string, s: LmsSession, year: number, month: number
     if (["requireloginerror", "invalidsesskey"].includes(env.exception?.errorcode ?? "")) throw new CampusLoginError("lms");
     throw new Error("lms calendar error");
   }
-  return env.data ?? {};
+  if (!env.data) throw new Error("lms calendar without data"); // as above: not an empty month
+  return env.data;
 }
 
 /** Parsed marks for every study program of the student. */
@@ -226,12 +237,16 @@ export async function checkLogin(c: Creds, now = Date.now()): Promise<{ portal: 
 // One fetcher per queue job. Each throws CampusLoginError (refused), CampusSlowError (timeout, 5xx) or Error, and reports new sessions through `out`.
 
 /** One week of the timetable, `monday` being its `YYYY-MM-DD` (VN): authoritative only for lectures inside that week. */
-export async function fetchWeek(c: Creds, term: Pick<Term, "academicYear" | "semester">, monday: string, now: number, out: Sessions): Promise<Fetched> {
+export async function fetchWeek(c: Creds, term: Pick<Term, "academicYear" | "semester"> & { start?: string }, monday: string, now: number, out: Sessions): Promise<Fetched> {
   const base = c.portalUrl ?? PORTAL;
   const rows = await withPortal(c, base, now, out, (token) =>
     portalGet<PortalTimetableRow>(c, base, token, `/api/student/DrawingStudentSchedules?namhoc=${term.academicYear}&hocky=${term.semester}&tuan=${isoWeek(monday)}`));
-  const from = vnMidnight(monday);
-  return Object.assign(parseTimetable(rows, TZ).items, { failed: ["lms"] as Source[], skipped: ["portal:exam"], window: [from, from + 7 * 86_400_000] as [number, number] });
+  const from = vnMidnight(monday), p = parseTimetable(rows, TZ);
+  // Only this term's days are authoritative: a week before the term starts still holds the last term's classes, which this answer lacks.
+  const lo = Math.max(from, term.start ? vnMidnight(term.start) : from);
+  // A row the parser could not read is not a cancelled class: no deletes from this answer.
+  const skipped = p.skipped.length ? ["portal:exam", "portal:lecture"] : ["portal:exam"];
+  return Object.assign(p.items, { failed: ["lms"] as Source[], skipped, window: [lo, Math.max(lo, from + 7 * 86_400_000)] as [number, number] });
 }
 
 /** Exams of the term being examined now (not the one starting in two weeks). */
@@ -239,7 +254,8 @@ export async function fetchExams(c: Creds, now: number, out: Sessions): Promise<
   const base = c.portalUrl ?? PORTAL;
   const et = termNow(now);
   const rows = await withPortal(c, base, now, out, (token) => portalGet<PortalExamRow>(c, base, token, `/api/student/exam?namhoc=${et.academicYear}&hocky=${et.semester}`));
-  return Object.assign(parseExams(rows, TZ).items, { failed: ["lms"] as Source[], skipped: ["portal:lecture"] });
+  const p = parseExams(rows, TZ); // an unreadable row is not a cancelled exam: no deletes from this answer
+  return Object.assign(p.items, { failed: ["lms"] as Source[], skipped: p.skipped.length ? ["portal:lecture", "portal:exam"] : ["portal:lecture"] });
 }
 
 /** This month's LMS calendar and the next three, so month and week views can cross months (keep in step with lmsCoverageEnd). */

@@ -710,12 +710,15 @@ const ZONE: [RegExp, () => string][] = [
   [/\(?\s*(?<!\p{L})gi(?:ờ|o)\s+VN(?!\p{L})\s*\)?/giu, () => " "],
 ];
 
-/** "12am" is 00:00 of its own day: "12h am" reads as the clock. "24h" is midnight at the day's end, as "0h" is. "trong 24h" is a span of hours and stays. */
+/**
+ * "12am" is 00:00 of its own day: "12h am" reads as the clock. "24h" is the day's last minute, 23:59: as "0h" it would read
+ * "trước 24h thứ 6" as the end of Thursday. "trong 24h" is a span of hours and stays.
+ */
 const MIDNIGHT: [RegExp, () => string][] = [
   [/(?<![\p{L}\d])12\s*am(?!\p{L})/giu, () => "12h am"],
   [
-    /(?<!(?:trong|sau|hơn|vòng)\s*)(?<![\p{L}\d])(?:24\s*(?:h|giờ|gio)|24:00)(?![\p{L}\d])(?!\s*\d)(?!\s*nữa)/giu,
-    () => "0h",
+    /(?<!(?:trong|sau|hơn|vòng)\s*)(?<![\p{L}\d])(?:24\s*(?:h|giờ|gio)|24:00)(?![\p{L}\d])(?!\s*\d{1,2}(?![\d/.-]))(?!\s*nữa)/giu,
+    () => "23h59",
   ],
 ];
 

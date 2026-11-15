@@ -1,0 +1,10 @@
+# Connect both accounts: the parts land, and today's lecture from the mock shows on the home screen.
+appId: com.alpha.zen
+---
+- runFlow: sub/start.yaml
+- runFlow: sub/connect.yaml
+- assertVisible: "Lịch thi"
+- assertVisible: "Bài tập"
+- assertVisible: "Cập nhật.*"
+- tapOn: "Quay lại"
+- assertVisible: "Lập trình Web"

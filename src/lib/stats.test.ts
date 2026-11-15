@@ -23,3 +23,10 @@ it("keeps rows on failure", async () => {
   expect(await flush(s, "http://x", 1e12, (async () => ({ ok: false, status: 500 })) as any)).toBe(0);
   expect(await flush(s, "http://x", 1e12, (async () => ({ ok: true, status: 200 })) as any)).toBe(1);
 });
+it("concurrent records keep every row", async () => {
+  // a slow store: every read and write yields, so unserialized calls would read the same queue and drop rows
+  const m = new Map<string, string>(), tick = () => new Promise((r) => setTimeout(r, 1));
+  const s: Storage = { get: async (k) => (await tick(), m.get(k) ?? null), set: async (k, v) => { await tick(); m.set(k, v); } };
+  await Promise.all(Array.from({ length: 10 }, () => record(s, r)));
+  expect(JSON.parse(m.get("stats.queue")!)).toHaveLength(10);
+});

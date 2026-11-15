@@ -40,37 +40,56 @@ const copyArt = () =>
     return out;
   })());
 
-let timer: ReturnType<typeof setTimeout> | undefined;
+let timer: ReturnType<typeof setTimeout> | undefined, onTicked: (() => void) | undefined;
+// Pushes and tick reads run one at a time: two at once would both apply the same tick, or one push would wipe what the other read.
+let chain: Promise<unknown> = Promise.resolve();
+const serial = (fn: () => Promise<unknown>) => (chain = chain.then(fn).catch(() => {}));
+
+/** Rebuilds every widget now (the background task, which can't wait on a debounce). */
+export const pushWidgetsNow = () => (W?.widgetsDirectory ? serial(push) : Promise.resolve());
+
 /** Rebuilds every widget from the store; debounced so a burst of writes pushes once. */
 export function pushWidgets() {
   if (!W?.widgetsDirectory) return;
   clearTimeout(timer);
-  timer = setTimeout(() => void push().catch(() => {}), 400);
+  timer = setTimeout(() => void serial(push), 400);
+}
+
+/** Applies ticks made on the widget that the app has not seen; true when any was new. A push writes `ticked: []`, so it reads these first.
+ *  shortcut: iOS only. Android keeps them in native prefs with no JS getter (live taps still arrive as events); a native getter in the expo-widgets patch would close it. */
+async function drain(): Promise<boolean> {
+  if (Platform.OS !== "ios") return false;
+  const tl = await widgets.ZenToday?.getTimeline();
+  const ids = new Set(tl?.flatMap((x) => x.props.ticked ?? []) ?? []);
+  if (!ids.size) return false;
+  const live = new Set((await allTasks()).filter((x) => !x.doneAt && !x.deletedAt).map((x) => x.id));
+  let any = false;
+  for (const id of ids) if (live.has(id)) { await swipeDone(id); any = true; }
+  return any;
 }
 
 async function push() {
+  if (await drain().catch(() => false)) onTicked?.();
   const [tasks, a] = await Promise.all([allTasks(), copyArt()]);
   const now = Date.now();
-  for (const w of Object.values(widgets)) {
-    // iOS redraws on its own clock from a timeline; Android only shows the last snapshot.
-    if (Platform.OS === "ios") w.updateTimeline(instants(tasks, now).map((t) => ({ date: new Date(t), props: widgetData(tasks, t, a) })));
-    else w.updateSnapshot(widgetData(tasks, now, a));
+  const at = instants(tasks, now);
+  if (Platform.OS === "ios") { // iOS redraws on its own clock from a timeline
+    for (const w of Object.values(widgets)) w.updateTimeline(at.map((t) => ({ date: new Date(t), props: widgetData(tasks, t, a) })));
+    return;
   }
+  // Android shows one snapshot: it carries the timeline, the layout picks the entry due now and the patched provider redraws at the next.
+  const tl = at.map((t) => { const { art: _a, ticked: _t, ...p } = widgetData(tasks, t, a); return { at: t, p }; });
+  const snap = { ...widgetData(tasks, now, a), tl };
+  for (const w of Object.values(widgets)) w.updateSnapshot(snap);
 }
 
 /** Applies ticks made on the widget: live taps now, and on iOS the ones made while the app was closed. */
 export function listenWidgets(onTick: () => void) {
   if (!W) return () => {};
+  onTicked = onTick;
   const sub = W.addUserInteractionListener((e) => {
     if (e.target.startsWith(DONE)) void swipeDone(e.target.slice(DONE.length)).then(onTick);
   });
-  void (async () => {
-    const tl = Platform.OS === "ios" ? await widgets.ZenToday?.getTimeline() : undefined;
-    const ids = new Set(tl?.flatMap((x) => x.props.ticked) ?? []);
-    if (!ids.size) return;
-    const live = new Set((await allTasks()).filter((x) => !x.doneAt).map((x) => x.id));
-    for (const id of ids) if (live.has(id)) await swipeDone(id);
-    onTick();
-  })().catch(() => {});
-  return () => sub.remove();
+  void serial(async () => { if (await drain()) onTick(); });
+  return () => { sub.remove(); if (onTicked === onTick) onTicked = undefined; };
 }

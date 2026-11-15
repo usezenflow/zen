@@ -61,19 +61,16 @@ export const HOLIDAY_RE = new RegExp(
   "g",
 );
 
-/** The nearest year, as inferYear picks it: this year while the date is under 120 days past. */
+/** The next occurrence on or after ref: a holiday named in a plan is the coming one, never one already past. */
 function nearest(
   yearDate: (y: number) => ReaderWC | null,
   ref: ReaderWC,
 ): ReaderWC | null {
-  let best: { w: ReaderWC; gap: number } | undefined;
   for (const y of [ref.y - 1, ref.y, ref.y + 1]) {
     const w = yearDate(y);
-    if (!w || dayNo(w) < dayNo(ref) - 120) continue;
-    const gap = Math.abs(dayNo(w) - dayNo(ref));
-    if (!best || gap < best.gap) best = { w, gap };
+    if (w && dayNo(w) >= dayNo(ref)) return w;
   }
-  return best ? best.w : null;
+  return null;
 }
 
 const ymd = (s: string): ReaderWC => {
@@ -87,7 +84,8 @@ function nextLunar(
   day: number,
   ref: ReaderWC,
 ): ReaderWC | null {
-  for (const y of [ref.y, ref.y + 1])
+  // from last lunar year: its months 11-12 fall in this solar January-February
+  for (const y of [ref.y - 1, ref.y, ref.y + 1])
     for (let m = month ?? 1; m <= (month ?? 12); m++) {
       const s = lunarToSolar({ year: y, month: m, day, leap: false });
       if (s && dayNo(ymd(s)) >= dayNo(ref)) return ymd(s);
@@ -120,15 +118,11 @@ export function holidayOf(phrase: string, ref: ReaderWC): ReaderWC | null {
   // mùng n tết, giao thừa: an offset from the lunar new year
   const offset = /^mung (\d) tet$/.exec(f);
   const shift = offset ? +offset[1] - 1 : /giao thua/.test(f) ? -1 : 0;
-  const lunar = (k: HolidayKind) =>
-    nearest((y) => {
-      const hit = lunarHolidayDates(y).find((x) => x.kind === k);
-      return hit ? ymd(hit.date) : null;
+  if (kind === "TET" || kind === "MID_AUTUMN" || kind === "HUNG_KINGS")
+    return nearest((y) => {
+      const hit = lunarHolidayDates(y).find((x) => x.kind === kind);
+      return hit ? addDays(ymd(hit.date), shift) : null; // shifted before the pick: giao thừa on Tết day is next year's
     }, ref);
-  if (kind === "TET" || kind === "MID_AUTUMN" || kind === "HUNG_KINGS") {
-    const base = lunar(kind);
-    return base ? addDays(base, shift) : null;
-  }
   // two solar dates share a kind: the 20/10 Vietnamese day and the 24/12 eve
   const pick = (k: HolidayKind): string | undefined => {
     if (k === "WOMEN") return /viet nam/.test(f) ? "10-20" : "03-08";

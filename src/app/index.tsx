@@ -27,7 +27,7 @@ import { fadeIn, fadeOut, glide, popIn, settle, Tap, EASE } from "@/components/t
 import { Sweep, useSweep } from "@/components/sweep";
 import { Toast } from "@/components/toast";
 import { Swipe, Week } from "@/components/week";
-import { apply, makeRoom, moveMine, pickNow, addRule, pin, putBack, removeRule, removeScope, scopeIds, swipeDone, swipeLater, take, type Result } from "@/lib/apply";
+import { apply, retime, makeRoom, moveMine, pickNow, addRule, pin, putBack, removeRule, removeScope, scopeIds, swipeDone, swipeLater, take, type Result } from "@/lib/apply";
 import { loadMoves, loadWarn, seeMoves } from "@/lib/moves";
 import { reasonText, stepText, topReason } from "@/lib/reasons";
 import { holidays } from "@/lib/holidays";
@@ -38,7 +38,7 @@ import { think } from "@/lib/nlu/commands";
 import { affinityOf, calendarOf, committedRows, vocab } from "@/lib/nlu/context";
 import { personalPrior } from "@/lib/nlu/reader/assemble";
 import { isRule, readRule } from "@/lib/rules";
-import { takeFlash } from "@/lib/flash";
+import { onLeftSaved, takeFlash } from "@/lib/flash";
 import { keepBoth, pendingOverlaps, type Overlap } from "@/lib/overlap";
 import * as store from "@/lib/store";
 import { getMarks, onForeground, onSynced } from "@/lib/sync";
@@ -56,6 +56,11 @@ type ToastState = { text: string; sub?: string; error?: boolean; action?: { labe
 
 const longDate = (ms: number) => { const d = new Date(ms); return `${d.getDate()} tháng ${d.getMonth() + 1}`; };
 const dm = (ms: number) => { const d = new Date(ms); return `${d.getDate()}/${d.getMonth() + 1}`; };
+
+// One key per toast, not per text: a same-text toast after a swiped-away one must mount fresh, not inherit its off-screen pan.
+const toastKeys = new WeakMap<object, number>();
+let nextToastKey = 0;
+const toastKey = (x: object) => { let k = toastKeys.get(x); if (k === undefined) toastKeys.set(x, (k = nextToastKey++)); return k; };
 
 export default function Home() {
   const th = useTheme();
@@ -147,7 +152,7 @@ export default function Home() {
       text,
       sub: extra?.sub ?? r?.sub,
       alt: extra?.alt,
-      action: r && { run: async () => { await r.undo(); setToasts((u) => [{ text: t("undone") }, ...u.slice(1)]); refresh(); } },
+      action: r && { run: (() => { let done = false; return async () => { if (done) return; done = true; await r.undo(); setToasts((u) => [{ text: t("undone") }, ...u.slice(1)]); refresh(); }; })() }, // a double tap undoes once
     }, ...q.slice(1)]);
   }, [refresh]);
 
@@ -213,13 +218,14 @@ export default function Home() {
     return () => sub.remove();
   }, [refresh, landed]);
   useEffect(() => { pushWidgets(); return listenWidgets(refresh); }, [refresh]);
+  useEffect(() => onLeftSaved(refresh), [refresh]); // the detail screen's last edits, saved as it closed
   // `now` otherwise moves only on a refresh: left open, rows would never turn late and "today" would not roll over at midnight.
   useEffect(() => {
     let day = startOfDay(Date.now());
     const i = setInterval(() => {
       const n = Date.now();
       setNow(n);
-      if (startOfDay(n) !== day) { day = startOfDay(n); refresh(); }
+      if (startOfDay(n) !== day) { const was = day; day = startOfDay(n); setSel((v) => (v === was ? day : v)); refresh(); } // today rolls over; a day picked on purpose stays
     }, 30_000);
     return () => clearInterval(i);
   }, [refresh]);
@@ -303,7 +309,7 @@ export default function Home() {
 
   // One reader for every way in: what was said, typed, or read off a photo or a PDF (its text layer, or a scan read like a photo).
   const run = async (text: string, via: "voice" | "type" | "photo" | "pdf" | "scan", alternatives?: string[]) => {
-    if (shuf.current) return;
+    while (shuf.current) await new Promise((r) => setTimeout(r, 150)); // the plan is still playing out: wait for it, never drop what was said
     setState("thinking");
     setWords(text);
     try {
@@ -473,7 +479,10 @@ export default function Home() {
     return { alt: { label: when(alt, now), run: async () => { const a = await apply([{ op: "edit", target: task.id, when: new Date(alt).toISOString() }]); say(task.title, a, { sub: when(alt, now) }); refresh(); } } };
   };
 
-  const toggle = async (x: Task) => {
+  // A failed write must not leave the list showing a change that never landed: say so and reload what is stored.
+  const failed = () => { say(t("saveFailed")); refresh(); };
+  const toggle = (x: Task) => toggleNow(x).catch(failed);
+  const toggleNow = async (x: Task) => {
     const at = Date.now();
     gen.current++;
     setTasks((p) => p.map((a) => (a.id === x.id || a.parentId === x.id ? { ...a, doneAt: at } : a))); // ticks at once; the save confirms
@@ -484,8 +493,9 @@ export default function Home() {
     say(t("doneTitle", { title: x.title }), r, { sub: t("leftToday", { n: left }) });
     refresh();
   };
-  const edit = async (x: Task, a: { title?: string; when?: string }) => { const r = await apply([{ op: "edit", target: x.id, ...a }]); say(r.toast, r); refresh(); };
-  const del = async (x: Task, scope: "this" | "following" | "all") => {
+  const edit = (x: Task, a: { title?: string }) => apply([{ op: "edit", target: x.id, ...a }]).then((r) => { say(r.toast, r); refresh(); }, failed);
+  const del = (x: Task, scope: "this" | "following" | "all") => delNow(x, scope).catch(failed);
+  const delNow = async (x: Task, scope: "this" | "following" | "all") => {
     const gone = new Set(scopeIds(tasks, x.id, scope)), stamp = Date.now();
     gen.current++;
     setTasks((p) => p.map((a) => (gone.has(a.id) ? { ...a, deletedAt: stamp } : a))); // leaves the list at once; the save confirms
@@ -503,8 +513,8 @@ export default function Home() {
   const itemsFor = (x: Task): Item[] => {
     const from = maps.froms[x.id], alt = maps.alts[x.id], out: Item[] = [];
     const done = (r: Result) => { say(r.toast, r); refresh(); };
-    if (from !== undefined) out.push({ label: t("itemPutBack", { when: when(from, now) }), onPress: async () => done(await putBack(x.id, from)) });
-    if (alt !== undefined) out.push({ label: t("itemAlt", { when: when(alt, now) }), onPress: async () => done(await apply([{ op: "edit", target: x.id, when: new Date(alt).toISOString() }])) });
+    if (from !== undefined && !x.fixed) out.push({ label: t("itemPutBack", { when: when(from, now) }), onPress: async () => done(await putBack(x.id, from)) });
+    if (alt !== undefined && !x.fixed) out.push({ label: t("itemAlt", { when: when(alt, now) }), onPress: async () => done(await apply([{ op: "edit", target: x.id, when: new Date(alt).toISOString() }])) });
     if (!x.fixed && !x.doneAt && (from !== undefined || alt !== undefined || maps.reason[x.id] || x.pinned)) out.push({ label: t(x.pinned ? "itemUnpin" : "itemPin"), onPress: async () => done(await pin(x.id, !x.pinned)) });
     return [...out, ...seriesItems(x)];
   };
@@ -516,7 +526,7 @@ export default function Home() {
       const start = d.getTime(), len = x.start !== undefined && x.end !== undefined ? x.end - x.start : Math.max(30, x.effort || 30) * 60_000;
       gen.current++;
       setTasks((p) => p.map((y) => (y.id === x.id ? { ...y, start, end: start + len, pinned: true } : y)));
-      edit(x, { when: d.toISOString() });
+      retime(x.id, start, Math.round(len / 60_000)).then((r) => { if (r) { say(r.toast, r); refresh(); } }, failed); // saved at once; the toast and reload when it rests
     },
     onOpen: (x: Task) => router.push(`/task/${x.id}`),
     // Swipe right: a plain task is deleted at once; a series opens the scope dropdown under the row.
@@ -539,7 +549,13 @@ export default function Home() {
     await shuffle(r);
   };
   const cx = useSharedValue(0);
-  const finish = async (dir: "done" | "later") => { await commit(dir); cx.set(0); };
+  const committing = useRef(false);
+  // The card comes back even when the save fails, and a second tap mid-save does nothing.
+  const finish = async (dir: "done" | "later") => {
+    if (committing.current) return;
+    committing.current = true;
+    try { await commit(dir); } catch { failed(); } finally { cx.set(0); committing.current = false; }
+  };
   const swipe = usePanGesture({
     activeOffsetX: [-12, 12],
     failOffsetY: [-10, 10],
@@ -716,7 +732,7 @@ export default function Home() {
       {lines.length > 0 && <Steps lines={lines} />}
       {finding && <Search origin={finding} tasks={tasks} now={now} acts={rowActs} onClose={() => setFinding(undefined)} />}
       {menu && <RowMenu items={menu.items} top={menu.top} onClose={() => setMenu(undefined)} />}
-      {toast && <Toast key={`${toast.text}|${toast.sub ?? ""}`} onDismiss={() => setToasts((q) => q.slice(1))} error={toast.error} text={toast.text} sub={toast.sub} onAction={toast.action?.run} actionLabel={toast.action?.label} onAlt={toast.alt?.run} altLabel={toast.alt?.label} />}
+      {toast && <Toast key={toastKey(toast)} onDismiss={() => setToasts((q) => q.slice(1))} error={toast.error} text={toast.text} sub={toast.sub} onAction={toast.action?.run} actionLabel={toast.action?.label} onAlt={toast.alt?.run} altLabel={toast.alt?.label} />}
     </SafeAreaView>
     </Sweep>
   );

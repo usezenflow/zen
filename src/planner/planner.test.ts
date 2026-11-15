@@ -516,3 +516,57 @@ describe("scheduler behaviour", () => {
     expect(reasonText({ key: "after", w: 1, vars: { prev: "study" } })).toBe("Sau giờ học, như mọi khi");
   });
 });
+
+describe("hard constraints (review fixes)", () => {
+  const over = (a: { start: number; end: number }, b: { start: number; end: number }) => a.start < b.end && b.start < a.end;
+  const tidy = (ps: { start: number; end: number }[], busy: { start: number; end: number }[]) => {
+    for (const p of ps) {
+      expect(busy.some((b) => over(p, b))).toBe(false);
+      const s = new Date(p.start), m = s.getHours() * 60 + s.getMinutes();
+      expect(m >= 7 * 60 && m + (p.end - p.start) / MIN <= 22 * 60).toBe(true); // awake, same day
+    }
+    for (let i = 0; i < ps.length; i++) for (let j = i + 1; j < ps.length; j++) expect(over(ps[i], ps[j])).toBe(false);
+  };
+  it("never overlaps a fixed class, even when only asleep time is left before the due", () => {
+    const busy = [{ start: at(0, 8), end: at(0, 22) }];
+    for (let d = 1; d < 8; d++) busy.push({ start: at(d, 7), end: at(d, 22) });
+    const { diff } = plan([task("a", { deadline: at(0, 23) })], busy, newModel(now), now);
+    expect(diff.placed).toEqual([]);
+    expect(diff.unplaced?.map((u) => u.id)).toEqual(["a"]);
+    expect(diff.warn?.map((w) => w.id)).toEqual(["a"]);
+  });
+  it("overloaded: flexible tasks run late rather than overlap each other", () => {
+    const ts = Array.from({ length: 40 }, (_, i) => task(`q${i}`, { deadline: at(1, 18) }));
+    const { diff } = plan(ts, [], newModel(now), now);
+    tidy(diff.placed, []);
+    expect(diff.placed.length + (diff.unplaced?.length ?? 0)).toBe(40);
+  });
+  it("a passed window goes to the next free, awake slot, not onto a lecture at now or 02:00", () => {
+    const t = task("w", { createdAt: now - DAY, notBefore: now - 14 * HOUR, notAfter: now - 8 * HOUR });
+    const lec = [{ start: now - HOUR, end: now + 3 * HOUR }];
+    tidy(plan([t], lec, newModel(now), now).diff.placed, lec);
+    const night = at(1, 2);
+    const d2 = plan([t], [], newModel(night), night).diff.placed;
+    expect(d2).toHaveLength(1);
+    tidy(d2, []);
+  });
+  it("a held slot that is now asleep is not kept", () => {
+    const { diff } = plan([task("h", { start: at(1, 23), end: at(2, 0) + 30 * MIN })], [], newModel(now), now);
+    tidy(diff.placed, []);
+  });
+  it("a parent whose sittings are all done or pinned is not split again", () => {
+    const p = task("p", { effort: 300, deadline: at(3, 23) });
+    const kids = [task("p#1", { parentId: "p", effort: 100, doneAt: now }), task("p#2", { parentId: "p", effort: 100, pinned: true, start: at(2, 15), end: at(2, 16) + 40 * MIN })];
+    const { diff } = plan([p, ...kids], [], newModel(now), now);
+    expect(diff.split).toEqual([]);
+    expect(diff.placed).toEqual([]);
+  });
+  it("stays fast with many tasks over a long horizon", () => {
+    const ts = Array.from({ length: 150 }, (_, i) => task(`p${i}`, { deadline: at(30 + (i % 60), 18), effort: 60 + (i % 4) * 30 }));
+    const busy = Array.from({ length: 100 }, (_, d) => ({ start: at(d, 9), end: at(d, 11) }));
+    const t0 = Date.now();
+    const { diff } = plan(ts, busy, newModel(now), now);
+    expect(Date.now() - t0).toBeLessThan(2500); // was ~9 s; ~0.4 s here, slack for slow CI
+    tidy(diff.placed, busy);
+  });
+});

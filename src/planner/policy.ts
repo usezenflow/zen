@@ -3,7 +3,7 @@ import { DAY, HOUR, I_AFTER, I_ENERGY, I_SIM, KINDS, MIN, type FeatCtx, cdist, d
 import { effort, neighbors, peakHour, slipOf } from "./habits";
 import { ALPHA, D, LAMBDA, N0, type Primed, decayArms, prepare, primeBatch, ucb, ucbAt, update } from "./linucb";
 import { type Model, newModel } from "./model";
-import { type Busy, type End, type Util, SLOT, awake, cells, fixedHours, gap, solve } from "./place";
+import { type Busy, type End, type Util, SLOT, STEP, awake, cells, fixedHours, gap, solve } from "./place";
 import { day, when } from "../lib/when";
 import { split } from "./split";
 import { type Piece, bell, dur, lateH, moveCost, startValue } from "./value";
@@ -53,6 +53,8 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
 
   const kids = new Map<string, Task[]>();
   for (const t of flex) if (t.parentId) (kids.get(t.parentId) ?? kids.set(t.parentId, []).get(t.parentId)!).push(t);
+  // A parent that has sittings (any: done, deleted or pinned too) is never split again: new ids would land on the old ones.
+  const hasKids = new Set(tasks.filter((t) => t.parentId).map((t) => t.parentId!));
   const pieces: Piece[] = [];
   const splits: Diff["split"] = [];
   const mk = (task: Task, eff: number, k: number, n: number, prior?: number, missed?: number): Piece => ({
@@ -63,7 +65,7 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
   for (const t of flex) {
     if (t.parentId) continue;
     if (t.rrule && t.deadline !== undefined && t.deadline <= now) continue; // a past day of a repeating task stays missed; the next day has its own
-    const sibs = kids.get(t.id);
+    const sibs = kids.get(t.id) ?? (hasKids.has(t.id) ? [] : undefined);
     if (sibs) {
       sibs.sort((a, b) => (a.id < b.id ? -1 : 1)).forEach((c, i) => pieces.push(mk(c, round15(c.effort), i + 1, sibs.length, c.start, lost(c))));
       continue;
@@ -88,7 +90,7 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
 
   const peak = peakHour(m, now);
   const nbs = new Map(pieces.map((p) => [p.id, neighbors(p.task, m, now)]));
-  const fixedH = (d: number) => fixedHours(allBusy, d);
+  const fh = new Map<number, number>(), fixedH = (d: number) => fh.get(d) ?? (fh.set(d, fixedHours(allBusy, d)), fh.get(d)!); // once per day, not per cell
   const ctx = (p: Piece, ends: End[]): FeatCtx => ({ fixedH, peak, nb: nbs.get(p.id)!, ends });
   const xOf = (p: Piece, s: number, ends: End[]) => features(p.task, s, ctx(p, ends));
   const prep = prepare(m.arms);
@@ -110,7 +112,7 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
     const s = p.prior, t = p.task;
     if (s === undefined) continue;
     const e = s + dur(p);
-    if (spanLater(p, s) || hits(p, s).length || (t.deadline !== undefined && e > t.deadline) || (t.notAfter !== undefined && e > t.notAfter) || (t.notBefore !== undefined && s < t.notBefore) || held.some((b) => s < b.end && e > b.start)) continue;
+    if (spanLater(p, s) || hits(p, s).length || !awake(p, s) || (t.deadline !== undefined && e > t.deadline) || (t.notAfter !== undefined && e > t.notAfter) || (t.notBefore !== undefined && s < t.notBefore) || held.some((b) => s < b.end && e > b.start)) continue;
     p.lock = true; held.push({ start: s, end: e });
   }
   // Exploring: not while the model is cold, and only the first new piece without a deadline per plan.
@@ -124,24 +126,27 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
   for (const p of pieces) {
     const cs = cells(p, now), n = cs.length, c0 = ctx(p, []);
     const X = new Float64Array(n * D), arm = new Uint8Array(n), masked = new Uint8Array(n);
+    let day = -Infinity, next = -Infinity; // dayStart once per day, not per cell (a Date each)
     for (let i = 0; i < n; i++) {
       const c = cs[i];
-      if (opts.hourOnly) X[i * D] = 1; else X.set(features(p.task, c, c0), i * D);
+      if (c >= next) { day = dayStart(c); next = dayStart(day + 1.5 * DAY); }
       arm[i] = Math.floor(hourOf(c));
       const h = hits(p, c);
       for (const r of h) used.add(r.id);
-      masked[i] = h.length || spanLater(p, c) || !awake(p, c) ? 1 : 0;
+      masked[i] = h.length || spanLater(p, c) || !awake(p, c, day) ? 1 : 0;
+      if (masked[i]) continue; // scored BLOCK whatever its features: skip the work
+      if (opts.hourOnly) X[i * D] = 1; else X.set(features(p.task, c, c0), i * D);
     }
     batches.set(p.id, { lo: cs[0], n, prim: primeBatch(prep, X, arm, I_AFTER, 5), masked });
   }
-  const gridAt = (b: Batch, s: number) => { const i = (s - b.lo) / SLOT; return Number.isInteger(i) && i >= 0 && i < b.n ? i : -1; };
+  const gridAt = (b: Batch, s: number) => { const i = (s - b.lo) / STEP; return Number.isInteger(i) && i >= 0 && i < b.n ? i : -1; };
   // Kind of the latest end in the hour before each cell, as features() picks it: O(ends), not O(cells * ends).
   const afterAll = (b: Batch, ends: End[]) => {
     const j = new Int8Array(b.n).fill(-1), at = new Float64Array(b.n).fill(-Infinity);
     if (opts.hourOnly) return j;
     for (const e of ends) {
-      const hi = Math.min(b.n - 1, Math.floor((e.end + HOUR - b.lo) / SLOT));
-      for (let i = Math.max(0, Math.ceil((e.end - b.lo) / SLOT)); i <= hi; i++) if (e.end > at[i]) { at[i] = e.end; j[i] = KINDS.indexOf(e.kind); }
+      const hi = Math.min(b.n - 1, Math.floor((e.end + HOUR - b.lo) / STEP));
+      for (let i = Math.max(0, Math.ceil((e.end - b.lo) / STEP)); i <= hi; i++) if (e.end > at[i]) { at[i] = e.end; j[i] = KINDS.indexOf(e.kind); }
     }
     return j;
   };
@@ -171,15 +176,23 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
   const altOf = (p: Piece, start: number) => {
     let top: { c: number; v: number } | undefined;
     const cs = cells(p, now), u = linAll(p, fixedEnds);
+    // Busy time and the other placed pieces, merged into sorted disjoint spans, swept once with the ascending cells.
+    const spans: Busy[] = [];
+    for (const b of [...allBusy, ...pieces.filter((q) => q !== p && at(q) >= 0).map((q) => ({ start: at(q), end: at(q) + dur(q) }))].sort((x, y) => x.start - y.start)) {
+      const last = spans[spans.length - 1];
+      if (last && b.start <= last.end) last.end = Math.max(last.end, b.end); else spans.push({ ...b });
+    }
+    let j = 0;
     for (let i = 0; i < cs.length; i++) {
       const c = cs[i];
-      if (Math.abs(c - start) < HOUR || allBusy.some((b) => c < b.end && c + dur(p) > b.start) || pieces.some((q) => q !== p && c < at(q) + dur(q) && c + dur(p) > at(q))) continue;
+      while (j < spans.length && spans[j].end <= c) j++;
+      if (Math.abs(c - start) < HOUR || (j < spans.length && spans[j].start < c + dur(p))) continue;
       const v = startValue(p, c, now, u[i]);
       if (!top || v > top.v) top = { c, v };
     }
     return top?.c;
   };
-  const ends: End[] = [...fixedEnds, ...pieces.map((p) => ({ kind: p.task.kind, end: at(p) + dur(p) }))];
+  const ends: End[] = [...fixedEnds, ...pieces.filter((p) => at(p) >= 0).map((p) => ({ kind: p.task.kind, end: at(p) + dur(p) }))];
 
   // The solver terms rebuilt from value.ts and place.ts's day cost (mirrored here: place.ts does not export them).
   const flexH = (d: number, skip: Piece) => pieces.reduce((n, q) => (q !== skip && dayStart(at(q)) === d ? n + dur(q) / HOUR : n), 0);
@@ -242,7 +255,9 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
   const missed: Piece[] = [];
   let top: { score: number; piece: Piece; start: number; why: keyof typeof tpl; prev?: string } | undefined;
   for (const p of pieces) {
-    const s = at(p), changed = p.prior !== s, alt = altOf(p, s);
+    const s = at(p);
+    if (s < 0) { (diff.unplaced ??= []).push({ id: p.id, effort: p.effort }); continue; } // no free, awake slot at all: warned below
+    const changed = p.prior !== s, alt = altOf(p, s);
     const c = changed && p.prior !== undefined ? p.prior : alt;
     const r = c === undefined ? { why: [guessOf(p)], explore: false } : whyOf(p, s, c);
     if (p.task.notAfter !== undefined) r.why = [{ key: "said", w: 1 } as Reason, ...r.why].slice(0, 4);
@@ -295,8 +310,10 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
   // A deadline task with a piece past its deadline: how much is missing, and which other task could give way.
   const warn: Warn[] = [];
   const pid = (p: Piece) => p.task.parentId ?? p.task.id;
-  for (const id of new Set(pieces.filter((p) => p.task.deadline !== undefined && at(p) + dur(p) > p.task.deadline).map(pid))) {
-    const mine = pieces.filter((p) => pid(p) === id), dl = mine[0].task.deadline!;
+  for (const id of new Set(pieces.filter((p) => at(p) < 0 || (p.task.deadline !== undefined && at(p) + dur(p) > p.task.deadline)).map(pid))) {
+    const mine = pieces.filter((p) => pid(p) === id), out = mine.some((p) => at(p) < 0);
+    // Unplaced with no due date: the end of the days it could have gone in.
+    const dl = mine[0].task.deadline ?? Math.max(...mine.map((p) => { const cs = cells(p, now); return cs[cs.length - 1] + dur(p); }));
     const others = pieces.filter((p) => pid(p) !== id);
     let free = 0;
     for (let c = Math.ceil(now / SLOT) * SLOT; c + SLOT <= dl; c += SLOT) {
@@ -305,11 +322,11 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
     }
     const need = mine.reduce((n, q) => n + q.effort, 0);
     // Late with time to spare (a pinned or windowed piece): not short of time, so nothing to push and nothing urgent to say.
-    if (dl > now && free >= need) continue;
+    if (!out && dl > now && free >= need) continue;
     const fixes = new Map<string, { id: string; title: string; start: number; len: number }>();
-    for (const q of others) if ((q.task.deadline === undefined || q.task.deadline > dl) && at(q) < dl && q.task.title !== mine[0].task.title) fixes.set(pid(q), { id: pid(q), title: q.task.title, start: at(q), len: Math.max(fixes.get(pid(q))?.len ?? 0, q.effort) });
+    for (const q of others) if ((q.task.deadline === undefined || q.task.deadline > dl) && at(q) >= 0 && at(q) < dl && q.task.title !== mine[0].task.title) fixes.set(pid(q), { id: pid(q), title: q.task.title, start: at(q), len: Math.max(fixes.get(pid(q))?.len ?? 0, q.effort) });
     if (dl <= now) fixes.clear(); // past due: pushing others can't help; the card offers "done" instead
-    else if (!fixes.size) continue; // speak only when one tap can help
+    else if (!fixes.size && !out) continue; // speak only when one tap can help, or when something has no room at all
     warn.push({ id, title: mine[0].task.title, deadline: dl, need, free, fixes: [...fixes.values()].sort((x, y) => y.len - x.len).slice(0, 2).map(({ len: _, ...f }) => f) });
   }
   if (warn.length) diff.warn = warn;

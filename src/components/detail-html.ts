@@ -6,7 +6,7 @@ const DROP = new Set(["script", "style"]);
 const ENT: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
 const decode = (s: string) =>
   s.replace(/&(#x[\da-f]+|#\d+|\w+);/gi, (m, e: string) =>
-    e[0] === "#" ? String.fromCodePoint(e[1].toLowerCase() === "x" ? parseInt(e.slice(2), 16) : +e.slice(1)) : (ENT[e.toLowerCase()] ?? m));
+    e[0] === "#" ? ((n) => (n <= 0x10ffff ? String.fromCodePoint(n) : m))(e[1].toLowerCase() === "x" ? parseInt(e.slice(2), 16) : +e.slice(1)) : (ENT[e.toLowerCase()] ?? m));
 
 export function parseHtml(html: string): Node[] {
   const root: Node[] = [];

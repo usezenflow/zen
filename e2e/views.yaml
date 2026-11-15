@@ -1,0 +1,17 @@
+# Day → week → month and back: each tab selects, and picking a day in the month keeps the grid.
+appId: com.alpha.zen
+---
+- runFlow: sub/start.yaml
+- tapOn: "Tuần"
+- assertVisible:
+    text: "Tuần"
+    selected: true
+- assertVisible: "T2"
+- tapOn: "Tháng"
+- assertVisible:
+    text: "Tháng"
+    selected: true
+- tapOn: "Ngày"
+- assertVisible:
+    text: "Ngày"
+    selected: true

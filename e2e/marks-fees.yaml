@@ -1,0 +1,16 @@
+# After connecting: marks shows the mock's GPA, fees the amount owed; a refresh lands again.
+appId: com.alpha.zen
+---
+- runFlow: sub/start.yaml
+- runFlow: sub/connect.yaml
+- tapOn: "Điểm"
+- assertVisible: "Tích luỹ"
+- assertVisible: ".*3[,.]60.*"
+- tapOn: "Quay lại"
+- tapOn: "Học phí"
+- assertVisible: "Còn nợ"
+- assertVisible: ".*4\\.500\\.000 đ.*"
+- tapOn: "Cập nhật lại"
+- extendedWaitUntil:
+    visible: "Cập nhật.*"
+    timeout: 30000

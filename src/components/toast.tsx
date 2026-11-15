@@ -26,6 +26,7 @@ export function Toast({ text, sub, onAction, actionLabel, onAlt, altLabel, error
   const bg = error ? th.seal : th.ink, fg = error ? "#fff" : th.bg;
   const x = useSharedValue(0), y = useSharedValue(0);
   const pan = usePanGesture({
+    testID: "toast", // tests drive the dismiss swipe by this id; RNGH drops it from release builds
     enabled: !!onDismiss,
     onUpdate: (e) => { "worklet"; x.set(e.translationX); y.set(Math.min(0, e.translationY)); },
     onDeactivate: (e) => {

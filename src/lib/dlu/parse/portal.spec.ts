@@ -348,7 +348,7 @@ describe("parseExams", () => {
 
   it.each([
     [{ Examination: null }, "exam row has no Examination id"],
-    [{ NgayThi: "1/12/2025" }, 'unparseable NgayThi "1/12/2025"'],
+    [{ NgayThi: "31/02/2025" }, 'unparseable NgayThi "31/02/2025"'],
     [{ GioThi: "07:3" }, 'unparseable GioThi "07:3"'],
     [{ ThoiLuong: "" }, 'unusable ThoiLuong ""'],
     [{ ThoiLuong: "0" }, 'unusable ThoiLuong "0"'],

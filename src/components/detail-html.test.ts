@@ -10,6 +10,10 @@ describe("parseHtml", () => {
       { tag: "a", href: "https://e.co", kids: ["l"] },
     ]);
   });
+  it("keeps an out-of-range numeric entity as text instead of throwing", () => {
+    expect(parseHtml("a&#99999999;b&#x110000;")).toEqual(["a&#99999999;b&#x110000;"]);
+    expect(parseHtml("&#x1F600;&#273;")).toEqual(["😀đ"]);
+  });
   it("closes unclosed tags on a parent close", () => {
     expect(parseHtml("<div><p>a</div>b")).toEqual([{ tag: "div", href: undefined, kids: [{ tag: "p", href: undefined, kids: ["a"] }] }, "b"]);
   });

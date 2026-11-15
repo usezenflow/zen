@@ -182,7 +182,7 @@ export default function Settings() {
               ) : (
                 <>
                   <Row flat={open === k} label={t(isOn ? "changePw" : k === "portal" ? "addPortal" : "addLms")} right={<Chevron open={open === k} size={16} color={th.muted} />} onPress={() => setOpen(open === k ? null : k)} />
-                  {open === k && <Animated.View entering={fadeIn} exiting={fadeOut} layout={glide}><ConnectForm key={k + String(bad)} initialId={id} hideId={on} only={k} focus={k} onResult={done} onFirst={setFirst} /></Animated.View>}
+                  {open === k && <Animated.View entering={fadeIn} exiting={fadeOut} layout={glide}><ConnectForm key={k} initialId={id} hideId={on} only={k} focus={k} onResult={done} onFirst={setFirst} /></Animated.View>}
                 </>
               )}
             </Animated.View>
@@ -202,7 +202,7 @@ export default function Settings() {
       </ScrollView>
       </KeyboardAvoidingView>
       {toast ? <Toast key={toast.text + toast.sub} text={toast.text} sub={toast.sub} onDismiss={() => setToast(undefined)} /> : null}
-      {first && <LogoState state={first} onLater={() => setFirst(null)} onRetry={async () => { setFirst("load"); await Promise.all([syncNow(), new Promise((r) => setTimeout(r, 1200))]); // a failure answers in milliseconds: hold the loading leaf long enough to read as "trying"
+      {first && <LogoState state={first} onLater={() => setFirst(null)} onRetry={async () => { setFirst("load"); await Promise.all([syncNow().catch(() => {}), new Promise((r) => setTimeout(r, 1200))]); // a failure answers in milliseconds: hold the loading leaf long enough to read as "trying"
  setFirst((await syncStatus()).last ? null : "err"); refresh(); }} />}
       {dlg && <UpdateDialog d={dlg} onClose={() => setDlg(null)} />}
     </SafeAreaView>

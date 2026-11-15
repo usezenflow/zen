@@ -29,7 +29,7 @@ function Field({ label, note, bad, ...p }: { label: string; note?: string; bad?:
     <>
       <Animated.View layout={glide} style={[s.field, { borderColor: bad ? RED : th.line }, shake]}>
         <Text style={[s.lab, { color: th.muted }]}>{label}</Text>
-        <TextInput {...p} style={[s.input, { color: th.ink }]} placeholder={t("fieldPh")} placeholderTextColor={th.muted} selectionColor={th.seal} cursorColor={th.seal} autoCapitalize="none" autoCorrect={false} />
+        <TextInput {...p} accessibilityLabel={label} style={[s.input, { color: th.ink }]} placeholder={t("fieldPh")} placeholderTextColor={th.muted} selectionColor={th.seal} cursorColor={th.seal} autoCapitalize="none" autoCorrect={false} />
       </Animated.View>
       {note ? <Animated.Text key={note} entering={fadeIn} exiting={fadeOut} layout={glide} style={[s.note, { color: bad ? RED : th.muted, fontFamily: ff(bad ? "600" : "500") }]}>{note}</Animated.Text> : null}
     </>
@@ -48,16 +48,24 @@ export function ConnectForm({ initialId, focus, hideId, only, onResult, onFirst 
   const go = async () => {
     if (!id.trim() || (!pw && !lms) || busy) return; // a blank password skips that source; one is needed
     setBusy(true);
-    const r = await connect({ studentId: id.trim(), password: pw, lmsPassword: lms || undefined, portalApiKey: API_KEY, portalUrl: PORTAL_URL, lmsUrl: LMS_URL });
-    setRes(r);
-    if ([r.portal, r.lms].some((c) => c === "ok" || c === "slow")) {
-      const first = !(await syncStatus()).last;
-      if (first) onFirst?.("load");
-      await syncNow(only); // one field open: just that account's jobs
-      if (first) onFirst?.((await syncStatus()).last ? null : "err");
+    let loading = false;
+    try {
+      const r = await connect({ studentId: id.trim(), password: pw, lmsPassword: lms || undefined, portalApiKey: API_KEY, portalUrl: PORTAL_URL, lmsUrl: LMS_URL });
+      setRes(r);
+      if ([r.portal, r.lms].some((c) => c === "ok" || c === "slow")) {
+        const first = !(await syncStatus()).last;
+        if (first) { onFirst?.("load"); loading = true; }
+        await syncNow(only); // one field open: just that account's jobs
+        if (first) onFirst?.((await syncStatus()).last ? null : "err");
+        loading = false;
+      }
+      onResult(r);
+    } catch {
+      if (loading) onFirst?.("err"); // never leave the first-run loading screen up
+      else setRes({ portal: only === "lms" ? "off" : "slow", lms: only === "portal" ? "off" : "slow" }); // a throw reads as "couldn't reach", not silence
+    } finally {
+      setBusy(false); // a throw (store, keychain) must not leave the button spinning; the user can tap again
     }
-    setBusy(false);
-    onResult(r);
   };
   const note = (c: Check | undefined, wrong: string, slow: string) => (c === "wrong" ? wrong : c === "slow" ? slow : undefined);
   const retry = !!res && (res.portal === "wrong" || res.portal === "slow" || res.lms === "wrong" || res.lms === "slow");
@@ -69,7 +77,7 @@ export function ConnectForm({ initialId, focus, hideId, only, onResult, onFirst 
       {only !== "portal" && <Field label={t("lmsPwLab")} value={lms} onChangeText={setLms} secureTextEntry autoFocus={focus === "lms"}
         bad={res?.lms === "wrong"} note={note(res?.lms, t("wrongLms"), t("slowLms"))} />}
       <Animated.View layout={glide}>
-        <Tap onPress={go} disabled={busy} style={[s.btn, { backgroundColor: th.ink }]}>
+        <Tap onPress={() => void go().catch(() => {})} disabled={busy} style={[s.btn, { backgroundColor: th.ink }]}>
           {busy
             ? <Animated.View key="busy" entering={fadeIn}><ActivityIndicator color={th.bg} /></Animated.View>
             : <Animated.Text key={retry ? "retry" : "go"} entering={fadeIn} style={{ fontSize: 16, fontFamily: ff("700"), color: th.bg }}>{retry ? t("retry") : t("connect")}</Animated.Text>}

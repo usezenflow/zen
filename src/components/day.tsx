@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
 import { Icon, Logo } from "@/components/art";
-import { addDays, hhmm, keptOn, keptSpan, live, mondayOf, onDay, shown, startOfDay, type Hols } from "@/components/cal";
+import { addDays, carried, hhmm, keptOn, keptSpan, live, mondayOf, onDay, shown, startOfDay, type Hols } from "@/components/cal";
 import type { Item } from "@/components/menu";
 import { Row, subOf } from "@/components/row";
 import { repeatText } from "@/components/detail-html";
@@ -318,7 +318,7 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
     .flatMap((p) => tasks.filter((x) => x.parentId === p && live(x) && x.start !== undefined && x.start >= end).sort((a, b) => a.start! - b.start!).slice(0, 1));
   const sitDay = later.length ? startOfDay(Math.min(...later.map((x) => x.start!))) : undefined;
   const sits = sitDay === undefined ? [] : later.filter((x) => startOfDay(x.start!) === sitDay).sort((a, b) => a.start! - b.start!);
-  const row = (x: Task, i: number, d = false, g?: Move) => <Row key={x.id} task={x} now={now} first={i === 0} done={d || !live(x)} trail={g ? undefined : trail[x.id]} sub={g ? t("ghostTo", { when: when(g.to, now) }) : x.forId ? subOf(x, "plan", now, tasks) : reason[x.id]} ghost={!!g} lifted={act.lifted === x.id} onHold={g || !act.itemsFor(x).length ? undefined : (b) => act.onHold(x, b)} onDelete={g ? undefined : () => act.onSwipeDelete(x)} onSeries={(b) => act.onSwipeDelete(x, b)} onToggle={() => act.onToggle(x)} onTitle={(v) => act.onTitle(x, v)} onTime={(a) => act.onTime(x, a)} onOpen={() => act.onOpen(x)} />;
+  const row = (x: Task, i: number, d = false, g?: Move) => <Row key={x.id} task={x} now={now} tm={carried(x, day, t("allDay"), t("toWord"))} first={i === 0} done={d || !live(x)} trail={g ? undefined : trail[x.id]} sub={g ? t("ghostTo", { when: when(g.to, now) }) : x.forId ? subOf(x, "plan", now, tasks) : reason[x.id]} ghost={!!g} lifted={act.lifted === x.id} onHold={g || !act.itemsFor(x).length ? undefined : (b) => act.onHold(x, b)} onDelete={g ? undefined : () => act.onSwipeDelete(x)} onSeries={(b) => act.onSwipeDelete(x, b)} onToggle={() => act.onToggle(x)} onTitle={(v) => act.onTitle(x, v)} onTime={(a) => act.onTime(x, a)} onOpen={() => act.onOpen(x)} />;
   const rowAt = ({ x, g }: (typeof rows)[number], i: number) => (
           // Wrapper outside the row's HoldMenu: inserts, moves to Done, undo and re-sorts glide instead of jumping. A moved row arrives with a lift.
           <Animated.View key={g ? `g${x.id}` : x.id} entering={trail[x.id] && !g ? FadeInUp.duration(220).easing(EASE) : fadeIn} exiting={fadeOut} layout={glide}>

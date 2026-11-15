@@ -28,21 +28,26 @@ export async function askReminders() {
 }
 
 let timer: ReturnType<typeof setTimeout> | undefined;
+// One run at a time, the latest wins: an older run that outlasts the debounce must not schedule reminders for tasks since done or deleted.
+let chain: Promise<unknown> = Promise.resolve(), gen = 0;
 /** Replaces every scheduled reminder from the store; debounced so a burst of writes reschedules once. */
 export function pushReminders() {
   if (Platform.OS === "web") return;
   clearTimeout(timer);
-  timer = setTimeout(() => void push().catch(() => {}), 400);
+  timer = setTimeout(() => { const me = ++gen; chain = chain.then(() => push(() => me !== gen)).catch(() => {}); }, 400);
 }
 
-async function push() {
+/** `stale`: a newer run is queued, which cancels and reschedules everything itself. */
+export async function push(stale: () => boolean = () => false) {
   if (!(await Notifications.getPermissionsAsync()).granted) return;
   for (const n of await Notifications.getAllScheduledNotificationsAsync())
     if (n.identifier.startsWith(PREFIX)) await Notifications.cancelScheduledNotificationAsync(n.identifier);
-  for (const r of upcoming(await allTasks(), Date.now()))
+  for (const r of upcoming(await allTasks(), Date.now())) {
+    if (stale()) return;
     await Notifications.scheduleNotificationAsync({
       identifier: PREFIX + r.id,
       content: { title: r.title, body: r.body },
       trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: r.at, ...(Platform.OS === "android" ? { channelId: "default" } : {}) },
     });
+  }
 }

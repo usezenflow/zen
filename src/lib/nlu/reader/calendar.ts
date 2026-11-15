@@ -22,6 +22,8 @@ export const minutesOf = (w: ReaderWC) =>
 
 /** Minutes on the 30 minute grid: a remainder of 15 or more rounds up, under 15 rounds down. */
 export const round30 = (min: number) => Math.floor((min + 15) / 30) * 30;
+/** A said start on the planner's 15-minute grid (place.ts STEP): 10:15 stays, 10:10 is 10:15, 23:55 is midnight. */
+export const round15 = (min: number) => Math.floor((min + 7.5) / 15) * 15;
 
 /** A length on the 30 minute grid, never under 30. */
 export const lengthMin = (min: number) => Math.max(30, round30(min));

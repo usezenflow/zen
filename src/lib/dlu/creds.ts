@@ -22,7 +22,8 @@ export type LmsSession = { sesskey: string; cookie?: string; exp: number };
 
 const KEY = "dlu.creds";
 
-export const saveCreds = (c: Creds) => SecureStore.setItemAsync(KEY, JSON.stringify(c));
+// Readable after the first unlock since boot, so the background sync can sign in while the phone is locked.
+export const saveCreds = (c: Creds) => SecureStore.setItemAsync(KEY, JSON.stringify(c), { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK });
 export const clearCreds = () => SecureStore.deleteItemAsync(KEY);
 export async function loadCreds(): Promise<Creds | null> {
   const raw = await SecureStore.getItemAsync(KEY);

@@ -28,17 +28,23 @@ export async function setOptOut(s: Storage, off: boolean) {
   if (off) await s.set(Q, "[]");
 }
 
-export async function record(s: Storage, r: Omit<StatRow, "install" | "at"> & { at?: number }) {
+// The queue is read-modify-write and record() is fire-and-forget: one write at a time, or concurrent calls lose rows.
+let chain: Promise<unknown> = Promise.resolve();
+const serial = <T>(fn: () => Promise<T>): Promise<T> => { const r = chain.then(fn); chain = r.catch(() => {}); return r; };
+
+export const record = (s: Storage, r: Omit<StatRow, "install" | "at"> & { at?: number }) => serial(() => recordNow(s, r));
+
+async function recordNow(s: Storage, r: Omit<StatRow, "install" | "at"> & { at?: number }) {
   if (await isOptedOut(s)) return;
   const q: StatRow[] = JSON.parse((await s.get(Q)) ?? "[]");
   q.push({ ...r, install: await installId(s), at: r.at ?? Math.floor(Date.now() / 1000) });
   await s.set(Q, JSON.stringify(q.slice(-MAX_QUEUE)));
 }
 
-/** Sends the queue if a day has passed; keeps rows on failure. Returns rows sent. */
-export async function flush(
-  s: Storage, url: string, now = Date.now(), post: typeof fetch = fetch,
-): Promise<number> {
+/** Sends the queue if a day has passed; keeps rows on failure. Returns rows sent. Queued behind record() so its rewrite keeps their rows. */
+export const flush = (s: Storage, url: string, now = Date.now(), post: typeof fetch = fetch): Promise<number> => serial(() => flushNow(s, url, now, post));
+
+async function flushNow(s: Storage, url: string, now: number, post: typeof fetch): Promise<number> {
   if (await isOptedOut(s)) return 0;
   if (now - Number((await s.get(LAST)) ?? 0) < DAY_MS) return 0;
   let q: StatRow[] = JSON.parse((await s.get(Q)) ?? "[]");

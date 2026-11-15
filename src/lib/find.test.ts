@@ -117,3 +117,21 @@ describe("suggestions", () => {
     expect(remember(["a"], "  ")).toEqual(["a"]);
   });
 });
+
+describe("whole type words, wider parts of day", () => {
+  const xs = [
+    task("design", "Mẫu thiết kế", at(1, 7), { fixed: "lecture", source: "dlu" }),
+    task("exam", "Thi Giải tích", at(2, 7), { fixed: "exam", source: "dlu" }),
+    task("early", "Lớp sớm", at(1, 6, 45), { fixed: "lecture", source: "dlu" }),
+    task("late", "Đọc sách", at(2, 0, 30)),
+    task("tonight", "Gọi mẹ", at(1, 0, 30)),
+  ];
+  it("thi finds exams, not thiết kế", () => {
+    expect(ids(xs, "thi")).toEqual(["exam"]);
+    expect(tint("Mẫu thiết kế", "thi")).toEqual([]);
+  });
+  it("sáng reaches a 06:45 class; đêm mai runs past midnight into the day after", () => {
+    expect(ids(xs, "sáng mai")).toContain("early");
+    expect(ids(xs, "đêm mai")).toEqual(["late"]);
+  });
+});

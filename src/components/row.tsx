@@ -1,6 +1,5 @@
 import * as Haptics from "expo-haptics";
-import { DateTimePicker } from "@expo/ui/community/datetime-picker";
-import { useTapOutside } from "@/components/outside";
+import { TimeDial, type Anchor } from "./dial";
 import { useEffect, useRef, useState, type ComponentRef } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
@@ -8,7 +7,7 @@ import Animated, { Extrapolation, interpolate, interpolateColor, useAnimatedStyl
 import { scheduleOnRN } from "react-native-worklets";
 import { Icon, TypeArt } from "@/components/art";
 import { hhmm, startOfDay } from "@/components/cal";
-import { fadeIn, glide, Tap, settle, EASE } from "@/components/tap";
+import { glide, Tap, settle, EASE } from "@/components/tap";
 import { hits, type Query } from "@/lib/find";
 import { t } from "@/lib/i18n";
 import { reasonText } from "@/lib/reasons";
@@ -67,28 +66,19 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
     openLater.current = setTimeout(onOpen, 300);
   };
   useEffect(() => () => clearTimeout(openLater.current), []);
-  // The picker is a native control whose own taps reach the row, so the row ignores taps while it is open.
-  // It stays open through every turn of the wheel; a tap elsewhere puts it away and saves the last value.
-  const pickBox = useRef<ComponentRef<typeof View>>(null);
-  const [draft, setDraft] = useState<Date>();
-  // The wheel's last value is saved when it rests, on a tap outside, and on unmount (a view switch or refresh): blur alone is not reliable,
-  // since iOS eats the tap that dismisses the compact picker's popover.
-  const live = useRef({ draft: undefined as Date | undefined, task, onTime, onTitle }), rest = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => { live.current.task = task; live.current.onTime = onTime; live.current.onTitle = onTitle; });
-  const commit = () => {
-    clearTimeout(rest.current);
-    const { draft: d, task: tk, onTime: save } = live.current;
-    live.current.draft = undefined;
-    if (d && tk.start !== undefined && hhmm(d.getTime()) !== hhmm(tk.start)) save(d);
-  };
-  const turn = (d: Date) => { setDraft(d); live.current.draft = d; clearTimeout(rest.current); rest.current = setTimeout(commit, 350); };
-  useEffect(() => () => { // eslint-disable-line react-hooks/exhaustive-deps
-    commit();
+  // The time chip drops zen's dial (views.html "Row, change the time"). Each settled drum is saved at once by onTime; the screen re-plans once it rests.
+  const timeBox = useRef<ComponentRef<typeof View>>(null);
+  const [anchor, setAnchor] = useState<Anchor>();
+  const openDial = () => timeBox.current?.measureInWindow((x, y, w, h) => { setAnchor({ x, y, w, h }); setPicking(true); });
+  const live = useRef({ task, onTitle });
+  useEffect(() => { live.current.task = task; live.current.onTitle = onTitle; });
+  useEffect(() => () => {
     const v = typed.current?.trim(); // a title still being typed when the row goes away is kept, as the detail screen does
     if (v && v !== live.current.task.title) live.current.onTitle(v);
   }, []);
-  useTapOutside(pickBox, picking, () => { commit(); setDraft(undefined); setPicking(false); });
   const type = typeOf(task);
+  // as the detail screen: campus lectures and exams keep their times (sync would reset the end), done and ghost rows too
+  const canTime = task.start !== undefined && !allDay && !tm && !done && !ghost && (task.fixed ? task.fixed === "busy" && task.source !== "dlu" && !task.forId : true);
   const check = type === "plan" || type === "assignment";
   // Missed: a checkable task whose block has ended without a tick; vermilion circle and time (views.html "Day, missed").
   const late = check && !done && !allDay && (task.end ?? task.start ?? Infinity) <= now;
@@ -164,21 +154,14 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
           </Pressable>
         )}
       </Animated.View>
-      {picking && task.start !== undefined ? (
-        // Inline native compact picker; the edit lands once the wheel rests, no modal.
-        <Animated.View key="pick" entering={fadeIn} ref={pickBox}>
-          <DateTimePicker
-            value={draft ?? new Date(task.start)} mode="time" display="compact" accentColor={th.seal} style={s.pick}
-            onValueChange={(_, d) => turn(d)}
-          />
-        </Animated.View>
-      ) : (
-        <Animated.View key="time" entering={fadeIn}>
-          <Pressable onPress={() => !allDay && task.start !== undefined && setPicking(true)} hitSlop={8}>
-            <Text style={[s.tm, { color: editing ? th.ink : late ? th.seal : th.muted }]}>{allDay ? t("allDay") : tm ?? (task.start !== undefined ? hhmm(task.start) : "")}</Text>
-          </Pressable>
-        </Animated.View>
-      )}
+      <View ref={timeBox} collapsable={false}>
+        <Pressable onPress={canTime ? openDial : undefined} hitSlop={8} accessibilityRole={canTime ? "button" : undefined}>
+          <Text style={[s.tm, picking && [s.chip, { backgroundColor: th.chip, borderColor: th.seal, color: th.ink }], !picking && { color: editing ? th.ink : late ? th.seal : th.muted }]}>
+            {allDay ? t("allDay") : tm ?? (task.start !== undefined ? hhmm(task.start) : "")}
+          </Text>
+        </Pressable>
+      </View>
+      {task.start !== undefined && <TimeDial open={picking} anchor={anchor} value={new Date(task.start)} onChange={onTime} onClose={() => setPicking(false)} />}
     </Tap>
   );
   return (
@@ -197,6 +180,7 @@ const s = StyleSheet.create({
   clip: { width: "100%", height: "100%", borderRadius: 17, overflow: "hidden" },
   tx: { flex: 1, minWidth: 0, paddingVertical: space.row + 2, marginVertical: -space.row },
   mark: { backgroundColor: "rgba(217,67,43,0.18)" }, // as capture.tsx s.mark
+  chip: { overflow: "hidden", borderWidth: 1.5, borderRadius: 9, paddingHorizontal: 8, paddingVertical: 5, marginVertical: -6.5 }, // views.html .pk.on
   title: { fontSize: font.base, lineHeight: 23.8, fontFamily: ff("600") }, // .r line-height 1.4
   small: { fontSize: font.sub, lineHeight: 21, fontFamily: ff("500") },
   bleed: { marginHorizontal: -10, borderRadius: 16 },

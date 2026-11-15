@@ -14,7 +14,11 @@ export const monthLabel = (ms: number) => `Tháng ${new Date(ms).getMonth() + 1}
 export const live = (x: Task) => !x.doneAt && !x.deletedAt;
 /** Tasks that show: not a split parent, placed. */
 export const shown = (all: Task[]) => all.filter((x) => live(x) && x.start !== undefined && x.end !== undefined && !all.some((c) => c.parentId === x.id));
-export const onDay = (all: Task[], day: number) => { const e = addDays(day, 1); return shown(all).filter((x) => x.start! >= day && x.start! < e).sort((a, b) => a.start! - b.start!); };
+/** Everything on that day: what starts on it, and a block running over it from an earlier day (a trip, 23:00 to 01:00). */
+export const onDay = (all: Task[], day: number) => { const e = addDays(day, 1); return shown(all).filter((x) => x.start! < e && x.end! > day).sort((a, b) => a.start! - b.start!); };
+/** The time a row shows on a day its block began earlier: "đến 12:00" on the last day, `allDay` (Cả ngày) in between; undefined on its first day. */
+export const carried = (x: Task, day: number, allDay: string, until: string) =>
+  x.start === undefined || x.start >= day ? undefined : x.end !== undefined && x.end < addDays(day, 1) ? `${until} ${hhmm(x.end)}` : allDay;
 /** Holiday / all-day phone events by local day start. */
 export type Hols = Map<number, string>;
 /** Week label: "Tết mùng 3" splits in two lines ("Tết" / "mùng 3"); else the title. */

@@ -210,3 +210,14 @@ describe("forget cues that are really new rules", () => {
     expect(readRule("bỏ vụ tối thứ sáu đi", rules)).toEqual({ forget: rules });
   });
 });
+
+describe("midnight and noon clocks", () => {
+  it("12 giờ đêm is the end of the day, the small hours run to morning, trưa is around noon", () => {
+    expect(sum("từ 10 giờ tối đến 12 giờ đêm để trống")).toEqual(["|22:00-24:00|"]);
+    expect(sum("sau 12 giờ đêm đừng xếp")).toEqual(["|00:00-05:00|"]);
+    expect(sum("trưa từ 11 giờ đến 1 giờ để trống")).toEqual(["|11:00-13:00|"]);
+    expect(sum("từ 11 giờ đêm đến 2 giờ đêm để trống")).toEqual(["|23:00-24:00|", "|00:00-02:00|"]);
+    expect(sum("từ 12 giờ đêm đến 6 giờ sáng để trống")).toEqual(["|00:00-06:00|"]);
+    expect(sum("12 giờ trưa đến 2 giờ chiều để trống")).toEqual(["|12:00-14:00|"]);
+  });
+});

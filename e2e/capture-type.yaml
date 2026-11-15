@@ -1,0 +1,12 @@
+# Type a task: the reader makes "Học nhóm" tomorrow at 15:00, with an undo toast; search finds it under tomorrow.
+appId: com.alpha.zen
+---
+- runFlow: sub/start.yaml
+- openLink: "zen:///?type=1"
+- inputText: "học nhóm 3h chiều mai"
+- tapOn: "Gửi"
+- assertVisible: "Hoàn tác"
+- tapOn: "Tìm việc"
+- inputText: "học nhóm"
+- assertVisible: "Ngày mai"
+- assertVisible: "15:00"

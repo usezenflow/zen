@@ -13,7 +13,8 @@ const notesOf = (v) => {
 };
 
 module.exports = ({ config }) => {
-  const [major, minor, patch] = version.split(".").map(Number);
+  // "1.2.0-beta.0": only the numbers count, or versionCode is NaN
+  const [major, minor, patch] = version.split(/[-+]/)[0].split(".").map((x) => Number(x) || 0);
   const code = major * 10000 + minor * 100 + patch;
   return {
     ...config,

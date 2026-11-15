@@ -59,8 +59,8 @@ const SRC = ["typed", "voice"] as const;
 const strip = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").replace(/đ/g, "d").replace(/Đ/g, "D");
 const cap = (s: string) => s.replace(/(^|\s)(\p{L})/gu, (_, a: string, b: string) => a + b.toLocaleUpperCase("vi"));
 
-/** A fixed start is planned on the half-hour grid: 8:45 is 9:00, 8:15 is 8:30. A deadline keeps its minute. */
-const snap = (hm: string) => { const t = Math.round((+hm.slice(0, 2) * 60 + +hm.slice(3)) / 30) * 30; return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`; };
+/** A fixed start is planned on the quarter-hour grid (planner STEP): 8:45 and 8:15 stay, 8:10 is 8:15. A deadline keeps its minute. */
+const snap = (hm: string) => { const t = Math.round((+hm.slice(0, 2) * 60 + +hm.slice(3)) / 15) * 15; return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`; };
 
 const VOWEL = "aeiouy";
 const MOD: Record<string, string> = { a: "ă", o: "ơ", u: "ư" };

@@ -8,7 +8,6 @@ import {
   WORKLOAD_CONFIGS,
   type WorkloadCategory,
 } from "../shared";
-import { SCAN_CAP_DAYS } from "../shared";
 import { fold } from "./fold";
 import {
   addDays,
@@ -18,7 +17,7 @@ import {
   inferYear,
   lengthMin,
   minutesOf,
-  round30,
+  round15,
   stamp,
 } from "./calendar";
 import {
@@ -153,6 +152,8 @@ const CUES = new Set([
   "rang",
   "khuya",
 ]);
+/** The raw spellings of a cue whose folded form other words share. */
+const CUE_SPELLING: Record<string, string[]> = { de: ["để", "de"], ban: ["bạn", "ban"], thu: ["thứ", "thu"], han: ["hạn", "han"] };
 /** Folded words that make "từ" part of a compound (từ vựng, từ điển), not a cue. */
 const TU_WORDS = new Set(["vung", "dien", "khoa"]);
 /** Folded word pairs whose cue word is part of a name. */
@@ -275,10 +276,13 @@ export function nextClock(
   ref: ReaderWC,
   sleep: boolean,
   evening = false,
+  until = false,
 ): { h: number; mi: number; part?: string; off: number } {
   const now = (ref.h ?? 0) * 60 + (ref.mi ?? 0);
   const later = (hh: number) => (hh * 60 + mi > now ? 0 : 1);
   if (h === 0 && mi === 0) return { h: 23, mi: 59, part: "toi", off: 0 };
+  // "chơi game tới 1h": staying up until a small hour is after midnight, not 13:00
+  if (until && h >= 1 && h <= 4) return { h, mi, off: later(h) };
   if (h === 12) return { h, mi, part: "trua", off: later(12) };
   if (h === 0 || h > 12) return { h, mi, off: later(h) };
   if (h <= 6 || evening)
@@ -605,6 +609,10 @@ function titleOf(
           !(raw === "da" && /^(?:bong|banh|cau)$/.test(keys[i + 1] ?? "")) &&
           !inName &&
           !(key === "tu" && TU_WORDS.has(keys[i + 1] ?? "")) &&
+          // a marked word that only folds to a cue stays: "đề cương" is no "để", "bán hàng" no "bạn", "thi thử" no "thứ"
+          !(Object.hasOwn(CUE_SPELLING, key) && !CUE_SPELLING[key].includes(raw)) &&
+          // "rửa chén sau khi ăn" keeps its "sau khi"
+          !(key === "sau" && keys[i + 1] === "khi") &&
           !isBanHanh)
       )
         continue;
@@ -871,6 +879,8 @@ const words = (s: string) => s.split(" ").filter(Boolean).length;
 interface DateRes {
   wc: ReaderWC;
   how: "explicit" | "short" | "rel" | "inherit";
+  /** A written day past its month's end ("31/11"), read as the month's last day. */
+  clamped?: boolean;
   /** The clock of the day when the phrase sets one: "2 tiếng nữa". */
   clock?: [number, number];
 }
@@ -988,12 +998,14 @@ export function resolveDate(f: Found, ref: ReaderWC): DateRes | null {
       return {
         wc: { y: wy, m: v.m, d: Math.min(v.d, daysInMonth(wy, v.m)) },
         how: "explicit",
+        ...(v.d > daysInMonth(wy, v.m) && { clamped: true }),
       };
     }
     const y = inferYear(v.m, v.d, ref);
     return {
       wc: { y, m: v.m, d: Math.min(v.d, daysInMonth(y, v.m)) },
       how: "short",
+      ...(v.d > daysInMonth(y, v.m) && { clamped: true }),
     };
   }
   // a holiday name: its date in the shared calendar, next occurrence from ref (holidays.ts)
@@ -1001,23 +1013,23 @@ export function resolveDate(f: Found, ref: ReaderWC): DateRes | null {
     const wc = holidayOf(v.phrase, ref);
     return wc ? { wc, how: "short" } : null;
   }
-  // "ngày 20", "mùng 5": this month while the day is still to come, else next month
+  // "ngày 20", "mùng 5": this month while the day is still to come, else the next month that has it ("ngày 31" in November is 31/12)
   if (v.k === "dom") {
     let y = ref.y;
     let m = ref.m;
-    if (v.d < (ref.d ?? 0)) {
+    for (let k = 0; k < 12 && (v.d < (k ? 1 : (ref.d ?? 0)) || v.d > daysInMonth(y, m)); k++) {
       m = m === 12 ? 1 : m + 1;
       if (m === 1) y += 1;
     }
     return { wc: { y, m, d: Math.min(v.d, daysInMonth(y, m)) }, how: "short" };
   }
   // "hôm qua" reads as today; a clock already past rolls it on in the clause
-  // between 0:00 and 4:00 "mai" still means the night just begun: today
+  // between 0:00 and 4:00 "mai" still means the night just begun: today, and "mốt" the day after it
   if (v.k === "rel")
     return {
       wc: addDays(
         ref,
-        v.off === 1 && (ref.h ?? 0) < 4 ? 0 : Math.max(0, v.off),
+        (v.off === 1 || v.off === 2) && (ref.h ?? 0) < 4 ? v.off - 1 : Math.max(0, v.off),
       ),
       how: "rel",
     };
@@ -1576,10 +1588,11 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
     // "7h tới 17h": a "tới" between two clocks ends a range, it is no evening word
     // "tuần tới 8h": the "tới" of next week, month or year is no evening word either
     // "nhắc tôi … 8:30": "tôi" is the speaker, not the evening
-    const pieceFold = fold(noDow.slice(a, b).replace(/(?<!\p{L})tôi(?!\p{L})/giu, "   "))
+    // "chơi game tới 1h": "tới" (until) is never "tối" either
+    const pieceFold = fold(noDow.slice(a, b).replace(/(?<!\p{L})t(?:ôi|ới)(?!\p{L})/giu, "   "))
       .text.replace(/\btonight\b/g, "toi")
       .replace(/(?<=\b(?:tuan|thang|nam)\s+)toi\b/g, "   ")
-      .replace(/(?<=\d\s*(?:h|g|gio)\s*)toi(?=\s+\d)/g, " ");
+      .replace(/(?<=\d\s*(?:h|g|gio)\s*)toi(?=\s+\d{1,2}\s*(?:h|g|gio|:\d))/g, " "); // "7h toi 17h"; "9h tối 20/11" stays the evening
     const pieceParts = new Set(
       [...pieceFold.matchAll(/\b(sang|trua|chieu|toi|dem)\b/g)].map(
         (x) => x[1],
@@ -1592,18 +1605,32 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
     const firstTime = piece.find((m) => m.kind === "time");
     const sleepy = /(?<![a-z])ngu(?![a-z])/.test(fpiece);
     const eveningAct = activityPm(fpiece);
+    // one clock after "đến/tới" is where the item ends
+    const untilClock =
+      piece.filter((m) => m.kind === "time").length === 1 &&
+      !!firstTime &&
+      roleOf(blank.slice(a, firstTime.start))?.role === "until";
+    // "7h tới 17h": a bare start before a plain end clock is that range's start, not the next 7 o'clock (19:00)
+    const endClock = piece.filter((m) => m.kind === "time")[1];
+    const rangeHead =
+      firstTime?.v.k === "time" &&
+      endClock?.v.k === "time" &&
+      (!!endClock.v.part || endClock.v.h > 12) &&
+      firstTime.v.h * 60 + firstTime.v.mi < endClock.v.h * 60 + endClock.v.mi &&
+      /^\s*(?:-|–|den|toi)\s*$/.test(fold(blank.slice(firstTime.end, endClock.start)).text);
     const bareNc =
       pieceUndated &&
       !piecePart &&
+      !rangeHead &&
       firstTime?.v.k === "time" &&
       !firstTime.v.part
-        ? nextClock(firstTime.v.h, firstTime.v.mi, ctx.ref, sleepy, eveningAct)
+        ? nextClock(firstTime.v.h, firstTime.v.mi, ctx.ref, sleepy, eveningAct, untilClock)
         : undefined;
-    const pTimes = piece
-      .filter((m) => m.kind === "time")
+    const clocks = piece.filter((m) => m.kind === "time");
+    const pTimes = clocks
       .map((m, k) => {
         if (bareNc && m.v.k === "time" && !m.v.part) {
-          let nc = nextClock(m.v.h, m.v.mi, ctx.ref, sleepy, eveningAct);
+          let nc = nextClock(m.v.h, m.v.mi, ctx.ref, sleepy, eveningAct, untilClock);
           // a bare end clock of a range reads after its start: "9h đến 11h" from 21:00 ends at 23:00
           const startMin = bareNc.h * 60 + bareNc.mi;
           if (k === 1 && nc.h < 12 && nc.h * 60 + nc.mi <= startMin) {
@@ -1616,7 +1643,12 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
             v: { k: "time" as const, h: nc.h, mi: nc.mi, part: nc.part },
           };
         }
-        return piecePart ? withPart(m, piecePart) : m;
+        if (!piecePart) return m;
+        const w = withPart(m, piecePart);
+        // "từ 11h đến 1h chiều": the part is the end's; a bare start it would push past that end stays in the morning
+        const nx = clocks[k + 1] && withPart(clocks[k + 1], piecePart);
+        const min = (f: Found) => (f.v.k === "time" ? f.v.h * 60 + f.v.mi : 0);
+        return nx?.v.k === "time" && min(w) > min(nx) && min(m) < min(nx) ? m : w;
       });
     const periodMention =
       piece.find((m) => m.kind === "period" && m.v.k === "period") ??
@@ -1693,42 +1725,6 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
       !undatedTask
     )
       continue;
-    // a recurring line with no date starts today; a daily clock already past starts tomorrow
-    const firstClock = pTimes[0]?.v;
-    // midnight ("12h đêm") ends the day it is named in, so it does not roll to the next one
-    // a bare "12am" is the next midnight: today's has passed
-    const startOff =
-      firstClock?.k === "time" &&
-      ((firstClock.h === 0 &&
-        firstClock.mi === 0 &&
-        firstClock.part === "sang" &&
-        !pieceDates.length) ||
-        (!(firstClock.h === 0 && firstClock.mi === 0) &&
-          firstClock.h * 60 + firstClock.mi <=
-            (ctx.ref.h ?? 0) * 60 + (ctx.ref.mi ?? 0)))
-        ? 1
-        : 0;
-    const dateList = pieceDates.length
-      ? pDates
-      : recur || (pieceUndated && pTimes.length)
-        ? [
-            {
-              kind: "date" as const,
-              start: a,
-              end: a,
-              v: { k: "rel" as const, off: bareNc?.off ?? startOff },
-            },
-          ]
-        : inherited.length || ctx.source === "paste" || ctx.source === "ocr"
-          ? inherited
-          : // said in one breath, "mai 8h họp, 9h tối gọi mẹ, mốt 7h đá bóng": a clock with no day is on the day named last before it
-            ownDates(
-              datesIn(datedPieces.filter((p) => p[0] < a).at(-1) ?? [0, 0]),
-            );
-    if (!dateList.length && !undatedTask) continue;
-    const dateHow: "own" | "inherit" = pieceDates.length ? "own" : "inherit";
-    // only an explicit date takes the clock of a time-only piece; "mai" or "thứ năm" keep their own day
-    const explicitHere = pDates.some((m) => m.v.k === "date");
     const sortedTimes = [...pTimes].sort((x, y) => x.start - y.start);
     let timeRangeDur: number | undefined;
     // the clock a range ends at: "đến 11h", "trước 22h"
@@ -1757,6 +1753,42 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
         }
       }
     }
+    // a recurring line with no date starts today; a daily clock already past starts tomorrow
+    const firstClock = pTimes[0]?.v;
+    // midnight ("12h đêm") ends the day it is named in, so it does not roll to the next one
+    // a bare "12am" is the next midnight: today's has passed
+    const startOff =
+      firstClock?.k === "time" &&
+      ((firstClock.h === 0 &&
+        firstClock.mi === 0 &&
+        firstClock.part === "sang" &&
+        !pieceDates.length) ||
+        (!(firstClock.h === 0 && firstClock.mi === 0) &&
+          firstClock.h * 60 + firstClock.mi + (recur ? 0 : (timeRangeDur ?? 0)) <=
+            (ctx.ref.h ?? 0) * 60 + (ctx.ref.mi ?? 0)))
+        ? 1
+        : 0;
+    const dateList = pieceDates.length
+      ? pDates
+      : recur || (pieceUndated && pTimes.length)
+        ? [
+            {
+              kind: "date" as const,
+              start: a,
+              end: a,
+              v: { k: "rel" as const, off: bareNc?.off ?? startOff },
+            },
+          ]
+        : inherited.length || ctx.source === "paste" || ctx.source === "ocr"
+          ? inherited
+          : // said in one breath, "mai 8h họp, 9h tối gọi mẹ, mốt 7h đá bóng": a clock with no day is on the day named last before it
+            ownDates(
+              datesIn(datedPieces.filter((p) => p[0] < a).at(-1) ?? [0, 0]),
+            );
+    if (!dateList.length && !undatedTask) continue;
+    const dateHow: "own" | "inherit" = pieceDates.length ? "own" : "inherit";
+    // only an explicit date takes the clock of a time-only piece; "mai" or "thứ năm" keep their own day
+    const explicitHere = pDates.some((m) => m.v.k === "date");
     const timeFound =
       sortedTimes[0] ??
       (explicitHere && explicitPieces === 1 ? undatedTimes[0] : undefined);
@@ -1915,7 +1947,7 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
           }
         : undefined;
     // the reader resolves silently: a weekday that disagrees with the written date is ignored, the date wins
-    const flags: ReaderFlag[] = [];
+    const flags: ReaderFlag[] = resolved.some((r) => r.res.clamped) ? ["date_clamped"] : [];
     const alternatives: string[] = [];
     const listed = range ? [] : dayOr ? resolved.slice(0, 1) : resolved;
 
@@ -2151,6 +2183,10 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
       (cue?.role === "after" || cue?.role === "from") &&
       (holidayRole === "after" || holidayRole === "from") &&
       activityWords.length > 0;
+    // an event beside the holiday's own words: "họp lớp tết", "thi giáng sinh", "đi chơi noel" (a birthday alone is none)
+    const eventWords = activityWords.join(" ").replace(ALL_DAY_CUE, " ");
+    const holidayActivity =
+      !playfulTitle && (DNDCUE.test(eventWords) || EXAM.test(eventWords) || /\b(choi|ve que)\b/.test(eventWords));
     const allDayHere =
       !hasTimeHint &&
       !range &&
@@ -2220,16 +2256,36 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
         date = addDays(date, 1);
       // a passed clock rolls on: a relative day to the next day (a weekday to next week); a written date stays in its nearest year
       const stop = at ?? (time ? [time.h, time.mi] : partClock);
-      // a range keeps its start: its end is what has to be ahead
+      // 0:00 ("12h đêm nay", "midnight tonight") ends its day, so it is ahead all day; "12am" starts it
+      const endsDay =
+        !at &&
+        !!stop &&
+        stop[0] === 0 &&
+        stop[1] === 0 &&
+        !(time && "part" in time && time.part === "sang");
+      // a range keeps its start: its end is what has to be ahead ("9h đến 1h chiều" at 10:00 is under way today)
       const passed =
         !to &&
-        minutesOf({ ...date, h: stop?.[0] ?? 23, mi: stop?.[1] ?? 59 }) <
+        minutesOf({
+          ...date,
+          h: endsDay ? 23 : (stop?.[0] ?? 23),
+          mi: endsDay ? 59 : (stop?.[1] ?? 59),
+        }) +
+          (time && !at && !endsDay ? (timeRangeDur ?? 0) : 0) <
           minutesOf(ctx.ref);
+      // a said "hôm nay 8h", "3h chiều nay" keeps its day with a clock already past: flagged, never moved to tomorrow.
+      // A part alone ("làm slide sáng nay" at 19:00) still rolls, and so does a small-hours clock ("đêm nay 1h" is after midnight).
+      const saidToday =
+        how === "rel" &&
+        !!(at ?? time) &&
+        (at ?? [time!.h])[0] >= 5 &&
+        dayNo(date) <= dayNo(ctx.ref) &&
+        dateList.some((m) => m.v.k === "rel" && m.v.off <= 0);
       // a weekday, its own or the one a piece inherits, that has passed is next week
       const byWeekday =
         weekday?.v.k === "dow" ||
         (how === "inherit" && inherited.some((m) => m.v.k === "dow"));
-      if (passed && (how === "rel" || (how === "inherit" && byWeekday)))
+      if (passed && !saidToday && (how === "rel" || (how === "inherit" && byWeekday)))
         date = addDays(date, byWeekday ? 7 : 1);
       // a relative start of a BYDAY rule is its first listed day
       if (recur && rrule && (how === "rel" || how === "inherit"))
@@ -2250,7 +2306,7 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
         location,
         confidence: 0,
         inferred,
-        flags: [...flags],
+        flags: passed && saidToday ? [...flags, "date_past"] : [...flags],
         alternatives: [...alternatives],
         evidence: pieceText.trim().slice(0, 300),
         checked: false,
@@ -2272,9 +2328,9 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
         c[0] === 0 && c[1] === 0 && !at && !amMidnight
           ? stamp(addDays(w, 1), 0, 0)
           : stamp(w, c[0], c[1]);
-      // a start rounds to the 30-minute grid: 8:55 is 9:00, 9:15 is 9:30, 23:50 is midnight of the next day
+      // a start rounds to the 15-minute grid: 8:55 is 9:00, 9:10 is 9:15, 23:55 is midnight of the next day
       const gridStamp = (w: ReaderWC, c: [number, number]) => {
-        const t = round30(c[0] * 60 + c[1]);
+        const t = round15(c[0] * 60 + c[1]);
         return stamp(
           addDays(w, Math.floor(t / 1440)),
           Math.floor((t % 1440) / 60),
@@ -2282,22 +2338,34 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
         );
       };
       const startOn = (w: ReaderWC, c: [number, number]) =>
-        round30(c[0] * 60 + c[1]) === 0 ? on(w, [0, 0]) : gridStamp(w, c);
+        c[0] === 0 && c[1] === 0 ? on(w, [0, 0]) : gridStamp(w, c); // only a said 0:00 ends its day: 00:05 starts it
       if (kind === "EXAM" || kind === "LECTURE" || kind === "BUSY") {
         let c: [number, number];
-        if (clock) c = clock;
+        const untilStart = !!clock && untilClock && !at && !timeRangeDur;
+        if (untilStart) {
+          // "chơi game tới 1h": the clock ends the block, which starts its length before
+          const t = clock[0] * 60 + clock[1] - (item.durationMinutes ?? 60);
+          if (t < 0) date = addDays(date, -1);
+          c = [Math.floor(((t + 1440) % 1440) / 60), (t + 1440) % 60];
+        } else if (clock) c = clock;
         else if (periodUnknown) {
           // the portal has no clock for this period: the day only, the app picks the hour
           item.days = [stamp(date, 0, 0).slice(0, 10)];
           timeF = 0.8;
         } else {
           c = partSpec ? partSpec.start : [8, 0];
+          // a guessed start already past today moves to the next half hour: "thi cuối tuần" said Sunday 10:00 is 10:30
+          const now = (ctx.ref.h ?? 0) * 60 + (ctx.ref.mi ?? 0);
+          const next = Math.ceil((now + 1) / 30) * 30;
+          if (dayNo(date) === dayNo(ctx.ref) && c[0] * 60 + c[1] < now && next < 1440)
+            c = [Math.floor(next / 60), next % 60];
           if (partSpec) item.windows = partWindows;
           timeF = 0.8;
           inferred.push("startsAt");
         }
-        // a fixed start rounds to the 30-minute grid: "9h10" is 9:00, "9h15" is 9:30
-        if (!periodUnknown || clock) item.startsAt = startOn(date, c!);
+        // a fixed start rounds to the 15-minute grid: "9h10" is 9:15, "9h15" stays
+        if (!periodUnknown || clock)
+          item.startsAt = untilStart ? gridStamp(date, c!) : startOn(date, c!);
       } else if (range && to) {
         if (evalRange) {
           // Evaluation window: preparation must finish before the window opens
@@ -2393,7 +2461,8 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
           item.deadline = englishMidnight
             ? stamp(date, 23, 59)
             : cue?.role === "before" && clock[0] === 0 && clock[1] === 0
-              ? stamp(addDays(date, -1), 23, 59)
+              ? // "trước 0h hôm nay" is tonight: never a day already gone
+                stamp(dayNo(date) > dayNo(ctx.ref) ? addDays(date, -1) : date, 23, 59)
               : on(date, clock);
         } else {
           // several parts of the day end the day; one part keeps its own clock
@@ -2460,8 +2529,8 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
         durationMinutes: (dayNo(range.to.wc) - dayNo(range.from.wc) + 1) * 1440,
       });
     } else if (range) {
-      if (evalRange) {
-        // the window itself is a busy block of days, next to its prep tasks
+      // the window itself is a busy block of days, next to its prep tasks; a vague span ("thi tuần sau") blocks no week
+      if (evalRange && !span) {
         produced.push({
           ...emit("BUSY", range.from.wc, range.from.how, undefined, [0, 0]),
           durationMinutes:
@@ -2578,9 +2647,9 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
             : 0;
         const span = breakSpan || (busy && spanMin >= 2880);
         const wholeDay = !span && (allDayHere || busy);
-        // a holiday or birthday with no task verb is no item
+        // a holiday or birthday alone is no item; with an activity ("họp lớp tết", "thi giáng sinh") it is one on that day
         // only the holiday's own date goes: a day word in the same piece still dates the item
-        if (wholeDay && !taskHere && holidayMention(f, ctx.ref)) continue;
+        if (wholeDay && !taskHere && !holidayActivity && holidayMention(f, ctx.ref)) continue;
         const it = emit(
           span
             ? "BUSY"
@@ -2665,17 +2734,8 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
     return out;
   }
   const now = minutesOf(ctx.ref);
-  // a task is never due past the scan window: the deadline is cut to it, a fixed start is not
-  const cap = stamp(addDays(ctx.ref, SCAN_CAP_DAYS), 23, 59);
+  // A far deadline keeps its real day ("nộp bài trung thu" is Trung thu); the planner places the work before it, within its own horizon.
   for (const item of produced) {
-    if (
-      (item.type === "PLAN" || item.type === "ASSIGNMENT") &&
-      item.deadline &&
-      item.deadline > cap &&
-      // never to before the day the task itself starts: "giặt đồ 20/3" said in November keeps its day
-      !(item.notBefore && item.notBefore > cap)
-    )
-      item.deadline = cap;
     const at = item.startsAt ?? item.deadline;
     if (
       at &&

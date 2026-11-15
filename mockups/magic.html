@@ -69,12 +69,25 @@
 .mind { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border-radius: 99px; border: 1px solid var(--line); color: var(--ink); font-weight: 600; font-size: 14px; }
 .mind.on { background: var(--ink); border-color: var(--ink); color: var(--bg); } /* the leaf strokes currentColor, so it flips with the pill */
 .tabs > div > span { padding: 10px 0; }
+/* Prep: the sittings of one prep (day, step, length); done struck, this one bold, a changed one dotted. */
+.sits { margin-top: 6px; }
+.si { display: flex; align-items: baseline; gap: 10px; padding: 7px 0; font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.si .d { width: 92px; flex: none; color: var(--muted); }
+.si .p { flex: 1; }
+.si .m { color: var(--muted); }
+.si.done .p, .si.done .d { text-decoration: line-through; text-decoration-color: var(--muted); color: var(--muted); }
+.si.me .p { font-weight: 700; }
+.si.me .d { color: var(--ink); font-weight: 600; }
+/* A question Zen would like answered: dashed, so it reads as an ask, not a setting. */
+.pl.q { border-style: dashed; }
+/* What Zen read from the note or title, one muted line under it (as Search, understood). */
+.got { margin-top: 8px; font-size: 14px; font-weight: 600; color: var(--muted); }
 </style>
 </head>
 <body>
 <div class="head">
   <h1>Magic, quietly</h1>
-  <p>Zen places your flexible work and leaves it alone. It re-plans only when something happened: <b>the school changed</b> a class, an exam or a due date; <b>you added</b> something or changed a due date; <b>you asked</b> (a rule, "later", a new time); or a block <b>passed undone</b>. Then the change is shown in three sizes: <b>motion</b> when it happens in front of you (rows move one at a time), a <b>trail</b> on each moved row (a vermilion dot and "từ T3 14:00"), and a <b>brief</b> when it happened while you were away. Every sentence on this page is one the app can produce from what it knows.</p>
+  <p>Zen places your flexible work and leaves it alone. It re-plans only when something happened: <b>the school changed</b> a class, an exam or a due date; <b>you added</b> something or changed a due date; <b>you asked</b> (a rule, "later", a new time); or a block <b>passed undone</b>. Then the change is shown in three sizes: <b>motion</b> when it happens in front of you (rows move one at a time), a <b>trail</b> on each moved row (a vermilion dot and "từ T3 14:00"), and a <b>brief</b> when it happened while you were away. Exam and assignment <b>preps</b> (18 onward) are a budget of minutes, not a fixed "2 buổi": a base for the format, multiplied by what Zen knows (credits, a retake, your marks, your pace, what you said last time, a crowded exam week, and what the title and notes say), poured into 60–90 minute sittings named for their step, longer on light days. When the budget changes, the next two days stay as they are and sittings are added or removed further out. Every sentence on this page is one the app can produce from what it knows.</p>
   <nav><a href="views.html">Views</a><a href="settings.html">Settings</a></nav>
 </div>
 <div class="gallery"></div>
@@ -131,10 +144,10 @@ const reasons = `${head("Thứ hai", "16 tháng 11", "5 việc, 1 tiết học")
 // 7. Detail: why this time, in sentences with weight bars, and the one other good time.
 const why = `${dtop}
   <div style="display:flex;align-items:center;gap:10px;margin-top:22px">${swatch("plan")}<span class="sub" style="margin:0">Việc của bạn</span></div>
-  <div class="h" style="margin-top:14px">Ôn lý thuyết, luyện đề</div>
-  <div class="meta">${ml("clock", "Làm lúc T2 09:00, 45 phút")}${ml("book", `Giải tích 2 ${ic(I.right, 16)}`, "lk")}</div>
+  <div class="h" style="margin-top:14px">Luyện đề</div>
+  <div class="meta">${ml("clock", "Làm lúc T2 09:00, 60 phút")}${ml("book", `Thi Giải tích 2 ${ic(I.right, 16)}`, "lk")}</div>
   <div class="why"><div class="lab">Vì sao lúc này</div>
-    ${wy("Giờ này bạn hay làm xong việc", 82)}${wy("Việc giống thế này bạn hay làm xong lúc 9 giờ", 60)}${wy("Buổi 1/2, rải đều tới hạn", 38)}${wy("Hơi sát Cơ sở dữ liệu", 18, 1)}</div>
+    ${wy("Giờ này bạn hay làm xong việc", 82)}${wy("Việc giống thế này bạn hay làm xong lúc 9 giờ", 60)}${wy("Buổi 5/10, rải đều tới hạn", 38)}${wy("Hơi sát Cơ sở dữ liệu", 18, 1)}</div>
   <div class="lab" style="margin-top:20px">Cũng hợp</div>
   <div class="pills" style="margin-top:10px"><span class="pl sm">T3 08:00</span></div>`;
 
@@ -159,7 +172,7 @@ const heads = `${head("Thứ tư", "18 tháng 11", "3 việc, 1 tiết học")}$
   <div class="warn"><b>Báo cáo nhóm hơi gấp</b><small>Còn khoảng 5 tiếng mà trước T6 23:59 chỉ trống 3 tiếng.</small>
     <div class="pills blk" style="margin-top:12px"><span class="pl sm on">Lùi Ôn tập Cấu trúc dữ liệu và giải thuật T5</span><span class="pl sm">Lùi Đọc sách T5</span></div></div>
   <div class="lab" style="margin-top:26px">Hôm nay</div>
-  <div class="list" style="margin-top:6px">${row("14:00", "Báo cáo nhóm", "assignment", "Buổi 1/3")}${row("17:30", "Cơ sở dữ liệu", "lecture", "A2.104")}${row("20:00", "Báo cáo nhóm", "assignment", "Buổi 2/3")}</div>`;
+  <div class="list" style="margin-top:6px">${row("14:00", "Báo cáo nhóm", "assignment", "Buổi 1/4")}${row("17:30", "Cơ sở dữ liệu", "lecture", "A2.104")}${row("20:00", "Báo cáo nhóm", "assignment", "Buổi 2/4")}</div>`;
 
 // 10. A rule, said once: Zen repeats it in its own words and names what it moved to keep it.
 const rule = toast("Mình sẽ giữ Tối T6 để trống", "Đọc sách sang T7 20:00", [["Hoàn tác"]]) + `${head("Tuần này", "16 đến 22/11", "9 việc, 5 tiết học")}${tabs("Tuần")}
@@ -230,6 +243,143 @@ const gap = `${head("Thứ hai", "16 tháng 11", "4 việc, 1 tiết học")}${t
   <div class="lab" style="margin-top:28px">Sau đó</div>
   <div class="list" style="margin-top:6px">${row("17:30", "Cơ sở dữ liệu", "lecture", "A2.104")}${row("20:00", "Đọc sách mỗi tối", "plan")}</div>`;
 
+// ---- Preps: a budget of minutes, poured into sittings, told by what you write. ----
+const si = (d, p, m, cls = "", dot = false) => `<div class="si ${cls}"><span class="d">${d}</span><span class="p">${dot ? '<span class="dot"></span>' : ""}${p}</span><span class="m">${m}</span></div>`;
+const mine = `<div style="display:flex;align-items:center;gap:10px;margin-top:22px">${swatch("plan")}<span class="sub" style="margin:0">Việc của bạn</span></div>`;
+const lessMore = `<div class="pills" style="margin-top:12px"><span class="pl sm">Ít hơn</span><span class="pl sm">Nhiều hơn</span></div>`;
+const blk = (h, t = "plan", s = 1) => `<span class="b" style="--h:${h}px">${art(t, { w: 40, h, seed: s })}</span>`;
+const wk = (cols) => `<div class="wk" style="margin-top:20px">${cols.map(([d, n, bs], i) => `<div class="c"><span class="d ${i === 0 ? "on" : ""}">${d}<i>${n}</i></span><div class="bs">${bs.map(([t, h], j) => blk(h, t, i * 3 + j)).join("")}</div></div>`).join("")}</div>`;
+const note = (t, ph = false) => `<div class="note ${ph ? "ph" : ""}">${ph ? t : `<span class="caret">${t}</span>`}</div>`;
+// An open ask lights its chip and drops its answers right below it, left edges aligned (above it when the chip sits low on screen).
+const ask = (qs, open = -1, opts = []) => `<div class="lab" style="margin-top:20px">Cho mình biết thêm</div><div class="pills" style="margin-top:10px">${qs.map((q, i) => `<span style="position:relative"><span class="pl sm q ${i === open ? "on" : ""}">${q}</span>${i === open ? `<div class="menu" style="top:44px;left:0">${opts.map((o) => `<div class="mi">${o}</div>`).join("")}</div>` : ""}</span>`).join("")}</div>`;
+const GT = "Giải tích 2", GTX = `Thi ${GT}`, XS = "Thi Xác suất";
+
+// 18. Why this big: base for the format, then each signal, then every sitting, then Ít hơn / Nhiều hơn.
+const SITS = [
+  si("T5 12/11", "Đọc lại bài", "60 phút", "done"), si("T7 14/11", "Đọc lại bài", "90 phút", "done"), si("CN 15/11", "Đọc lại bài", "90 phút", "done"),
+  si(when("2026-11-17"), "Đọc lại bài", "60 phút"), si(when("2026-11-18"), "Luyện đề", "60 phút", "me"), si(when("2026-11-20"), "Luyện đề", "90 phút"),
+  si(when("2026-11-21"), "Luyện đề", "90 phút"), si(when("2026-11-22"), "Luyện đề", "60 phút"), si(when("2026-11-24"), "Ôn nhanh", "60 phút"), si(when("2026-11-26"), "Ôn nhanh", "60 phút"),
+].join("");
+const sizeWhy = (h = "12 tiếng, 10 buổi") => `<div class="why"><div class="lab">Vì sao ${h}</div>
+  ${wy("Thi tự luận: khoảng 9 tiếng cho môn 3 tín chỉ", 100)}${wy("Môn 4 tín chỉ, nhiều bài hơn", 41)}${wy("Điểm trung bình 2.4, mình cho thêm thời gian", 14)}${wy("Bạn hay xong sớm hơn dự kiến", 15, 1)}</div>`;
+const prepDetail = (h) => `${dtop}${mine}
+  <div class="h" style="margin-top:14px">Luyện đề</div>
+  <div class="meta">${ml("clock", `Làm lúc ${when("2026-11-18", "19:00")}, 60 phút`)}${ml("book", `${GTX} ${ic(I.right, 16)}`, "lk")}</div>
+  ${sizeWhy(h)}
+  <div class="lab" style="margin-top:20px">Các buổi</div><div class="sits">${SITS}</div>${lessMore}`;
+
+// 19. Steps, not copies.
+const prepDay = `${head("Thứ tư", "18 tháng 11", "4 việc, 1 tiết học")}${tabs("Ngày")}
+  <div class="lab" style="margin-top:28px">Hôm nay</div>
+  <div class="list" style="margin-top:6px">${row("07:00", "Cấu trúc dữ liệu", "lecture", "A2.301")}${row("14:00", "Đọc lại bài", "plan", "Buổi 2/6 · Xác suất")}${row("19:00", "Luyện đề", "plan", `Buổi 5/10 · ${GT}`)}${row("21:00", "Đọc sách mỗi tối", "plan")}</div>`;
+
+// 20. Long on light days.
+const W2 = [["T2", 16, [["lecture", 46], ["plan", 28]]], ["T3", 17, [["lecture", 46], ["lecture", 46], ["plan", 28]]], ["T4", 18, [["lecture", 30], ["plan", 28], ["plan", 28]]],
+  ["T5", 19, [["plan", 42]]], ["T6", 20, [["lecture", 46], ["plan", 42]]], ["T7", 21, [["plan", 42], ["plan", 28]]], ["CN", 22, [["plan", 42]]]];
+const prepWeek = `${head("Tuần này", "16 đến 22/11", "12 việc, 6 tiết học")}${tabs("Tuần")}${wk(W2)}
+  <div class="lab" style="margin-top:28px">T7, 21/11</div>
+  <div class="list" style="margin-top:6px">${row("09:00", "Luyện đề", "plan", `Buổi 7/10 · ${GT}`)}${row("15:00", "Làm câu hỏi trắc nghiệm", "plan", "Buổi 3/6 · Xác suất")}</div>`;
+const whyLen = `${dtop}${mine}
+  <div class="h" style="margin-top:14px">Luyện đề</div>
+  <div class="meta">${ml("clock", `Làm lúc ${when("2026-11-21", "09:00")}, 90 phút`)}${ml("book", `${GTX} ${ic(I.right, 16)}`, "lk")}</div>
+  <div class="why"><div class="lab">Vì sao lúc này</div>
+    ${wy("Hôm đó ít lịch, buổi này dài 90 phút", 70)}${wy("Buổi 7/10, rải đều tới hạn", 45)}${wy("Cuối tuần bạn hay có thời gian cho việc này", 30)}</div>`;
+
+// 21. Tell me more: only what would change the size a lot, at most two asks; the empty note's placeholder is an example of the same.
+const XS6 = [si(when("2026-11-17"), "Đọc lại bài", "60 phút", "me"), si(when("2026-11-19"), "Đọc lại bài", "90 phút"), si(when("2026-11-21"), "Làm câu hỏi trắc nghiệm", "90 phút"),
+  si(when("2026-11-22"), "Làm câu hỏi trắc nghiệm", "60 phút"), si(when("2026-11-25"), "Làm câu hỏi trắc nghiệm", "60 phút"), si(when("2026-11-27"), "Ôn nhanh", "60 phút")].join("");
+const xsTop = (h, t = "Đọc lại bài") => `${dtop}${mine}
+  <div class="h" style="margin-top:14px">${t}</div>
+  <div class="meta">${ml("clock", `Làm lúc ${when("2026-11-17", "19:00")}, 60 phút`)}${ml("book", `${XS} ${ic(I.right, 16)}`, "lk")}</div>`;
+const askCold = (open = -1) => `${xsTop()}
+  <div class="why"><div class="lab">Vì sao 7 tiếng, 6 buổi</div>${wy("Thi trắc nghiệm: khoảng 7 tiếng cho môn 3 tín chỉ", 100)}</div>
+  ${ask(["Mấy chương?", "Được dùng tài liệu?"], open, ["3 chương", "5 chương", "8 chương", "Số khác, gõ vào ghi chú"])}
+  ${note("Ví dụ: ôn 5 chương, đề mở", true)}
+  <div class="lab" style="margin-top:20px">Các buổi</div><div class="sits">${XS6}</div>`;
+const askPick = `<div class="mscrim"></div>${askCold(0)}`;
+
+// 22. Typing the note: read a second after you stop, the size and the sittings follow on the same screen.
+const XS10 = [si(when("2026-11-17"), "Đọc lại bài", "60 phút", "me"), si(when("2026-11-19"), "Đọc lại bài", "90 phút"), si(when("2026-11-21"), "Đọc lại bài", "90 phút", "", true),
+  si(when("2026-11-22"), "Đọc lại bài", "60 phút", "", true), si("T2 23/11", "Làm câu hỏi trắc nghiệm", "90 phút", "", true), si("T3 24/11", "Làm câu hỏi trắc nghiệm", "60 phút", "", true),
+  si("T4 25/11", "Làm câu hỏi trắc nghiệm", "60 phút", "", true), si("T5 26/11", "Làm câu hỏi trắc nghiệm", "90 phút", "", true), si("T6 27/11", "Ôn nhanh", "60 phút", "", true), si("T7 28/11", "Ôn nhanh", "60 phút", "", true)].join("");
+const typed = `${xsTop()}
+  <div class="why"><div class="lab">Vì sao 12 tiếng, 10 buổi</div>${wy("Ôn 9 chương: khoảng 12 tiếng", 100)}</div>
+  ${note("ôn 9 chương, không được dùng tài liệu")}<div class="got">Hiểu: 9 chương, đề đóng</div>
+  <div class="lab" style="margin-top:20px">Các buổi</div><div class="sits">${XS10}</div>`;
+const typedLeft = toast("Ôn Xác suất: 12 tiếng, 10 buổi", "Thêm 4 buổi, 2 buổi gần nhất giữ nguyên") + prepDay.replace("Buổi 2/6 · Xác suất", "Buổi 2/10 · Xác suất");
+
+// 23. Less, too: an open-book note takes time away; sittings are removed from the far end, the near ones stay.
+const fewer = `${dtop}${mine}
+  <div class="h" style="margin-top:14px">Luyện đề</div>
+  <div class="meta">${ml("clock", `Làm lúc ${when("2026-11-18", "19:00")}, 60 phút`)}${ml("book", `${GTX} ${ic(I.right, 16)}`, "lk")}</div>
+  <div class="why"><div class="lab">Vì sao 9 tiếng, 8 buổi</div>${wy("Ôn 6 chương: khoảng 8 tiếng", 100)}${wy("Môn 4 tín chỉ, nhiều bài hơn", 41)}${wy("Đề mở, cần ít thời gian hơn", 30, 1)}${wy("Bạn hay xong sớm hơn dự kiến", 15, 1)}</div>
+  ${note("chỉ thi 6 chương đầu, đề mở")}<div class="got">Hiểu: 6 chương, đề mở</div>
+  <div class="lab" style="margin-top:20px">Các buổi</div><div class="sits">${[
+    si("T5 12/11", "Đọc lại bài", "60 phút", "done"), si("T7 14/11", "Đọc lại bài", "90 phút", "done"), si("CN 15/11", "Đọc lại bài", "90 phút", "done"),
+    si(when("2026-11-17"), "Đọc lại bài", "60 phút"), si(when("2026-11-18"), "Luyện đề", "60 phút", "me"), si(when("2026-11-21"), "Luyện đề", "90 phút", "", true),
+    si(when("2026-11-22"), "Luyện đề", "60 phút", "", true), si("T5 26/11", "Ôn nhanh", "30 phút", "", true)].join("")}</div>`;
+
+// 24. The exam's own note counts too, and the title: what you write anywhere about this exam is read.
+const examNote = `${dtop}
+  <div style="display:flex;align-items:center;gap:10px;margin-top:22px">${swatch("exam")}<span class="sub" style="margin:0">Từ lịch trường</span></div>
+  <div class="h" style="margin-top:14px">${GTX}</div>
+  <div class="meta">${ml("clock", when("2026-11-27", "08:00"))}${ml("pin", "A2.301")}</div>
+  ${note("Cô nói thi 6 chương đầu, được mang tài liệu")}<div class="got">Hiểu: 6 chương, đề mở · Ôn 9 tiếng, 8 buổi</div>`;
+
+// 25. An LMS assignment: the text says how much; when it does not, the asks are about pages and group.
+const lmsDetail = (body, why, extra = "") => `${dtop}
+  <div style="display:flex;align-items:center;gap:10px;margin-top:22px">${swatch("assignment")}<span class="sub" style="margin:0">Từ LMS</span></div>
+  <div class="h" style="margin-top:14px">Báo cáo nhóm: Quản lý sinh viên</div>
+  <div class="meta">${ml("hourglass", `Hạn ${when("2026-11-27", "23:59")}`, "red")}${ml("clock", `Làm lúc ${when("2026-11-19", "14:00")}, 90 phút`)}${ml("book", "Lập trình Web")}</div>
+  <div class="lms"><div class="lab">Nội dung</div><p>${body}</p></div>${why}${extra}`;
+const lmsRead = lmsDetail("Báo cáo 10–15 trang, làm theo nhóm 4 người. Nộp file .pdf lên LMS.",
+  `<div class="why"><div class="lab">Vì sao 3 tiếng, 2 buổi</div>${wy("Đề yêu cầu 10–15 trang: khoảng 6 tiếng", 100)}${wy("Làm nhóm 4 người, phần của bạn ít hơn", 100, 1)}</div>`, lessMore);
+const lmsAsk = lmsDetail("Nộp báo cáo đồ án lên LMS trước hạn.",
+  `<div class="why"><div class="lab">Vì sao 4 tiếng rưỡi, 3 buổi</div>${wy("Báo cáo: khoảng 4 tiếng rưỡi", 100)}</div>`, `${ask(["Mấy trang?", "Làm nhóm?"])}${note("Ví dụ: 12 trang, nhóm 4 người", true)}`);
+
+// 26. Exam week, 27. Urgent, 28. Thesis.
+const season = `${dtop}${mine}
+  <div class="h" style="margin-top:14px">Đọc lại bài</div>
+  <div class="meta">${ml("clock", `Làm lúc ${when("2026-11-19", "14:00")}, 90 phút`)}${ml("book", `Thi Kinh tế vĩ mô ${ic(I.right, 16)}`, "lk")}</div>
+  <div class="why"><div class="lab">Vì sao 8 tiếng, 7 buổi</div>
+    ${wy("Thi tự luận: khoảng 9 tiếng cho môn 3 tín chỉ", 100)}${wy("Tuần thi có 4 môn, bắt đầu sớm hơn", 30)}${wy("Môn này bạn từng được 8.5", 41, 1)}${wy("Thi lại, ôn kỹ hơn", 38)}</div>
+  <div class="lab" style="margin-top:20px">T5, 19/11</div>
+  <div class="list" style="margin-top:6px">${row("09:00", "Luyện đề", "plan", `Buổi 6/10 · ${GT}`)}${row("14:00", "Đọc lại bài", "plan", "Buổi 2/7 · Kinh tế vĩ mô")}${row("19:30", "Làm câu hỏi trắc nghiệm", "plan", "Buổi 3/6 · Xác suất")}</div>`;
+const urgent = `${head("Thứ ba", "17 tháng 11", "4 việc, 1 tiết học")}${tabs("Ngày")}
+  <div class="lab" style="margin-top:28px">Hôm nay</div>
+  <div class="list" style="margin-top:6px">${row("08:00", "Luyện đề", "plan", "Buổi 1/4 · Mạng máy tính")}${row("13:30", "Cấu trúc dữ liệu", "lecture", "A2.301")}${row("16:30", "Luyện đề", "plan", "Buổi 2/4 · Mạng máy tính")}${row("21:00", "Đọc sách mỗi tối", "plan")}</div>
+  <div class="why"><div class="lab">Vì sao 9 tiếng, 4 buổi</div>
+    ${wy("Thi tự luận: khoảng 9 tiếng cho môn 3 tín chỉ", 100)}${wy("Còn 2 ngày: 2 buổi mỗi ngày, tập trung luyện đề", 60)}</div>`;
+const thesis = `${dtop}${mine}
+  <div class="h" style="margin-top:14px">Viết chương</div>
+  <div class="meta">${ml("clock", `Làm lúc ${when("2026-11-20", "14:00")}, 90 phút`)}${ml("book", `Bảo vệ khoá luận tốt nghiệp ${ic(I.right, 16)}`, "lk")}</div>
+  <div class="why"><div class="lab">Vì sao 30 tiếng, 20 buổi</div>${wy("Khoá luận: khoảng 30 tiếng", 100)}${wy("Có bảo vệ: thêm buổi tập nói", 20)}</div>
+  <div class="lab" style="margin-top:20px">Các buổi</div><div class="sits">${[
+    si("T6 13/11", "Đọc tài liệu", "90 phút", "done"), si("CN 15/11", "Đọc tài liệu", "90 phút", "done"), si(when("2026-11-17"), "Đọc tài liệu", "60 phút"),
+    si(when("2026-11-20"), "Viết chương", "90 phút", "me"), si("…", "Viết chương, 9 buổi", ""), si("…", "Sửa bản thảo, 4 buổi", ""), si("T7 12/12", "Tập bảo vệ", "60 phút")].join("")}</div>${lessMore}`;
+
+// 29. Thinking out loud, 30. Done early, 31. Need more, 32. Less or more, 33. Nhịp.
+const prepThink = `${head("Thứ hai", "16 tháng 11", "3 việc, 1 tiết học")}${tabs("Ngày")}
+  <div class="lab" style="margin-top:28px">Hôm nay</div>
+  <div class="list" style="margin-top:6px">${row("15:00", "Cơ sở dữ liệu", "lecture", "A2.104")}${row("19:00", "Đọc lại bài", "plan", "Buổi 1/6 · Xác suất", "fly")}</div>
+  ${steps(["Đọc lịch thi", `Chia ${GT} thành 10 buổi, 12 tiếng`, "Chia Xác suất thành 6 buổi, 7 tiếng"], "Đặt Đọc lại bài vào T2 19:00")}`;
+const early = toast("Xong sớm 25 phút", "Bớt 15 phút ở các buổi sau", [["Hoàn tác"]]) + `${head("Thứ tư", "18 tháng 11", "3 việc, 1 tiết học")}${tabs("Ngày")}
+  <div class="lab" style="margin-top:28px">Hôm nay</div>
+  <div class="list" style="margin-top:6px">${row("07:00", "Cấu trúc dữ liệu", "lecture", "A2.301")}${row("19:00", "Luyện đề", "plan", `Buổi 5/10 · ${GT}`, "done")}${row("21:00", "Đọc sách mỗi tối", "plan")}</div>`;
+const need = `${head("Thứ tư", "18 tháng 11", "3 việc, 1 tiết học")}${tabs("Ngày")}
+  <div class="lab" style="margin-top:28px">Hôm nay</div>
+  <div class="list" style="margin-top:6px">${row("07:00", "Cấu trúc dữ liệu", "lecture", "A2.301")}${row("19:00", "Luyện đề", "plan", `Buổi 5/10 · ${GT}`, "lift")}${row("21:00", "Đọc sách mỗi tối", "plan")}</div>
+  ${menu([["Cần thêm một buổi"], ["Bớt một buổi"], ["Đừng dời việc này nữa"], ...DEL], 300, 18)}`;
+const needDone = toast("Thêm một buổi Luyện đề", "T6 14:00", [["Hoàn tác"]]) + prepDay.replace(`Buổi 5/10 · ${GT}`, `Buổi 5/11 · ${GT}`);
+const less = toast("Ôn ít hơn: 9 tiếng, 8 buổi", GTX, [["Hoàn tác"]]) + prepDetail("9 tiếng, 8 buổi");
+const remembered = `${dtop}${mine}
+  <div class="h" style="margin-top:14px">Đọc lại bài</div>
+  <div class="meta">${ml("clock", `Làm lúc ${when("2026-11-30", "19:00")}, 60 phút`)}${ml("book", `Thi Đại số tuyến tính ${ic(I.right, 16)}`, "lk")}</div>
+  <div class="why"><div class="lab">Vì sao 7 tiếng, 6 buổi</div>${wy("Thi tự luận: khoảng 9 tiếng cho môn 3 tín chỉ", 100)}${wy("Lần trước bạn chọn ôn ít hơn", 41, 1)}</div>`;
+const prepRhythm = `${head("Mình hiểu bạn", "Nhịp của bạn", "8 đến 11 giờ")}${tabs("Nhịp")}
+  <div class="ins" style="margin-top:20px"><b>Bạn ôn nhanh hơn mình nghĩ</b><small>Thường xong sớm 15%. Mình xếp ít thời gian hơn.</small><div class="viz"><span class="meterh" style="--v:85%"></span></div></div>
+  <div class="ins"><b>Buổi dài bạn hay dời</b><small>4 trên 9 lần. Mình giữ mỗi buổi trong 1 tiếng.</small><div class="viz"><span class="meterh" style="--v:44%"></span></div></div>`;
+
 mount([
   { tag: "1. Brief, while you were away", sub: "Only for changes made when you were not looking: the school added or moved a class or an exam, or changed a due date. One sentence: the trigger, the biggest move, its reason. Moved rows carry a vermilion dot and their old time; a row that left the day stays as a dashed ghost saying where it went. A change you caused yourself never raises the brief; you watched it happen.", html: chrome(brief) },
   { tag: "2. Brief, opened", sub: "Tap the brief: the list becomes the story, in place, no sheet. The heading is the trigger: “Vì trường thêm … 13:30”, “Vì trường dời … sang T5 09:00” or “Vì hạn … đổi sang T5 23:59”. Only tasks whose own time stopped working move; nothing else is touched. Each move: old time struck, new time, one reason. The button marks them seen and clears the dots.", html: chrome(story, { dock: null }) },
@@ -249,6 +399,28 @@ mount([
   { tag: "15. Missed, no nag", sub: "A block that passed undone turns vermilion in place. The next time you open the app it has moved to the next good time within two days, and the row says so. That hour counts a little against itself.", html: chrome(missed) },
   { tag: "16. Trying something", sub: "Once Zen knows you a little, it may try an hour it is unsure about, and the row says it is a try. Only a new task without a due date, at most one per re-plan.", html: chrome(explore) },
   { tag: "17. A free gap", sub: "Nothing fixed or planned in the next hour: the card offers the flexible task that fits the gap best. The circle takes it now; swiping it away keeps the plan.", html: chrome(gap) },
+  { tag: "18. Prep: why this big", sub: "A prep is a budget of minutes. “Vì sao 12 tiếng, 10 buổi”: the base for the exam format (3-credit course, average student), then each signal that changed it, its bar the size of the change; vermilion takes time away. Signals: credits and a retake (exam row), the course's past mark or else your average, your pace (sittings ticked inside their block), your last Ít hơn / Nhiều hơn for this format, a crowded exam week, and what the title and notes say. “Các buổi”: every sitting, done struck, this one bold.", html: chrome(prepDetail(), { dock: null }) },
+  { tag: "19. Steps, not copies", sub: "Each sitting is titled by its step. Tự luận: Đọc lại bài, Luyện đề, Ôn nhanh. Trắc nghiệm: Đọc lại bài, Làm câu hỏi trắc nghiệm, Ôn nhanh. Vấn đáp: Ôn ý chính, Tập trả lời thành tiếng. Thực hành: Làm lại bài thực hành, Làm đề thực hành. Báo cáo, tiểu luận: Tìm tài liệu, lập dàn ý; Viết nháp; Sửa và hoàn thiện. The sub line keeps Buổi k/n and the course.", html: chrome(prepDay) },
+  { tag: "20. Long on light days", sub: "Sittings are 60 to 90 minutes, so each one feels doable. Each is sized by the room on the day it aims at: 4+ hours of class gets 60, a free day 90. At most one sitting of a prep a day, so subjects alternate. A morning exam's last sitting ends the evening before.", html: chrome(prepWeek) },
+  { tag: "Length, said", sub: "The sitting's “Vì sao lúc này” names its length only when the day it landed on explains it: “Hôm đó ít lịch, buổi này dài 90 phút” or “Hôm đó nhiều lịch, buổi này chỉ 60 phút”.", html: chrome(whyLen, { dock: null }) },
+  { tag: "21. Tell me more", sub: "Titles are short, so Zen asks, in place. Under the size, “Cho mình biết thêm”: at most two dashed asks, chosen by format, then dropped if already said, then ranked by how much the answer could move the size (15% or more). Tự luận, trắc nghiệm: Mấy chương?, Được dùng tài liệu? Vấn đáp: Bao nhiêu câu hỏi?, Mấy chương? Thực hành: Mấy bài thực hành? Báo cáo, tiểu luận, LMS: Mấy trang?, Làm nhóm? Slide: Mấy slide?, Thuyết trình mấy phút? Thesis: Còn mấy chương? The empty note's placeholder shows the same words. An ask disappears once the answer is in the title or a note.", html: chrome(askCold(), { dock: null }) },
+  { tag: "Tell me more, picked", sub: "An ask lights up and opens a small dropdown of common answers right below it, left edges aligned; above it if the chip is in the lower half of the screen. Picking one writes those words into the note (“5 chương”), so the note stays the one place the answer lives: deleting the words takes it back. The last item puts the cursor in the note.", html: chrome(askPick, { dock: null }) },
+  { tag: "22. Typing, read live", sub: "A second after you stop typing, the note is saved and read: chapters, questions, pages, words, slides, group size, open or closed book, with accents or without, abbreviations (tl, th, vđ), number words (“chín chương”) and negation (“không được dùng tài liệu” is closed book). One muted line says what was understood. The size and the sittings change on the same screen; a dot marks each sitting that moved or is new.", html: chrome(typed, { dock: null }) },
+  { tag: "Typing, after", sub: "Back on the list, one toast says what changed. Sittings in the next two days keep their time, length and step; the change lands further out, as sittings added or removed, not every sitting shifted. No undo: the words in the note are the control.", html: chrome(typedLeft) },
+  { tag: "23. Less, too", sub: "A note can also shrink a prep: “6 chương đầu, đề mở”. Done sittings stay done, the next two days stay put, and sittings are removed from the far end; the last one may end shorter.", html: chrome(fewer, { dock: null }) },
+  { tag: "24. The exam's note", sub: "What you write on the exam itself is read the same way, and so are the prep's title and every sitting's note. The understood line on the exam also says what its prep became.", html: chrome(examNote, { dock: null }) },
+  { tag: "25. From the LMS text", sub: "An assignment is sized by what its text asks: pages (30 minutes each, ranges averaged), words, slides (10 minutes each), and a group of N cuts your share. Its sittings keep the assignment's title.", html: chrome(lmsRead, { dock: null }) },
+  { tag: "LMS, nothing said", sub: "Without such words, the base comes from its kind (báo cáo, thực hành, tiểu luận, slide), and the asks are about pages and group.", html: chrome(lmsAsk, { dock: null }) },
+  { tag: "26. Exam week", sub: "Two or more other exams in the 7 days before this one: its prep starts earlier, two more days per exam, and says so.", html: chrome(season, { dock: null }) },
+  { tag: "27. Urgent", sub: "Too few days for 60–90 minute sittings: two sittings a day, each up to 3 hours, at most 6 hours a day, and the first step is dropped so the time goes to practice. If even that does not fit, Heads up (9) shows.", html: chrome(urgent) },
+  { tag: "28. A thesis", sub: "“Khoá luận”, “đồ án tốt nghiệp” or “luận văn” in the exam title: 30 hours, 90-minute sittings, up to four weeks ahead; Tập bảo vệ when it has a defense.", html: chrome(thesis, { dock: null }) },
+  { tag: "29. Thinking out loud", sub: "When the school adds exams, one line per prep says how it was sized, then the first sitting lands (as 4).", html: chrome(prepThink, { dock: "think" }) },
+  { tag: "30. Done early", sub: "Ticked a sitting 15+ minutes before its end: half the time saved comes off the far sittings (none under 60 minutes; one that would is removed). It also teaches your pace.", html: chrome(early) },
+  { tag: "31. Need more, or less", sub: "Long-press a sitting: “Cần thêm một buổi” adds one of the same step and length after the rest; “Bớt một buổi” removes the last open one.", html: chrome(need) },
+  { tag: "Need more, added", sub: "The toast names it and where it went; Hoàn tác removes it.", html: chrome(needDone) },
+  { tag: "32. Ít hơn, Nhiều hơn", sub: "Ít hơn takes a quarter off what is left, Nhiều hơn adds a third, as fewer or more far sittings. The campus no longer resizes it.", html: chrome(less, { dock: null }) },
+  { tag: "Remembered", sub: "The next prep of the same format starts from that choice: “Lần trước bạn chọn ôn ít hơn”.", html: chrome(remembered, { dock: null }) },
+  { tag: "33. Nhịp, preps", sub: "Two cards, only with evidence. Pace: five or more sittings ticked inside their block; sizes follow it, 0.8× to 1.25×. Long sittings: of five or more 90-minute sittings placed, 40% or more pushed later; then sittings stay at 60 minutes.", html: chrome(prepRhythm) },
   { tag: "Nhịp, dark", sub: "Same at night.", dark: true, html: chrome(rhythm()) },
 ]);
 </script>

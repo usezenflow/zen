@@ -118,6 +118,7 @@ export interface Diff {
   insight?: { template: string; sub: string; vars: Record<string, string | number> }; // Vietnamese title and second line, {vars} filled by the caller
   steps?: Step[]; // accepted solver moves, in order, at most 6
   warn?: Warn[];
+  unplaced?: { id: string; effort: number }[]; // no free, awake slot: left without a time
 }
 
 /** Tombstones that keep deleted series from coming back: name to cutoff start, 0 = the whole series. */

@@ -18,7 +18,7 @@ export function Meter({ v, guess, width }: { v: number; guess?: boolean; width?:
   const th = useTheme();
   return (
     <View style={[s.track, width ? { width, flex: undefined } : null, guess ? { borderWidth: 1.5, borderStyle: "dashed", borderColor: th.line } : { backgroundColor: th.line }]}>
-      <View style={[s.fill, { width: `${Math.round(Math.max(0, Math.min(1, v)) * 100)}%`, backgroundColor: guess ? th.muted : th.ink }]} />
+      <View style={[s.fill, { width: `${Math.round(Math.max(0, Math.min(1, v || 0)) * 100)}%`, backgroundColor: guess ? th.muted : th.ink }]} />
     </View>
   );
 }

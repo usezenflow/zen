@@ -50,23 +50,31 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const hm = (m: number) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
 const dayOf = (w: string) => DAYS.slice(2).find(([re]) => re.test(w))?.[1][0];
 
-/** Minutes after midnight; a part of day (said with the clock, else anywhere in the clause) makes 9 into 21. */
-function clock(h: string, m: string | undefined, part: string | undefined, clausePm: boolean): number {
-  const n = Number(h), pm = part ? /chiều|tối|đêm|khuya/.test(part) : clausePm;
-  return (n === 24 ? 24 : (pm && n < 12 ? n + 12 : n) % 24) * 60 + Math.min(59, Number(m ?? 0));
+/** Minutes after midnight; a part of day (said with the clock, else anywhere in the clause) makes 9 into 21.
+ *  "12 giờ đêm/tối" is midnight (1440, the end of the day), "1 giờ đêm" is 01:00, "1 giờ trưa" is 13:00. */
+function clock(h: string, m: string | undefined, part: string | undefined, clausePart: string | undefined): number {
+  const n = Number(h), p = part ?? clausePart ?? "";
+  const hr = n === 24 ? 24
+    : /đêm|khuya/.test(p) ? (n === 12 ? 24 : n >= 6 && n < 12 ? n + 12 : n)
+    : /tối/.test(p) ? (n === 12 ? 24 : n < 12 ? n + 12 : n)
+    : /chiều/.test(p) ? (n < 12 ? n + 12 : n)
+    : /trưa/.test(p) ? (n < 5 ? n + 12 : n)
+    : n;
+  return (hr === 24 ? 24 : hr % 24) * 60 + Math.min(59, Number(m ?? 0));
 }
+const EARLY = 300; // "sau 12 giờ đêm": the small hours run until morning (sáng), not to the end of the day
 
 function bits(s: string): Bits {
   const days = new Set(DAYS.filter(([re]) => re.test(s)).flatMap(([, d]) => d));
   const dr = DAY_RANGE.exec(s);
   if (dr) { const a = dayOf(dr[1]), b = dayOf(dr[2]); if (a !== undefined && b !== undefined) for (let d = a; ; d = (d + 1) % 7) { days.add(d); if (d === b) break; } }
   const part = PARTS.find(([re]) => re.test(s));
-  const pm = !!part && /chiều|tối|đêm/.test(part[3]);
+  const pm = part?.[3];
   let win: Win | undefined;
   const r = RANGE.exec(s);
   const c = [...s.matchAll(CLOCK)].filter((m) => /giờ|h|g|:/.test(m[0]) || /(?:sau|trước)\s+\d/.test(s));
   if (r) { const from = clock(r[1], r[2], r[3], pm), to = clock(r[4], r[5], r[6] ?? r[3], pm); win = { op: "range", from, to, label: `${hm(from)}–${hm(to)}` }; }
-  else if (c.length && /sau\s+\d/.test(s)) { const from = clock(c[0][1], c[0][2], c[0][3], pm); win = { op: "after", from, to: 1440, label: `sau ${hm(from)}` }; }
+  else if (c.length && /sau\s+\d/.test(s)) { const at = clock(c[0][1], c[0][2], c[0][3], pm), from = at % 1440; win = { op: "after", from, to: from < EARLY ? EARLY : 1440, label: `sau ${hm(from)}` }; }
   else if (c.length && /trước\s+\d/.test(s)) { const to = clock(c[0][1], c[0][2], c[0][3], pm); win = { op: "before", from: 0, to, label: `trước ${hm(to)}` }; }
   else if (c.length) { const at = clock(c[0][1], c[0][2], c[0][3], pm); win = { op: "bare", from: at, to: at, label: hm(at) }; }
   else if (part) win = { op: "part", from: part[1], to: part[2], label: part[3] };
@@ -199,7 +207,8 @@ export function parseRules(said: string): RuleDraft[] {
     // past midnight ("từ 23 giờ đến 6 giờ sáng"): the evening on these days, the early hours on the next ones
     const a = { text: "", days, from, to: 1440, kinds }, b = { text: "", days: days.map((d) => (d + 1) % 7).sort(monFirst), from: 0, to, kinds };
     a.text = b.text = textOf(a, label, only);
-    out.push(a, b);
+    if (from < 1440) out.push(a); // "từ 12 giờ đêm": nothing left of the evening
+    out.push(b);
   }
   return out;
 }

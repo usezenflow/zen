@@ -21,8 +21,9 @@ const H6 = 6 * 3600_000;
 // GitHub is asked at most every six hours, across restarts: the last answer is kept in kv with its time.
 // A failure is just "no update". The answer carries the new release's notes for the update dialog.
 export async function checkUpdate(): Promise<Update | null> {
-  const saved = JSON.parse((await kvGet("updateCheck")) ?? "null") as { at: number; r: Release | null } | null;
-  if (saved && Date.now() - saved.at < H6) return pickUpdate(saved.r, installed, asset);
+  let saved: { at: number; r: Release | null } | null = null;
+  try { saved = JSON.parse((await kvGet("updateCheck")) ?? "null"); } catch {} // corrupt: as if never asked
+  if (saved && typeof saved.at === "number" && Date.now() - saved.at < H6) return pickUpdate(saved.r, installed, asset);
   const r = await api("latest");
   if (r) { await kvSet("updateCheck", JSON.stringify({ at: Date.now(), r })); }
   return pickUpdate(r, installed, asset);

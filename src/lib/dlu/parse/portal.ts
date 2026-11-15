@@ -101,11 +101,11 @@ export interface ParsedExams {
 
 /** `"17/08/2026"` → `"2026-08-17"`, or `null` if it is not that shape. */
 function parseDdMmYyyy(value: string | null | undefined): string | null {
-  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value?.trim() ?? "");
+  const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[ T]\d{1,2}:\d{2}(?::\d{2})?)?$/.exec(value?.trim() ?? ""); // a trailing time is ignored
   if (!match) return null;
-  const [, day, month, year] = match;
-  if (+month < 1 || +month > 12 || +day < 1 || +day > 31) return null;
-  return `${year}-${month}-${day}`;
+  const [, d, m, year] = match;
+  if (new Date(Date.UTC(+year, +m - 1, +d)).getUTCDate() !== +d || +m < 1 || +m > 12) return null; // 31/02 is not Mar 3
+  return `${year}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
 }
 
 /**

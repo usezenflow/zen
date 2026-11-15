@@ -1,0 +1,8 @@
+# Fresh install, past any update dialog (release builds still ask GitHub).
+appId: com.alpha.zen
+---
+- launchApp:
+    clearState: true
+- tapOn:
+    text: "Để sau"
+    optional: true

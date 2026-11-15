@@ -71,6 +71,9 @@ function hit(t: string, ws: string[]): number[] {
   return [...out];
 }
 
+/** A type word ("thi") counts only as a whole word: "thi" is not the start of "thiết kế". */
+const whole = (t: string, ws: string[]) => ws.flatMap((w, i) => (w === t ? [i] : []));
+
 /** Reads the query with the reader's own date words and parts of day. `now` anchors "mai", "T6", "tuần sau". */
 export function parse(raw: string, now: number): Query {
   const d = new Date(now), ref = { y: d.getFullYear(), m: d.getMonth() + 1, d: d.getDate(), h: d.getHours(), mi: d.getMinutes() };
@@ -105,7 +108,12 @@ export function parse(raw: string, now: number): Query {
     const part = [...PARTS].sort((a, b) => b.length - a.length).find((p) => at(i, p));
     const st = STATUS.find(([p]) => at(i, p)), ty = TYPES.find(([p]) => at(i, p)), due = DUE.find((p) => at(i, p));
     if (st) { q.status = st[1]; n = at(i, st[0]); }
-    else if (part) { const key = PART_ALIAS[part] ?? part, s = PART[key]; q.part = { key, from: Math.min(s.before[0], s.start[0]) * 60, to: s.due[0] * 60 + s.due[1] }; n = at(i, part); }
+    else if (part) {
+      // A search reaches wider than the reader's slots: "sáng" from 04:00 (a 06:45 class), "đêm"/"khuya" past midnight to 04:00 (to > 1440).
+      const key = PART_ALIAS[part] ?? part, s = PART[key], small = 4 * 60;
+      q.part = { key, from: key.startsWith("sang") ? small : Math.min(s.before[0], s.start[0]) * 60, to: key === "dem" || key === "khuya" ? 1440 + small : s.due[0] * 60 + s.due[1] };
+      n = at(i, part);
+    }
     else if (due) { q.due = true; n = at(i, due); }
     else if (ty) { q.types.push({ type: ty[1], words: ty[0].split(" ") }); n = at(i, ty[0]); }
     else { if (!STOP.has(ws[i])) q.words.push(ws[i]); n = 1; }
@@ -119,23 +127,26 @@ const minuteOf = (ms: number) => { const d = new Date(ms); return d.getHours() *
 /** Does `x` pass every filter and hit every word? */
 function matches(x: Task, q: Query, now: number): boolean {
   const hay = [x.title, x.course, x.location, x.teacher].filter(Boolean).flatMap((s) => words(s!).map((w) => w.w)), ty = typeOf(x);
-  if (q.types.length && !q.types.some((c) => c.type === ty || (c.type === "exam" && x.forId) || c.words.every((w) => hit(w, hay).length))) return false;
+  if (q.types.length && !q.types.some((c) => c.type === ty || (c.type === "exam" && x.forId) || c.words.every((w) => whole(w, hay).length))) return false;
   if (q.status === "live" && x.doneAt) return false;
   if (q.status === "done" && !x.doneAt) return false;
   if (q.status === "late" && (x.fixed || x.doneAt || (x.deadline ?? x.end ?? Infinity) >= now)) return false; // lectures, exams, busy blocks are never ticked, so never late
   if (q.repeat && !x.rrule && !x.section) return false;
+  // A night part runs past midnight: "đêm mai" is tomorrow from its evening to the small hours after it.
+  const late = q.part && q.part.to > 1440 ? (q.part.to - 1440) * 60_000 : 0;
+  const inDay = (t: number, a: number, b: number) => (t >= a && t < b && (!late || minuteOf(t) >= q.part!.from)) || (late > 0 && t >= b && t < b + late);
   if (q.days.length) {
     const ts = q.due ? [x.deadline] : [x.start, x.deadline];
-    if (!q.days.some(([a, b]) => ts.some((t) => t !== undefined && t >= a && t < b))) return false;
+    if (!q.days.some(([a, b]) => ts.some((t) => t !== undefined && inDay(t, a, b)))) return false;
   } else if (q.due && x.deadline === undefined) return false;
-  if (q.part) { const m = minuteOf(x.start!); if (m < q.part.from || m >= q.part.to) return false; }
+  if (q.part) { const m = minuteOf(x.start!); if (late ? m < q.part.from && m >= q.part.to - 1440 : m < q.part.from || m >= q.part.to) return false; }
   if (q.at !== undefined) { const m = minuteOf(x.start!); if (q.at < m || q.at >= m + Math.max(60, (x.end! - x.start!) / 60_000)) return false; }
   return q.words.every((w) => hit(w, hay).length > 0);
 }
 
 /** Title spans to tint: whole words hit by the query's words or type words, neighbours merged ("Báo cáo"). */
 export function hits(title: string, q: Query): [number, number][] {
-  const ws = words(title), on = new Set([...q.words, ...q.types.flatMap((c) => c.words)].flatMap((w) => hit(w, ws.map((x) => x.w))));
+  const ws = words(title), fw = ws.map((x) => x.w), on = new Set([...q.words.flatMap((w) => hit(w, fw)), ...q.types.flatMap((c) => c.words).flatMap((w) => whole(w, fw))]);
   const out: [number, number][] = [];
   ws.forEach((x, i) => {
     if (!on.has(i)) return;

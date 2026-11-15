@@ -30,9 +30,11 @@ function holidayRead(
       /[\u0300-\u036f]/.test(word.normalize("NFD"))
     )
       return null;
+    // "họp lớp tết": a marked tết ending the clause is the holiday too ("tết tóc", to braid, has its object after)
     if (
       !HOLIDAY_BEFORE.test(f.text.slice(0, fs)) &&
-      !HOLIDAY_AFTER.test(f.text.slice(fe))
+      !HOLIDAY_AFTER.test(f.text.slice(fe)) &&
+      !(word === "tết" && /^\s*(?:[,.;!?]|$)/.test(f.text.slice(fe)))
     )
       return null;
   }
@@ -404,7 +406,8 @@ const RULES: Rule[] = [
   ],
   [
     "recur",
-    /(?<![a-z])(?:moi|hang)(?=\s+(?:sang|trua|chieu|toi|dem|khuya)(?![a-z]))/g, // "mỗi tối", "hằng đêm"
+    // "mỗi tối", "hằng đêm", "mỗi tối thứ 2"; "dọn hàng tối nay", "bán hàng tối mai" name one evening
+    /(?<![a-z])(?:moi|hang)(?=\s+(?:sang|trua|chieu|toi|dem|khuya)(?![a-z])(?!\s+(?:nay|mai|mot|qua)(?![a-z])))/g,
     () => ({ k: "recur", freq: "DAILY" }),
   ],
   [
@@ -473,6 +476,13 @@ const RULES: Rule[] = [
     "dur",
     /(?<![a-z])ca\s+buoi\s+(?:sang|trua|chieu|toi|dem)(?![a-z])/g,
     () => ({ k: "dur", min: 180 }),
+  ],
+  // "1h30p", "2 tiếng 15 phút": hours and minutes of one length. A clock cue before or a part of day after
+  // makes it a clock ("lúc 1h30p", "3h15p chiều")
+  [
+    "dur",
+    /(?<![\d.,:a-z])(?<!(?:luc|vao|tu|den|toi|truoc|sau|han|hen|bat dau|khoang)\s+)(\d{1,2})\s*(?:tieng|h)\s*(\d{1,2})\s*(?:phut|p)(?![a-z])(?!\s*(?:sang|trua|chieu|toi|dem|khuya)(?![a-z]))/g,
+    (m) => ({ k: "dur", min: Math.min(MAX_TASK_MINUTES, lengthMin(+m[1] * 60 + +m[2])) }),
   ],
   // "3 ngày" is a span of days, read as a busy block only with a travel or rest word (see assemble)
   [
@@ -995,8 +1005,9 @@ const RULES: Rule[] = [
   ],
   [
     "time",
-    /(?<=(?<![a-z])(?:luc|vao|tu|den|toi|hen|bat dau)\s+)(trua|nua dem)(?![a-z])/g,
-    (m) => (m[1] === "trua" ? timeVal(12, 0, "trua") : timeVal(0, 0, "dem")),
+    /(?<=(?<![a-z])(?:luc|vao|tu|den|toi|hen|bat dau)\s+)(trua|nua dem)(?![a-z])|(?<=(?<![a-z])(?:truoc|han)\s+)(nua dem)(?![a-z])/g,
+    // "trước nửa đêm" is the day's last minute: as 0:00 the before-rule would end the day before
+    (m) => (m[1] === "trua" ? timeVal(12, 0, "trua") : m[2] ? timeVal(23, 59, "dem") : timeVal(0, 0, "dem")),
   ],
   [
     "time",
@@ -1005,7 +1016,7 @@ const RULES: Rule[] = [
   ],
   [
     "time",
-    /(?<![\d./a-z])(?:(?:dung|khoang|tam)\s+)?(\d{1,2})\s*(?:gio(?:\s+(\d{1,2})(?!\d)(?!\s*thang\s*\d)(?!\s*(?:tieng|buoi|lan)(?![a-z]))(?!(?<=\s\d)\s*(?:tuan|ngay|thang)\s+(?:nua|toi|sau|truoc)(?![a-z])))?(?:\s+phut)?|h(\d{2})?(?![a-z])|g(\d{2})?(?![a-z\d])|:(\d{2})(?!\d)|\.(00|15|30|45)(?![\d./]))(?:\s*(am|pm)(?![a-z]))?(?:\s*(sang|trua|chieu|toi|dem|khuya)(?![a-z])(?!\s*\d{1,2}\s*(?:h|g|gio|:\d)))?/g,
+    /(?<![\d./a-z])(?:(?:dung|khoang|tam)\s+)?(\d{1,2})\s*(?:gio(?:\s+(\d{1,2})(?!\d)(?!\s*thang\s*\d)(?!\s*(?:tieng|buoi|lan)(?![a-z]))(?!(?<=\s\d)\s*(?:tuan|ngay|thang)\s+(?:nua|toi|sau|truoc)(?![a-z])))?(?:\s+phut)?|h(?:(\d{2})(?:\s*(?:phut|p)(?![a-z]))?)?(?![a-z])|g(\d{2})?(?![a-z\d])|:(\d{2})(?!\d)|\.(00|15|30|45)(?![\d./]))(?:\s*(am|pm)(?![a-z]))?(?:\s*(sang|trua|chieu|toi|dem|khuya)(?![a-z])(?!\s*\d{1,2}\s*(?:h|g|gio|:\d)))?/g,
     (m) => {
       // "09.00": a dotted clock only with minutes no month can be, so "9.11" stays a date
       const mi = +(m[2] ?? m[3] ?? m[4] ?? m[5] ?? m[6] ?? 0);
@@ -1280,7 +1291,8 @@ function partNear(m: RegExpExecArray): string | undefined {
     // "nhắc tôi 8h họp": "tôi" is the speaker
     if (p[1] === "toi" && reading) {
       const r0 = reading.map[from + (p.index ?? 0)];
-      if (reading.raw.slice(r0, r0 + 3).normalize("NFC").toLowerCase() === "tôi") continue;
+      // "chơi game tới 1h": "tới" is until, never the evening
+      if (["tôi", "tới"].includes(reading.raw.slice(r0, r0 + 3).normalize("NFC").toLowerCase())) continue;
     }
     // "7h tới 17h": a "tới" between two clocks is a range end, not an evening word
     if (
@@ -1301,6 +1313,8 @@ function partNear(m: RegExpExecArray): string | undefined {
       )
     )
       continue;
+    // "từ 11h đến 1h chiều": a part word after another clock is that clock's, not this one's
+    if (at >= e && /\d\s*(?:h|g|gio|:\d)/.test(m.input.slice(e, at))) continue;
     const dist = at < s ? s - at : at >= e ? at - e : 0;
     if (!best || dist < best.dist) best = { word: p[1], dist };
   }

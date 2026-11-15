@@ -1,6 +1,6 @@
 // Pasted grids (3a) and OCR schedules (3a2). Pure: the reference day is a parameter, nothing reads the clock.
 import type { ReaderItem, ReaderWC } from "../shared";
-import { addDays, lengthMin, round30 } from "./calendar";
+import { addDays, lengthMin, round15 } from "./calendar";
 import { fold } from "./fold";
 import { isSyllable } from "./syllables";
 
@@ -478,8 +478,8 @@ export function ocrSchedule(
       const title = fixTitle(b.title ? `${b.title}, ${act.name}` : act.name);
       const [y, mo, d] = b.day;
       const dur = e.c.stop > e.c.start ? e.c.stop - e.c.start : 60;
-      // a start rounds to the 30 minute grid: 9:10 is 9:00, 23:50 is midnight of the next day
-      const t = round30(e.c.start);
+      // a start rounds to the 15 minute grid: 9:10 is 9:15, 23:55 is midnight of the next day
+      const t = round15(e.c.start);
       const day = addDays({ y, m: mo, d }, Math.floor(t / 1440));
       const h = Math.floor((t % 1440) / 60);
       const mi = t % 60;

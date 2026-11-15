@@ -72,7 +72,8 @@ export const EDIT_SUBMISSION_ACTION_NAME = "Thêm bài nộp";
 
 /** True while the event still offers "Thêm bài nộp" (the `editsubmission` link). */
 export function offersSubmission(event: MoodleCalendarEvent): boolean {
-  return event.action?.name === EDIT_SUBMISSION_ACTION_NAME;
+  const a = event.action; // the link is language-proof; the name covers a link-less action
+  return !!a && (a.name === EDIT_SUBMISSION_ACTION_NAME || a.name === "Add submission" || !!a.url?.includes("action=editsubmission"));
 }
 
 /** The `data` object of a `core_calendar_get_calendar_monthly_view` response. */
@@ -238,7 +239,7 @@ export function parseMonthlyView(
       durationMinutes: 0,
       location: null,
       note: null,
-      url: event.url.trim(),
+      url: event.url?.trim() ?? "",
       description: event.description || null,
       lmsCourse: courseOf(event, courses),
       submitted: !offersSubmission(event),
@@ -283,7 +284,7 @@ export function parseMonthlyView(
       type: "EXAM" as const,
       location: null,
       note: null,
-      url: open?.url.trim() ?? null,
+      url: open?.url?.trim() || null,
       lmsCourse: courseOf(close, courses),
     };
 

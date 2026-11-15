@@ -46,19 +46,27 @@ const daysOf = (p: Record<string, string | undefined>) => p.BYDAY?.split(",").ma
 /** Day-by-day rules: DAILY, or any rule naming weekdays ("thứ 2 hàng tuần", "ngày thường", "mỗi ngày trừ CN"). */
 const byDay = (p: Record<string, string | undefined>) => p.FREQ === "DAILY" || (p.FREQ === "WEEKLY" && !!daysOf(p)?.length);
 const tod = (ms: number) => ms - dayStart(ms);
+/** Calendar day stepping: `+ k * DAY` drifts an hour across a DST change. */
+const addDays = (d: number, k: number) => { const x = new Date(d); return new Date(x.getFullYear(), x.getMonth(), x.getDate() + k).getTime(); };
 
 type Occ = { notBefore?: number; deadline?: number };
 const MAX_OCC = 30;
 
-/** Day starts a DAILY, WEEKLY-with-days, MONTHLY or YEARLY rule lands on from `d0`, and whether the list stops short of the rule's own end. */
-function ruleDays(p: Record<string, string | undefined>, d0: number, now: number): { days: number[]; short: boolean } {
+/** Day starts a DAILY, WEEKLY-with-days, MONTHLY or YEARLY rule lands on from `d0`, and whether the list stops short of the rule's own end.
+ *  COUNT is the total from `d0`, past days included; only days from today to `upTo` (default: the rule's first stretch) are listed. */
+function ruleDays(p: Record<string, string | undefined>, d0: number, now: number, upTo?: number): { days: number[]; short: boolean } {
   const n = Math.max(1, Number(p.INTERVAL) || 1), want = Number(p.COUNT) > 0 ? Number(p.COUNT) : undefined, cap = Math.min(want ?? MAX_OCC, MAX_OCC);
   const u = /^(\d{4})(\d\d)(\d\d)/.exec(p.UNTIL ?? ""), until = u ? new Date(+u[1], +u[2] - 1, +u[3]).getTime() : undefined;
   const monthly = p.FREQ === "MONTHLY", yearly = p.FREQ === "YEARLY";
   const span = want ? (monthly ? 800 : yearly ? 4000 : 90) : monthly ? 92 : yearly ? 400 : (p.FREQ === "WEEKLY" && n > 1) || until !== undefined ? 60 : 7;
-  const end = d0 + (span - 1) * DAY, out: number[] = [];
+  const end = upTo ?? addDays(d0, span - 1), out: number[] = [];
   const lo = Math.max(d0, dayStart(now)), wd = daysOf(p);
-  const push = (d: number) => { if (d >= lo && d <= end && (until === undefined || d <= until) && out.length < cap) out.push(d); };
+  let seen = 0; // occurrences from d0 on, for COUNT
+  const push = (d: number) => {
+    if (d < d0 || d > end || (until !== undefined && d > until) || (want !== undefined && seen >= want)) return;
+    seen++;
+    if (d >= lo && out.length < cap) out.push(d);
+  };
   if (monthly || yearly) {
     const b = new Date(d0);
     for (let k = 0; k < 60 && out.length < cap; k++) {
@@ -74,9 +82,9 @@ function ruleDays(p: Record<string, string | undefined>, d0: number, now: number
       if (day > 0) push(new Date(first.getFullYear(), first.getMonth(), Math.min(day, len)).getTime());
     }
   } else {
-    for (let i = 0; d0 + i * DAY <= end && out.length < cap; i++) {
-      const d = d0 + i * DAY;
-      if (p.FREQ === "DAILY" ? i % n === 0 && (!wd?.length || wd.includes(new Date(d).getDay())) : Math.floor(i / 7) % n === 0 && (!wd?.length ? i % 7 === 0 : wd.includes(new Date(d).getDay()))) push(d);
+    const mon = (new Date(d0).getDay() + 6) % 7; // every other week counts calendar (Monday) weeks from d0's, not 7-day blocks from d0
+    for (let i = 0, d = d0; d <= end && out.length < cap; d = addDays(d0, ++i)) {
+      if (p.FREQ === "DAILY" ? i % n === 0 && (!wd?.length || wd.includes(new Date(d).getDay())) : Math.floor((mon + i) / 7) % n === 0 && (!wd?.length ? i % 7 === 0 : wd.includes(new Date(d).getDay()))) push(d);
     }
   }
   const open = n > 1 || monthly || yearly;
@@ -102,7 +110,7 @@ function occurrences(rrule: string | undefined, now: number, when?: number, due?
       short,
       list: days.map((d) => {
         // A due time before the clock (or at midnight) means "by the end of that day".
-        const end = due !== undefined && tod(due) > 0 && (when === undefined || tod(due) > tod(when)) ? d + tod(due) : d + DAY;
+        const end = due !== undefined && tod(due) > 0 && (when === undefined || tod(due) > tod(when)) ? d + tod(due) : addDays(d, 1);
         return { notBefore: when !== undefined ? d + tod(when) : Math.max(now, d), deadline: end };
       }),
     };
@@ -148,7 +156,8 @@ export async function removeScope(id: string, scope: "this" | "following" | "all
   return { ...r, undo: async () => { await store.kvSet("gone", raw ?? "{}"); await r.undo(); } };
 }
 
-/** Occurrences a live user series is missing so it reaches ~14 days ahead; one per kept day (daily or weekdays) or `COUNT` per week (weekly). */
+/** Occurrences a live user series is missing so it reaches ~14 days ahead: the rule's own days (BYDAY, INTERVAL, COUNT as a total, UNTIL),
+ *  or `COUNT` per week for a plain weekly "n lần mỗi tuần". */
 function missing(tasks: Task[], gone: Gone, now: number): Task[] {
   const horizon = now + 14 * DAY;
   const series = new Map<string, Task[]>();
@@ -165,13 +174,13 @@ function missing(tasks: Task[], gone: Gone, now: number): Task[] {
       ...last, ...o, id: uid(), start: undefined, end: undefined, doneAt: undefined, deletedAt: undefined, userEdited: undefined, note: undefined, createdAt: now,
       ...(fx ? { start: o.notBefore, end: o.notBefore! + len, notBefore: undefined, deadline: undefined } : {}),
     });
-    if (byDay(p) && !p.COUNT) {
-      const have = new Set(xs.map((x) => dayStart(fx ? x.start ?? 0 : (x.deadline ?? 0) - 1)));
-      const days = daysOf(p), clock = fx ? tod(last.start!) : last.notBefore !== undefined && tod(last.notBefore) ? tod(last.notBefore) : undefined;
-      const due = last.deadline !== undefined && tod(last.deadline) ? tod(last.deadline) : DAY;
-      for (let d = dayStart(now); d <= horizon; d += DAY) {
-        if (days?.length && !days.includes(new Date(d).getDay())) continue;
-        if (!have.has(d) && (cut === undefined || d < cut)) out.push(copy({ notBefore: clock !== undefined ? d + clock : Math.max(now, d), deadline: d + due }));
+    if (byDay(p) || (p.FREQ === "WEEKLY" && Number(p.INTERVAL) > 1)) {
+      const dayOf = (x: Task) => dayStart(fx ? x.start ?? 0 : (x.deadline ?? 0) - 1), have = new Set(xs.map(dayOf));
+      const clock = fx ? tod(last.start!) : last.notBefore !== undefined && tod(last.notBefore) ? tod(last.notBefore) : undefined;
+      const due = last.deadline !== undefined && tod(last.deadline) ? tod(last.deadline) : undefined;
+      // The first occurrence anchors INTERVAL and COUNT, as it did when the series was made.
+      for (const d of ruleDays(p, Math.min(...xs.map(dayOf)), now, horizon).days) {
+        if (!have.has(d) && (cut === undefined || d < cut)) out.push(copy({ notBefore: clock !== undefined ? d + clock : Math.max(now, d), deadline: due !== undefined ? d + due : addDays(d, 1) }));
       }
     } else if (p.FREQ === "WEEKLY") {
       const n = Math.min(Number(p.COUNT) > 0 ? Number(p.COUNT) : 1, 7);
@@ -240,7 +249,8 @@ async function act(w: Work, a: Action) {
     w.toast = t("added", { title });
     return;
   }
-  for (const tk of targets(w, a.target)) {
+  const all = targets(w, a.target), lead = [...all].sort((x, y) => (x.start ?? Infinity) - (y.start ?? Infinity))[0];
+  for (const tk of all) {
     if (a.op === "done") {
       const next = { ...tk, doneAt: now };
       w.tasks.set(tk.id, next);
@@ -250,8 +260,11 @@ async function act(w: Work, a: Action) {
       if (p && ![...w.tasks.values()].some((c) => c.parentId === p.id && !c.doneAt && !c.deletedAt)) w.tasks.set(p.id, { ...p, doneAt: now });
       w.toast = t("done");
     } else if (a.op === "delete") {
-      w.tasks.set(tk.id, { ...tk, deletedAt: now, userEdited: [...new Set([...(tk.userEdited ?? []), "deleted"])] });
-      w.log("delete", tk);
+      const gone = (x: Task) => w.tasks.set(x.id, { ...x, deletedAt: now, userEdited: [...new Set([...(x.userEdited ?? []), "deleted"])] });
+      if (!tk.deletedAt) { gone(tk); w.log("delete", tk); }
+      // The last live sitting gone: its parent goes too, or the next replan splits it again.
+      const p = tk.parentId && w.tasks.get(tk.parentId);
+      if (p && !p.deletedAt && ![...w.tasks.values()].some((c) => c.parentId === p.id && !c.doneAt && !c.deletedAt)) gone(p);
       w.toast = t("deleted", { title: tk.title });
     } else if (a.op === "edit") {
       const when = ms(a.when);
@@ -260,17 +273,21 @@ async function act(w: Work, a: Action) {
       if (a.title) { next.title = a.title; edited.add("title"); w.toast = t("renamed", { title: a.title }); }
       if (a.effortMinutes) { next.effort = a.effortMinutes; edited.add("effort"); }
       if (a.kind) { next.kind = a.kind as Kind; edited.add("kind"); }
-      if (a.location) { next.location = a.location; edited.add("location"); }
+      if (a.location !== undefined) { next.location = a.location || undefined; edited.add("location"); } // "" clears it
       if (a.deadline === "") { next.deadline = undefined; edited.add("deadline"); }
       if (a.note !== undefined) { next.note = a.note; edited.add("note"); }
       const dl = ms(a.deadline);
       if (dl) { next.deadline = dl; edited.add("deadline"); }
-      if (when !== undefined) {
+      if (when !== undefined && tk !== lead) {
+        // A split task moved as a whole: its first open sitting takes the time, the rest are planned after it, not stacked on it.
+        Object.assign(next, { start: undefined, end: undefined, pinned: false, notBefore: when + (lead.effort || 30) * 60_000 });
+        edited.delete("start");
+      } else if (when !== undefined) {
         next.notBefore = when;
         next.start = when;
         next.pinned = true; // a time you set stays: notBefore only bounds the planner, which would pick another slot (and never a past one)
         edited.add("start");
-        next.end = when + Math.max(30, next.effort || 30) * 60_000; // next.effort: the length may be edited in the same action
+        next.end = when + (next.effort || 30) * 60_000; // next.effort: the length may be edited in the same action
         w.log("drag", tk, { fromStart: tk.start, toStart: when });
         w.toast = t("moved", { title: next.title, time: at12(when, now) });
       }
@@ -281,13 +298,25 @@ async function act(w: Work, a: Action) {
   }
 }
 
+/** A task's stored content, comparable across a store round trip (key order, null vs undefined, the vector's typed array). */
+const canon = (x: Task) => JSON.stringify(Object.keys(x).filter((k) => k !== "vec" && x[k as keyof Task] != null).sort().map((k) => [k, x[k as keyof Task]]));
+
+// Every task write is read-modify-write of the whole store, so they run one at a time or the later one wipes the earlier.
+let chain: Promise<unknown> = Promise.resolve();
+const serial = <T>(fn: () => Promise<T>): Promise<T> => { const r = chain.then(fn); chain = r.catch(() => {}); return r; };
+
 /** Runs one mutation, optionally replans, mirrors to the calendar and persists. One call is one undo group. */
-async function transact(now: number, mutate: (w: Work) => Promise<void> | void, o: { replan?: boolean; self?: boolean; plan?: Opts; text?: (d: Diff | undefined, w: Work) => string | undefined } = {}): Promise<Result> {
+function transact(now: number, mutate: (w: Work) => Promise<void> | void, o: { replan?: boolean; self?: boolean; quiet?: boolean; plan?: Opts; text?: (d: Diff | undefined, w: Work) => string | undefined } = {}): Promise<Result> {
+  return serial(() => transactNow(now, mutate, o));
+}
+
+async function transactNow(now: number, mutate: (w: Work) => Promise<void> | void, o: { replan?: boolean; self?: boolean; quiet?: boolean; plan?: Opts; text?: (d: Diff | undefined, w: Work) => string | undefined } = {}): Promise<Result> {
   const model0 = await store.loadModel(now);
   const before = new Map((await store.allTasks()).map((x) => [x.id, x]));
   const w: Work = {
     tasks: new Map(before), model: model0, events: [], notes: [], moves: [], now,
     log(type, task, data) {
+      if (o.quiet) return; // a value held mid-edit: the edit that settles it is the one worth learning from
       const ev: TaskEvent = { id: uid(), taskId: task.id, type, at: now, data };
       w.events.push(ev);
       stat(w.model, ev, task);
@@ -323,14 +352,22 @@ async function transact(now: number, mutate: (w: Work) => Promise<void> | void, 
       const rl = rules.find((x) => (!x.days.length || x.days.includes(d.getDay())) && (!x.kinds.length || x.kinds.includes(task.kind)) && m0 < x.to && m1 > x.from);
       return rl && t("causeRule", { text: rl.text });
     };
+    // A new sitting is made from its parent; the parent keeps no time of its own.
+    const sitting = (id: string) => {
+      const parent = w.tasks.get(diff!.split.find((s) => s.ids.includes(id))?.parentId ?? "");
+      if (!parent) return;
+      w.tasks.set(parent.id, { ...parent, start: undefined, end: undefined });
+      return { ...parent, id, parentId: parent.id, userEdited: undefined, doneAt: undefined } as Task;
+    };
+    // Placement never writes over what the user owns: a done, deleted, or pinned-and-timed task.
+    const owned = (x: Task) => !!x.doneAt || !!x.deletedAt || (!!x.pinned && x.start !== undefined);
+    for (const u of diff.unplaced ?? []) {
+      const old = w.tasks.get(u.id), task = old ?? sitting(u.id);
+      if (task && !owned(task)) w.tasks.set(u.id, { ...task, start: undefined, end: undefined, effort: old ? task.effort : u.effort });
+    }
     for (const pl of diff.placed) {
-      let task = w.tasks.get(pl.id);
-      if (!task) {
-        const parent = w.tasks.get(diff.split.find((s) => s.ids.includes(pl.id))?.parentId ?? "");
-        if (!parent) continue;
-        task = { ...parent, id: pl.id, parentId: parent.id, userEdited: undefined, doneAt: undefined };
-        w.tasks.set(parent.id, { ...parent, start: undefined, end: undefined });
-      }
+      const task = w.tasks.get(pl.id) ?? sitting(pl.id);
+      if (!task || owned(task)) continue;
       w.tasks.set(pl.id, { ...task, start: pl.start, end: pl.end, effort: Math.round((pl.end - pl.start) / 60_000) });
       if (pl.from !== undefined && pl.from !== pl.start && !dragged.has(pl.id)) w.moves.push({ id: pl.id, title: task.title, from: pl.from, to: pl.start, why: pl.why, cause: causeOf(task, pl.from, pl.from + pl.end - pl.start), at: now, ...(o.self === false ? {} : { self: true }) });
       w.events.push({ id: uid(), taskId: pl.id, type: "placed", at: now, data: { policy: pl.policy, arm: pl.arm, x: pl.x } });
@@ -355,16 +392,19 @@ async function transact(now: number, mutate: (w: Work) => Promise<void> | void, 
     steps: diff?.steps,
     warn: diff?.warn,
     moved: w.moves.length,
-    async undo() {
-      const gone = changed.filter((x) => !before.has(x.id));
-      const restored = changed.filter((x) => before.has(x.id)).map((x) => before.get(x.id)!);
+    undo: () => serial(async () => {
+      // Only a task still as this change left it goes back: an edit made since (a rename between two picks, a later sync) stays.
+      const now = new Map((await store.allTasks()).map((x) => [x.id, x]));
+      const mine = changed.filter((x) => { const c = now.get(x.id); return !c || canon(c) === canon(x); });
+      const gone = mine.filter((x) => !before.has(x.id));
+      const restored = mine.filter((x) => before.has(x.id)).map((x) => before.get(x.id)!);
       await store.removeTasks(gone.map((x) => x.id));
       await store.putTasks(restored);
       await store.removeNotes(w.notes.map((n) => n.id));
       await store.removeEvents(w.events.map((e) => e.id));
       await store.saveModel(model0);
       for (const k of ["moves", "warn"] as const) await store.kvSet(k, kv0[k] ?? "[]");
-    },
+    }),
   };
 }
 
@@ -384,6 +424,38 @@ export function apply(actions: Action[], now = Date.now()): Promise<Result> {
     },
   });
 }
+
+export type LiveEdit = { when?: number; effortMinutes?: number; deadline?: number | "" };
+const toAction = (id: string, e: LiveEdit): Action => ({ op: "edit", target: id, ...(e.when !== undefined ? { when: new Date(e.when).toISOString() } : {}),
+  ...(e.effortMinutes ? { effortMinutes: e.effortMinutes } : {}), ...(e.deadline !== undefined ? { deadline: e.deadline === "" ? "" : new Date(e.deadline).toISOString() } : {}) });
+// One task's live edits (wheel turns): each value is saved at once with nothing else moved, so a force quit loses nothing.
+// Once the edits rest for `rest` ms, one replan moves what the new value now clashes with. Edits within 30 s are one session:
+// that replan first undoes the session's last one, so tasks knocked aside by a value passed over go back.
+// shortcut: the undo skips tasks changed since (see canon), so a sync landing mid-session keeps its writes; fine for a wheel.
+const sessions = new Map<string, { last?: Promise<Result | undefined>; at: number; timer?: ReturnType<typeof setTimeout>; drop?: () => void }>();
+/** Resolves with the replan's Result once the edits rest, or undefined when a later edit took over. */
+export function liveEdit(id: string, e: LiveEdit, now = Date.now(), rest = 500): Promise<Result | undefined> {
+  const ss = sessions.get(id) ?? { at: 0 };
+  sessions.set(id, ss);
+  if (now - ss.at >= 30_000) ss.last = undefined;
+  ss.at = now;
+  clearTimeout(ss.timer);
+  ss.drop?.();
+  const held = transact(now, (w) => act(w, toAction(id, e)), { replan: false, quiet: true });
+  return new Promise((done, fail) => {
+    ss.drop = () => done(undefined);
+    ss.timer = setTimeout(() => {
+      ss.drop = undefined;
+      const prev = ss.last;
+      const r = held.then(() => (prev ?? Promise.resolve(undefined)).catch(() => undefined)).then(async (p) => { await p?.undo(); return apply([toAction(id, e)], now); });
+      ss.last = r.catch(() => undefined);
+      r.then(done, fail);
+    }, rest);
+    held.catch(fail); // the held write itself failed: say so now
+  });
+}
+/** A start (and length) set on a wheel: liveEdit for a time. */
+export const retime = (id: string, start: number, minutes?: number, now = Date.now(), rest?: number) => liveEdit(id, { when: start, effortMinutes: minutes }, now, rest);
 
 export const swipeDone = (id: string, now = Date.now()) => transact(now, (w) => act(w, { op: "done", target: id }), { replan: false });
 export const swipeLater = (id: string, now = Date.now()) =>

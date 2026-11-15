@@ -5,8 +5,15 @@ const fs = require("fs");
 const path = require("path");
 const { withAndroidManifest, withDangerousMod } = require("expo/config-plugins");
 
+// E2E builds (E2E=1) talk plain http to the campus mock on the host (pnpm mock): the emulator's host alias and localhost only.
+const E2E = process.env.E2E ? `
+  <domain-config cleartextTrafficPermitted="true">
+    <domain>10.0.2.2</domain>
+    <domain>localhost</domain>
+  </domain-config>` : "";
+
 const XML = `<?xml version="1.0" encoding="utf-8"?>
-<network-security-config>
+<network-security-config>${E2E}
   <domain-config>
     <domain includeSubdomains="true">lms.dlu.edu.vn</domain>
     <trust-anchors>

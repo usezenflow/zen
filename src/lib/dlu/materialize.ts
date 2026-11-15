@@ -57,7 +57,7 @@ function merge(old: Task, next: Task): Task {
   }
   if (!next.fixed && old.effort === UNSIZED) set("effort", next.effort); // stored before sizing: still one sitting, so nothing to resplit
   if (next.doneAt && !old.doneAt) set("doneAt", next.doneAt);
-  if (old.deletedAt && !old.userEdited?.length) out.deletedAt = undefined;
+  if (old.deletedAt && !old.userEdited?.includes("deleted")) out.deletedAt = undefined; // back upstream; only the student's own delete sticks
   return out;
 }
 
@@ -141,6 +141,7 @@ export function materialize(items: Fetched, tasks: Task[], now = Date.now(), mul
     .filter((t) => {
       const key = t.upstreamKey;
       if (!key || t.source !== "dlu" || t.deletedAt || t.doneAt || seen.has(key) || failed.has(sourceOf(key)) || skipped(key)) return false;
+      if (items.only && !items.only.includes(key)) return false;
       const at = t.start ?? t.deadline;
       // Past items drop out of the feed by design; LMS covers the months in LMS_MONTHS.
       return at !== undefined && at > now && !outside(key, at) && (sourceOf(key) !== "lms" || at < lmsEnd);

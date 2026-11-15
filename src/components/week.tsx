@@ -105,7 +105,7 @@ export function Week({ tasks, hols, monday, selected, now, onSelect, onStep, rul
                   <Stripes color={th.line} />
                 </Animated.View>
               ) : (
-                <Animated.View key={x.id} layout={glide} entering={FadeIn} exiting={FadeOut} style={[s.b, pos]}>
+                <Animated.View key={`${x.id}${day}`} layout={glide} entering={FadeIn} exiting={FadeOut} style={[s.b, pos]}>
                   <TypeArt type={typeOf(x)} w={40} h={h} seed={j * 3 + h} />
                 </Animated.View>
               ));
