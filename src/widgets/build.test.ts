@@ -56,10 +56,10 @@ it("turns an empty today to the next day with anything", () => {
   expect([done.aheadHead, done.aheadCount, done.ahead.map((r) => r.id)]).toEqual(["Mai", "1 tiết học", ["e"]]);
   // A free Thursday: no done count; the 27th's exam is 8 days out, past the week, so the head carries its date.
   const free = widgetData(tasks, at(10, 0, 19), art);
-  expect([free.doneCount, free.dayName, free.aheadHead]).toEqual(["", "Thứ năm 19", "T6 27/11"]);
+  expect([free.doneCount, free.dayName, free.aheadHead]).toEqual(["", "T5 19", "T6 27/11"]);
   // Nothing ahead at all: no head, the widget shows the try-saying prompt instead.
   expect(widgetData(tasks, at(10, 0, 28), art).aheadHead).toBe("");
-  expect(widgetData(tasks, at(10, 0, 24), art).aheadHead).toBe("Thứ sáu");
+  expect(widgetData(tasks, at(10, 0, 24), art).aheadHead).toBe("T6");
   expect(free.exam).toMatchObject({ n: "8", unit: "ngày nữa" });
   expect(widgetData(tasks, at(7, 0, 27), art).exam).toMatchObject({ n: "08:00", unit: "hôm nay" });
 });
@@ -84,4 +84,13 @@ it("keeps the medium head to one figure however packed the day", () => {
   expect((w.aheadHead + w.aheadCount).length).toBeLessThanOrEqual(21);
   // A classes-only day reads in classes, not "0 việc".
   expect(widgetData(packed.filter((x) => x.fixed), at(7, 0, 18), art).count).toBe("4 tiết học");
+});
+
+it("tops the medium list up with next-up from later days, the day in the time column", () => {
+  // 14:25 on the 16th: one row left today (c; b is ticked but still listed), then tomorrow's class and the 27th's exam.
+  const w = widgetData(tasks, at(14, 25), art);
+  expect(w.more.map((r) => [r.id, r.time])).toEqual([["e", "Mai 07:00"], ["x", "27/11"]]);
+  // Tomorrow showing on the right: next-up starts after it, this week's day short ("T6 08:00").
+  const fri = widgetData([...tasks, task("f", "Họp nhóm", at(8, 0, 20), at(9, 0, 20))], at(20), art);
+  expect(fri.more.map((r) => [r.id, r.time])).toEqual([["f", "T6 08:00"], ["x", "27/11"]]);
 });

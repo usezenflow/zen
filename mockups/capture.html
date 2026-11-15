@@ -57,7 +57,7 @@ I.pdf = '<path d="M8 2.75h5.6c.53 0 1.04.21 1.41.59l3.65 3.65c.38.37.59.88.59 1.
 // Same home content as views.html.
 const tabs = (on) => `<div class="tabs">${["Ngày", "Tuần", "Tháng"].map((v) => `<span class="${v === on ? "on" : ""}">${v}</span>`).join("")}</div>`;
 const row = (tm, title, type, sub = "") => `<div class="r">${type === "plan" || type === "assignment" ? `<span class="ck"></span>` : swatch(type)}<div class="tx"><b>${title}</b>${sub ? `<small>${sub}</small>` : ""}</div><span class="tm">${tm}</span></div>`;
-const day = `${head("Thứ hai", "16 tháng 11", "5 việc, 1 tiết học")}${tabs("Ngày")}
+const day = `${head("T2", "16 tháng 11", "5 việc, 1 tiết học")}${tabs("Ngày")}
   <div class="lab" style="margin-top:28px">Hôm nay</div>
   <div class="list" style="margin-top:6px">${row("14:30", "Ôn Giải tích", "plan")}${row("16:00", "Báo cáo nhóm", "assignment", "Hạn 23:59")}${row("17:30", "Cơ sở dữ liệu", "lecture", "A2.104")}${row("19:00", "Ăn tối với Minh", "busy")}</div>`;
 

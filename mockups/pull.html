@@ -18,7 +18,7 @@
 const P = (k, t, at, cls = "", from = "") => `<div class="pill ${cls}" style="--tone:${TONE[k]}"><div class="dot"></div><b>${t}</b><span>${at}</span>${from ? `<i class="from">${from}</i>` : ""}</div>`;
 const N = (t, at) => `<div class="pill" style="--tone:var(--chores)"><div class="dot" style="display:grid;place-items:center;color:#fff">${ic(I.note, 18)}</div><b style="font-size:14.5px;font-weight:600">${t}</b><span>${at}</span></div>`;
 const today = `<div class="title" style="margin-top:10px">Hôm nay</div>
-  <div class="sec">Thứ sáu 13</div><div class="stack">
+  <div class="sec">T6 13</div><div class="stack">
   ${P("study", "Lý thuyết đồ thị", "07:00", "fixed done")}
   ${P("study", "Bài tập giải tích", "14:00", "new")}
   ${P("exercise", "Gym", "17:30")}

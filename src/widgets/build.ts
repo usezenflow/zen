@@ -42,6 +42,10 @@ export function widgetData(tasks: Task[], now: number, art: WidgetData["art"], t
   const far = ahead.length ? undefined : shown(tasks).filter((x) => x.start! >= addDays(day, 8)).sort((a, b) => a.start! - b.start!)[0];
   if (far) { aheadDay = startOfDay(far.start!); ahead = onDay(tasks, aheadDay); }
   const tm = ahead[0];
+  // Next-up to top the medium list up to three: what starts after the day it shows (today while rows remain, else the ahead day).
+  const after = addDays(rows.length ? day : aheadDay || day, 1);
+  const more = sh.filter((x) => x.start! >= after).sort((a, b) => a.start! - b.start!).slice(0, 3)
+    .map((x) => ({ ...toRow(x), time: upTag(x.start!, now) }));
   const doneN = tasks.filter((x) => x.doneAt && !x.deletedAt && x.start !== undefined && x.start >= day && x.start < addDays(day, 1)).length;
   const ex = tasks.filter((x) => typeOf(x) === "exam" && !x.doneAt && !x.deletedAt && x.start !== undefined && x.start > now).sort((a, b) => a.start! - b.start!)[0];
   const exDays = ex && Math.round((startOfDay(ex.start!) - day) / DAY);
@@ -52,6 +56,7 @@ export function widgetData(tasks: Task[], now: number, art: WidgetData["art"], t
     next, rows, doneLabel: doneN ? `Xong (${doneN})` : "",
     tomorrow: tm ? `${dayTag(tm.start!, now)}: ${tm.title} ${hhmm(tm.start!)}` : "",
     ahead: ahead.slice(0, 3).map(toRow),
+    more,
     // The medium head fits ~21 characters: past this week the short date ("T4 2/12"), and one figure for the count.
     aheadHead: !ahead.length ? "" : aheadDay === addDays(day, 1) ? "Mai" : far ? dayTag(aheadDay, now) : weekday(aheadDay),
     aheadCount: ahead.length ? brief(ahead) : "",
@@ -78,6 +83,12 @@ function dayTag(ms: number, now: number): string {
 function summary(day: Task[]): string {
   const lec = day.filter((x) => typeOf(x) === "lecture").length, n = day.length - lec;
   return [n || !lec ? t("nTasks", { n }) : "", lec ? t("nLectures", { n: lec }) : ""].filter(Boolean).join(", ");
+}
+
+/** A next-up row's time column, narrow enough for the medium list: "Mai 07:00", "T4 22:00" this week, just "27/11" past it. */
+function upTag(ms: number, now: number): string {
+  const d = new Date(ms), tag = dayTag(ms, now);
+  return tag.includes("/") ? `${d.getDate()}/${d.getMonth() + 1}` : `${tag} ${hhmm(ms)}`;
 }
 
 /** One figure for the medium head however packed the day: "12 việc", or "3 tiết học" on a classes-only day. */

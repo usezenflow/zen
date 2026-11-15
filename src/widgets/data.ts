@@ -40,7 +40,7 @@ export interface WExam {
 }
 
 export interface WidgetData {
-  weekday: string; // "Thứ hai"
+  weekday: string; // "T2"
   date: string; // "16 tháng 11"
   short: string; // "T2 16"
   summary: string; // "5 việc, 1 tiết học"
@@ -51,10 +51,11 @@ export interface WidgetData {
   tomorrow: string; // the next day with anything, within a week: "Mai: Cấu trúc dữ liệu 07:00", "T6: …" this week, "T6 27/11: …" past it; "" when none
   // Medium with nothing left today: the next day that has anything, within a week.
   ahead: WRow[]; // its first three, start order
-  aheadHead: string; // "Mai", "Thứ tư" this week, "T4 2/12" past it; "" when nothing is ahead at all
+  aheadHead: string; // "Mai", "T4" this week, "T4 2/12" past it; "" when nothing is ahead at all
+  more: WRow[]; // next-up after the day the medium list shows, to fill it to three rows; time is "Mai 07:00", "T4 22:00", "27/11"
   aheadCount: string; // the same one figure: "2 việc"
   doneCount: string; // "5 việc xong", "" when none: all done; else a free day
-  dayName: string; // "Thứ bảy 14", the free day's ink card
+  dayName: string; // "T7 14", the free day's ink card
   exam?: WExam;
   art: Record<ArtType, { square: string; wide: string }>; // file:// PNGs in the shared widgets directory
   ticked: string[]; // ids ticked on the widget, not yet seen by the app

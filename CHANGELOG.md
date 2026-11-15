@@ -12,6 +12,8 @@
     - Tuần tới trống thì hiện ngày xa hơn có việc
     - Không có gì sắp tới thì gợi ý vài câu để nói, chạm là mở micro
     - Ngày dày việc vẫn hiện gọn: một con số như "12 việc"
+    - Còn ít việc thì hiện thêm việc sắp tới, kèm ngày như "Mai 07:00"
+- Tên thứ gọn hơn: "T4" thay cho "Thứ tư"
 
 ## 26.0.0
 

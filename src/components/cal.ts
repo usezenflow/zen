@@ -7,8 +7,8 @@ export const mondayOf = (ms: number) => addDays(startOfDay(ms), -((new Date(ms).
 export const hhmm = (ms: number) => new Date(ms).toTimeString().slice(0, 5);
 
 export const short = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
-const LONG = ["Chủ nhật", "Thứ hai", "Thứ ba", "Thứ tư", "Thứ năm", "Thứ sáu", "Thứ bảy"];
-export const weekday = (ms: number) => LONG[new Date(ms).getDay()];
+// The app names days short everywhere ("T4", "CN"), never "Thứ tư": brevity over formality.
+export const weekday = (ms: number) => short[(new Date(ms).getDay() + 6) % 7];
 export const monthLabel = (ms: number) => `Tháng ${new Date(ms).getMonth() + 1}`;
 
 export const live = (x: Task) => !x.doneAt && !x.deletedAt;

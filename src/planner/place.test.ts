@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { Task } from "../lib/types";
 import { HOUR } from "./features";
 import { type Env, solve } from "./place";
@@ -16,6 +16,8 @@ describe("solve", () => {
   const e = env(hourly, [{ start: at(0, 9), end: at(0, 12) }]);
 
   it("never scores below greedy, is deterministic, logs only gains", () => {
+    // A frozen clock: the solver's wall-clock cap otherwise stops the two runs at different points on a slow CI runner.
+    const clock = vi.spyOn(Date, "now").mockReturnValue(0);
     const r = solve(ps, e, 7);
     expect(r.score).toBeGreaterThanOrEqual(r.greedyScore - 1e-9);
     const r2 = solve(ps, e, 7);
@@ -23,6 +25,7 @@ describe("solve", () => {
     expect(r2.score).toBe(r.score);
     expect(r.log.length).toBeGreaterThan(0);
     for (const l of r.log) expect(l.gain).toBeGreaterThan(0);
+    clock.mockRestore();
   });
 
   it("stays off busy time when room exists", () => {

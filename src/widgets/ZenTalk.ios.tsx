@@ -47,9 +47,9 @@ const ZenTalk = (p: WidgetData, env: WidgetEnvironment) => {
 };
 
 export const SAMPLE: WidgetData = {
-  weekday: "Thứ hai", date: "16 tháng 11", short: "T2 16", summary: "5 việc, 1 tiết học", count: "5 việc",
+  weekday: "T2", date: "16 tháng 11", short: "T2 16", summary: "5 việc, 1 tiết học", count: "5 việc",
   rows: [], doneLabel: "", tomorrow: "",
-  ahead: [], aheadHead: "", aheadCount: "", doneCount: "", dayName: "Thứ hai 16",
+  ahead: [], more: [], aheadHead: "", aheadCount: "", doneCount: "", dayName: "T2 16",
   art: {
     plan: { square: "", wide: "" }, lecture: { square: "", wide: "" }, exam: { square: "", wide: "" },
     assignment: { square: "", wide: "" }, busy: { square: "", wide: "" },

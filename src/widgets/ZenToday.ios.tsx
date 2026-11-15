@@ -65,6 +65,7 @@ const ZenToday = (p: WidgetData, env: WidgetEnvironment) => {
           r.done ? undefined : {
             rows: p.rows.map((x) => (x.id === r.id ? { ...x, done: true } : x)),
             ahead: p.ahead.map((x) => (x.id === r.id ? { ...x, done: true } : x)),
+            more: (p.more ?? []).map((x) => (x.id === r.id ? { ...x, done: true } : x)),
             ticked: p.ticked.includes(r.id) ? p.ticked : [...p.ticked, r.id],
           }
         }>
@@ -154,9 +155,10 @@ const ZenToday = (p: WidgetData, env: WidgetEnvironment) => {
   const empty = !n && !p.rows.length;
   // Nothing else today (next may be the last one): the right half turns to the next day that has anything, never blank.
   const later = !p.rows.length;
-  const list = later ? p.ahead : p.rows.slice(0, 3);
+  // Three rows, never fewer: the day's own, then next-up from later days ("Mai 07:00"), then try-saying lines (the last ones, so "Mai 9 giờ…" never sits under a "Mai" head).
+  const list = [...(later ? p.ahead : p.rows), ...(p.more ?? [])].slice(0, 3);
   // Nothing ahead at all: the app's own try-saying lines (i18n trySay, try1-3) fill the right half; tapping one opens the mic.
-  const TRY = ["Mai 9 giờ ôn Giải tích", "T6 nộp báo cáo nhóm", "Tối nào cũng đọc sách"];
+  const TRY = ["Mai 9 giờ ôn Giải tích", "T6 nộp báo cáo nhóm", "Tối nào cũng đọc sách"].slice(list.length);
   const head = !later ? ["Hôm nay", p.count] : p.aheadHead ? [p.aheadHead, p.aheadCount] : ["Thử nói", ""];
 
   return (
@@ -176,9 +178,9 @@ const ZenToday = (p: WidgetData, env: WidgetEnvironment) => {
         </HStack>
         {list.map((r, i) => row(r, i === 0))}
         {/* widgets.html tryRow: the 14px mic in the 18px box slot, muted; each line semibold, one line like any row. */}
-        {later && !list.length ? TRY.map((line, i) => (
+        {TRY.map((line, i) => (
           <VStack key={line} spacing={0}>
-            {i ? <Rectangle modifiers={[foregroundStyle(c.line), frame({ height: 1.25 })]} /> : null}
+            {i || list.length ? <Rectangle modifiers={[foregroundStyle(c.line), frame({ height: 1.25 })]} /> : null}
             <Link destination={p.listen}>
               <HStack spacing={10} modifiers={[padding({ vertical: 7.5 })]}>
                 <Image systemName="mic" modifiers={[font({ size: 14 }), foregroundStyle(c.muted), frame({ width: 22.5 })]} />
@@ -187,7 +189,7 @@ const ZenToday = (p: WidgetData, env: WidgetEnvironment) => {
               </HStack>
             </Link>
           </VStack>
-        )) : null}
+        ))}
         <Spacer minLength={0} />
       </VStack>
     </HStack>
@@ -196,7 +198,7 @@ const ZenToday = (p: WidgetData, env: WidgetEnvironment) => {
 
 const none = { square: "", wide: "" };
 const SAMPLE: WidgetData = {
-  weekday: "Thứ hai", date: "16 tháng 11", short: "T2 16", summary: "5 việc, 1 tiết học", count: "5 việc",
+  weekday: "T2", date: "16 tháng 11", short: "T2 16", summary: "5 việc, 1 tiết học", count: "5 việc",
   next: {
     id: "s1", title: "Ôn Giải tích", type: "plan", label: "Tiếp theo", big: "10 phút", small: "đến 14:30", mins: "10′", at: "14:30",
     fill: 0.35, rect: "14:30, còn 10 phút", left: "còn 10 phút", url: "zen:///task/s1",
@@ -208,7 +210,7 @@ const SAMPLE: WidgetData = {
     { id: "s5", title: "Đọc sách", type: "plan", time: "20:00", check: true, done: false, url: "zen:///task/s5" },
   ],
   doneLabel: "Xong (2)", tomorrow: "Mai: Cấu trúc dữ liệu 07:00",
-  ahead: [], aheadHead: "", aheadCount: "", doneCount: "", dayName: "Thứ hai 16",
+  ahead: [], more: [], aheadHead: "", aheadCount: "", doneCount: "", dayName: "T2 16",
   art: { plan: none, lecture: none, exam: none, assignment: none, busy: none },
   ticked: [], home: "zen:///", listen: "zen:///?listen=1",
 };

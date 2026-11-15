@@ -39,6 +39,7 @@ function ZenToday(p0: WidgetData, env: WidgetEnvironment) {
   const tick = (id: string) => () => ({
     rows: p.rows.map((r) => (r.id === id ? { ...r, done: true } : r)),
     ahead: p.ahead.map((r) => (r.id === id ? { ...r, done: true } : r)),
+    more: (p.more ?? []).map((r) => (r.id === id ? { ...r, done: true } : r)),
     ticked: p.ticked.includes(id) ? p.ticked : [...p.ticked, id],
   });
   const lead = (r: WRow) => {
@@ -73,7 +74,7 @@ function ZenToday(p0: WidgetData, env: WidgetEnvironment) {
       <Button {...tap(r.url)} modifiers={[fillMaxWidth(), height(39.3)]}>
         <Box contentAlignment="centerEnd" modifiers={[fillMaxSize()]}>
           {/* Title stops short of the time column; Expo UI on Android has no weight modifier. */}
-          <Box contentAlignment="centerStart" modifiers={[fillMaxSize(), padding(0, 0, 48, 0)]}>
+          <Box contentAlignment="centerStart" modifiers={[fillMaxSize(), padding(0, 0, r.time.length > 5 ? 82 : 48, 0)]}>
             <Text color={done(r) ? c.muted : c.ink} maxLines={1} style={{ fontSize: 15.7, fontWeight: "bold", textDecoration: done(r) ? "lineThrough" : "none" }}>{r.title}</Text>
           </Box>
           <Text color={c.muted} maxLines={1} style={{ fontSize: 14.4, fontWeight: "bold" }}>{r.time}</Text>
@@ -154,10 +155,11 @@ function ZenToday(p0: WidgetData, env: WidgetEnvironment) {
   // Nothing left today: the right half turns to the next day that has anything.
   const empty = !n && !p.rows.length;
   const later = !p.rows.length; // next may be today's last: the right half shows the next day, never blank
-  const rows = later ? p.ahead : p.rows.slice(0, 3);
+  // Three rows, never fewer: the day's own, then next-up from later days ("Mai 07:00"), then try-saying lines (the last ones, so "Mai 9 giờ…" never sits under a "Mai" head).
+  const rows = [...(later ? p.ahead : p.rows), ...(p.more ?? [])].slice(0, 3);
   const free = empty && !p.doneCount;
   // Nothing ahead at all: the app's own try-saying lines (i18n trySay, try1-3) fill the right half; tapping one opens the mic.
-  const TRY = ["Mai 9 giờ ôn Giải tích", "T6 nộp báo cáo nhóm", "Tối nào cũng đọc sách"];
+  const TRY = ["Mai 9 giờ ôn Giải tích", "T6 nộp báo cáo nhóm", "Tối nào cũng đọc sách"].slice(rows.length);
   const head = !later ? ["Hôm nay", p.count] : p.aheadHead ? [p.aheadHead, p.aheadCount] : ["Thử nói", ""];
   return (
     <Box modifiers={[fillMaxSize(), cornerRadius(28), background(c.bg), padding(17, 13, 17, 13)]}>
@@ -184,8 +186,10 @@ function ZenToday(p0: WidgetData, env: WidgetEnvironment) {
               </Box>
             </Row>
           </Button>
-          {later && !rows.length ? TRY.map((line, i) => [
-            i ? <Box key={`t${i}`} modifiers={[fillMaxWidth(), height(1.31), background(c.line)]} /> : null,
+
+          {rows.map((r, i) => (i === 0 ? row(r) : [<Box key={`l${r.id}`} modifiers={[fillMaxWidth(), height(1.31), background(c.line)]} />, row(r)]))}
+          {TRY.map((line, i) => [
+            i || rows.length ? <Box key={`t${i}`} modifiers={[fillMaxWidth(), height(1.31), background(c.line)]} /> : null,
             <Button key={line} {...tap(p.listen)} modifiers={[fillMaxWidth(), height(39.3)]}>
               <Row verticalAlignment="center" modifiers={[fillMaxSize()]}>
                 <Box contentAlignment="center" modifiers={[size(23.6, 23.6)]}>{mic(c.muted, c.bg)}</Box>
@@ -193,8 +197,7 @@ function ZenToday(p0: WidgetData, env: WidgetEnvironment) {
                 <Text color={c.ink} maxLines={1} style={{ fontSize: 15.7, fontWeight: "bold" }}>{`“${line}”`}</Text>
               </Row>
             </Button>,
-          ]) : null}
-          {rows.map((r, i) => (i === 0 ? row(r) : [<Box key={`l${r.id}`} modifiers={[fillMaxWidth(), height(1.31), background(c.line)]} />, row(r)]))}
+          ])}
         </Column>
       </Row>
     </Box>

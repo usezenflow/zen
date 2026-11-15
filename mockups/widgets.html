@@ -93,7 +93,7 @@ const todayTick = today.replace(row("16:00", "Báo cáo nhóm", "assignment"), r
 
 // Today with nothing left: the right half shows the next day that has anything, up to three rows.
 // Its head is one figure like "Hôm nay 5 việc" (tasks; "3 tiết học" on a classes-only day), never "12 việc, 4 tiết học":
-// the column fits about 21 characters, so the day is "Mai", "Thứ tư", or "T4 2/12" past this week; the rows show the rest.
+// the column fits about 21 characters, so the day is "Mai", "T4", or "T4 2/12" past this week; the rows show the rest.
 // Left card: the nearest exam on its sand.
 const examCard = `<div class="art" style="width:96px;flex:none;border-radius:14px;padding:10px 12px;display:flex;flex-direction:column">${art("exam", { w: 96, h: 106, seed: 2, cls: "bgart" })}<div class="lab" style="color:#fff;opacity:.85;font-size:10.5px">Sắp thi</div><div class="t" style="font-size:13px">Phân tích và thiết kế phần mềm</div>${meter("60%", "3", "ngày nữa")}</div>`;
 const soon = (head, rows) => `<div style="flex:1;min-width:0;display:flex;flex-direction:column;padding-top:3px"><div class="lab" style="font-size:11px">${head}</div>${rows}</div>`;
@@ -101,13 +101,17 @@ const soon = (head, rows) => `<div style="flex:1;min-width:0;display:flex;flex-d
 const inkCard = (line, sub) => `<div style="width:96px;flex:none;border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;background:var(--chip)">${LOGO(18)}<div style="margin-top:auto;font-size:13px;font-weight:600;line-height:1.25">${line}</div><div class="small" style="color:var(--muted)">${sub}</div></div>`;
 const tomorrowRows = row("07:00", "Cấu trúc dữ liệu", "lecture") + row("15:00", "Ôn Giải tích", "plan") + row("22:00", "Nộp Lab 3", "assignment");
 const todayDone = `<div class="wg w-m" style="flex-direction:row;gap:12px;padding:10px 13px">${inkCard("Xong hết<br>hôm nay", "5 việc xong")}${soon("Mai <span>2 việc</span>", tomorrowRows)}</div>`;
-const todayBare = `<div class="wg w-m" style="flex-direction:row;gap:12px;padding:10px 13px">${inkCard("Hôm nay<br>trống", "Thứ bảy 14")}${soon("Mai <span>2 việc</span>", tomorrowRows)}</div>`;
+const todayBare = `<div class="wg w-m" style="flex-direction:row;gap:12px;padding:10px 13px">${inkCard("Hôm nay<br>trống", "T7 14")}${soon("Mai <span>2 việc</span>", tomorrowRows)}</div>`;
 // Next is today's last thing: it keeps the left card, the next day with anything fills the right instead of an empty "Hôm nay".
 const todayLast = `<div class="wg w-m" style="flex-direction:row;gap:12px;padding:10px 13px">${nextCard}${soon("Mai <span>2 việc</span>", tomorrowRows)}</div>`;
 // Nothing ahead at all: never blank. The right half fills with the app's three try-saying lines (i18n trySay, try1-3), rows like any list; tapping one opens the mic.
 const tryRow = (line) => `<div class="wr"><span style="width:18px;display:flex;justify-content:center;color:var(--muted)">${ic(I.mic, 14, 1.8)}</span><b>“${line}”</b></div>`;
-const todayNone = `<div class="wg w-m" style="flex-direction:row;gap:12px;padding:10px 13px">${inkCard("Hôm nay<br>trống", "Thứ bảy 14")}${soon("Thử nói", tryRow("Mai 9 giờ ôn Giải tích") + tryRow("T6 nộp báo cáo nhóm") + tryRow("Tối nào cũng đọc sách"))}</div>`;
-const todayFree = `<div class="wg w-m" style="flex-direction:row;gap:12px;padding:10px 13px">${examCard}${soon("Thứ tư <span>2 việc</span>", row("09:00", "Họp nhóm đồ án", "busy") + row("13:30", "Mạng máy tính", "lecture") + row("22:00", "Nộp bài tập 4", "assignment"))}</div>`;
+const todayNone = `<div class="wg w-m" style="flex-direction:row;gap:12px;padding:10px 13px">${inkCard("Hôm nay<br>trống", "T7 14")}${soon("Thử nói", tryRow("Mai 9 giờ ôn Giải tích") + tryRow("T6 nộp báo cáo nhóm") + tryRow("Tối nào cũng đọc sách"))}</div>`;
+// Fewer than three rows: the slots fill with what comes next on later days, the day in the time column ("Mai 07:00", "T4 22:00",
+// just "27/11" past this week). Nothing more coming: the leftover slots take the try-saying lines. Never an empty slot.
+const todayFew = `<div class="wg w-m" style="flex-direction:row;gap:12px;padding:10px 13px">${nextCard}${soon("Hôm nay <span>2 việc</span>", row("16:00", "Báo cáo nhóm", "assignment") + row("Mai 07:00", "Cấu trúc dữ liệu", "lecture") + row("T4 22:00", "Nộp Lab 3", "assignment"))}</div>`;
+const todayRunOut = `<div class="wg w-m" style="flex-direction:row;gap:12px;padding:10px 13px">${nextCard}${soon("Mai <span>1 việc</span>", row("15:00", "Ôn Giải tích", "plan") + tryRow("T6 nộp báo cáo nhóm") + tryRow("Tối nào cũng đọc sách"))}</div>`;
+const todayFree = `<div class="wg w-m" style="flex-direction:row;gap:12px;padding:10px 13px">${examCard}${soon("T4 <span>2 việc</span>", row("09:00", "Họp nhóm đồ án", "busy") + row("13:30", "Mạng máy tính", "lecture") + row("22:00", "Nộp bài tập 4", "assignment"))}</div>`;
 
 const icons = (n) => `<div class="apps">${Array.from({ length: n }, () => '<span class="app"></span>').join("")}</div>`;
 const home = (widgets, apps = 8) => `<div class="wall"></div><div class="sb"><span>14:20</span><span>●●● ▮</span></div>
@@ -127,6 +131,8 @@ mount([
   { tag: "Home, medium", sub: "Next on the left, the rest of today on the right. Tap a row to open it, tap its circle to tick it.", html: home(today + exam + clear, 4) },
   { tag: "Ticked in place", sub: "The circle fills, the row strikes through; it drops off on the next refresh, not instantly.", html: home(todayTick, 12) },
   { tag: "Today, last one", sub: "The next thing is the last today: it stays on the left, tomorrow fills the right. The right half is never empty.", html: home(todayLast, 8) },
+  { tag: "Today, a few left", sub: "One more today: the two free slots take what comes next, its day beside the time. Tap and tick work the same.", html: home(todayFew, 8) },
+  { tag: "Little ahead", sub: "Tomorrow has one thing and nothing comes after: the leftover slots take try-saying lines, each opening the mic.", html: home(todayRunOut, 8) },
   { tag: "Today, all done", sub: "Everything ticked. The left card keeps the count in ink; the right half shows tomorrow as rows, ticks still work.", dark: true, html: home(todayDone, 8) },
   { tag: "Today, free, no exam", sub: "Nothing today and no exam coming: the ink card says so, tomorrow fills the right.", html: home(todayBare, 8) },
   { tag: "Today, nothing today", sub: "A free day: the nearest exam takes the left card on its sand, the next day with anything fills the right (here Wednesday). Past this week the head is the short date, “T4 2/12”. However packed the day, the head is one figure: “9 việc”.", html: home(todayFree, 8) },
