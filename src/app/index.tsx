@@ -111,7 +111,12 @@ export default function Home() {
       const p = model.placed[x.id];
       if (!p || x.doneAt || x.deletedAt || x.start === undefined) continue;
       if (p.alt !== undefined && p.alt !== x.start) alts[x.id] = p.alt;
-      const why = p.explore ? { key: "explore" as const, w: 1 } : topReason(p.why?.filter((r) => ROW.has(r.key)));
+      let why = p.explore ? { key: "explore" as const, w: 1 } : topReason(p.why?.filter((r) => ROW.has(r.key)));
+      // "Buổi k/n" is the plan's count from when it was made; after a delete it renumbers from the sittings left, and a lone one drops it.
+      if (why?.key === "pace" && x.parentId) {
+        const left = all.filter((c) => c.parentId === x.parentId && !c.doneAt && !c.deletedAt).sort((a, b) => (a.start ?? Infinity) - (b.start ?? Infinity));
+        why = left.length > 1 ? { ...why, vars: { k: left.findIndex((c) => c.id === x.id) + 1, n: left.length } } : undefined;
+      }
       // Assignments keep the due-date sub unless the reason says more than "do it early".
       if (why && !x.fixed && !trail[x.id] && (typeOf(x) !== "assignment" || ["pace", "explore", "rule", "pinned"].includes(why.key))) reason[x.id] = reasonText(why);
     }
@@ -216,7 +221,7 @@ export default function Home() {
   const held = useRef(false);
   // Opened from the talk widget (zen:///?listen=1): already listening, so the next touch on the button ends it.
   const latched = useRef(false);
-  const { listen, scan } = useLocalSearchParams<{ listen?: string; scan?: string }>();
+  const { listen, scan, type } = useLocalSearchParams<{ listen?: string; scan?: string; type?: string }>();
 
   useEffect(() => { micReset(); }, []);
   useEffect(() => { // once: the on-device models (whisper, Qwen, e5) are gone; their ~1.6 GB must not linger
@@ -389,6 +394,13 @@ export default function Home() {
       fail(t("photoFail"), e);
     }
   };
+
+  // zen:///?type=1: the type bar straight away (the hold-and-slide gesture's "type" satellite, for links and e2e).
+  useEffect(() => {
+    if (type !== "1") return;
+    const id = setTimeout(() => { router.setParams({ type: undefined }); setTyping(true); }, 0);
+    return () => clearTimeout(id);
+  }, [type]);
 
   // Opened from the capture widget (zen:///?scan=1): the camera straight away.
   useEffect(() => {
@@ -603,11 +615,11 @@ export default function Home() {
       <>
         {/* Swipe the header left/right to switch day / week / month (wraps around); the grids below keep their own swipes. */}
         <Swipe stepKey={VIEWS.indexOf(view)} onStep={(d) => setView(VIEWS[(VIEWS.indexOf(view) + d + 3) % 3])}>
-        {firstRun ? first(t("hello"), `${short[(new Date(sel).getDay() + 6) % 7]}, ${dm(sel)}`, t("nothingYet"))  : first(head.hello, head.h, head.n)}
+        {firstRun ? first(t("hello"), `${short[(new Date(sel).getDay() + 6) % 7]}, ${dm(sel)}`, t("nothingYet")) : first(head.hello, head.h, head.n)}
         <Reanimated.View entering={fadeIn} style={s.tabs}>
           <View style={s.tabL}>
             {VIEWS.map((v) => (
-              <Tap key={v} onPress={() => setView(v)} hitSlop={10} style={{ paddingVertical: 10 }}>
+              <Tap key={v} onPress={() => setView(v)} hitSlop={10} accessibilityRole="tab" accessibilityState={{ selected: view === v }} style={{ paddingVertical: 10 }}>
                 <Text style={{ fontSize: font.md, fontFamily: ff(view === v ? "600" : "500"), color: view === v ? th.ink : th.muted }}>{t(v === "day" ? "tabDay" : v === "week" ? "tabWeek" : "tabMonth")}</Text>
                 {view === v && <Reanimated.View entering={ZoomIn.duration(180).easing(EASE)} exiting={ZoomOut.duration(120)} style={[s.tabDot, { backgroundColor: th.seal }]} />}
               </Tap>

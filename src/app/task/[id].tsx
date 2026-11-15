@@ -56,6 +56,8 @@ export default function Detail() {
   // The open time or due line keeps every turn of its pickers as a draft; a tap outside the line (or leaving) saves it and closes it.
   const draft = useRef<(() => Promise<unknown>) | undefined>(undefined);
   const edBox = useRef<Box>(null);
+  const restT = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(restT.current), []);
   const shut = () => { const fn = draft.current; draft.current = undefined; setEd(undefined); if (fn) void fn().then(load); };
   useTapOutside(edBox, ed === "time" || ed === "due", shut);
   useEffect(() => () => { void draft.current?.(); }, []);
@@ -102,7 +104,12 @@ export default function Detail() {
   const canTime = task.start !== undefined && (task.fixed ? task.fixed === "busy" && mine : true);
   const hasDue = mine && !task.fixed && !task.rrule && task.deadline !== undefined;
   // Edits land once the wheel rests (as in row.tsx), then the screen closes the line and reloads.
-  const rest = (fn: () => Promise<unknown>) => { draft.current = fn; };
+  // Also saved ~1 s after the wheel rests, since blur alone is not reliable (iOS eats the tap that closes a compact picker's popover).
+  const rest = (fn: () => Promise<unknown>) => {
+    draft.current = fn;
+    clearTimeout(restT.current);
+    restT.current = setTimeout(() => { const f = draft.current; draft.current = undefined; if (f) void f().then(load); }, 900);
+  };
   const setTime = (s: number, m: number) => { setDr({ s, m }); rest(() => apply([{ op: "edit", target: task.id, when: new Date(s).toISOString(), effortMinutes: m }])); };
   const setDue = (d: number) => { setDv(d); rest(() => apply([{ op: "edit", target: task.id, deadline: new Date(d).toISOString() }])); };
   const clock = (base: number, d: Date) => { const n = new Date(base); n.setHours(d.getHours(), d.getMinutes(), 0, 0); return n.getTime(); };

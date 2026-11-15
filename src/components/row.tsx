@@ -71,7 +71,23 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
   // It stays open through every turn of the wheel; a tap elsewhere puts it away and saves the last value.
   const pickBox = useRef<ComponentRef<typeof View>>(null);
   const [draft, setDraft] = useState<Date>();
-  useTapOutside(pickBox, picking, () => { setDraft(undefined); setPicking(false); if (draft) onTime(draft); });
+  // The wheel's last value is saved when it rests, on a tap outside, and on unmount (a view switch or refresh): blur alone is not reliable,
+  // since iOS eats the tap that dismisses the compact picker's popover.
+  const live = useRef({ draft: undefined as Date | undefined, task, onTime, onTitle }), rest = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => { live.current.task = task; live.current.onTime = onTime; live.current.onTitle = onTitle; });
+  const commit = () => {
+    clearTimeout(rest.current);
+    const { draft: d, task: tk, onTime: save } = live.current;
+    live.current.draft = undefined;
+    if (d && tk.start !== undefined && hhmm(d.getTime()) !== hhmm(tk.start)) save(d);
+  };
+  const turn = (d: Date) => { setDraft(d); live.current.draft = d; clearTimeout(rest.current); rest.current = setTimeout(commit, 900); };
+  useEffect(() => () => { // eslint-disable-line react-hooks/exhaustive-deps
+    commit();
+    const v = typed.current?.trim(); // a title still being typed when the row goes away is kept, as the detail screen does
+    if (v && v !== live.current.task.title) live.current.onTitle(v);
+  }, []);
+  useTapOutside(pickBox, picking, () => { commit(); setDraft(undefined); setPicking(false); });
   const type = typeOf(task);
   const check = type === "plan" || type === "assignment";
   // Missed: a checkable task whose block has ended without a tick; vermilion circle and time (views.html "Day, missed").
@@ -142,7 +158,7 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
           </>
         ) : (
           // One tap on the text opens the details (after a beat, in case it is a double); two focus the title.
-          <Pressable onPress={tapText} hitSlop={{ top: 6, bottom: 6 }}>
+          <Pressable onPress={tapText} hitSlop={{ top: 6, bottom: 6 }} accessibilityLabel={task.title}>
             <Text numberOfLines={1} style={[s.title, { color: done ? th.muted : th.ink }, done && { textDecorationLine: "line-through" }, ghost && { fontFamily: ff("500") }]}>{hl ? marked(task.title, hl) : task.title}</Text>
             {subEl}
           </Pressable>
@@ -153,7 +169,7 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
         <Animated.View key="pick" entering={fadeIn} ref={pickBox}>
           <DateTimePicker
             value={draft ?? new Date(task.start)} mode="time" display="compact" accentColor={th.seal} style={s.pick}
-            onValueChange={(_, d) => setDraft(d)}
+            onValueChange={(_, d) => turn(d)}
           />
         </Animated.View>
       ) : (
@@ -209,6 +225,7 @@ export function SwipeDelete({ enabled = true, onDelete, onSpring, style, childre
   const tick = () => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
   const ask = () => box.current?.measureInWindow((_x: number, y: number, _w: number, h: number) => onSpring?.(y + h));
   const swipe = usePanGesture({
+    testID: "swipe-delete", // tests drive the swipe by this id; RNGH drops it from release builds
     enabled,
     activeOffsetX: [-16, 9999], // right-to-left only
     failOffsetY: [-10, 10],

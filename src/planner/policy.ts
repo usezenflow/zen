@@ -68,8 +68,12 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
       sibs.sort((a, b) => (a.id < b.id ? -1 : 1)).forEach((c, i) => pieces.push(mk(c, round15(c.effort), i + 1, sibs.length, c.start, lost(c))));
       continue;
     }
-    const eff = round15(effort(t, m));
-    const cap = t.maxSitting ?? 120;
+    let eff = round15(effort(t, m));
+    let cap = t.maxSitting ?? 120;
+    // A tight deadline gets fewer sittings, one per whole day left (under a day: one), not a full set crammed in.
+    // The total shrinks a little with them (halfway to proportional), so a lone sitting runs long but not the whole job.
+    const natural = Math.ceil(eff / cap), room = t.deadline === undefined || t.maxSitting === undefined ? natural : Math.max(1, Math.floor((t.deadline - now) / DAY));
+    if (natural > room) { eff = round15((eff * (natural + room)) / (2 * natural)); cap = round15(eff / room); }
     if (eff > cap) {
       const sizes = split(eff, cap);
       const ids = sizes.map((_, i) => `${t.id}#${i + 1}`);

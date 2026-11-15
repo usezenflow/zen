@@ -217,6 +217,16 @@ describe("first move, maxSitting, typeOf, alt", () => {
     expect(diff.split[0].ids).toHaveLength(2);
   });
 
+  it("a tight deadline gets fewer, longer sittings: one per whole day left, one under a day", () => {
+    const prep = (due: number) => plan([task("p", { effort: 120, maxSitting: 45, deadline: due })], [], newModel(now), now).diff;
+    expect(prep(at(5, 18)).split[0].ids).toHaveLength(3); // plenty of time: the usual three
+    expect(prep(at(2, 18)).split[0].ids).toHaveLength(2); // 2.4 days: two
+    const lone = prep(now + 20 * HOUR); // under a day: one sitting, no split, longer than 45
+    expect(lone.split).toHaveLength(0);
+    const p = lone.placed.find((x) => x.id === "p")!;
+    expect(p.end - p.start).toBeGreaterThan(45 * MIN);
+  });
+
   it("typeOf", () => {
     expect(typeOf(task("x"))).toBe("plan");
     expect(typeOf(task("x", { deadline: 1 }))).toBe("assignment");
