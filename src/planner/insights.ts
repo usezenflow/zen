@@ -55,8 +55,8 @@ export function insights(m: Model, now: number): Insights {
     if (sure < 0.35) out.golden = undefined;
     else {
       out.golden.sure = sure;
-      out.guesses.push({ text: `Giờ vàng ${out.golden.from}–${out.golden.to} giờ`, sure });
-      weekly.push({ text: `Bạn làm việc hợp nhất lúc ${out.golden.from} đến ${out.golden.to} giờ`, sure });
+      out.guesses.push({ text: `Giờ vàng ${out.golden.from}h-${out.golden.to}h`, sure });
+      weekly.push({ text: `Bạn làm việc hợp nhất lúc ${out.golden.from}h-${out.golden.to}h`, sure });
     }
   }
 
@@ -77,8 +77,8 @@ export function insights(m: Model, now: number): Insights {
     const sure = clamp(1 - mean(hs.map((h) => Math.sqrt(p.inv[h][c * D + c])))); // against the bare ridge, not the prior's mass
     if (top - avg > 0.1 && sure >= 0.5) {
       out.byKind.push({ kind, from, to: from + 3, sure });
-      out.guesses.push({ text: `Bạn ${KIND_VI[kind]} hợp nhất lúc ${from}–${from + 3} giờ`, sure });
-      weekly.push({ text: `Bạn ${KIND_VI[kind]} hợp nhất lúc ${from} giờ`, sure });
+      out.guesses.push({ text: `Bạn ${KIND_VI[kind]} hợp nhất lúc ${from}h-${from + 3}h`, sure });
+      weekly.push({ text: `Bạn ${KIND_VI[kind]} hợp nhất lúc ${from}h`, sure });
     }
   });
 

@@ -83,7 +83,7 @@ const ZenExam = (p: WidgetData, env: WidgetEnvironment) => {
 };
 
 const SAMPLE: WidgetData = {
-  weekday: "T2", date: "16 tháng 11", short: "T2 16", summary: "5 việc, 1 tiết học", count: "5 việc",
+  weekday: "T2", date: "16/11", short: "T2 16", summary: "5 việc, 1 tiết học", count: "5 việc",
   exam: {
     id: "e1", title: "Giải tích 2", big: "11 ngày", small: "T6 27/11 08:00", fill: 0.6, inline: "Thi GT2 còn 11 ngày", n: "11", unit: "ngày nữa",
     url: "zen:///task/e1",

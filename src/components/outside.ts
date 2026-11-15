@@ -7,11 +7,15 @@ export type Box = ComponentRef<typeof View>;
 type Hit = (x: number, y: number) => void;
 const subs = new Set<Hit>();
 let at = { x: 0, y: 0 };
+// Open picker dropdowns. A Modal's touches still bubble to the root, so a tap on a calendar day read as "outside" and closed the line before the pick saved.
+let drops = 0;
+/** Mounted while a dropdown is over the page: its taps (the backdrop's too) are its own, never an outside tap. */
+export function useDrop() { useEffect(() => { drops++; return () => { drops--; }; }, []); }
 export const feedTaps = {
   onTouchStart: (e: GestureResponderEvent) => { at = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY }; },
   onTouchEnd: (e: GestureResponderEvent) => {
     const { pageX: x, pageY: y } = e.nativeEvent;
-    if (Math.hypot(x - at.x, y - at.y) < 10) subs.forEach((f) => f(x, y));
+    if (!drops && Math.hypot(x - at.x, y - at.y) < 10) subs.forEach((f) => f(x, y));
   },
 };
 

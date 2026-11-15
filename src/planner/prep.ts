@@ -1,6 +1,6 @@
 import type { Task } from "../lib/types";
 
-export const PREP_SITTING = 45; // minutes
+export const PREP_SITTING = 60; // minutes: sittings of up to an hour, in half hours
 
 const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
 
@@ -13,11 +13,11 @@ const FORMATS: [RegExp, string, number][] = [
   [/tu luan/, "Ôn lý thuyết, luyện đề", 120],
 ];
 
-/** What a text asks for (an exam format, or an assignment's title and content) and its minutes in 45 min sittings. `mult` (0.75 to 1.6, from the marks) scales the length. */
+/** What a text asks for (an exam format, or an assignment's title and content) and its minutes in half hours. `mult` (0.75 to 1.6, from the marks) scales the length. */
 export function workOf(text: string, mult = 1): { title: string; effort: number } {
   const f = fold(text);
   const [, title, base] = FORMATS.find(([re]) => re.test(f)) ?? [null, "Ôn thi", 120];
-  return { title, effort: Math.max(1, Math.round((base * Math.min(1.6, Math.max(0.75, mult))) / PREP_SITTING)) * PREP_SITTING };
+  return { title, effort: Math.max(1, Math.round((base * Math.min(1.6, Math.max(0.75, mult))) / 30)) * 30 };
 }
 
 /**

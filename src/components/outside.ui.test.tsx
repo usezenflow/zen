@@ -1,7 +1,7 @@
 import { render } from "@testing-library/react-native";
 import { useRef } from "react";
 import { View, type GestureResponderEvent } from "react-native";
-import { feedTaps, useTapOutside, type Box } from "./outside";
+import { feedTaps, useDrop, useTapOutside, type Box } from "./outside";
 
 // The box sits at (100,100), 200×100, in window coordinates. measureInWindow is one jest.fn shared by every mocked View.
 const measure = (View.prototype as unknown as { measureInWindow: jest.Mock }).measureInWindow;
@@ -73,4 +73,16 @@ it("calls the latest close without resubscribing", async () => {
   tap(20, 20);
   expect(first).not.toHaveBeenCalled();
   expect(second).toHaveBeenCalledTimes(1);
+});
+
+function Drop() { useDrop(); return null; }
+
+it("while a dropdown is open its taps are not outside taps; once it closes they are", async () => {
+  const close = jest.fn();
+  const r = await render(<><Host on close={close} /><Drop /></>);
+  tap(20, 20); // a calendar day in the dropdown's Modal: it bubbles to the root too
+  expect(close).not.toHaveBeenCalled();
+  await r.rerender(<Host on close={close} />);
+  tap(20, 20);
+  expect(close).toHaveBeenCalledTimes(1);
 });

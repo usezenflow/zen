@@ -17,14 +17,14 @@ const START: Record<ReaderWindow, string> = {
   AFTERNOON: "14:00", EVENING: "18:00", NIGHT: "20:00", MIDNIGHT: "23:00",
 };
 // Where a said part of the day ends (the reader's own bounds in reader/parts.ts); a task of that part stays inside it.
-/** Where a part of the day opens for the planner: "tối" is from 17:00, though a plan in it is first tried at 20:00. */
+/** Where a part of the day opens for the planner, as people say the hours: 1-10 giờ sáng, 11-12 giờ trưa, 1-5 giờ chiều, 6-9 giờ tối, 10-12 giờ đêm. */
 const FROM: Record<ReaderWindow, string> = {
   EARLY_MORNING: "05:00", DAWN: "04:00", MORNING: "05:00", NOON: "11:00",
-  AFTERNOON: "12:00", EVENING: "17:00", NIGHT: "17:00", MIDNIGHT: "22:00",
+  AFTERNOON: "13:00", EVENING: "18:00", NIGHT: "18:00", MIDNIGHT: "22:00",
 };
 const END: Record<ReaderWindow, string> = {
-  EARLY_MORNING: "08:00", DAWN: "08:00", MORNING: "12:00", NOON: "14:00",
-  AFTERNOON: "17:00", EVENING: "22:00", NIGHT: "22:00", MIDNIGHT: "23:59",
+  EARLY_MORNING: "08:00", DAWN: "08:00", MORNING: "11:00", NOON: "13:00",
+  AFTERNOON: "18:00", EVENING: "22:00", NIGHT: "22:00", MIDNIGHT: "23:59",
 };
 const KIND: Partial<Record<ReaderItemType, Kind>> = { EXAM: "study", ASSIGNMENT: "study", LECTURE: "study" };
 /** The kind of a task from its type, else from the words of its title. */
@@ -63,13 +63,14 @@ export function itemAction(it: ReaderItem): Action {
   const last = it.windows?.at(-1) as ReaderWindow | undefined;
   if (!(fixed && at) && day && !it.clocks?.length) a.notAfter = `${day}T${(last && END[last]) ?? "23:59"}:00`;
   // That same-day pair is the said window, not a due time: as a deadline it would make the plan an assignment ("Hạn 22:00").
-  const win = !!one && !!a.notAfter && !it.rrule;
+  // A repeat keeps its start ("mỗi sáng" from today) but its window is no deadline either ("Hạn 12:00").
+  const win = !!one && !!a.notAfter;
   if (it.deadline && !win) a.deadline = iso(it.deadline);
   // A guessed size uses coursework norms ("demo" is 6 h); spoken, unsized, it is one sitting of at most 2 h. Said minutes stand.
   if (it.durationMinutes) a.effortMinutes = it.inferred?.includes("durationMinutes") ? Math.min(it.durationMinutes, GUESS_CAP) : it.durationMinutes;
   if (a.fixed && c && (!it.durationMinutes || it.inferred?.includes("durationMinutes")) && mins(c.to) > mins(c.from)) a.effortMinutes = mins(c.to) - mins(c.from);
   if (it.rrule) a.repeat = it.rrule;
-  if (it.notBefore && !win) a.notBefore = iso(it.notBefore);
+  if (it.notBefore && (!win || it.rrule)) a.notBefore = iso(it.notBefore);
   if (it.location) a.location = it.location;
   // the task note is plain text: the reader's paragraphs become lines
   const note = it.note?.replace(/<\/(p|li|h\d)>|<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&").trim();

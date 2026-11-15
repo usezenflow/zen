@@ -17,13 +17,13 @@ export interface WNext {
   title: string; // "Ôn Giải tích"
   type: ArtType;
   label: string; // "Tiếp theo"
-  big: string; // "10 phút": minutes to the end while going, else to the start
+  big: string; // "10p": minutes to the end while going, else to the start
   small: string; // "đến 14:30": the end while going, else the start
   mins: string; // "10′" (medium card, lock circle)
   at: string; // "14:30"
   fill: number; // 0..1, battery meter and lock ring: share done while going, else the last 30 min draining
-  rect: string; // lock rectangular second line: "14:30, còn 10 phút"
-  left: string; // large card label tail: "còn 10 phút"
+  rect: string; // lock rectangular second line: "14:30, còn 10p"
+  left: string; // large card label tail: "còn 10p"
   url: string;
 }
 
@@ -41,7 +41,7 @@ export interface WExam {
 
 export interface WidgetData {
   weekday: string; // "T2"
-  date: string; // "16 tháng 11"
+  date: string; // "16/11"
   short: string; // "T2 16"
   summary: string; // "5 việc, 1 tiết học"
   count: string; // one figure for the medium head: "5 việc", "3 tiết học" on a classes-only day

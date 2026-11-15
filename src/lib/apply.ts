@@ -1,5 +1,6 @@
 import { titleVec } from "./nlu/vec";
 import { learn, outcome, plan, type Model, type Opts } from "../planner";
+import { dayGone } from "../planner/place";
 import { cosine, effort } from "../planner/habits";
 import { fill, t } from "./i18n";
 import { when as at12 } from "./when";
@@ -50,7 +51,7 @@ const tod = (ms: number) => ms - dayStart(ms);
 const addDays = (d: number, k: number) => { const x = new Date(d); return new Date(x.getFullYear(), x.getMonth(), x.getDate() + k).getTime(); };
 
 type Occ = { notBefore?: number; deadline?: number };
-const MAX_OCC = 30;
+const MAX_OCC = 120; // a series is made as far ahead as a deadline may be (cells: 120 days)
 
 /** Day starts a DAILY, WEEKLY-with-days, MONTHLY or YEARLY rule lands on from `d0`, and whether the list stops short of the rule's own end.
  *  COUNT is the total from `d0`, past days included; only days from today to `upTo` (default: the rule's first stretch) are listed. */
@@ -58,7 +59,7 @@ function ruleDays(p: Record<string, string | undefined>, d0: number, now: number
   const n = Math.max(1, Number(p.INTERVAL) || 1), want = Number(p.COUNT) > 0 ? Number(p.COUNT) : undefined, cap = Math.min(want ?? MAX_OCC, MAX_OCC);
   const u = /^(\d{4})(\d\d)(\d\d)/.exec(p.UNTIL ?? ""), until = u ? new Date(+u[1], +u[2] - 1, +u[3]).getTime() : undefined;
   const monthly = p.FREQ === "MONTHLY", yearly = p.FREQ === "YEARLY";
-  const span = want ? (monthly ? 800 : yearly ? 4000 : 90) : monthly ? 92 : yearly ? 400 : (p.FREQ === "WEEKLY" && n > 1) || until !== undefined ? 60 : 7;
+  const span = want ? (monthly ? 800 : yearly ? 4000 : 90) : yearly ? 400 : 120;
   const end = upTo ?? addDays(d0, span - 1), out: number[] = [];
   const lo = Math.max(d0, dayStart(now)), wd = daysOf(p);
   let seen = 0; // occurrences from d0 on, for COUNT
@@ -156,10 +157,10 @@ export async function removeScope(id: string, scope: "this" | "following" | "all
   return { ...r, undo: async () => { await store.kvSet("gone", raw ?? "{}"); await r.undo(); } };
 }
 
-/** Occurrences a live user series is missing so it reaches ~14 days ahead: the rule's own days (BYDAY, INTERVAL, COUNT as a total, UNTIL),
+/** Occurrences a live user series is missing so it reaches 120 days ahead, as it was made: the rule's own days (BYDAY, INTERVAL, COUNT as a total, UNTIL),
  *  or `COUNT` per week for a plain weekly "n lần mỗi tuần". */
 function missing(tasks: Task[], gone: Gone, now: number): Task[] {
-  const horizon = now + 14 * DAY;
+  const horizon = now + 119 * DAY;
   const series = new Map<string, Task[]>();
   for (const x of tasks) if (x.source === "user" && x.rrule && !x.parentId) series.set(seriesKey(x), [...(series.get(seriesKey(x)) ?? []), x]);
   const out: Task[] = [];
@@ -180,7 +181,8 @@ function missing(tasks: Task[], gone: Gone, now: number): Task[] {
       const due = last.deadline !== undefined && tod(last.deadline) ? tod(last.deadline) : undefined;
       // The first occurrence anchors INTERVAL and COUNT, as it did when the series was made.
       for (const d of ruleDays(p, Math.min(...xs.map(dayOf)), now, horizon).days) {
-        if (!have.has(d) && (cut === undefined || d < cut)) out.push(copy({ notBefore: clock !== undefined ? d + clock : Math.max(now, d), deadline: due !== undefined ? d + due : addDays(d, 1) }));
+        const x = copy({ notBefore: clock !== undefined ? d + clock : Math.max(now, d), deadline: due !== undefined ? d + due : addDays(d, 1) });
+        if (!have.has(d) && (cut === undefined || d < cut) && (fx || !dayGone(x, now))) out.push(x);
       }
     } else if (p.FREQ === "WEEKLY") {
       const n = Math.min(Number(p.COUNT) > 0 ? Number(p.COUNT) : 1, 7);
@@ -193,7 +195,7 @@ function missing(tasks: Task[], gone: Gone, now: number): Task[] {
   return out;
 }
 
-/** Keeps live repeating series ~14 days ahead (a foreground hook); replans only when something was added. */
+/** Keeps live repeating series 120 days ahead (a foreground hook); replans only when something was added. */
 export async function topUp(now = Date.now()): Promise<Result | undefined> {
   const add = missing(await store.allTasks(), await loadGone(), now);
   return add.length ? transact(now, (w) => { for (const x of add) w.tasks.set(x.id, x); }, { self: false }) : undefined;
@@ -237,6 +239,7 @@ async function act(w: Work, a: Action) {
     // a repeat's said window is its parts of the day (tods), which every occurrence keeps; a day's notAfter would hold only the first
     const notAfter = a.repeat ? undefined : ms(a.notAfter);
     for (const o of occ.list) {
+      if (!fixed && dayGone({ rrule: a.repeat, deadline: o.deadline, tods: a.tods, effort: a.effortMinutes ?? 0 } as Task, now)) continue; // today's part already gone: from the next day
       const task: Task = {
         id: uid(), title, vec, kind: near?.k ?? a.kind ?? "other", source: "user", effort: a.effortMinutes ?? 0, createdAt: now,
         deadline: o.deadline, notBefore: o.notBefore, rrule: a.repeat, ...(a.location ? { location: a.location } : {}), ...(a.note ? { note: a.note } : {}), ...(notAfter !== undefined ? { notAfter } : {}), ...(a.tods?.length ? { tods: a.tods } : {}),

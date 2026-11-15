@@ -722,9 +722,17 @@ function repeats(): [RegExp, (m: RegExpExecArray) => string][] {
   const EN = `(${Object.keys(EN_DAY).join("|")})s?`;
   const re = (s: string) => new RegExp(s, "giu");
   REPEATS = [
+    // "mỗi sáng cuối tuần", "các buổi sáng cuối tuần", "sáng cuối tuần nào cũng", "sáng cuối tuần hàng tuần": weekend mornings, not every morning
+    [
+      re(`${L}(?:(?:${P("mỗi")}|${P("hàng")}|${P("hằng")}|${P("các")})\\s+(?:${P("buổi")}\\s+)?(${PART})\\s*,?\\s+${P("cuối tuần")}|(?:${P("vào")}\\s+)?(?:${P("buổi")}\\s+)?(${PART})\\s+${P("cuối tuần")}\\s+(?:${P("nào")}\\s+${P("cũng")}|(?:${P("hàng")}|${P("mỗi")}|${P("hằng")})\\s+${P("tuần")}))${R}`),
+      (m) => `mỗi T7 CN ${(m[1] ?? m[2]).toLowerCase()}`,
+    ],
+    [re(`${L}${P("cuối tuần")}\\s+(?:${P("hàng")}|${P("mỗi")}|${P("hằng")})\\s+${P("tuần")}${R}`), () => "mỗi T7 CN"],
+    // "thứ bảy chủ nhật", "thứ bảy và chủ nhật": both days, as "thứ 7 và chủ nhật" (the word "bảy" in a list reads only Saturday)
+    [re(`${L}${P("thứ")}\\s*(?:7|${P("bảy")})\\s*(?:,|${P("và")})?\\s*(?:${P("chủ nhật")}|cn)${R}`), () => "thứ 7 và chủ nhật"],
     // "tối nào cũng", "ngày nào mình cũng", "thứ 3, thứ 5 nào cũng"; "thứ 2 nào cũng được" is any Monday, not every one
     [
-      re(`${L}${HEAD}((?:\\s*(?:,|${P("và")})\\s*${WD})*)\\s+${P("nào")}(?:\\s+\\p{L}+){0,2}?\\s+${P("cũng")}${R}(?!\\s+${P("được")}${R})`),
+      re(`${L}(?:${P("buổi")}\\s+)?${HEAD}((?:\\s*(?:,|${P("và")})\\s*${WD})*)\\s+${P("nào")}(?:\\s+\\p{L}+){0,2}?\\s+${P("cũng")}${R}(?!\\s+${P("được")}${R})`),
       (m) => {
         const head = fold(m[1]).text.toLowerCase();
         if (head === "ngay thuong") return "ngày thường";
@@ -738,12 +746,14 @@ function repeats(): [RegExp, (m: RegExpExecArray) => string][] {
       },
     ],
     // "mỗi cuối tuần": Saturday and Sunday, said as days so a part after it ("cuối tuần … tối") is no "tuần tới", and with no "và" to split a clause on
-    [re(`${L}(?:${P("mỗi")}|${P("hàng")}|${P("hằng")})\\s+${P("cuối tuần")}${R}`), () => "mỗi T7 CN"],
+    [re(`${L}(?:${P("mỗi")}|${P("hàng")}|${P("hằng")})\\s+${P("cuối tuần")}${R}(?:\\s+${P("buổi")}(?=\\s+${PART}${R}))?`), () => "mỗi T7 CN"],
     // "mỗi sáng, chiều", "ngày thường sáng, chiều", "mỗi ngày buổi sáng, buổi tối": the parts of one repeat, not two clauses
     [
       re(`${L}((?:(?:${P("mỗi")}|${P("hàng")}|${P("hằng")})(?:\\s+${P("ngày")})?|${P("ngày thường")}|${WD}(?:\\s*(?:,|${P("và")})\\s*(?:${P("thứ")}\\s*)?[2-7])*)\\s+(?:${P("buổi")}\\s+)?${PART}(?:\\s*,\\s*(?:${P("buổi")}\\s+)?${PART})+)${R}`),
       (m) => m[1].replace(/\s*,\s*/g, " và "),
     ],
+    // "mỗi buổi sáng": "mỗi sáng"
+    [re(`${L}(?:${P("mỗi")}|${P("hàng")}|${P("hằng")})\\s+${P("buổi")}\\s+(${PART})${R}`), (m) => `mỗi ${m[1]}`],
     // once every n: "tuần 1 lần", "một tháng một lần", "2 tuần 1 lần", "hai ngày một lần", "mỗi tuần một lần"
     [
       re(`${L}(?:(?:${P("mỗi")}|${ONE})\\s+)?(?:${NUM}\\s+)?${UNIT}\\s+${ONE}\\s+${P("lần")}${R}`),

@@ -17,17 +17,19 @@ jest.mock("react-native-gesture-handler/lib/module/handlers/gestures/reanimatedW
 
 const root = { wrapper: GestureHandlerRootView };
 const measure = (View.prototype as unknown as { measureInWindow: jest.Mock }).measureInWindow;
+beforeEach(() => { jest.clearAllMocks(); }); // haptics calls from an earlier test must not count in the next
 beforeEach(() => measure.mockImplementation((cb: (x: number, y: number, w: number, h: number) => void) => cb(0, 200, 390, 60)));
 afterEach(() => measure.mockReset());
 
 let seal = "";
-function Seal() { seal = useTheme().seal; return null; }
+const keep = (v: string) => { seal = v; };
+function Seal({ on }: { on: (v: string) => void }) { on(useTheme().seal); return null; } // hands the theme out, not a write to test state
 
 const cbs = () => ({ onToggle: jest.fn(), onTitle: jest.fn(), onTime: jest.fn(), onOpen: jest.fn() });
 type Props = Partial<Parameters<typeof Row>[0]>;
 const draw = async (p: Props = {}) => {
   const fns = { ...cbs(), ...p };
-  await render(<><Seal /><Row task={task()} now={NOW} {...fns} /></>, root);
+  await render(<><Seal on={keep} /><Row task={task()} now={NOW} {...fns} /></>, root);
   return fns as ReturnType<typeof cbs> & Props;
 };
 /** The row's own Tap: the outermost pressable host. */
@@ -108,8 +110,9 @@ describe("Row", () => {
     const f = await draw();
     await fireEvent.press(screen.getByLabelText("Ôn tập"));
     await fireEvent.press(screen.getByLabelText("Ôn tập"));
-    await fireEvent.changeText(screen.getByDisplayValue("Ôn tập"), "Đọc sách");
-    await fireEvent(screen.getByDisplayValue("Ôn tập"), "blur");
+    const input = screen.getByDisplayValue("Ôn tập"); // held: once typed in, it no longer shows "Ôn tập"
+    await fireEvent.changeText(input, "Đọc sách");
+    await fireEvent(input, "blur");
     expect(f.onTitle).toHaveBeenCalledWith("Đọc sách");
   });
 
@@ -117,8 +120,9 @@ describe("Row", () => {
     const f = await draw();
     await fireEvent.press(screen.getByLabelText("Ôn tập"));
     await fireEvent.press(screen.getByLabelText("Ôn tập"));
-    await fireEvent.changeText(screen.getByDisplayValue("Ôn tập"), typed);
-    await fireEvent(screen.getByDisplayValue("Ôn tập"), "submitEditing");
+    const input = screen.getByDisplayValue("Ôn tập");
+    await fireEvent.changeText(input, typed);
+    await fireEvent(input, "submitEditing");
     expect(f.onTitle).not.toHaveBeenCalled();
   });
 
@@ -126,8 +130,15 @@ describe("Row", () => {
     const onHold = jest.fn();
     await draw({ onHold });
     await fireEvent(rowEl(), "longPress");
-    expect(onHold).toHaveBeenCalledWith(260);
+    expect(onHold).toHaveBeenCalledWith(260, 200);
     expect(Haptics.impactAsync).toHaveBeenCalledWith(Haptics.ImpactFeedbackStyle.Medium);
+  });
+
+  it("long-press on the title text opens the menu too", async () => {
+    const onHold = jest.fn(), f = await draw({ onHold });
+    await fireEvent(screen.getByLabelText("Ôn tập"), "longPress");
+    expect(onHold).toHaveBeenCalledWith(260, 200);
+    expect(f.onOpen).not.toHaveBeenCalled();
   });
 
   it("without onHold there is no long-press", async () => {
@@ -146,9 +157,10 @@ describe("Row", () => {
     await fireEvent.press(screen.getByText("14:00"));
     const [h, m] = drums();
     expect(["00", "15", "30", "45"].every((x) => screen.getAllByText(x).length > 0)).toBe(true);
-    expect(screen.queryByText("07", { exact: true })).toBeOnTheScreen(); // hours drum: every hour
-    expect(screen.queryByText("10", { exact: true })).toBeOnTheScreen();
-    await settle(h, 15);
+    const h0 = new Date(NOW).getHours(); // today: the hours drum starts at now, the hours gone are not on it
+    expect(screen.queryByText(String(h0 - 1).padStart(2, "0"), { exact: true })).toBeNull();
+    expect(screen.queryByText(String(h0).padStart(2, "0"), { exact: true })).toBeOnTheScreen();
+    await settle(h, 15 - h0);
     expect(f.onTime).toHaveBeenLastCalledWith(new Date(at(15, 0)));
     await settle(m, 2);
     expect(f.onTime).toHaveBeenLastCalledWith(new Date(at(15, 30)));
@@ -245,7 +257,7 @@ describe("SwipeDelete", () => {
     const onDelete = jest.fn(), onSpring = jest.fn();
     await render(<SwipeDelete onDelete={onDelete} onSpring={onSpring}><View /></SwipeDelete>, root);
     await swipe(-120);
-    expect(onSpring).toHaveBeenCalledWith(260);
+    expect(onSpring).toHaveBeenCalledWith(260, 200);
     expect(onDelete).not.toHaveBeenCalled();
   });
 
@@ -260,7 +272,7 @@ describe("SwipeDelete", () => {
     const onSeries = jest.fn(), onDelete = jest.fn();
     const r = await render(<Row task={task({ rrule: "FREQ=WEEKLY" })} now={NOW} {...cbs()} onDelete={onDelete} onSeries={onSeries} />, root);
     await swipe(-120);
-    expect(onSeries).toHaveBeenCalledWith(260);
+    expect(onSeries).toHaveBeenCalledWith(260, 200);
     expect(onDelete).not.toHaveBeenCalled();
     await r.rerender(<Row task={task()} now={NOW} {...cbs()} onDelete={onDelete} onSeries={onSeries} />);
     await swipe(-120);
@@ -273,4 +285,14 @@ describe("SwipeDelete", () => {
     await swipe(-200);
     expect(onDelete).not.toHaveBeenCalled();
   });
+});
+
+// "Tập thể dục mỗi sáng": an occurrence's midnight end is no due; the row says its part of the day. A said due on a repeat still shows.
+it("a repeat's row shows its part of the day, not the day's end as a due", () => {
+  const d = new Date(2026, 10, 16), day = d.getTime(), next = new Date(2026, 10, 17).getTime();
+  const base = { id: "r", title: "Tập thể dục", kind: "exercise", source: "user", effort: 60, createdAt: day, rrule: "FREQ=DAILY", start: day + 8 * 3600_000, deadline: next } as const;
+  expect(subOf({ ...base, tods: [[300, 660]] }, "plan", day)).toBe("Buổi sáng");
+  expect(subOf({ ...base, tods: [[300, 660], [1080, 1320]] }, "plan", day)).toBe("Buổi sáng hoặc tối");
+  expect(subOf({ ...base }, "plan", day)).toBeFalsy();
+  expect(subOf({ ...base, deadline: day + 17 * 3600_000 }, "plan", day)).toBe("Hạn 17:00");
 });

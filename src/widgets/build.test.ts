@@ -17,13 +17,13 @@ const tasks = [
 
 it("builds the mockup's day", () => {
   const w = widgetData(tasks, at(14, 25), art, ["b"]);
-  expect(w.next).toMatchObject({ id: "a", big: "5 phút", small: "đến 14:30", mins: "5′", fill: 0.5 });
+  expect(w.next).toMatchObject({ id: "a", big: "5p", small: "đến 14:30", mins: "5′", fill: 0.5 });
   expect(w.rows.map((r) => [r.id, r.check, r.done])).toEqual([["b", true, true], ["c", false, false]]);
   expect(w.summary).toBe("2 việc, 1 tiết học");
   expect(w.doneLabel).toBe("Xong (1)");
-  expect(w.tomorrow).toBe("Mai: Cấu trúc dữ liệu 07:00");
-  expect(widgetData(tasks, at(10, 0, 24), art).tomorrow).toBe("T6: Thi Giải tích 2 08:00");
-  expect(widgetData(tasks, at(10, 0, 21), art).tomorrow).toBe("T6 27/11: Thi Giải tích 2 08:00");
+  expect(w.tomorrow).toBe("Mai: Cấu trúc dữ liệu 7:00");
+  expect(widgetData(tasks, at(10, 0, 24), art).tomorrow).toBe("T6: Thi Giải tích 2 8:00");
+  expect(widgetData(tasks, at(10, 0, 21), art).tomorrow).toBe("T6 27/11: Thi Giải tích 2 8:00");
   expect(w.exam).toMatchObject({ title: "Giải tích 2", big: "11 ngày", inline: "Thi GT2 còn 11 ngày", fill: 1 - 11 / 28 });
   expect(w.count).toBe("2 việc");
 });
@@ -38,7 +38,7 @@ it("empties after the last item and schedules each boundary", () => {
 
 it("counts down to an upcoming start, as the mockup at 14:20", () => {
   const w = widgetData(tasks, at(14, 10), art);
-  expect(w.next).toMatchObject({ id: "a", big: "10 phút", small: "đến 14:20", mins: "10′", rect: "14:20, còn 10 phút", left: "còn 10 phút" });
+  expect(w.next).toMatchObject({ id: "a", big: "10p", small: "đến 14:20", mins: "10′", rect: "14:20, còn 10p", left: "còn 10p" });
   expect(w.next!.fill).toBeCloseTo(1 / 3);
   expect(widgetData(tasks, at(12), art).next!.fill).toBe(1);
 });
@@ -61,7 +61,7 @@ it("turns an empty today to the next day with anything", () => {
   expect(widgetData(tasks, at(10, 0, 28), art).aheadHead).toBe("");
   expect(widgetData(tasks, at(10, 0, 24), art).aheadHead).toBe("T6");
   expect(free.exam).toMatchObject({ n: "8", unit: "ngày nữa" });
-  expect(widgetData(tasks, at(7, 0, 27), art).exam).toMatchObject({ n: "08:00", unit: "hôm nay" });
+  expect(widgetData(tasks, at(7, 0, 27), art).exam).toMatchObject({ n: "8:00", unit: "hôm nay" });
 });
 
 it("the timeline runs through the end of tomorrow, so it never freezes on yesterday", () => {
@@ -89,8 +89,8 @@ it("keeps the medium head to one figure however packed the day", () => {
 it("tops the medium list up with next-up from later days, the day in the time column", () => {
   // 14:25 on the 16th: one row left today (c; b is ticked but still listed), then tomorrow's class and the 27th's exam.
   const w = widgetData(tasks, at(14, 25), art);
-  expect(w.more.map((r) => [r.id, r.time])).toEqual([["e", "Mai 07:00"], ["x", "27/11"]]);
+  expect(w.more.map((r) => [r.id, r.time])).toEqual([["e", "Mai 7:00"], ["x", "27/11"]]);
   // Tomorrow showing on the right: next-up starts after it, this week's day short ("T6 08:00").
   const fri = widgetData([...tasks, task("f", "Họp nhóm", at(8, 0, 20), at(9, 0, 20))], at(20), art);
-  expect(fri.more.map((r) => [r.id, r.time])).toEqual([["f", "T6 08:00"], ["x", "27/11"]]);
+  expect(fri.more.map((r) => [r.id, r.time])).toEqual([["f", "T6 8:00"], ["x", "27/11"]]);
 });

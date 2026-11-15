@@ -57,10 +57,10 @@ const ZenLock = (p: WidgetData, env: WidgetEnvironment) => {
 
 const none = { square: "", wide: "" };
 const SAMPLE: WidgetData = {
-  weekday: "T2", date: "16 tháng 11", short: "T2 16", summary: "5 việc, 1 tiết học", count: "5 việc",
+  weekday: "T2", date: "16/11", short: "T2 16", summary: "5 việc, 1 tiết học", count: "5 việc",
   next: {
-    id: "s1", title: "Ôn Giải tích", type: "plan", label: "Tiếp theo", big: "10 phút", small: "đến 14:30", mins: "10′", at: "14:30",
-    fill: 0.35, rect: "14:30, còn 10 phút", left: "còn 10 phút", url: "zen:///task/s1",
+    id: "s1", title: "Ôn Giải tích", type: "plan", label: "Tiếp theo", big: "10p", small: "đến 14:30", mins: "10′", at: "14:30",
+    fill: 0.35, rect: "14:30, còn 10p", left: "còn 10p", url: "zen:///task/s1",
   },
   rows: [], doneLabel: "", tomorrow: "Mai: Cấu trúc dữ liệu 07:00",
   ahead: [], more: [], aheadHead: "", aheadCount: "", doneCount: "", dayName: "T2 16",

@@ -8,14 +8,14 @@ export const KIND_VI: Record<Kind, string> = { study: "học", exercise: "tập 
 const R: Record<ReasonKey, { short: string; long: string; neg?: string }> = {
   hour: { short: "Giờ bạn tập trung nhất", long: "Giờ này bạn hay làm xong việc", neg: "Giờ khác hợp hơn một chút" },
   after: { short: "Sau giờ {prev}, như mọi khi", long: "Bạn hay làm việc này sau khi {prev}", neg: "Sau giờ {prev}, giờ khác hợp hơn" },
-  similar: { short: "Việc tương tự xong giờ này", long: "Việc giống thế này bạn hay làm xong lúc {hour} giờ", neg: "Với việc tương tự, giờ khác hợp hơn" },
+  similar: { short: "Việc tương tự xong giờ này", long: "Việc giống thế này bạn hay làm xong lúc {hour}h", neg: "Với việc tương tự, giờ khác hợp hơn" },
   energy: { short: "Đúng lúc bạn khoẻ", long: "Gần giờ bạn làm được nhiều nhất", neg: "Hơi xa giờ bạn khoẻ nhất" },
   weekend: { short: "Cuối tuần thong thả", long: "Cuối tuần bạn hay có thời gian cho việc này", neg: "Ngày thường hợp hơn một chút" },
   busy: { short: "Ngày nhẹ lịch", long: "Hôm đó ít lịch, dễ thở hơn", neg: "Hôm đó lịch đã dày" },
   kind: { short: "Hợp việc {kind}", long: "Giờ này hợp với việc {kind}", neg: "Giờ này ít hợp việc {kind}" },
   deadline: { short: "Hạn {due}, làm sớm", long: "Hạn {due}, xếp sớm cho khỏi dồn vào phút chót", neg: "Hơi sát hạn {due}" },
   pace: { short: "Buổi {k}/{n}", long: "Buổi {k}/{n}, rải đều tới hạn", neg: "Các buổi hơi dồn" },
-  load: { short: "Ngày này còn rộng", long: "Ngày này còn rộng, không quá tải", neg: "Ngày này đã {h} tiếng" },
+  load: { short: "Ngày này còn rộng", long: "Ngày này còn rộng, không quá tải", neg: "Ngày này đã {h}h" },
   gap: { short: "Có khoảng nghỉ", long: "Có khoảng nghỉ trước và sau", neg: "Hơi sát {title}" },
   stable: { short: "Giữ giờ cũ", long: "Giữ gần giờ bạn đã thấy, đỡ xáo trộn" },
   late: { short: "Kịp hạn", long: "Xong trước hạn", neg: "Có thể trễ hạn" },
@@ -24,7 +24,7 @@ const R: Record<ReasonKey, { short: string; long: string; neg?: string }> = {
   missed: { short: "Lỡ lúc {time}, không sao", long: "Lúc {time} chưa làm được, mình dời sang đây" },
   pinned: { short: "Bạn đã ghim giờ này", long: "Bạn đã ghim giờ này, mình không dời" },
   said: { short: "Đúng buổi bạn nói", long: "Bạn nói làm vào buổi này" },
-  guess: { short: "Chỗ trống vừa {m} phút", long: "Khoảng trống vừa {m} phút, không đụng lịch của bạn" },
+  guess: { short: "Chỗ trống vừa {m}p", long: "Khoảng trống vừa {m}p, không đụng lịch của bạn" },
 };
 
 const vars = (r: Reason) => {
@@ -46,8 +46,9 @@ export const topReason = (why?: Reason[]) => why?.find((r) => r.w > 0);
 const S: Record<Step["key"], string> = {
   read: "Đọc lịch {what}",
   place: "Đặt {title} vào {time}",
+  series: "Xếp {n} buổi {title}, {from} - {to}",
   move: "Dời {title} sang {time}",
-  lighten: "{day} đã {h} tiếng, để nhẹ bớt",
+  lighten: "{day} đã {h}h, để nhẹ bớt",
   swap: "Đổi {a} với {b}",
   chain: "Dời {b} để {a} có giờ đẹp",
   rule: "Giữ {text}",

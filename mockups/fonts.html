@@ -40,31 +40,31 @@ const FONTS = [
   ["Montserrat", "", "Popular, bold geometric. Wide; titles wrap sooner."],
 ];
 const row = (type, title, sub, tm) => `<div class="r">${swatch(type)}<div class="tx"><b>${title}</b><small>${sub}</small></div><span class="tm">${tm}</span></div>`;
-const home = `<div class="hello">Chào buổi chiều</div><div class="h">T6, 13 tháng 11</div>
+const home = `<div class="hello">Chào buổi chiều</div><div class="h">T6, 13/11</div>
   <div class="tabs"><span class="on">Ngày</span><span>Tuần</span><span>Tháng</span></div>
   <div class="art" style="margin-top:14px;height:150px;padding:18px 20px">${art("exam", { w: 252, h: 150, seed: 4, cls: "bgart" })}
     <div class="lab" style="color:#fff;opacity:.85">Thi sau 3 ngày</div><div class="t" style="margin-top:8px">Xác suất thống kê, giữa kỳ</div></div>
   <div class="list" style="margin-top:8px">
-    ${row("lecture", "Cơ sở dữ liệu", "Phòng A2.104, tiết 1 đến 3", "07:00")}
+    ${row("lecture", "Cơ sở dữ liệu", "Phòng A2.104, tiết 1 đến 3", "7:00")}
     ${row("plan", "Ôn chương 4 giải tích", "Đọc lại đạo hàm riêng", "13:30")}
     ${row("assignment", "Nộp tiểu luận triết học", "Hạn chót trên LMS", "23:59")}
   </div>`;
 const marks = `<span class="o">${ic(I.back, 20)}</span><div class="h" style="margin-top:18px">Điểm</div>
   <div class="art" style="margin-top:18px;height:150px;padding:18px 20px">${art("assignment", { w: 252, h: 150, seed: 2, cls: "bgart" })}
     <div class="lab" style="color:#fff;opacity:.85">Tích luỹ</div>
-    <div style="position:absolute;left:20px;bottom:18px" class="meter"><span class="cap2" style="--p:85%"><i></i></span><div><div class="big" style="font-size:40px">3,42</div><div class="small">98 tín chỉ, hệ 4</div></div></div></div>
-  <div class="lab" style="margin-top:28px">Học kỳ 1, 2026 <span>3,58</span></div>
+    <div style="position:absolute;left:20px;bottom:18px" class="meter"><span class="cap2" style="--p:85%"><i></i></span><div><div class="big" style="font-size:40px">3,42</div><div class="small">98 TC, hệ 4</div></div></div></div>
+  <div class="lab" style="margin-top:28px">HK1, 2026 <span>3,58</span></div>
   <div class="list" style="margin-top:6px">
-    <div class="r"><div class="tx"><b>Giải tích 2</b><small>3 tín chỉ</small></div><span class="tm" style="color:var(--ink);font-size:17px">8,6</span></div>
-    <div class="r"><div class="tx"><b>Lập trình hướng đối tượng</b><small>4 tín chỉ</small></div><span class="tm" style="color:var(--ink);font-size:17px">7,9</span></div>
-    <div class="r"><div class="tx"><b>Đường lối cách mạng</b><small>2 tín chỉ</small></div><span class="tm" style="color:var(--ink);font-size:17px">5,4</span></div>
+    <div class="r"><div class="tx"><b>Giải tích 2</b><small>3 TC</small></div><span class="tm" style="color:var(--ink);font-size:17px">8,6</span></div>
+    <div class="r"><div class="tx"><b>Lập trình hướng đối tượng</b><small>4 TC</small></div><span class="tm" style="color:var(--ink);font-size:17px">7,9</span></div>
+    <div class="r"><div class="tx"><b>Đường lối cách mạng</b><small>2 TC</small></div><span class="tm" style="color:var(--ink);font-size:17px">5,4</span></div>
   </div>`;
 const ready = `<div style="margin-top:28px" class="hello">Sẵn sàng</div><div class="h">Giữ nút và kể tuần của bạn</div>
   <div style="color:var(--muted);font-size:17px;line-height:26px;margin-top:22px">“Thứ sáu làm bài tập giải tích, tập gym ba buổi, thứ ba nộp tiểu luận.”</div>`;
 const device = (html, dark, dock) => `<div class="frame"><div class="device${dark ? " dark" : ""}"><div class="island"></div>${chrome(html, { dock })}</div></div>`;
 document.getElementById("fonts").innerHTML = FONTS.map(([name, tag, why]) => `<section class="font" style="font-family:'${name}', 'Courier New', monospace">
   <h2>${name}${tag ? `<small>${tag}</small>` : ""}</h2><div class="why">${why}</div>
-  <div class="spec"><span class="big">Zen · Điểm 3,42</span><span class="acc">Đường lối · Ộ ẫ ữ ặ ằ ỹ · Nguyễn Thị Hằng</span><span class="num">07:00 13:30 23:59 0123456789</span></div>
+  <div class="spec"><span class="big">Zen · Điểm 3,42</span><span class="acc">Đường lối · Ộ ẫ ữ ặ ằ ỹ · Nguyễn Thị Hằng</span><span class="num">7:00 13:30 23:59 0123456789</span></div>
   <div class="gallery">${device(home, false, "idle")}${device(marks, false, null)}${device(ready, true, "idle")}</div></section>`).join("");
 </script>
 </body>

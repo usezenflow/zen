@@ -53,7 +53,7 @@ const sec = (k, st, o = {}) => {
   const rows = err ? "" : k === "portal"
     ? part("Lịch học", "T2 9/11", p.tt, { n: o.n, at: o.at }) + part("Lịch thi", "Hôm qua", p.ex, { at: o.at }) + part("Điểm", "3,42", p.mk, { ink: 1, go: 1 })
       + part("Học phí", o.fee ? `Còn ${o.fee}` : "Đã đóng đủ", p.fe, { red: !!o.fee, go: 1, last: 1 })
-    : part("Bài tập", "07:09", p.as, { last: 1 });
+    : part("Bài tập", "7:09", p.as, { last: 1 });
   return head + card(k, err, o.sub || "Đã kết nối", "2112345") + rows
     + `<div style="display:flex;gap:22px;padding:14px 0 17px;font-size:14px;font-weight:500"><span style="color:var(--muted)">Đổi mật khẩu</span><span style="color:var(--seal)">Ngắt ${NAME[k]}</span></div>`;
 };

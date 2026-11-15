@@ -16,12 +16,20 @@ import { useTheme, font, space, ff, motion } from "@/lib/theme";
 import type { Task } from "@/lib/types";
 import { typeOf } from "@/planner";
 
+// Where a part of the day opens (adapt.ts FROM; the older bounds too, for tasks made before them) -> its name.
+const PART_AT: Record<number, string> = { 300: "sáng", 660: "trưa", 720: "chiều", 780: "chiều", 1020: "tối", 1080: "tối", 1320: "đêm" };
+
 // Lectures and exams: room. Assignments: course. Anything with a deadline: "Hạn 23:59" (when() if not the same day).
 // An exam prep: "Buổi 1/4 · Mẫu thiết kế", its place among its sittings (from `all`, by time) and the subject; the due is the exam's own row.
 export function subOf(task: Task, type: string, now: number, all: Task[] = []) {
   if (task.forId) {
     const sibs = all.filter((x) => x.parentId !== undefined && x.parentId === task.parentId && !x.deletedAt).sort((a, b) => (a.start ?? Infinity) - (b.start ?? Infinity));
     return [sibs.length > 1 ? reasonText({ key: "pace", w: 1, vars: { k: sibs.findIndex((x) => x.id === task.id) + 1, n: sibs.length } }) : undefined, task.course].filter(Boolean).join(" · ") || undefined;
+  }
+  // A repeat's occurrence ends at midnight of its own day: that is no due, its part of the day is ("Buổi sáng"). A said due ("trước 17h") still shows.
+  if (task.rrule && task.deadline !== undefined && task.deadline === startOfDay(task.deadline)) {
+    const part = [...new Set((task.tods ?? []).map(([a]) => PART_AT[a]).filter(Boolean))].join(" hoặc ");
+    return (type === "lecture" || type === "exam" ? task.location : undefined) ?? (part ? t("gotPart", { p: part }) : task.location);
   }
   const due = task.deadline !== undefined
     ? t("due", { time: task.start !== undefined && startOfDay(task.start) === startOfDay(task.deadline) ? hhmm(task.deadline) : when(task.deadline, now) })
@@ -42,9 +50,9 @@ const marked = (title: string, q: Query) => {
 
 export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost, tm, hl, lifted, onHold, onDelete, onSeries, onToggle, onTitle, onTime, onOpen }: {
   task: Task; now: number; first?: boolean; done?: boolean; allDay?: boolean; sub?: string; trail?: string; ghost?: boolean; tm?: string; hl?: Query; // hl: a search query, its matches tinted
-  /** Long-press: the row lifts (.lift) and the caller drops its menu under the row's bottom edge. */
-  lifted?: boolean; onHold?: (bottom: number) => void;
-  onDelete?: () => void; onSeries?: (bottom: number) => void; // swipe right: plain task deletes, series asks where the menu goes
+  /** Long-press: the row lifts (.lift) and the caller drops its menu under the row, or over it when there is no room below. */
+  lifted?: boolean; onHold?: (bottom: number, top: number) => void;
+  onDelete?: () => void; onSeries?: (bottom: number, top: number) => void; // swipe right: plain task deletes, series asks where the menu goes
   onToggle: () => void; onTitle: (title: string) => void; onTime: (at: Date) => void; onOpen: () => void;
 }) {
   const th = useTheme();
@@ -107,7 +115,7 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
   const hold = () => {
     if (!onHold) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    holdBox.current?.measureInWindow((_x, y, _w, h) => onHold(y + h));
+    holdBox.current?.measureInWindow((_x, y, _w, h) => onHold(y + h, y));
   };
   const ring = task.source === "dlu" && type === "lecture"; // campus lecture: glow ring (pull.html)
   const subEl = !!(trail || sub) && (
@@ -148,7 +156,8 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
           </>
         ) : (
           // One tap on the text opens the details (after a beat, in case it is a double); two focus the title.
-          <Pressable onPress={tapText} hitSlop={{ top: 6, bottom: 6 }} accessibilityLabel={task.title}>
+          // The title is its own responder, so it repeats the row's long-press or a hold on the text never reaches the row.
+          <Pressable onPress={tapText} onLongPress={onHold && !picking ? hold : undefined} delayLongPress={350} hitSlop={{ top: 6, bottom: 6 }} accessibilityLabel={task.title}>
             <Text numberOfLines={1} style={[s.title, { color: done ? th.muted : th.ink }, done && { textDecorationLine: "line-through" }, ghost && { fontFamily: ff("500") }]}>{hl ? marked(task.title, hl) : task.title}</Text>
             {subEl}
           </Pressable>
@@ -166,7 +175,7 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
   );
   return (
     <View ref={holdBox} collapsable={false}>
-      <SwipeDelete enabled={!!onDelete && !allDay} onDelete={() => onDelete?.()} onSpring={series ? (bottom) => onSeries?.(bottom) : undefined} style={[fly, liftSt]}>
+      <SwipeDelete enabled={!!onDelete && !allDay} onDelete={() => onDelete?.()} onSpring={series ? (bottom, top) => onSeries?.(bottom, top) : undefined} style={[fly, liftSt]}>
         {body}
       </SwipeDelete>
     </View>
@@ -200,14 +209,14 @@ const s = StyleSheet.create({
  * and hands over the row's bottom edge, for the series menu.
  */
 export function SwipeDelete({ enabled = true, onDelete, onSpring, style, children }: {
-  enabled?: boolean; onDelete: () => void; onSpring?: (bottom: number) => void; style?: object; children: React.ReactNode;
+  enabled?: boolean; onDelete: () => void; onSpring?: (bottom: number, top: number) => void; style?: object; children: React.ReactNode;
 }) {
   const th = useTheme();
   const box = useRef<ComponentRef<typeof View>>(null);
   const tx = useSharedValue(0), hgt = useSharedValue(-1), w = useSharedValue(0), h = useSharedValue(0), crossed = useSharedValue(false);
   const spring = !!onSpring;
   const tick = () => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-  const ask = () => box.current?.measureInWindow((_x: number, y: number, _w: number, h: number) => onSpring?.(y + h));
+  const ask = () => box.current?.measureInWindow((_x: number, y: number, _w: number, h: number) => onSpring?.(y + h, y));
   const swipe = usePanGesture({
     testID: "swipe-delete", // tests drive the swipe by this id; RNGH drops it from release builds
     enabled,

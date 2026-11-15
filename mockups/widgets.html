@@ -72,16 +72,16 @@ const row = (tm, title, type, st = "") => {
 const meter = (p, big, small) => `<div class="meter"><span class="cap2" style="--p:${p}"><i></i></span><div><div class="big">${big}</div><div class="small">${small}</div></div></div>`;
 
 // Small: the next thing on its sand, time left in the battery meter.
-const next = (type = "plan", title = "Ôn Giải tích", big = "10 phút", small = "đến 14:30", p = "35%", lab = "Tiếp theo", seed = 4) =>
+const next = (type = "plan", title = "Ôn Giải tích", big = "10p", small = "đến 14:30", p = "35%", lab = "Tiếp theo", seed = 4) =>
   `<div class="wg w-s art">${art(type, { w: 126, h: 126, seed, cls: "bgart" })}<div class="lab" style="color:#fff;opacity:.85">${lab}</div><div class="t">${title}</div>${meter(p, big, small)}</div>`;
 // Small: exam countdown. Days, not hours, until the last day.
-const exam = next("exam", "Giải tích 2", "11 ngày", when("2026-11-27", "08:00"), "60%", "Sắp thi", 2);
+const exam = next("exam", "Giải tích 2", "11 ngày", when("2026-11-27", "8:00"), "60%", "Sắp thi", 2);
 // Small: talk. Opens the app with the mic already on.
 const talk = `<div class="wg w-s"><div class="lab" style="color:var(--ink)">${LOGO(18)}<span style="color:var(--muted)">zen</span></div><div class="mini-hold">${ic(I.mic, 24, 1.8)}</div></div>`;
 // Small: capture. Opens the app with the camera up; a notice or exam list goes straight to the reader.
 const scan = `<div class="wg w-s"><div class="lab" style="color:var(--ink)">${LOGO(18)}<span style="color:var(--muted)">Chụp</span></div><div class="mini-hold">${ic(I.camera, 24, 1.8)}</div></div>`;
 // Small, empty: nothing left today. No art, just ink.
-const clear = `<div class="wg w-s"><div class="lab">${LOGO(18)}<span>T2 16</span></div><div style="margin-top:auto;font-size:16px;font-weight:600;line-height:1.25">Xong hết<br>hôm nay</div><div style="font-size:11.5px;color:var(--muted);margin-top:3px">Mai: Cấu trúc dữ liệu 07:00</div></div>`;
+const clear = `<div class="wg w-s"><div class="lab">${LOGO(18)}<span>T2 16</span></div><div style="margin-top:auto;font-size:16px;font-weight:600;line-height:1.25">Xong hết<br>hôm nay</div><div style="font-size:11.5px;color:var(--muted);margin-top:3px">Mai: Cấu trúc dữ liệu 7:00</div></div>`;
 
 // Medium: next on the left, the rest of today on the right.
 const nextCard = `<div class="art" style="width:96px;flex:none;border-radius:14px;padding:10px 12px;display:flex;flex-direction:column">${art("plan", { w: 96, h: 106, seed: 4, cls: "bgart" })}<div class="lab" style="color:#fff;opacity:.85;font-size:10.5px">14:30</div><div class="t" style="font-size:13px">Ôn Giải tích</div>${meter("35%", "10′", "còn lại")}</div>`;
@@ -99,7 +99,7 @@ const examCard = `<div class="art" style="width:96px;flex:none;border-radius:14p
 const soon = (head, rows) => `<div style="flex:1;min-width:0;display:flex;flex-direction:column;padding-top:3px"><div class="lab" style="font-size:11px">${head}</div>${rows}</div>`;
 // Ink card for a day with no sand to show: the line, then the count. Tomorrow lives on the right, never repeated here.
 const inkCard = (line, sub) => `<div style="width:96px;flex:none;border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;background:var(--chip)">${LOGO(18)}<div style="margin-top:auto;font-size:13px;font-weight:600;line-height:1.25">${line}</div><div class="small" style="color:var(--muted)">${sub}</div></div>`;
-const tomorrowRows = row("07:00", "Cấu trúc dữ liệu", "lecture") + row("15:00", "Ôn Giải tích", "plan") + row("22:00", "Nộp Lab 3", "assignment");
+const tomorrowRows = row("7:00", "Cấu trúc dữ liệu", "lecture") + row("15:00", "Ôn Giải tích", "plan") + row("22:00", "Nộp Lab 3", "assignment");
 const todayDone = `<div class="wg w-m" style="flex-direction:row;gap:12px;padding:10px 13px">${inkCard("Xong hết<br>hôm nay", "5 việc xong")}${soon("Mai <span>2 việc</span>", tomorrowRows)}</div>`;
 const todayBare = `<div class="wg w-m" style="flex-direction:row;gap:12px;padding:10px 13px">${inkCard("Hôm nay<br>trống", "T7 14")}${soon("Mai <span>2 việc</span>", tomorrowRows)}</div>`;
 // Next is today's last thing: it keeps the left card, the next day with anything fills the right instead of an empty "Hôm nay".
@@ -107,11 +107,11 @@ const todayLast = `<div class="wg w-m" style="flex-direction:row;gap:12px;paddin
 // Nothing ahead at all: never blank. The right half fills with the app's three try-saying lines (i18n trySay, try1-3), rows like any list; tapping one opens the mic.
 const tryRow = (line) => `<div class="wr"><span style="width:18px;display:flex;justify-content:center;color:var(--muted)">${ic(I.mic, 14, 1.8)}</span><b>“${line}”</b></div>`;
 const todayNone = `<div class="wg w-m" style="flex-direction:row;gap:12px;padding:10px 13px">${inkCard("Hôm nay<br>trống", "T7 14")}${soon("Thử nói", tryRow("Mai 9 giờ ôn Giải tích") + tryRow("T6 nộp báo cáo nhóm") + tryRow("Tối nào cũng đọc sách"))}</div>`;
-// Fewer than three rows: the slots fill with what comes next on later days, the day in the time column ("Mai 07:00", "T4 22:00",
+// Fewer than three rows: the slots fill with what comes next on later days, the day in the time column ("Mai 7:00", "T4 22:00",
 // just "27/11" past this week). Nothing more coming: the leftover slots take the try-saying lines. Never an empty slot.
-const todayFew = `<div class="wg w-m" style="flex-direction:row;gap:12px;padding:10px 13px">${nextCard}${soon("Hôm nay <span>2 việc</span>", row("16:00", "Báo cáo nhóm", "assignment") + row("Mai 07:00", "Cấu trúc dữ liệu", "lecture") + row("T4 22:00", "Nộp Lab 3", "assignment"))}</div>`;
+const todayFew = `<div class="wg w-m" style="flex-direction:row;gap:12px;padding:10px 13px">${nextCard}${soon("Hôm nay <span>2 việc</span>", row("16:00", "Báo cáo nhóm", "assignment") + row("Mai 7:00", "Cấu trúc dữ liệu", "lecture") + row("T4 22:00", "Nộp Lab 3", "assignment"))}</div>`;
 const todayRunOut = `<div class="wg w-m" style="flex-direction:row;gap:12px;padding:10px 13px">${nextCard}${soon("Mai <span>1 việc</span>", row("15:00", "Ôn Giải tích", "plan") + tryRow("T6 nộp báo cáo nhóm") + tryRow("Tối nào cũng đọc sách"))}</div>`;
-const todayFree = `<div class="wg w-m" style="flex-direction:row;gap:12px;padding:10px 13px">${examCard}${soon("T4 <span>2 việc</span>", row("09:00", "Họp nhóm đồ án", "busy") + row("13:30", "Mạng máy tính", "lecture") + row("22:00", "Nộp bài tập 4", "assignment"))}</div>`;
+const todayFree = `<div class="wg w-m" style="flex-direction:row;gap:12px;padding:10px 13px">${examCard}${soon("T4 <span>2 việc</span>", row("9:00", "Họp nhóm đồ án", "busy") + row("13:30", "Mạng máy tính", "lecture") + row("22:00", "Nộp bài tập 4", "assignment"))}</div>`;
 
 const icons = (n) => `<div class="apps">${Array.from({ length: n }, () => '<span class="app"></span>').join("")}</div>`;
 const home = (widgets, apps = 8) => `<div class="wall"></div><div class="sb"><span>14:20</span><span>●●● ▮</span></div>
@@ -120,7 +120,7 @@ const home = (widgets, apps = 8) => `<div class="wall"></div><div class="sb"><sp
 // Lock: inline line above the clock, circular + rectangular below.
 const C = 2 * Math.PI * 22;
 const circ = `<span class="c"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="22" fill="none" stroke="rgba(255,255,255,.3)" stroke-width="2.5"/><circle cx="24" cy="24" r="22" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C * 0.65}" transform="rotate(-90 24 24)"/></svg><span>10′<small>14:30</small></span></span>`;
-const rect = `<span class="rc"><b>Ôn Giải tích</b><span>14:30, còn 10 phút</span></span>`;
+const rect = `<span class="rc"><b>Ôn Giải tích</b><span>14:30, còn 10p</span></span>`;
 const lock = (dark) => `<div class="wall-art">${art(dark ? "lecture" : "plan", { w: 300, h: 650, seed: 6 })}</div><div class="sb" style="color:#fff"><span></span><span>●●● ▮</span></div>
   <div class="lock"><div class="inl">${LOGO(13, "white")} T2 16 · Thi GT2 còn 11 ngày</div><div class="clk">14:20</div><div class="lw">${circ}${rect}</div></div>
   <div class="lbtns"><span>${ic(I.clock, 20)}</span><span>${LOGO(22, "white")}</span></div><div class="hi" style="background:#fff;opacity:.6"></div>`;

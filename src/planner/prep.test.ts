@@ -13,13 +13,13 @@ describe("preps", () => {
       ["Báo cáo(TL)", "Viết báo cáo"], ["Báo cáo TTTT,TL", "Viết báo cáo"], ["Tiểu luận", "Viết tiểu luận"], ["Thực hành", "Luyện thực hành"], ["Thi máy", "Luyện thực hành"],
       ["Vấn đáp", "Luyện vấn đáp"], ["Tự luận", "Ôn lý thuyết, luyện đề"], ["Trắc nghiệm", "Ôn thi"], [undefined, "Ôn thi"],
     ] as const) {
-      expect(preps(exam({ format }))[0]).toMatchObject({ title, course: "Toán", source: "user", forId: "dlu:e", deadline: 1e12, maxSitting: 45 });
+      expect(preps(exam({ format }))[0]).toMatchObject({ title, course: "Toán", source: "user", forId: "dlu:e", deadline: 1e12, maxSitting: 60 });
     }
   });
-  it("sizes 45 min sittings by the format and the marks multiplier", () => {
-    for (const [format, mult, n] of [["Báo cáo(TL)", 0.75, 3], ["Báo cáo(TL)", 1, 4], ["Báo cáo(TL)", 1.6, 6], ["Tự luận", 0.75, 2], ["Tự luận", 1, 3], ["Tự luận", 1.6, 4], ["Tự luận", 9, 4]] as const) {
+  it("sizes sittings of up to an hour, in half hours, by the format and the marks multiplier", () => {
+    for (const [format, mult, sizes] of [["Báo cáo(TL)", 0.75, [60, 60, 30]], ["Báo cáo(TL)", 1, [60, 60, 60]], ["Báo cáo(TL)", 1.6, [60, 60, 60, 60, 60]], ["Tự luận", 0.75, [60, 30]], ["Tự luận", 1, [60, 60]], ["Tự luận", 1.6, [60, 60, 60]], ["Tự luận", 9, [60, 60, 60]]] as const) {
       const [p] = preps(exam({ format }), mult);
-      expect(split(p.effort, p.maxSitting)).toEqual(Array(n).fill(45));
+      expect(split(p.effort, p.maxSitting)).toEqual(sizes);
     }
   });
 });

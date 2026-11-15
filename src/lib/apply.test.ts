@@ -171,13 +171,13 @@ it("removeScope tombstones the section and a fresh repeating create clears a ser
   expect((await loadGone()).series["FREQ=WEEKLY|Gym"]).toBeUndefined();
 });
 
-it("topUp keeps a daily series 14 days ahead without duplicating days", async () => {
+it("topUp keeps a daily series 120 days ahead without duplicating days", async () => {
   await apply([{ op: "create", title: "Read", kind: "study", repeat: "FREQ=DAILY" }], NOW);
   const later = NOW + 6 * DAYMS;
   await topUp(later);
   const days = live().filter((x: Task) => x.title === "Read").map((x: Task) => x.deadline!);
   expect(new Set(days).size).toBe(days.length);
-  expect(Math.max(...days)).toBeGreaterThanOrEqual(later + 14 * DAYMS);
+  expect(Math.max(...days)).toBeGreaterThanOrEqual(later + 119 * DAYMS);
   const n = days.length;
   expect(await topUp(later)).toBeUndefined();
   expect(live().filter((x: Task) => x.title === "Read")).toHaveLength(n);
@@ -187,7 +187,7 @@ it("topUp adds per-week copies of COUNT=3, stops after a following delete, ignor
   await apply([{ op: "create", title: "Gym", repeat: "FREQ=WEEKLY;COUNT=3" }, { op: "create", title: "Once", repeat: "FREQ=DAILY;COUNT=2" }], NOW);
   db.tasks.set("d", T({ id: "d", source: "dlu", rrule: "FREQ=WEEKLY", deadline: NOW + DAYMS }));
   await topUp(NOW);
-  expect(live().filter((x: Task) => x.title === "Gym" && !x.parentId)).toHaveLength(6);
+  expect(live().filter((x: Task) => x.title === "Gym" && !x.parentId)).toHaveLength(51); // 3 a week, 17 weeks
   expect(live().filter((x: Task) => x.title === "Once")).toHaveLength(2);
   expect(live().filter((x: Task) => x.title === "x")).toHaveLength(1);
   const first = live().filter((x: Task) => x.title === "Gym").sort((a: Task, b: Task) => a.deadline! - b.deadline!)[0];
@@ -242,13 +242,14 @@ it("a repeat puts each occurrence on its own day, with the said clock and due ti
   const day0 = d0.getTime(), at = (d: number, h: number, m = 0) => day0 + d * DAYMS + (h * 60 + m) * 60_000;
   await apply([{ op: "create", title: "Đọc", repeat: "FREQ=DAILY", when: new Date(at(1, 20)).toISOString() }], NOW);
   const reads = live().filter((x: Task) => x.title === "Đọc").sort((a: Task, b: Task) => a.notBefore! - b.notBefore!);
-  expect(reads.map((x: Task) => x.notBefore)).toEqual(Array.from({ length: 7 }, (_, i) => at(1 + i, 20)));
-  expect(reads.map((x: Task) => x.deadline)).toEqual(Array.from({ length: 7 }, (_, i) => at(2 + i, 0)));
+  expect(reads).toHaveLength(120); // the whole 120 days, not a first week
+  expect(reads.slice(0, 7).map((x: Task) => x.notBefore)).toEqual(Array.from({ length: 7 }, (_, i) => at(1 + i, 20)));
+  expect(reads.slice(0, 7).map((x: Task) => x.deadline)).toEqual(Array.from({ length: 7 }, (_, i) => at(2 + i, 0)));
   await apply([{ op: "create", title: "Yoga", repeat: "FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR,SA", deadline: new Date(at(0, 23, 59)).toISOString() }], NOW);
   const yoga = live().filter((x: Task) => x.title === "Yoga");
-  expect(yoga.length).toBe(6);
+  expect(yoga.length).toBeGreaterThan(100);
   expect(yoga.every((x: Task) => new Date(x.deadline!).getDay() !== 0 && new Date(x.deadline!).getHours() === 23)).toBe(true);
-  expect(new Set(yoga.map((x: Task) => new Date(x.deadline!).toDateString())).size).toBe(6);
+  expect(new Set(yoga.map((x: Task) => new Date(x.deadline!).toDateString())).size).toBe(yoga.length);
 });
 
 // Plan 1.12: every repeat shape is expanded or flagged, never dropped to one silent task.
@@ -265,7 +266,8 @@ describe("repeat shapes", () => {
   });
   it("INTERVAL: every other day", async () => {
     const { days } = await make("FREQ=DAILY;INTERVAL=2");
-    expect(days).toEqual(["2026-11-13", "2026-11-15", "2026-11-17", "2026-11-19"]);
+    expect(days.slice(0, 4)).toEqual(["2026-11-13", "2026-11-15", "2026-11-17", "2026-11-19"]);
+    expect(days).toHaveLength(60);
   });
   it("UNTIL stops the series on that day", async () => {
     const { days, r } = await make("FREQ=WEEKLY;BYDAY=MO,WE,FR;UNTIL=20261120T235959");
@@ -274,7 +276,7 @@ describe("repeat shapes", () => {
   });
   it("MONTHLY with BYMONTHDAY: the 15th of each month, flagged as the next stretch only", async () => {
     const { days, r } = await make("FREQ=MONTHLY;BYMONTHDAY=15", { deadline: "2026-11-15T23:59:00" });
-    expect(days).toEqual(["2026-11-15", "2026-12-15", "2027-01-15"]);
+    expect(days.slice(0, 3)).toEqual(["2026-11-15", "2026-12-15", "2027-01-15"]);
     expect(r.sub).toMatch(/gần nhất/);
   });
   it("BYSETPOS: the first Monday of each month", async () => {
@@ -569,4 +571,23 @@ it("liveEdit holds a due date at once and clears it with ''", async () => {
   await r;
   await liveEdit("a", { deadline: "" }, NOW + 10, 20);
   expect(db.tasks.get("a").deadline).toBeUndefined();
+});
+
+// "Tập thể dục mỗi sáng" said at 10:30: today's morning has no hour left, so the series starts tomorrow; it runs the whole 120 days,
+// and every occurrence is planned on its own day inside the morning (5:00-11:00), never spilled onto the next day.
+it("a part-of-day repeat skips a gone today, spans 120 days, and keeps each occurrence on its own day and part", async () => {
+  const d0 = new Date(NOW); d0.setHours(0, 0, 0, 0);
+  const now = d0.getTime() + 10.5 * 3600_000;
+  const day = (ms: number) => { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); };
+  await apply([{ op: "create", title: "Tập", kind: "exercise", effortMinutes: 60, repeat: "FREQ=DAILY", notBefore: new Date(d0.getTime()).toISOString(), tods: [[300, 660]] }], now);
+  const xs = live().filter((x: Task) => x.title === "Tập");
+  expect(xs.length).toBeGreaterThanOrEqual(119);
+  expect(xs.some((x: Task) => day(x.deadline! - 1) === d0.getTime())).toBe(false);
+  expect(new Set(xs.map((x: Task) => day(x.deadline! - 1))).size).toBe(xs.length);
+  for (const x of xs.filter((x: Task) => x.start !== undefined)) {
+    expect(day(x.start!)).toBe(day(x.deadline! - 1));
+    const m = (x.start! - day(x.start!)) / 60_000;
+    expect(m >= 300 && m + 60 <= 660).toBe(true);
+  }
+  expect(xs.filter((x: Task) => x.start !== undefined).length).toBeGreaterThanOrEqual(14);
 });

@@ -4,7 +4,7 @@ export const DAY = 86400_000;
 export const startOfDay = (ms: number) => new Date(ms).setHours(0, 0, 0, 0);
 export const addDays = (ms: number, n: number) => { const d = new Date(ms); d.setDate(d.getDate() + n); return d.getTime(); };
 export const mondayOf = (ms: number) => addDays(startOfDay(ms), -((new Date(ms).getDay() + 6) % 7));
-export const hhmm = (ms: number) => new Date(ms).toTimeString().slice(0, 5);
+export const hhmm = (ms: number) => new Date(ms).toTimeString().slice(0, 5).replace(/^0/, ""); // "7:00", not "07:00"
 
 export const short = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
 // The app names days short everywhere ("T4", "CN"), never "Thứ tư": brevity over formality.
@@ -33,5 +33,5 @@ export const holLines = (title: string): [string, string?] => {
 /** Rules that keep time free on a day ("Tối CN để trống"); kind-only rules ("tập thể dục sau 5 giờ") are not free time. */
 export const keptOn = (rules: Rule[], day: number) =>
   rules.filter((r) => !r.kinds.length && (!r.days.length || r.days.includes(new Date(day).getDay())) && r.to > r.from).sort((a, b) => a.from - b.from);
-const hm = (min: number) => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
-export const keptSpan = (r: Rule) => `${hm(r.from)}–${hm(r.to)}`;
+const hm = (min: number) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, "0")}`;
+export const keptSpan = (r: Rule) => `${hm(r.from)} - ${hm(r.to)}`;

@@ -14,9 +14,9 @@ export const PART: Record<
   }
 > = {
   "sang som": { before: [6, 0], due: [8, 0], start: [6, 0], window: "MORNING" },
-  sang: { before: [7, 0], due: [12, 0], start: [9, 0], window: "MORNING" },
-  trua: { before: [12, 0], due: [14, 0], start: [12, 0], window: "NOON" },
-  chieu: { before: [13, 0], due: [17, 0], start: [14, 0], window: "AFTERNOON" },
+  sang: { before: [7, 0], due: [11, 0], start: [9, 0], window: "MORNING" },
+  trua: { before: [12, 0], due: [13, 0], start: [12, 0], window: "NOON" },
+  chieu: { before: [13, 0], due: [18, 0], start: [14, 0], window: "AFTERNOON" },
   "chieu toi": {
     before: [17, 0],
     due: [18, 0],

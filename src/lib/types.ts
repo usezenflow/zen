@@ -102,7 +102,7 @@ export type ReasonKey =
 export interface Reason { key: ReasonKey; w: number; vars?: Record<string, string | number> }
 
 /** One accepted solver move, for the narrated "thinking" lines. */
-export interface Step { key: "read" | "place" | "move" | "lighten" | "swap" | "chain" | "rule" | "missed"; vars: Record<string, string | number>; id?: string } // id: the task a place or move line is about
+export interface Step { key: "read" | "place" | "series" | "move" | "lighten" | "swap" | "chain" | "rule" | "missed"; vars: Record<string, string | number>; id?: string; ids?: string[] } // id: the task a place or move line is about; ids: every occurrence a series line places
 
 /** A deadline the plan cannot meet in free time; fixes push one other flexible task past the deadline. */
 export interface Warn { id: string; title: string; deadline: number; need: number; free: number; fixes: { id: string; title: string; start: number }[] } // need/free in minutes

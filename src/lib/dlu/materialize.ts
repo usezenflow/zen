@@ -9,6 +9,7 @@ import { PREP_SITTING, preps, workOf } from "../../planner/prep";
 import { lmsCoverageEnd } from "./season";
 
 const UNSIZED = 45; // minutes every assignment got before it was sized by its work and the marks
+const OLD_SITTING = 45; // preps and assignments were split in 45 min sittings before half hours
 
 const idOf = (key: string) => `dlu:${key}`;
 const sourceOf = (key: string) => (key.startsWith("lms:") ? "lms" : "portal");
@@ -164,14 +165,24 @@ export function materialize(items: Fetched, tasks: Task[], now = Date.now(), mul
     if (want && !old) upserts.push(want);
     else if (want && old && !old.deletedAt && !old.doneAt) {
       const title = old.userEdited?.includes("title") ? old.title : want.title; // a name the student gave stays
-      if (old.deadline === want.deadline && old.effort === want.effort && old.forId === want.forId && old.course === want.course && old.title === title) continue;
-      const next = { ...old, deadline: want.deadline, effort: want.effort, title, vec: titleVec(title), forId: want.forId, course: want.course };
+      if (old.deadline === want.deadline && old.effort === want.effort && old.maxSitting === want.maxSitting && old.forId === want.forId && old.course === want.course && old.title === title) continue;
+      const next = { ...old, deadline: want.deadline, effort: want.effort, maxSitting: want.maxSitting, title, vec: titleVec(title), forId: want.forId, course: want.course };
       upserts.push(next);
-      if (old.deadline !== want.deadline || old.effort !== want.effort) deletes.push(...kids(old.id)); // resplit at the new size
+      if (old.deadline !== want.deadline || old.effort !== want.effort || old.maxSitting !== want.maxSitting) deletes.push(...kids(old.id)); // resplit at the new size
       else upserts.push(...syncKids(next, tasks)); // renamed only: open sittings follow
     } else if (!want && old && !old.deletedAt && !old.doneAt && (e.deletedAt || dropped.has(e.id))) {
       deletes.push(old.id, ...kids(old.id));
     }
+  }
+  // Assignments still due, stored in 45 min sittings: whole half hours, sittings up to an hour; their open sittings go and the planner splits the rest again.
+  const at = new Map(upserts.map((u, i) => [u.id, i]));
+  for (const t0 of tasks) {
+    if (t0.maxSitting !== OLD_SITTING || t0.parentId || t0.doneAt || t0.deletedAt || t0.id.startsWith("prep:") || dropped.has(t0.id)) continue;
+    if (t0.deadline === undefined || t0.deadline <= now) continue; // only work still ahead: a past one keeps the sittings it had
+    const i = at.get(t0.id), t = i === undefined ? t0 : upserts[i];
+    const next = { ...t, maxSitting: PREP_SITTING, effort: t.userEdited?.includes("effort") ? t.effort : Math.max(1, Math.round(t.effort / 30)) * 30 };
+    if (i === undefined) upserts.push(next); else upserts[i] = next;
+    deletes.push(...kids(t0.id));
   }
   return { upserts, deletes, digest };
 }

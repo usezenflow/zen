@@ -70,8 +70,8 @@ it("guesses say how sure, at 0.75 and 0.5", async () => {
 });
 
 it.each([
-  [{ days: [0, 1, 3] }, "T2, T4, CN · 18:00–22:00"], // Sunday sorts last
-  [{ days: [] }, `${t("everyDay")} · 18:00–22:00`],
+  [{ days: [0, 1, 3] }, "T2, T4, CN · 18:00 - 22:00"], // Sunday sorts last
+  [{ days: [] }, `${t("everyDay")} · 18:00 - 22:00`],
   [{ days: [6], from: 21 * 60, to: 1440 }, `T7 · ${t("fromTime", { t: "21:00" })}`],
   [{ days: [6], from: 0, to: 1440 }, "T7"], // the whole day: days only
 ])("describes rule %j as %s", async (over, sub) => {

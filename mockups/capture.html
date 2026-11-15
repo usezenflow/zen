@@ -57,7 +57,7 @@ I.pdf = '<path d="M8 2.75h5.6c.53 0 1.04.21 1.41.59l3.65 3.65c.38.37.59.88.59 1.
 // Same home content as views.html.
 const tabs = (on) => `<div class="tabs">${["Ngày", "Tuần", "Tháng"].map((v) => `<span class="${v === on ? "on" : ""}">${v}</span>`).join("")}</div>`;
 const row = (tm, title, type, sub = "") => `<div class="r">${type === "plan" || type === "assignment" ? `<span class="ck"></span>` : swatch(type)}<div class="tx"><b>${title}</b>${sub ? `<small>${sub}</small>` : ""}</div><span class="tm">${tm}</span></div>`;
-const day = `${head("T2", "16 tháng 11", "5 việc, 1 tiết học")}${tabs("Ngày")}
+const day = `${head("T2", "16/11", "5 việc, 1 tiết học")}${tabs("Ngày")}
   <div class="lab" style="margin-top:28px">Hôm nay</div>
   <div class="list" style="margin-top:6px">${row("14:30", "Ôn Giải tích", "plan")}${row("16:00", "Báo cáo nhóm", "assignment", "Hạn 23:59")}${row("17:30", "Cơ sở dữ liệu", "lecture", "A2.104")}${row("19:00", "Ăn tối với Minh", "busy")}</div>`;
 
@@ -101,7 +101,7 @@ mount([
   { tag: "12. Reading the PDF", sub: "The page shows flat and white, as the file looks. Every page is read on the phone, with no upload. What it found lights up the same way. Long text is never scrolled or cut from the reading: only the top of the page shows, fading out, and the counter under it steps through the pages as they are read. A scanned PDF with no text in it gets the same sweep as a photo.", html: chrome(pdf, { dock: "think" }) },
   { tag: "13. PDF added", sub: "Same bulk toast: count, first two names, +5, one Undo for all. Each exam lands with its room, and gets prep tasks for its format: tự luận, thi máy, trắc nghiệm.", html: chrome(toast("Đã thêm 7 việc", "Thi Mạng máy tính, Thi Cơ sở dữ liệu +5", [["Hoàn tác"]]) + day, { dock: "think" }) },
   { tag: "13b. Shared in", sub: "In another app, share text or a PDF and pick Zen. The system's share sheet does the choosing; Zen draws none. Zen opens, reads what arrived the same way as paste or the PDF pick (same flat page, same think state), and ends on the same toast. Nothing is added until it has been read, and Hoàn tác takes it all back.", html: chrome(`<div class=\"shot pdf\" style=\"transform:none\">${pasted}</div>`, { dock: "think" }) },
-  { tag: "14. Two readings", sub: "\"họp nhóm thứ 4 lúc 3 giờ\": 3 giờ could be 15:00 or 03:00. It adds the likely one; the other sits in the outline pill. One tap switches, no retyping. This is the only doubt Zen ever shows.", html: chrome(toast("Họp nhóm", when("2026-11-18", "15:00"), [[when("2026-11-18", "03:00"), 1], ["Hoàn tác"]]) + day, { dock: "think" }) },
+  { tag: "14. Two readings", sub: "\"họp nhóm thứ 4 lúc 3 giờ\": 3 giờ could be 15:00 or 3:00. It adds the likely one; the other sits in the outline pill. One tap switches, no retyping. This is the only doubt Zen ever shows.", html: chrome(toast("Họp nhóm", when("2026-11-18", "15:00"), [[when("2026-11-18", "3:00"), 1], ["Hoàn tác"]]) + day, { dock: "think" }) },
   { tag: "Fan, dark", sub: "Same at night.", dark: true, html: screen(day, fan("r", 281, 696, "Thả để gõ")) },
 ]);
 </script>

@@ -25,6 +25,13 @@ export function MenuPanel({ items, onPick, style, origin = "top right" }: { item
   );
 }
 
+/** Where a row's menu of `n` items goes, in window coordinates (the SafeAreaView's absolute children start at its outer edge, not under the inset):
+ *  under the row, or over it when it would run into the mic at the bottom; never on the row itself. */
+export function menuTop(bottom: number, top: number, n: number, winH: number, insetTop: number, insetBottom: number, dock = 90): number {
+  const h = n * 50 + 1;
+  return bottom + 4 + h <= winH - insetBottom - dock || top - 4 - h < insetTop ? bottom + 4 : top - 4 - h;
+}
+
 /** Dropdown under a row (views.html menu(DEL, top, 18)). Outside tap closes. */
 export function RowMenu({ items, top, onClose }: { items: Item[]; top: number; onClose: () => void }) {
   return (

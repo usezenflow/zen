@@ -1,4 +1,4 @@
-import type { Kind } from "../lib/types";
+import type { Kind, Task } from "../lib/types";
 import { DAY, HOUR, MIN, dayStart } from "./features";
 import { type Piece, dur, startValue } from "./value";
 
@@ -14,6 +14,9 @@ export interface Solved { starts: Map<string, number>; score: number; greedyScor
 export const SLOT = 15 * MIN; // the grid start times are searched on (:00, :15, :30, :45), the shortest gap offered, the errand size
 export const STEP = SLOT;
 export const WAKE_FROM = 7 * 60, WAKE_TO = 22 * 60;
+/** A repeat's occurrence whose own day has no room left in its part of the day ("mỗi sáng", made at 11:00): it is missed, never moved to another day. */
+export const dayGone = (t: Task, now: number) =>
+  !!t.rrule && t.deadline !== undefined && dayStart(t.deadline - 1) + ((t.tods?.length ? Math.max(...t.tods.map((x) => x[1])) : WAKE_TO) - t.effort) * MIN < now;
 const HALO = 60 * MIN;
 const TAIL = 6 * HOUR; // a block this far past a day's end can still halo an item that spills over midnight
 const W_GAP = 0.05; // per SLOT: the same weight per hour as 0.1 per 30 min
@@ -39,6 +42,8 @@ export function cells(p: Piece, now: number): number[] {
   const lo = ceil(Math.max(now, t.notBefore ?? now));
   let hi = t.deadline === undefined ? now + (p.soon ? 2 : 7) * DAY : Math.min(t.deadline + 3 * DAY, now + 120 * DAY);
   if (hi <= lo) hi = lo + 3 * DAY;
+  // a repeat's occurrence stays on its own day: the next day has its own
+  if (t.rrule && t.deadline !== undefined) hi = Math.min(hi, t.deadline);
   // The whole task ends by notAfter; a window already gone is dropped, so the task takes the next free slot, not a forced one at `now`.
   if (t.notAfter !== undefined && t.notAfter - dur(p) + 1 > lo) hi = Math.min(hi, t.notAfter - dur(p) + 1);
   const out: number[] = [];

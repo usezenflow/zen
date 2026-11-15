@@ -18,7 +18,8 @@ describe("split and deadline", () => {
   it("splits effort over 90 into sittings of at most 90", () => {
     expect(split(60)).toEqual([60]);
     expect(split(240)).toEqual([120, 120]);
-    expect(split(150)).toEqual([75, 75]);
+    expect(split(150)).toEqual([90, 60]); // half hours, never 75s or 45s
+    expect(split(135, 60)).toEqual([60, 60, 30]);
     expect(split(120)).toEqual([120]);
   });
 
@@ -225,6 +226,27 @@ describe("first move, maxSitting, typeOf, alt", () => {
     expect(lone.split).toHaveLength(0);
     const p = lone.placed.find((x) => x.id === "p")!;
     expect(p.end - p.start).toBeGreaterThan(45 * MIN);
+  });
+
+  it("a parent whose open sittings were dropped (resized) splits what is left again, with new ids", () => {
+    const p = task("p", { effort: 180, maxSitting: 60, deadline: at(5, 18) });
+    const k = (n: number, o: Partial<Task>) => task(`p#${n}`, { parentId: "p", effort: 45, ...o });
+    const { diff } = plan([p, k(1, { doneAt: now - HOUR }), k(2, { deletedAt: now }), k(3, { deletedAt: now })], [], newModel(now), now);
+    expect(diff.split).toEqual([{ parentId: "p", ids: ["p#4", "p#5", "p#6"] }]); // 135 left: 60, 60, 30
+    const sizes = diff.placed.filter((x) => x.id.startsWith("p#")).map((x) => (x.end - x.start) / MIN).sort((a, b) => b - a);
+    expect(sizes).toEqual([60, 60, 30]);
+    // a pinned open sitting is busy time already: nothing new
+    expect(plan([p, k(1, { pinned: true, start: at(1, 9), end: at(1, 10) })], [], newModel(now), now).diff.split).toEqual([]);
+  });
+
+  it("a slot freed by a task done early is free for others", () => {
+    const done = task("d", { start: at(0, 9), end: at(0, 12), doneAt: now, pinned: true, deadline: at(0, 23) });
+    const busy = Array.from({ length: 24 }, (_, h) => h).filter((h) => h < 9 || h >= 12).map((h) => ({ start: at(0, h), end: at(0, h + 1), title: "x" }));
+    const busyLater = Array.from({ length: 6 }, (_, d) => ({ start: at(d + 1, 0), end: at(d + 2, 0), title: "x" }));
+    const { diff } = plan([done, task("n", { effort: 60, deadline: at(0, 23) })], [...busy, ...busyLater], newModel(now), now);
+    const n = diff.placed.find((x) => x.id === "n")!;
+    expect(n.start).toBeGreaterThanOrEqual(at(0, 9));
+    expect(n.end).toBeLessThanOrEqual(at(0, 12));
   });
 
   it("typeOf", () => {
@@ -582,4 +604,17 @@ describe("hard constraints (review fixes)", () => {
     expect(Date.now() - t0).toBeLessThan(2500); // was ~9 s; ~0.4 s here, slack for slow CI
     tidy(diff.placed, busy);
   });
+});
+
+// The veil tells what the plan did: a new 30-day repeat is one line with every occurrence, not "Đặt … vào T2", "T3", "T4" then the rest at once,
+// and the read line names how far it planned, not "tuần này".
+it("a new repeat is narrated as one series line, and the read line reaches as far as the plan", () => {
+  const xs = Array.from({ length: 30 }, (_, i) => task(`r${i}`, { title: "Tập thể dục", kind: "exercise", rrule: "FREQ=DAILY", notBefore: at(i + 1, 0), deadline: at(i + 2, 0), tods: [[300, 660]] }));
+  const { diff } = plan(xs, [], newModel(now), now);
+  const series = diff.steps!.filter((s) => s.key === "series");
+  expect(series).toHaveLength(1);
+  expect(series[0].ids).toHaveLength(diff.placed.length);
+  expect(diff.steps!.some((s) => s.key === "place")).toBe(false);
+  expect(diff.steps![0].vars.what).toMatch(/^đến \d+\/\d+$/);
+  expect(stepText(series[0])).toMatch(/^Xếp \d+ buổi Tập thể dục, (T\d|CN) \d+\/\d+ - (T\d|CN) \d+\/\d+$/);
 });

@@ -3,8 +3,8 @@ import { DAY, HOUR, I_AFTER, I_ENERGY, I_SIM, KINDS, MIN, type FeatCtx, cdist, d
 import { effort, neighbors, peakHour, slipOf } from "./habits";
 import { ALPHA, D, LAMBDA, N0, type Primed, decayArms, prepare, primeBatch, ucb, ucbAt, update } from "./linucb";
 import { type Model, newModel } from "./model";
-import { type Busy, type End, type Util, SLOT, STEP, awake, cells, fixedHours, gap, solve } from "./place";
-import { day, when } from "../lib/when";
+import { type Busy, type End, type Util, SLOT, STEP, awake, cells, dayGone, fixedHours, gap, solve } from "./place";
+import { day, dayLabel, when } from "../lib/when";
 import { split } from "./split";
 import { type Piece, bell, dur, lateH, moveCost, startValue } from "./value";
 
@@ -53,8 +53,10 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
 
   const kids = new Map<string, Task[]>();
   for (const t of flex) if (t.parentId) (kids.get(t.parentId) ?? kids.set(t.parentId, []).get(t.parentId)!).push(t);
-  // A parent that has sittings (any: done, deleted or pinned too) is never split again: new ids would land on the old ones.
-  const hasKids = new Set(tasks.filter((t) => t.parentId).map((t) => t.parentId!));
+  // Every sitting a parent ever had (done, deleted, pinned too): its open ones are placed, never split again.
+  const ever = new Map<string, Task[]>();
+  for (const t of tasks) if (t.parentId) (ever.get(t.parentId) ?? ever.set(t.parentId, []).get(t.parentId)!).push(t);
+  const ix = (t: Task) => Number(t.id.slice(t.id.lastIndexOf("#") + 1)) || 0; // "p#10" after "p#9", not between 1 and 2
   const pieces: Piece[] = [];
   const splits: Diff["split"] = [];
   const mk = (task: Task, eff: number, k: number, n: number, prior?: number, missed?: number): Piece => ({
@@ -64,22 +66,27 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
   const lost = (t: Task) => (t.start !== undefined && t.end !== undefined && t.end <= now ? t.start : undefined);
   for (const t of flex) {
     if (t.parentId) continue;
-    if (t.rrule && t.deadline !== undefined && t.deadline <= now) continue; // a past day of a repeating task stays missed; the next day has its own
-    const sibs = kids.get(t.id) ?? (hasKids.has(t.id) ? [] : undefined);
+    if (dayGone(t, now)) continue; // a past day of a repeating task stays missed; the next day has its own
+    const sibs = kids.get(t.id), old = ever.get(t.id);
     if (sibs) {
-      sibs.sort((a, b) => (a.id < b.id ? -1 : 1)).forEach((c, i) => pieces.push(mk(c, round15(c.effort), i + 1, sibs.length, c.start, lost(c))));
+      sibs.sort((a, b) => ix(a) - ix(b)).forEach((c, i) => pieces.push(mk(c, round15(c.effort), i + 1, sibs.length, c.start, lost(c))));
       continue;
     }
-    let eff = round15(effort(t, m));
+    // No open sitting left yet not done: its sittings were dropped to resize it (materialize). Split what is left again, with new ids.
+    if (old?.some((c) => !c.doneAt && !c.deletedAt)) continue; // pinned or running: already busy time
+    const done = old?.filter((c) => c.doneAt) ?? [];
+    const left = effort(t, m) - done.reduce((a, c) => a + c.effort, 0);
+    if (old && left <= 0) continue;
+    let eff = round15(left);
     let cap = t.maxSitting ?? 120;
     // A tight deadline gets fewer sittings, one per whole day left (under a day: one), not a full set crammed in.
     // The total shrinks a little with them (halfway to proportional), so a lone sitting runs long but not the whole job.
     const natural = Math.ceil(eff / cap), room = t.deadline === undefined || t.maxSitting === undefined ? natural : Math.max(1, Math.floor((t.deadline - now) / DAY));
     if (natural > room) { eff = round15((eff * (natural + room)) / (2 * natural)); cap = round15(eff / room); }
-    if (eff > cap) {
-      const sizes = split(eff, cap);
-      const ids = sizes.map((_, i) => `${t.id}#${i + 1}`);
-      sizes.forEach((s, i) => pieces.push(mk({ ...t, id: ids[i], parentId: t.id, effort: s, start: undefined, end: undefined }, s, i + 1, sizes.length, undefined, i ? undefined : lost(t))));
+    if (eff > cap || old) {
+      const sizes = split(eff, cap), from = old ? Math.max(...old.map(ix)) : 0, d = done.length;
+      const ids = sizes.map((_, i) => `${t.id}#${from + i + 1}`);
+      sizes.forEach((s, i) => pieces.push(mk({ ...t, id: ids[i], parentId: t.id, effort: s, start: undefined, end: undefined }, s, d + i + 1, d + sizes.length, undefined, i ? undefined : lost(t))));
       splits.push({ parentId: t.id, ids });
     } else pieces.push(mk(t, eff, 1, 1, t.start, lost(t)));
   }
@@ -262,7 +269,7 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
     const r = c === undefined ? { why: [guessOf(p)], explore: false } : whyOf(p, s, c);
     if (p.task.notAfter !== undefined) r.why = [{ key: "said", w: 1 } as Reason, ...r.why].slice(0, 4);
     if (p.missed !== undefined) {
-      r.why.unshift({ key: "missed", w: 1, vars: { time: when(p.missed, now).slice(-5) } }); r.why = r.why.slice(0, 4); missed.push(p);
+      r.why.unshift({ key: "missed", w: 1, vars: { time: when(p.missed, now).split(" ").pop()! } }); r.why = r.why.slice(0, 4); missed.push(p);
       const old = m.placed[p.id]; // the hour it was placed on did not work out
       if (old) update(m.arms[old.arm], old.x, -0.4);
       if (p.task.vec) { m.hist.push({ vec: Array.from(p.task.vec), hour: hourOf(old?.start ?? p.missed), r: -1, at: now }); m.hist = m.hist.slice(-300); }
@@ -292,7 +299,9 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
   };
 
   const byId = new Map(pieces.map((p) => [p.id, p]));
-  const steps: Step[] = [{ key: "read", vars: { what: "tuần này" } }];
+  // What was read: this week, or as far as the plan reached ("đến 14/3" for a 120-day series)
+  const far = Math.max(now, ...diff.placed.map((pl) => pl.start)), mon = dayStart(now) - ((new Date(now).getDay() + 6) % 7) * DAY;
+  const steps: Step[] = [{ key: "read", vars: { what: far < mon + 7 * DAY ? "tuần này" : `đến ${dayLabel(far).slice(4)}` } }];
   const row = (p: Piece) => (p.id.includes("#") ? p.task.parentId! : p.id);
   const said = new Set<string>(), line = (key: "place" | "move", pl: Placement) => {
     const p = byId.get(pl.id)!, id = row(p);
@@ -300,7 +309,20 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
     said.add(id);
     steps.push({ key, id, vars: { title: p.task.title, time: when(pl.start, now) } });
   };
-  for (const pl of diff.placed) if (pl.from === undefined) line("place", pl);
+  // A new repeat is one line with all its occurrences, not "Đặt … vào T2", "… T3", "… T4" and then the rest at once
+  const series = new Map<string, Placement[]>();
+  for (const pl of diff.placed) {
+    if (pl.from !== undefined) continue;
+    const t = byId.get(pl.id)!.task;
+    if (t.rrule && !t.parentId && byId.get(pl.id)!.missed === undefined) { const k = `${t.rrule}|${t.title}`; series.set(k, [...(series.get(k) ?? []), pl]); }
+    else line("place", pl);
+  }
+  for (const pls of series.values()) {
+    if (pls.length < 2) { line("place", pls[0]); continue; }
+    const xs = [...pls].sort((a, b) => a.start - b.start);
+    for (const x of xs) said.add(x.id);
+    steps.push({ key: "series", id: xs[0].id, ids: xs.map((x) => x.id), vars: { title: byId.get(xs[0].id)!.task.title, n: xs.length, from: dayLabel(xs[0].start).replace(",", ""), to: dayLabel(xs.at(-1)!.start).replace(",", "") } });
+  }
   for (const pl of diff.placed) if (pl.from !== undefined) line("move", pl);
   for (const e of solved.log) if (e.kind === "day" && e.day !== undefined) steps.push({ key: "lighten", vars: { day: day(e.day, now), h: Math.round(fixedHours(allBusy, e.day) + pieces.reduce((n, q) => (dayStart(at(q)) === e.day ? n + dur(q) / HOUR : n), 0)) } });
   for (const id of used) steps.push({ key: "rule", vars: { text: rules.find((r) => r.id === id)!.text } });

@@ -47,7 +47,7 @@ interface Win { op: "range" | "after" | "before" | "part" | "bare"; from: number
 interface Bits { days: number[]; every: boolean; win?: Win; kinds: Kind[] }
 
 const pad = (n: number) => String(n).padStart(2, "0");
-const hm = (m: number) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+const hm = (m: number) => `${Math.floor(m / 60)}:${pad(m % 60)}`;
 const dayOf = (w: string) => DAYS.slice(2).find(([re]) => re.test(w))?.[1][0];
 
 /** Minutes after midnight; a part of day (said with the clock, else anywhere in the clause) makes 9 into 21.
@@ -73,7 +73,7 @@ function bits(s: string): Bits {
   let win: Win | undefined;
   const r = RANGE.exec(s);
   const c = [...s.matchAll(CLOCK)].filter((m) => /giờ|h|g|:/.test(m[0]) || /(?:sau|trước)\s+\d/.test(s));
-  if (r) { const from = clock(r[1], r[2], r[3], pm), to = clock(r[4], r[5], r[6] ?? r[3], pm); win = { op: "range", from, to, label: `${hm(from)}–${hm(to)}` }; }
+  if (r) { const from = clock(r[1], r[2], r[3], pm), to = clock(r[4], r[5], r[6] ?? r[3], pm); win = { op: "range", from, to, label: `${hm(from)} - ${hm(to)}` }; }
   else if (c.length && /sau\s+\d/.test(s)) { const at = clock(c[0][1], c[0][2], c[0][3], pm), from = at % 1440; win = { op: "after", from, to: from < EARLY ? EARLY : 1440, label: `sau ${hm(from)}` }; }
   else if (c.length && /trước\s+\d/.test(s)) { const to = clock(c[0][1], c[0][2], c[0][3], pm); win = { op: "before", from: 0, to, label: `trước ${hm(to)}` }; }
   else if (c.length) { const at = clock(c[0][1], c[0][2], c[0][3], pm); win = { op: "bare", from: at, to: at, label: hm(at) }; }
@@ -198,7 +198,7 @@ export function parseRules(said: string): RuleDraft[] {
     if (cut && from < to) {
       // "tối nào cũng trống trừ 8 đến 9 giờ": an hour said without its part takes the window's ("8" in the evening is 20)
       const shift = cut.to <= from && cut.from + 720 >= from ? 720 : 0, a = cut.from + shift, b = cut.to + shift;
-      label = `${label || "cả ngày"} trừ ${hm(a)}–${hm(b)}`;
+      label = `${label || "cả ngày"} trừ ${hm(a)} - ${hm(b)}`;
       for (const [x, y] of [[from, Math.min(to, a)], [Math.max(from, b), to]]) if (x < y) { const d = { text: "", days, from: x, to: y, kinds }; d.text = textOf(d, label, only); out.push(d); }
       continue;
     }

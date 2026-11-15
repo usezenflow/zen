@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react-native";
 import { StyleSheet } from "react-native";
-import { MenuPanel, RowMenu } from "./rowmenu";
+import { MenuPanel, RowMenu, menuTop } from "./rowmenu";
 
 jest.mock("expo-blur", () => ({ BlurView: () => null }));
 
@@ -29,4 +29,13 @@ it("shows destructive items in red, others in ink, each as a menu item", async (
 it("an empty list renders an empty panel", async () => {
   await render(<MenuPanel items={[]} onPick={jest.fn()} />);
   expect(screen.queryAllByRole("menuitem")).toHaveLength(0);
+});
+
+// A 844pt screen, 47 inset on top, 34 below, the mic's 90: the menu goes under the row while it fits, else over it, never on it.
+it("puts the menu under the row, or over it near the bottom, never on the row", () => {
+  expect(menuTop(260, 200, 3, 844, 47, 34)).toBe(264); // room below
+  const nearBottom = menuTop(700, 640, 3, 844, 47, 34);
+  expect(nearBottom + 151).toBeLessThanOrEqual(640); // its whole height above the row's top
+  expect(nearBottom).toBe(640 - 4 - 151);
+  expect(menuTop(160, 100, 12, 844, 47, 34)).toBe(164); // no room either way: under, as before
 });

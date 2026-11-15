@@ -166,8 +166,7 @@ export default function Detail() {
       router.back();
     }) }] : []),
   ];
-  const mins = task.deadline || task.forId || task.rrule ? `, ${t("minutes", { n: task.effort })}` : "";
-  const hm = (ts: number) => at(ts).slice(-5);
+  const hm = (ts: number) => at(ts).split(" ").pop()!;
   const lines: React.ReactNode[] = [];
   if (task.fixed && task.start !== undefined) {
     lines.push(<Meta key="t" icon="clock" text={task.end !== undefined && task.fixed !== "exam" ? t("toEnd", { t: at(task.start), e: startDay(task.end - 1) === startDay(task.start) ? hm(task.end) : at(task.end) }) : at(task.start)} onPress={openTime} />);
@@ -183,7 +182,8 @@ export default function Detail() {
       </EdLine>
     ) : <Meta key="d" icon="hourglass" tone="red" text={t("dueAt", { t: at(task.deadline!) })} onPress={openDue} />);
     // The time is always shown: a split task's next open sitting (its sittings listed under "Các buổi"), else "no free slot" (views.html "Detail, no free time").
-    if (tt?.start !== undefined) lines.push(<Meta key="t" icon="clock" text={tt.rrule ? `${hm(tt.start)}${mins}` : `${t("planAt", { t: at(tt.start) })}${split ? `, ${t("minutes", { n: tt.effort })}` : mins}`} onPress={openTime} />);
+    // start - end, not start and a length: "Làm lúc T2 9:00 - 10:00"; a repeat drops the day (its repeat line says which days)
+    if (tt?.start !== undefined) { const span = t("toEnd", { t: tt.rrule ? hm(tt.start) : at(tt.start), e: hm(tt.end ?? tt.start + tt.effort * 60_000) }); lines.push(<Meta key="t" icon="clock" text={tt.rrule ? span : t("planAt", { t: span })} onPress={openTime} />); }
     else if (tt && !task.doneAt) lines.push(<Meta key="t" icon="clock" tone="red" text={t("noSlot")} onPress={openTime} />);
   }
   // The repeat sits right under the time (views.html "Detail, repeating"); lectures have none, the timetable is the repeat.
@@ -261,6 +261,25 @@ export default function Detail() {
           </View>
           <TextInput value={title} onChangeText={setTitle} selectionColor={th.seal} cursorColor={th.seal} onEndEditing={submitTitle} returnKeyType="done" submitBehavior="blurAndSubmit" multiline style={[s.h, { color: th.ink }]} />
           {lines.length > 0 && <View style={s.meta}>{lines}</View>}
+          {/* prep.html "Các buổi": every sitting with its day, step and length; done ones struck, this one bold. Only for two or more; above the LMS content, each row opens its sitting. */}
+          {sits.length > 1 && (
+            <View style={s.why}>
+              <Text style={[s.lab, { color: th.muted }]}>{t("sittings")}</Text>
+              <View style={{ marginTop: 6 }}>
+                {sits.map((k) => {
+                  const done = !!k.doneAt, on = k.id === me, dim = { color: th.muted, textDecorationLine: done ? "line-through" : "none" } as const;
+                  return (
+                    // push, not replace: back returns to this one
+                    <Tap key={k.id} variant="row" disabled={k.id === task.id} onPress={() => router.push(`/task/${k.id}`)} accessibilityRole="button" style={s.si}>
+                      <Text style={[s.sd, dim, on && !done && { color: th.ink, fontFamily: ff("600") }]}>{k.start !== undefined ? day(k.start, now) : "—"}</Text>
+                      <Text style={[s.sp, { color: th.ink }, done && dim, on && !done && { fontFamily: ff("700") }]} numberOfLines={1}>{k.title}</Text>
+                      <Text style={[s.sm, { color: th.muted }]}>{t("minutes", { n: k.effort })}</Text>
+                    </Tap>
+                  );
+                })}
+              </View>
+            </View>
+          )}
           {!!task.content?.trim() && (
             <View style={[s.lms, { borderColor: th.line }]}>
               <Text style={[s.lab, { color: th.muted, marginBottom: 6 }]}>{t("lmsContent")}</Text>
@@ -286,24 +305,6 @@ export default function Detail() {
                   </View>
                 </>
               )}
-            </View>
-          )}
-          {/* prep.html "Các buổi": every sitting with its day, step and length; done ones struck, this one bold. Only for two or more. */}
-          {sits.length > 1 && (
-            <View style={s.why}>
-              <Text style={[s.lab, { color: th.muted }]}>{t("sittings")}</Text>
-              <View style={{ marginTop: 6 }}>
-                {sits.map((k) => {
-                  const done = !!k.doneAt, on = k.id === me, dim = { color: th.muted, textDecorationLine: done ? "line-through" : "none" } as const;
-                  return (
-                    <View key={k.id} style={s.si}>
-                      <Text style={[s.sd, dim, on && !done && { color: th.ink, fontFamily: ff("600") }]}>{k.start !== undefined ? day(k.start, now) : "—"}</Text>
-                      <Text style={[s.sp, { color: th.ink }, done && dim, on && !done && { fontFamily: ff("700") }]} numberOfLines={1}>{k.title}</Text>
-                      <Text style={[s.sm, { color: th.muted }]}>{t("minutes", { n: k.effort })}</Text>
-                    </View>
-                  );
-                })}
-              </View>
             </View>
           )}
           <TextInput value={note} onChangeText={typing} selectionColor={th.seal} cursorColor={th.seal} onBlur={saveNote} multiline scrollEnabled={false} placeholder={t("addNote")} placeholderTextColor={th.muted}

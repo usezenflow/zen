@@ -20,7 +20,7 @@ it("try2: a hand-in on a weekday is due that day, flexible, no repeat", () => {
   expect(pick(t("try2"))).toEqual([{ title: "Nộp báo cáo nhóm", when: undefined, deadline: "2026-11-20T23:59:00", notAfter: undefined, fixed: undefined, repeat: undefined }]);
 });
 it("try3: 'tối nào cũng' is every evening, flexible, from tonight", () => {
-  expect(pick(t("try3"))).toEqual([{ title: "Đọc sách", when: "2026-11-14T20:00:00", deadline: "2026-11-14T22:00:00", notAfter: "2026-11-14T22:00:00", fixed: undefined, repeat: "FREQ=DAILY" }]);
+  expect(pick(t("try3"))).toEqual([{ title: "Đọc sách", when: "2026-11-14T20:00:00", deadline: undefined, notAfter: "2026-11-14T22:00:00", fixed: undefined, repeat: "FREQ=DAILY" }]);
 });
 it("the widgets show the same three lines", () => {
   for (const f of ["ZenToday.ios.tsx", "ZenToday.android.tsx"]) {

@@ -109,7 +109,7 @@
 {"name": "trong ngay: the rest of today", "text": "làm bài trong ngày", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"deadline": "2026-11-08 23:59"}]}
 {"name": "noi trong hom nay: the rest of today", "text": "nộp báo cáo nội trong hôm nay", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"deadline": "2026-11-08 23:59"}]}
 {"name": "den nay: tonight is the night part of today", "text": "làm bài tập đêm nay", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"type": "ASSIGNMENT", "deadline": "2026-11-08 23:59"}]}
-{"name": "sang nay: a morning already past rolls to tomorrow", "text": "làm slide sáng nay", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"deadline": "2026-11-09 12:00"}]}
+{"name": "sang nay: a morning already past rolls to tomorrow", "text": "làm slide sáng nay", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"deadline": "2026-11-09 11:00"}]}
 {"name": "2 ngay nua: a count of days from today", "text": "nộp báo cáo 2 ngày nữa", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"deadline": "2026-11-10 23:59"}]}
 {"name": "3 bua nua: a count of days from today", "text": "nộp báo cáo 3 bữa nữa", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"deadline": "2026-11-11 23:59"}]}
 {"name": "may hom nua: three days from today", "text": "nộp báo cáo mấy hôm nữa", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"deadline": "2026-11-11 23:59"}]}
@@ -120,7 +120,7 @@
 {"name": "thu 6 nay: the coming Friday when this week's has passed", "text": "nộp báo cáo thứ 6 này", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"deadline": "2026-11-13 23:59"}]}
 {"name": "thu 6 toi: next week's Friday without tuần", "text": "nộp báo cáo thứ 6 tới", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"deadline": "2026-11-13 23:59"}]}
 {"name": "thu 6 toi as evening: tối is not next week", "text": "nộp báo cáo thứ 6 tối", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"deadline": "2026-11-13 22:00"}]}
-{"name": "trong sang mai: a span of the morning", "text": "soạn slide trong sáng mai", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"notBefore": "2026-11-09 09:00", "deadline": "2026-11-09 12:00", "windows": ["MORNING"]}]}
+{"name": "trong sang mai: a span of the morning", "text": "soạn slide trong sáng mai", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"notBefore": "2026-11-09 09:00", "deadline": "2026-11-09 11:00", "windows": ["MORNING"]}]}
 {"name": "sang som: early morning ends at 8", "text": "làm slide sáng sớm mai", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"deadline": "2026-11-09 08:00", "windows": ["MORNING"]}]}
 {"name": "trc rang sang: before early morning", "text": "làm slide trc rạng sáng mai", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"deadline": "2026-11-09 06:00"}]}
 {"name": "trc chieu toi: before the late afternoon", "text": "làm slide trc chiều tối mai", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"deadline": "2026-11-09 17:00"}]}
@@ -128,7 +128,7 @@
 {"name": "cuoi gio chieu: late afternoon ends at 18", "text": "làm slide cuối giờ chiều mai", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"deadline": "2026-11-09 18:00", "windows": ["AFTERNOON"]}]}
 {"name": "trc khuya: before late night", "text": "làm slide trc khuya mai", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"deadline": "2026-11-09 23:00", "noWindow": true}]}
 {"name": "nua dem: the night ends at 23:59", "text": "làm slide nửa đêm mai", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"deadline": "2026-11-09 23:59", "windows": ["MIDNIGHT"]}]}
-{"name": "buoi trua: the noon part", "text": "làm slide buổi trưa mai", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"deadline": "2026-11-09 14:00", "windows": ["NOON"]}]}
+{"name": "buoi trua: the noon part", "text": "làm slide buổi trưa mai", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"deadline": "2026-11-09 13:00", "windows": ["NOON"]}]}
 {"name": "dung 9h: an exact clock is a fixed event", "text": "làm bài đúng 9h mai", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"type": "BUSY", "title": "lam bai", "startsAt": "2026-11-09 09:00"}]}
 {"name": "0h: midnight ends the day", "text": "nộp báo cáo 0h mai", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"deadline": "2026-11-10 00:00"}]}
 {"name": "12h dem: midnight of the night", "text": "nộp báo cáo 12h đêm mai", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"deadline": "2026-11-10 00:00"}]}
@@ -137,7 +137,7 @@
 {"name": "kip: the cue is before", "text": "nộp báo cáo kịp chiều mai", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"deadline": "2026-11-09 13:00"}]}
 {"name": "muon nhat: the cue is before", "text": "nộp báo cáo muộn nhất sáng mai", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"deadline": "2026-11-09 07:00", "title": "bao cao"}]}
 {"name": "tre nhat: the cue is before", "text": "nộp báo cáo trễ nhất tối mai", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"deadline": "2026-11-09 18:00", "title": "bao cao"}]}
-{"name": "han chot: the cue is the end of the part", "text": "nộp báo cáo hạn chót trưa mai", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"deadline": "2026-11-09 14:00"}]}
+{"name": "han chot: the cue is the end of the part", "text": "nộp báo cáo hạn chót trưa mai", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"deadline": "2026-11-09 13:00"}]}
 {"name": "tuan nay: a week word alone is this week's Sunday", "text": "nộp báo cáo tuần này", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"deadline": "2026-11-08 23:59"}]}
 {"name": "trong tuan sau: the whole next week", "text": "viết báo cáo trong tuần sau", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"notBefore": "2026-11-09 00:00", "deadline": "2026-11-15 23:59"}]}
 {"name": "tuan toi: the whole next week", "text": "làm slide tuần tới", "ref": [2026, 11, 8, 19, 9], "source": "typed", "count": 1, "items": [{"notBefore": "2026-11-09 00:00", "deadline": "2026-11-15 23:59"}]}
@@ -934,7 +934,7 @@
 {"name": "implied, spoken number with a typo", "text": "doc ba chuong sach", "ref": [2026, 11, 12, 9, 0], "source": "typed", "count": 1, "items": [{"type": "PLAN", "durationMinutes": 180}]}
 {"name": "implied, false positive: làm with a count is the verb", "text": "làm bài tập", "ref": [2026, 11, 12, 9, 0], "source": "typed", "count": 1, "items": [{"type": "ASSIGNMENT", "title": "lam bai tap"}]}
 {"name": "a length in its own comma piece: 60 phút with three parts of the day ends Sunday night", "text": "Cafe với Quang, 60 phút, sáng/chiều/tối cn", "ref": [2026, 11, 12, 10, 41], "source": "typed", "count": 1, "items": [{"type": "PLAN", "title": "cafe", "durationMinutes": 60, "windows": ["MORNING", "AFTERNOON", "NIGHT"], "deadline": "2026-11-15 23:59"}]}
-{"name": "a length in its own comma piece: 90 phút with one part of the day keeps its clock", "text": "Học bài, 90 phút, sáng cn", "ref": [2026, 11, 12, 10, 41], "source": "typed", "count": 1, "items": [{"type": "PLAN", "title": "hoc bai", "durationMinutes": 90, "deadline": "2026-11-15 12:00"}]}
+{"name": "a length in its own comma piece: 90 phút with one part of the day keeps its clock", "text": "Học bài, 90 phút, sáng cn", "ref": [2026, 11, 12, 10, 41], "source": "typed", "count": 1, "items": [{"type": "PLAN", "title": "hoc bai", "durationMinutes": 90, "deadline": "2026-11-15 11:00"}]}
 {"name": "comma piece: a lone length sizes the undated task", "text": "Học bài, 90 phút", "ref": [2026, 11, 12, 10, 41], "source": "typed", "count": 1, "items": [{"type": "PLAN", "title": "hoc bai", "durationMinutes": 90}]}
 {"name": "comma piece: a length stays with its own task", "text": "Học bài, đọc sách 30p", "ref": [2026, 11, 12, 10, 41], "source": "typed", "count": 2, "items": [{"title": "hoc bai", "durationMinutes": 60}, {"title": "doc sach", "durationMinutes": 30}]}
 {"name": "leading day carries to the next clause", "text": "mai test feature mới 1.5h, đọc code zf 2 tiếng", "ref": [2026, 11, 12, 10, 41], "source": "typed", "count": 2, "items": [{"title": "test feature", "deadlineDay": "2026-11-13", "durationMinutes": 90}, {"title": "doc code zf", "deadlineDay": "2026-11-13", "durationMinutes": 120}]}

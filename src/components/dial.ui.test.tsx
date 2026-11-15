@@ -29,6 +29,18 @@ it("leaving 23 from :59 lands on :45, and 23:59 can be picked again", async () =
   expect(onChange).toHaveBeenLastCalledWith(at(23, 59));
 });
 
+beforeEach(() => jest.spyOn(Date, "now").mockReturnValue(new Date(2026, 10, 15, 9).getTime())); // today: Sun 15/11
+afterEach(() => jest.restoreAllMocks());
+
+it("days before today can't be picked, today can", async () => {
+  const onChange = jest.fn();
+  await drawCal(at(12, 0), undefined, onChange);
+  await fireEvent.press(screen.getByLabelText("14/11"));
+  expect(onChange).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByLabelText("15/11"));
+  expect(onChange).toHaveBeenCalledWith(new Date(2026, 10, 15, 12, 0));
+});
+
 const drawCal = (value: Date, min?: Date, onChange = jest.fn(), onClose = jest.fn()) =>
   render(<View><DateDrop open anchor={A} value={value} min={min} side="right" onChange={onChange} onClose={onClose} /></View>);
 
@@ -51,4 +63,53 @@ it("days before the start can't be picked; the arrows move the month", async () 
   expect(screen.getByText("Tháng 12 2026")).toBeOnTheScreen();
   await fireEvent.press(screen.getByLabelText("31/12"));
   expect(onChange).toHaveBeenCalledWith(new Date(2026, 11, 31, 12, 0));
+});
+
+it("time presets pick and close: a due offers 23:59 and 00:00, a start 08:00, 14:00, 20:00", async () => {
+  const onChange = jest.fn(), onClose = jest.fn();
+  await render(<View><TimeDial open anchor={A} due value={at(17, 30)} onChange={onChange} onClose={onClose} /></View>);
+  await fireEvent.press(screen.getByLabelText("0:00"));
+  expect(onChange).toHaveBeenCalledWith(at(0, 0));
+  expect(onClose).toHaveBeenCalled();
+  await fireEvent.press(screen.getByLabelText("23:59"));
+  expect(onChange).toHaveBeenLastCalledWith(at(23, 59));
+  await draw(at(9, 0), false, onChange);
+  await fireEvent.press(screen.getByLabelText("20:00"));
+  expect(onChange).toHaveBeenLastCalledWith(at(20, 0));
+  expect(screen.queryByLabelText("23:59")).toBeNull();
+});
+
+it("day presets: today, tomorrow, a week on, the time kept; one before `min` is off", async () => {
+  const onChange = jest.fn();
+  await drawCal(at(17, 30), undefined, onChange);
+  await fireEvent.press(screen.getByLabelText("Ngày mai"));
+  expect(onChange).toHaveBeenLastCalledWith(new Date(2026, 10, 16, 17, 30));
+  await fireEvent.press(screen.getByLabelText("Tuần sau"));
+  expect(onChange).toHaveBeenLastCalledWith(new Date(2026, 10, 22, 17, 30));
+  onChange.mockClear();
+  await drawCal(at(17, 30), new Date(2026, 10, 18), onChange);
+  await fireEvent.press(screen.getAllByLabelText("Hôm nay").at(-1)!);
+  expect(onChange).not.toHaveBeenCalled();
+});
+
+it("on today only now to midnight: no hour gone, the current hour from now, presets gone are off", async () => {
+  jest.spyOn(Date, "now").mockReturnValue(at(14, 7).getTime());
+  const onChange = jest.fn();
+  await draw(at(17, 30), false, onChange);
+  expect(screen.queryByText("13")).toBeNull();
+  expect(screen.getByText("14")).toBeOnTheScreen();
+  await settle(drums()[0], 0); // 14
+  expect(onChange).toHaveBeenLastCalledWith(at(14, 30));
+  expect(screen.queryByText("00")).toBeNull(); // 14:00 is gone; 14:15 on
+  onChange.mockClear();
+  await fireEvent.press(screen.getByLabelText("8:00"));
+  expect(onChange).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByLabelText("20:00"));
+  expect(onChange).toHaveBeenCalledWith(at(20, 0));
+});
+
+it("another day keeps the whole day", async () => {
+  jest.spyOn(Date, "now").mockReturnValue(at(14, 7).getTime());
+  await draw(new Date(2026, 10, 21, 9, 0), false);
+  expect(screen.getByText("08")).toBeOnTheScreen();
 });

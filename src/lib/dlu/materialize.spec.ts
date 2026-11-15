@@ -51,14 +51,31 @@ describe("materialize", () => {
 
   it("sizes an assignment by what it asks for and the marks of its course", () => {
     const size = (over: Partial<Fetched[number]>, mult?: (title: string) => number) => materialize([assign(over)] as Fetched, [], NOW, mult).upserts[0];
-    expect(size({})).toMatchObject({ title: "Bài tập", effort: 135, maxSitting: 45 });
+    expect(size({})).toMatchObject({ title: "Bài tập", effort: 120, maxSitting: 60 });
     expect(size({ description: "<p>Nộp <b>báo cáo</b> toàn văn</p>" }).effort).toBe(180);
     expect(size({ title: "Bài thực hành 3", lmsCourse: { lmsCourseId: 1, fullName: "Lập trình Web", shortName: null } }, (t) => (t.includes("Lập trình Web") ? 1.6 : 1)).effort).toBe(180);
   });
   it("sizes an assignment stored at the old 45 minutes, unless the student set its length", () => {
     const old = { ...stored(assign()), effort: 45 };
-    expect(materialize([assign()] as Fetched, [old], NOW).upserts[0].effort).toBe(135);
+    expect(materialize([assign()] as Fetched, [old], NOW).upserts[0].effort).toBe(120);
     expect(materialize([assign()] as Fetched, [{ ...old, userEdited: ["effort"] }], NOW).upserts).toEqual([]);
+  });
+  it("backfills an assignment stored in 45 min sittings: half hours, sittings up to an hour, open sittings dropped to split again", () => {
+    const old = { ...stored(assign()), effort: 135, maxSitting: 45 };
+    const kid = (id: string, over: Partial<Task> = {}): Task => ({ ...old, id, parentId: old.id, effort: 45, start: NOW + D, end: NOW + D + 45 * 60_000, ...over });
+    const tasks = [old, kid(`${old.id}#1`, { doneAt: NOW - H }), kid(`${old.id}#2`), kid(`${old.id}#3`)];
+    const none = Object.assign([], { failed: ["portal", "lms"] }) as unknown as Fetched; // the app-open backfill: no fetch
+    const { upserts, deletes } = materialize(none, tasks, NOW);
+    expect(upserts).toMatchObject([{ id: old.id, effort: 150, maxSitting: 60 }]); // 135 is not whole half hours
+    expect(deletes).toEqual([`${old.id}#2`, `${old.id}#3`]); // the done one stays
+    expect(materialize(none, [...upserts, ...tasks.slice(1).map((t) => (deletes.includes(t.id) ? { ...t, deletedAt: NOW } : t))], NOW)).toMatchObject({ upserts: [], deletes: [] }); // once
+    // with a fetch the merged task is resized, not doubled
+    const fetched = materialize([assign({ title: "Mới" })] as Fetched, tasks, NOW).upserts.filter((t) => t.id === old.id);
+    expect(fetched).toMatchObject([{ title: "Mới", effort: 150, maxSitting: 60 }]);
+    // only work still ahead: one already due keeps its sittings
+    expect(materialize(none, [{ ...old, deadline: NOW - H }, ...tasks.slice(1)], NOW)).toMatchObject({ upserts: [], deletes: [] });
+    // a length the student set stays
+    expect(materialize(none, [{ ...old, userEdited: ["effort"] }], NOW).upserts).toMatchObject([{ effort: 135, maxSitting: 60 }]);
   });
   it("updates the parent, not a sitting, and carries upstream changes to open sittings", () => {
     const parent = stored(assign());
@@ -174,7 +191,7 @@ describe("materialize", () => {
     it("adds one prep with a new exam, sized by the marks multiplier of its course", () => {
       const { upserts } = materialize([exam()] as Fetched, [], NOW, (title) => (title === exam().title ? 1.6 : 1));
       const prep = upserts.find((t) => t.id.startsWith("prep:"))!;
-      expect(prep).toMatchObject({ id: "prep:dlu:portal:exam:9", title: "Ôn thi", course: exam().title, effort: 180, maxSitting: 45, deadline: NOW + 5 * D });
+      expect(prep).toMatchObject({ id: "prep:dlu:portal:exam:9", title: "Ôn thi", course: exam().title, effort: 180, maxSitting: 60, deadline: NOW + 5 * D });
     });
     it("adds the prep for an exam stored before preps existed", () => {
       const { upserts } = materialize([exam()] as Fetched, [stored(exam())], NOW);
@@ -203,6 +220,15 @@ describe("materialize", () => {
       const { forId: _, ...legacy } = old;
       const tasks = withPrep().map((t) => (t.id === old.id ? legacy : t));
       expect(materialize([exam()] as Fetched, tasks, NOW).upserts.find((t) => t.id === old.id)?.forId).toBe("dlu:portal:exam:9");
+    });
+    it("backfills a prep stored in 45 min sittings and drops its open sittings", () => {
+      const [ex, prep] = withPrep();
+      const old = { ...prep, effort: 135, maxSitting: 45 }, kid = { ...old, id: `${prep.id}#1`, parentId: prep.id, effort: 45 };
+      const { upserts, deletes } = materialize([exam()] as Fetched, [ex, old, kid], NOW);
+      expect(upserts.find((t) => t.id === prep.id)).toMatchObject({ effort: prep.effort, maxSitting: 60 });
+      expect(deletes).toEqual([kid.id]);
+      expect(materialize([exam()] as Fetched, [ex, { ...old, effort: prep.effort }], NOW).upserts).toMatchObject([{ maxSitting: 60 }]); // same length, old sitting size
+      expect(materialize([] as unknown as Fetched, [{ ...ex, start: NOW - D, end: NOW - D + H, deadline: NOW - D }, old, kid], NOW, undefined).upserts.filter((t) => t.id === prep.id)).toEqual([]); // an exam already sat: left alone
     });
     it("resizes when the exam moves", () => {
       const { upserts } = materialize([exam(NOW + 6 * D)] as Fetched, withPrep(), NOW);

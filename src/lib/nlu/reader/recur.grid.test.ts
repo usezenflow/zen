@@ -60,7 +60,7 @@ function cases(): Case[] {
     }
   return out;
 }
-const strip = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").replace(/đ/g, "d").toLowerCase().trim();
+const strip = (s: string) => s.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").replace(/đ/g, "d").trim();
 
 function miss(c: Case): string | undefined {
   const all = read(c.said, { ref: REF, source: "typed" }).items.map(itemAction);
@@ -92,7 +92,7 @@ const CCLOCK: [string, string?, number?][] = [["", undefined], ["lúc 7h", "07:0
 const CFROM: [string, string?][] = [["", undefined], ["từ thứ 2 tuần sau", "2026-11-16"], ["từ 1/12", "2026-12-01"], ["bắt đầu từ ngày 1/12", "2026-12-01"]];
 const CUNTIL: [string, string?][] = [["", undefined], ["đến 20/12", "20261220"], ["đến hết tháng 12", "20261231"], ["tới ngày 31/12", "20261231"], ["trong 120 ngày", "120"]];
 const CEXTRA: [string, { loc?: string; eff?: number }][] = [["", {}], ["ở thư viện", { loc: "thư viện" }], ["mất 30 phút", { eff: 30 }]];
-const WINDOW: Record<string, [string, string]> = { sáng: ["05:00", "12:00"], chiều: ["12:00", "18:00"], tối: ["17:00", "23:59"] };
+const WINDOW: Record<string, [string, string]> = { sáng: ["05:00", "11:00"], chiều: ["13:00", "18:00"], tối: ["18:00", "22:00"] };
 const BY = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const dayAdd = (s: string, n: number) => iso(new Date(Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10) + n)));
@@ -250,7 +250,7 @@ it("a weekday list repeats only with a said repeat; alone it is one item per day
 
 // "sáng hoặc tối": one item that may run in either part (tods); "sáng và tối": one item per part.
 it("parts joined by hoặc are one item with both as options; joined by và, one item each", () => {
-  const MORNING: [number, number] = [300, 720], NIGHT: [number, number] = [1020, 1320], AFTERNOON: [number, number] = [720, 1020];
+  const MORNING: [number, number] = [300, 660], NIGHT: [number, number] = [1080, 1320], AFTERNOON: [number, number] = [780, 1080];
   const CASES: [string, [number, number][][], string | undefined][] = [
     ["Chạy bộ sáng hoặc tối mai", [[MORNING, NIGHT]], undefined],
     ["Mỗi ngày chạy bộ sáng hoặc tối", [[MORNING, NIGHT]], "FREQ=DAILY"],
@@ -290,4 +290,50 @@ it("an exam or a makeup class with no clock takes the first free usual start", (
   const two = read("Thi toán thứ 4, thi lý thứ 4", { ref: REF, source: "typed", calendar }).items.map(itemAction).filter((x) => x.fixed).map((x) => x.when);
   if (JSON.stringify(two) !== JSON.stringify(["2026-11-18T07:30:00", "2026-11-18T09:30:00"])) misses.push(`two exams | ${two.join(" ; ")}`);
   expect(misses).toEqual([]);
+});
+
+// "Tập thể dục mỗi buổi sáng": every morning, flexible inside the morning, and the morning's end is no deadline ("Hạn 12:00").
+// Every way of saying a part-of-day repeat, with and without tone marks, before and after the title, with and without a clock.
+it("recur grid: a part-of-day repeat is daily, kept in its part, and has no deadline", () => {
+  const SAY = [(p: string) => `mỗi ${p}`, (p: string) => `mỗi buổi ${p}`, (p: string) => `hàng ${p}`, (p: string) => `${p} nào cũng`, (p: string) => `buổi ${p} nào cũng`, (p: string) => `hằng buổi ${p}`];
+  const CK: Record<string, [string, string]> = { sáng: ["6h", "06:00"], chiều: ["5h", "17:00"], tối: ["9h", "21:00"] };
+  const misses: string[] = [];
+  for (const part of ["sáng", "chiều", "tối"]) for (const say of SAY) for (const t of ["Tập thể dục", "Đọc sách", "Chạy bộ"]) for (const ck of [false, true]) for (const plain of [false, true]) {
+    const p = say(part), c = ck ? ` ${CK[part][0]}` : "";
+    const said0 = [`${t} ${p}${c}`, `${p} ${t.toLowerCase()}${c}`];
+    for (const s0 of said0) {
+      const said = plain ? strip(s0) : s0;
+      const all = read(said, { ref: REF, source: "typed" }).items.map(itemAction);
+      const a = all[0];
+      const hm = a?.when?.slice(11, 16) ?? "";
+      const why =
+        all.length !== 1 ? "count"
+        : strip(a.title ?? "") !== strip(t) ? "title"
+        : a.repeat !== "FREQ=DAILY" ? "rule"
+        : a.deadline ? "deadline"
+        : !!a.fixed !== ck ? (ck ? "not-fixed" : "fixed")
+        : ck ? (hm !== CK[part][1] ? "clock" : undefined)
+        : hm < WINDOW[part][0] || hm > WINDOW[part][1] ? "part"
+        : undefined;
+      if (why) misses.push(`${why} | ${said} | ${all.map((x) => `${x.title} when=${x.when} dl=${x.deadline ?? ""} fx=${x.fixed ?? ""} rp=${x.repeat ?? ""}`).join(" ; ")}`);
+    }
+  }
+  expect(misses.slice(0, 15)).toEqual([]);
+});
+
+// "Tập thể dục mỗi sáng cuối tuần": weekend mornings, never every morning.
+it("recur grid: a part of the day on weekends is a weekend repeat in that part, no deadline", () => {
+  const SAY = [(p: string) => `mỗi ${p} cuối tuần`, (p: string) => `mỗi buổi ${p} cuối tuần`, (p: string) => `${p} cuối tuần nào cũng`, (p: string) => `mỗi cuối tuần buổi ${p}`, (p: string) => `hàng ${p} cuối tuần`,
+    (p: string) => `các buổi ${p} cuối tuần`, (p: string) => `mỗi ${p}, cuối tuần`, (p: string) => `vào ${p} cuối tuần hàng tuần`, (p: string) => `${p} thứ bảy chủ nhật hàng tuần`, (p: string) => `${p} thứ 7 và chủ nhật hàng tuần`, (p: string) => `mỗi ${p} thứ bảy và chủ nhật`];
+  const misses: string[] = [];
+  for (const part of ["sáng", "chiều", "tối"]) for (const say of SAY) for (const t of ["Tập thể dục", "Đọc sách", "Chạy bộ"]) for (const plain of [false, true])
+    for (const s0 of [`${t} ${say(part)}`, `${say(part)} ${t.toLowerCase()}`]) {
+      const said = plain ? strip(s0) : s0;
+      const all = read(said, { ref: REF, source: "typed" }).items.map(itemAction);
+      const a = all[0], hm = a?.when?.slice(11, 16) ?? "";
+      const why = all.length !== 1 ? "count" : strip(a.title ?? "") !== strip(t) ? "title" : a.repeat !== WE ? "rule" : a.deadline ? "deadline" : a.fixed ? "fixed"
+        : hm < WINDOW[part][0] || hm > WINDOW[part][1] ? "part" : undefined;
+      if (why) misses.push(`${why} | ${said} | ${all.map((x) => `${x.title} when=${x.when} dl=${x.deadline ?? ""} rp=${x.repeat ?? ""}`).join(" ; ")}`);
+    }
+  expect(misses.slice(0, 15)).toEqual([]);
 });

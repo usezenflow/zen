@@ -6,7 +6,7 @@ import { extractTextFromPage, getPageCount } from "expo-pdf-text-extract";
 import { extractTextFromImage } from "expo-text-extractor";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from "react";
-import { Appearance, AppState, Platform, StyleSheet, Text, View } from "react-native";
+import { Appearance, AppState, Platform, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
 import Reanimated, { interpolate, useAnimatedStyle, useSharedValue, withTiming, ZoomIn, ZoomOut } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
@@ -22,7 +22,7 @@ import { Hold, type Aside, type HoldState } from "@/components/hold";
 import type { Item } from "@/components/menu";
 import { Month } from "@/components/month";
 import { Brief, Live, NowCard, Steps, Story, Weekly, type Card } from "@/components/nowcard";
-import { RowMenu } from "@/components/rowmenu";
+import { RowMenu, menuTop } from "@/components/rowmenu";
 import { fadeIn, fadeOut, glide, popIn, settle, Tap, EASE } from "@/components/tap";
 import { Sweep, useSweep } from "@/components/sweep";
 import { Toast } from "@/components/toast";
@@ -54,7 +54,7 @@ const VIEWS: View_[] = ["day", "week", "month"];
 const ROW = new Set(["hour", "after", "similar", "kind", "energy", "weekend", "said", "pace", "rule", "pinned"]);
 type ToastState = { text: string; sub?: string; error?: boolean; action?: { label?: string; run: () => void }; alt?: { label: string; run: () => void } };
 
-const longDate = (ms: number) => { const d = new Date(ms); return `${d.getDate()} tháng ${d.getMonth() + 1}`; };
+const longDate = (ms: number) => { const d = new Date(ms); return `${d.getDate()}/${d.getMonth() + 1}`; };
 const dm = (ms: number) => { const d = new Date(ms); return `${d.getDate()}/${d.getMonth() + 1}`; };
 
 // One key per toast, not per text: a same-text toast after a swiped-away one must mount fresh, not inherit its off-screen pan.
@@ -67,6 +67,8 @@ export default function Home() {
   const insets = useSafeAreaInsets(), inset = insets.top;
   // The app draws under Android's nav bar (edge-to-edge): lift the dock above it. iOS's 93px mic centre already counts the home indicator.
   const navLift = Platform.OS === "android" ? insets.bottom : 0;
+  const win = useWindowDimensions();
+  const menuAt = (bottom: number, top: number, items: Item[]) => ({ top: menuTop(bottom, top, items.length, win.height, inset, insets.bottom), items });
   const [menu, setMenu] = useState<{ task: Task; top: number; items: Item[] } | undefined>();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [card, setCard] = useState<Card | undefined>();
@@ -175,8 +177,9 @@ export default function Home() {
     shuf.current = true;
     const fresh = new Map((await store.allTasks()).map((x) => [x.id, x]));
     // A step names the task; when it was split into sittings, its rows are the sittings (the parent only loses its time).
-    const rows = (tid?: string) => { const x = tid ? fresh.get(tid) : undefined; return x ? [x, ...[...fresh.values()].filter((c) => c.parentId === tid && !c.deletedAt)] : []; };
-    const firstAt = Math.min(...rows(steps.find((st) => id(st) && !old.some((o) => o.id === id(st)))?.id).flatMap((x) => x.start ?? []));
+    const one = (tid?: string) => { const x = tid ? fresh.get(tid) : undefined; return x ? [x, ...[...fresh.values()].filter((c) => c.parentId === tid && !c.deletedAt)] : []; };
+    const rows = (st?: Step) => (st?.ids ?? [st?.id]).flatMap(one); // a series line lands every occurrence at once
+    const firstAt = Math.min(...rows(steps.find((st) => id(st) && !old.some((o) => o.id === id(st)))).flatMap((x) => x.start ?? []));
     setTasks(old);
     if (Number.isFinite(firstAt)) setSel(startOfDay(firstAt));
     setShufOn(true);
@@ -185,7 +188,7 @@ export default function Home() {
       for (let i = 0; i < steps.length; i++) {
         await new Promise((ok) => setTimeout(ok, 350));
         setLines(steps.slice(0, i + 1).map(stepText));
-        const xs = rows(id(steps[i]));
+        const xs = rows(steps[i]);
         if (!xs.length) continue;
         setTasks((p) => [...p.filter((a) => !xs.some((x) => x.id === a.id)), ...xs]);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -532,8 +535,8 @@ export default function Home() {
     },
     onOpen: (x: Task) => router.push(`/task/${x.id}`),
     // Swipe right: a plain task is deleted at once; a series opens the scope dropdown under the row.
-    onSwipeDelete: (x: Task, bottom?: number) => (bottom === undefined ? del(x, "this") : setMenu({ task: x, top: bottom - inset + 4, items: seriesItems(x) })),
-    onHold: (x: Task, bottom: number) => setMenu({ task: x, top: bottom - inset + 4, items: itemsFor(x) }), lifted: menu?.task.id,
+    onSwipeDelete: (x: Task, bottom?: number, top = bottom) => (bottom === undefined ? del(x, "this") : setMenu({ task: x, ...menuAt(bottom, top!, seriesItems(x)) })),
+    onHold: (x: Task, bottom: number, top: number) => setMenu({ task: x, ...menuAt(bottom, top, itemsFor(x)) }), lifted: menu?.task.id,
   };
 
   const cardRef = useRef(card);

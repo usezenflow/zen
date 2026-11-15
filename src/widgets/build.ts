@@ -20,7 +20,7 @@ export function widgetData(tasks: Task[], now: number, art: WidgetData["art"], t
   const nextToday = nx && nx.start! < addDays(day, 1) ? nx : undefined;
   let next: WidgetData["next"];
   if (nextToday) {
-    // widgets.html at 14:20, next at 14:30: "10 phút / đến 14:30". Running, it counts to the end; upcoming, to the start.
+    // widgets.html at 14:20, next at 14:30: "10p / đến 14:30". Running, it counts to the end; upcoming, to the start.
     const s = nextToday.start!, e = nextToday.end!, going = s <= now, to = going ? e : s;
     const mins = Math.max(1, Math.round((to - now) / MIN)), left = t("nMin", { n: mins });
     next = {
@@ -50,7 +50,7 @@ export function widgetData(tasks: Task[], now: number, art: WidgetData["art"], t
   const ex = tasks.filter((x) => typeOf(x) === "exam" && !x.doneAt && !x.deletedAt && x.start !== undefined && x.start > now).sort((a, b) => a.start! - b.start!)[0];
   const exDays = ex && Math.round((startOfDay(ex.start!) - day) / DAY);
   return {
-    weekday: weekday(now), date: `${d.getDate()} tháng ${d.getMonth() + 1}`, short: `${short[(d.getDay() + 6) % 7]} ${d.getDate()}`,
+    weekday: weekday(now), date: `${d.getDate()}/${d.getMonth() + 1}`, short: `${short[(d.getDay() + 6) % 7]} ${d.getDate()}`,
     summary: summary(today),
     count: brief(today), // medium "5 việc" next to large "5 việc, 1 tiết học"
     next, rows, doneLabel: doneN ? `Xong (${doneN})` : "",

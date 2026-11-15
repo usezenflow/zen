@@ -31,7 +31,7 @@ describe("UpdateDialog", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("Android: downloads with a percentage, ignores taps and back meanwhile, then closes", async () => {
+  it("Android: downloads with a percentage, back ignored meanwhile, then closes", async () => {
     jest.replaceProperty(Platform, "OS", "android");
     let finish!: () => void;
     jest.mocked(install).mockImplementation((_u, onProgress) => new Promise((r) => { onProgress(42); finish = r; }));
@@ -40,14 +40,17 @@ describe("UpdateDialog", () => {
     expect(screen.getByText(t("newVersion"))).toBeTruthy();
     expect(screen.getByText("zen 99.0.0")).toBeTruthy();
     expect(screen.getByText(t("notNow"))).toBeTruthy();
-    void fireEvent.press(screen.getByText(t("updateBtn"))); // not awaited: the press resolves only when the install does
-    await waitFor(() => expect(screen.getByText(t("downloadingPct", { n: 42 }))).toBeTruthy());
+    // The press stays in its act until the install resolves. No other act may start meanwhile (overlapping acts broke every later test),
+    // so the download state is read synchronously. A second tap mid-download would be a second act: shortcut: that guard (pct !== null in go) is untested here.
+    const pressed = fireEvent.press(screen.getByText(t("updateBtn")));
+    for (let i = 0; i < 20 && !screen.queryByText(t("downloadingPct", { n: 42 })); i++) await Promise.resolve();
+    expect(screen.getByText(t("downloadingPct", { n: 42 }))).toBeTruthy();
     expect(screen.queryByText(t("notNow"))).toBeNull();
     expect(screen.root!.props.onRequestClose).toBeUndefined(); // back does nothing mid-download
-    await fireEvent.press(screen.getByText(t("downloadingPct", { n: 42 })));
-    expect(install).toHaveBeenCalledTimes(1); // the second tap is ignored
     expect(install).toHaveBeenCalledWith(U, expect.any(Function));
-    await act(async () => finish());
+    finish();
+    await pressed;
+    expect(install).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 

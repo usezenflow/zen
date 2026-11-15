@@ -82,7 +82,7 @@ function toast(title, sub, acts = []) {
 const WD = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"], TODAY = "2026-11-16";
 function when(iso, time = "") {
   const d = new Date(iso + "T00:00:00Z"), t = new Date(TODAY + "T00:00:00Z"), mon = (x) => x.getTime() - ((x.getUTCDay() + 6) % 7) * 864e5, p = (n) => String(n).padStart(2, "0");
-  return [WD[d.getUTCDay()], mon(d) === mon(t) ? "" : `${p(d.getUTCDate())}/${p(d.getUTCMonth() + 1)}`, time].filter(Boolean).join(" ");
+  return [WD[d.getUTCDay()], mon(d) === mon(t) ? "" : `${d.getUTCDate()}/${d.getUTCMonth() + 1}`, time].filter(Boolean).join(" ");
 }
 
 // iOS-style dropdown from a tapped button: items are [label, iconKey, destructive]. Place with top/right.
