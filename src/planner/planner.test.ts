@@ -596,7 +596,7 @@ describe("hard constraints (review fixes)", () => {
     expect(diff.split).toEqual([]);
     expect(diff.placed).toEqual([]);
   });
-  it("stays fast with many tasks over a long horizon", () => {
+  it.skipIf(!!process.env.CI)("stays fast with many tasks over a long horizon", () => { // timing: off in CI, its runners vary 3x
     const ts = Array.from({ length: 150 }, (_, i) => task(`p${i}`, { deadline: at(30 + (i % 60), 18), effort: 60 + (i % 4) * 30 }));
     const busy = Array.from({ length: 100 }, (_, d) => ({ start: at(d, 9), end: at(d, 11) }));
     const t0 = Date.now();
