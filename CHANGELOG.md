@@ -70,6 +70,7 @@
     - Không còn mảng trắng hay đường kẻ ở việc bên dưới
     - Vòng tròn đánh dấu xong tròn đều
 - Mọi menu đều có biểu tượng, mỗi lựa chọn một biểu tượng khác nhau
+- "Cũng hợp", "Giờ khác" và "Để lại" chỉ hiện khi còn giờ khác thật sự chưa qua
 
 ## 26.0.0
 

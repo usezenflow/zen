@@ -226,6 +226,8 @@ export default function Detail() {
   const open = sits.filter((k) => !k.doneAt);
   const why = !task.fixed ? plc?.why?.flatMap((r) => (r.key !== "pace" ? [r] : open.length > 1 ? [{ ...r, vars: { k: open.findIndex((k) => k.id === task.id) + 1, n: open.length } }] : [])).slice(0, 4) : undefined;
   const me = split ? tt?.id : task.id;
+  // "Cũng hợp" only for a real other time: one the planner found, not the current one, not already gone
+  const alt = plc?.alt !== undefined && plc.alt !== task.start && plc.alt > now ? plc.alt : undefined;
   const moveTo = once(async (ts: number) => {
     const r: Result = await apply([{ op: "edit", target: task.id, when: new Date(ts).toISOString() }]);
     setFlash({ text: r.toast, sub: r.sub, r });
@@ -301,12 +303,12 @@ export default function Detail() {
                   <View style={[s.bar2, { backgroundColor: th.line }]}><View style={{ width: `${Math.min(1, Math.abs(x.w)) * 100}%`, height: 4, borderRadius: 4, backgroundColor: x.w < 0 ? th.seal : th.ink }} /></View>
                 </View>
               ))}
-              {plc?.alt !== undefined && (
+              {alt !== undefined && (
                 <>
                   <Text style={[s.lab, { color: th.muted, marginTop: 20 }]}>{t("alsoFits")}</Text>
                   <View style={s.pills}>
-                    <Tap onPress={() => moveTo(plc.alt!)} accessibilityLabel={`${t("alsoFits")} ${at(plc.alt)}`} style={[s.pill, { borderColor: th.line }]}>
-                      <Text style={{ fontSize: font.sub, fontFamily: ff("500"), color: th.ink }}>{at(plc.alt)}</Text>
+                    <Tap onPress={() => moveTo(alt)} accessibilityLabel={`${t("alsoFits")} ${at(alt)}`} style={[s.pill, { borderColor: th.line }]}>
+                      <Text style={{ fontSize: font.sub, fontFamily: ff("500"), color: th.ink }}>{at(alt)}</Text>
                     </Tap>
                   </View>
                 </>

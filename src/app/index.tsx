@@ -482,7 +482,7 @@ export default function Home() {
   const otherSlot = async (made: Task[], now: number) => {
     const task = made.length === 1 && !made[0].fixed ? made[0] : undefined;
     const alt = task && (await store.loadModel(now)).placed[task.id]?.alt;
-    if (!task || alt === undefined || alt === task.start) return;
+    if (!task || alt === undefined || alt === task.start || alt <= Date.now()) return;
     return { alt: { label: when(alt, now), run: async () => { const a = await apply([{ op: "edit", target: task.id, when: new Date(alt).toISOString() }]); say(task.title, a, { sub: when(alt, now) }); refresh(); } } };
   };
 
@@ -518,7 +518,9 @@ export default function Home() {
     : [];
   // Long-press adds the lessons: put it back, take the other good time, pin.
   const itemsFor = (x: Task): Item[] => {
-    const from = maps.froms[x.id], alt = maps.alts[x.id], out: Item[] = [];
+    // a time already gone is no choice: neither "put back" nor "another time" is offered for it
+    const ahead = (ts?: number) => (ts !== undefined && ts > Date.now() ? ts : undefined);
+    const from = ahead(maps.froms[x.id]), alt = ahead(maps.alts[x.id]), out: Item[] = [];
     const done = (r: Result) => { say(r.toast, r); refresh(); };
     if (from !== undefined && !x.fixed) out.push({ label: t("itemPutBack", { when: when(from, now) }), icon: "undo", onPress: async () => done(await putBack(x.id, from)) });
     if (alt !== undefined && !x.fixed) out.push({ label: t("itemAlt", { when: when(alt, now) }), icon: "clock", onPress: async () => done(await apply([{ op: "edit", target: x.id, when: new Date(alt).toISOString() }])) });
