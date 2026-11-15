@@ -71,10 +71,10 @@ function chrome(inner, { time = "14:20", dock = "idle", p = 0 } = {}) {
 }
 
 // Toast: title and sub wrap (two lines each); actions sit in a bottom row, right-aligned.
-// The alternative slot is an outline pill left of the one filled button.
+// The alternative slot is an outline pill left of the one filled button: "hoặc T7 9:00", or a plain action ("Xem") when its third item is true.
 function toast(title, sub, acts = []) {
   const alt = acts.find(([, ol]) => ol), btn = acts.find(([, ol]) => !ol);
-  const row = alt || btn ? `<div class="acts">${alt ? `<span class="a ol">hoặc ${alt[0]}</span>` : ""}${btn ? `<span class="a">${btn[0]}</span>` : ""}</div>` : "";
+  const row = alt || btn ? `<div class="acts">${alt ? `<span class="a ol">${alt[2] ? "" : "hoặc "}${alt[0]}</span>` : ""}${btn ? `<span class="a">${btn[0]}</span>` : ""}</div>` : "";
   return `<div class="toast"><div class="tx"><div class="t1">${title}</div>${sub ? `<span>${sub}</span>` : ""}</div>${row}</div>`;
 }
 

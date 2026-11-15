@@ -25,7 +25,8 @@ const ms = (iso?: string) => {
   return Number.isFinite(v) ? v : undefined;
 };
 
-export interface Result { toast: string; sub?: string; changed: boolean; undo: () => Promise<void>; steps?: Step[]; warn?: Warn[]; moved?: number }
+/** `moves`: what the plan moved; `clashes`: classes, exams and busy blocks a time set here lands on; `lost`: tasks that had a time and now have none. */
+export interface Result { toast: string; sub?: string; changed: boolean; undo: () => Promise<void>; steps?: Step[]; warn?: Warn[]; moved?: number; moves?: Move[]; clashes?: { mine: Task; fixed: Task }[]; lost?: Task[] }
 
 interface Work {
   tasks: Map<string, Task>;
@@ -151,8 +152,8 @@ export async function removeScope(id: string, scope: "this" | "following" | "all
     if (me.section) gone.sections[me.section] = cut; else gone.series[seriesKey(me)] = cut;
     await store.kvSet("gone", JSON.stringify(gone));
   }
-  // No replan: freed time needs nothing moved, and the rest of the calendar should not reshuffle under the user.
-  const r = await transact(now, async (w) => { for (const target of scopeIds(tasks, id, scope)) await act(w, { op: "delete", target }); }, { replan: false });
+  // Freed time needs nothing moved, and the rest of the calendar never reshuffles under the user: only a task with no time yet may take it.
+  const r = await transact(now, async (w) => { for (const target of scopeIds(tasks, id, scope)) await act(w, { op: "delete", target }); }, { replan: "waiting", text: (_, w) => w.toast });
   return { ...r, undo: async () => { await store.kvSet("gone", raw ?? "{}"); await r.undo(); } };
 }
 
@@ -323,11 +324,11 @@ let chain: Promise<unknown> = Promise.resolve();
 const serial = <T>(fn: () => Promise<T>): Promise<T> => { const r = chain.then(fn); chain = r.catch(() => {}); return r; };
 
 /** Runs one mutation, optionally replans, mirrors to the calendar and persists. One call is one undo group. */
-function transact(now: number, mutate: (w: Work) => Promise<void> | void, o: { replan?: boolean; self?: boolean; quiet?: boolean; plan?: Opts; text?: (d: Diff | undefined, w: Work) => string | undefined } = {}): Promise<Result> {
+function transact(now: number, mutate: (w: Work) => Promise<void> | void, o: { replan?: boolean | "waiting"; self?: boolean; quiet?: boolean; dry?: boolean; plan?: Opts; text?: (d: Diff | undefined, w: Work) => string | undefined } = {}): Promise<Result> {
   return serial(() => transactNow(now, mutate, o));
 }
 
-async function transactNow(now: number, mutate: (w: Work) => Promise<void> | void, o: { replan?: boolean; self?: boolean; quiet?: boolean; plan?: Opts; text?: (d: Diff | undefined, w: Work) => string | undefined } = {}): Promise<Result> {
+async function transactNow(now: number, mutate: (w: Work) => Promise<void> | void, o: { replan?: boolean | "waiting"; self?: boolean; quiet?: boolean; dry?: boolean; plan?: Opts; text?: (d: Diff | undefined, w: Work) => string | undefined } = {}): Promise<Result> {
   const model0 = await store.loadModel(now);
   const before = new Map((await store.allTasks()).map((x) => [x.id, x]));
   const w: Work = {
@@ -344,14 +345,26 @@ async function transactNow(now: number, mutate: (w: Work) => Promise<void> | voi
   await mutate(w);
 
   let diff: Diff | undefined;
-  if (o.replan !== false) {
+  // Times set by hand in this transaction (a held wheel value was saved before, so `before` already has it: this is how we know).
+  const dragged = new Set(w.events.filter((e) => e.type === "drag").map((e) => e.taskId));
+  const span = (x: Task) => !x.doneAt && !x.deletedAt && x.start !== undefined && x.end !== undefined;
+  const set = [...dragged].map((id) => w.tasks.get(id)!).filter((x) => x && span(x));
+  // "waiting": time was freed (a done, a delete): plan only if some task has no time yet, so it can take it. The rest stays held.
+  const parents = new Set([...w.tasks.values()].map((x) => x.parentId));
+  const waiting = (x: Task) => !x.fixed && !x.doneAt && !x.deletedAt && x.start === undefined && !parents.has(x.id) && !dayGone(x, now);
+  const pull = o.replan === "waiting" ? [...w.tasks.values()].filter(waiting).map((x) => x.id) : [];
+  if (o.replan === true || o.replan === undefined || pull.length) {
+    // The newest time set by hand wins: an older hand-set flexible task under it gives way and is planned again (not one already running).
+    for (const a of set) for (const x of [...w.tasks.values()]) {
+      if (x.id === a.id || !x.pinned || x.fixed || !span(x) || x.start! <= now || !(x.start! < a.end! && a.start! < x.end!)) continue;
+      w.tasks.set(x.id, { ...x, pinned: false, notBefore: x.notBefore === x.start ? undefined : x.notBefore, userEdited: x.userEdited?.filter((f) => f !== "start") });
+    }
     const r = plan([...w.tasks.values()], [], w.model, now, o.plan);
     diff = r.diff;
     w.model = r.model;
-    const dragged = new Set(w.events.filter((e) => e.type === "drag").map((e) => e.taskId));
     // What changed under the plan this time: new or moved fixed/pinned items, and new rules. A move's cause is the one over its old slot.
     const hit = [...w.tasks.values()].filter((x) => (x.fixed || x.pinned) && !x.deletedAt && x.start !== undefined && x.end !== undefined
-      && (before.get(x.id)?.start !== x.start || before.get(x.id)?.end !== x.end || !!before.get(x.id)?.deletedAt));
+      && (dragged.has(x.id) || before.get(x.id)?.start !== x.start || before.get(x.id)?.end !== x.end || !!before.get(x.id)?.deletedAt));
     const ids0 = new Set((model0.rules ?? []).map((x) => x.id)), rules = (w.model.rules ?? []).filter((x) => !ids0.has(x.id));
     const causeOf = (task: Task, a: number, b: number) => {
       const f = hit.find((x) => x.start! < b && x.end! > a);
@@ -390,12 +403,18 @@ async function transactNow(now: number, mutate: (w: Work) => Promise<void> | voi
       w.events.push({ id: uid(), taskId: pl.id, type: "placed", at: now, data: { policy: pl.policy, arm: pl.arm, x: pl.x } });
     }
     if (w.moves.some((m) => m.cause)) for (const m of w.moves) m.cause ??= t("causeKnock"); // moved to make room for a caused move
+    const got = diff.placed.find((p) => pull.includes(p.id));
+    if (got) w.sub = t("pulledIn", { title: w.tasks.get(got.id)!.title, when: at12(got.start, now) }); // the freed time went to one that had none
   }
 
   const changed = [...w.tasks.values()].filter((x) => before.get(x.id) !== x);
+  const clashes = set.flatMap((mine) => [...w.tasks.values()].filter((f) => f.fixed && f.id !== mine.id && span(f) && f.start! < mine.end! && mine.start! < f.end!).map((fixed) => ({ mine, fixed })));
+  const lost = (diff?.unplaced ?? []).map((u) => before.get(u.id)).filter((x): x is Task => !!x && x.start !== undefined && x.start > now);
+  const extra = { moves: w.moves, clashes, lost };
+  if (o.dry) return { toast: "", changed: false, undo: async () => {}, ...extra }; // a preview: nothing written
   await store.putTasks(changed);
   for (const e of w.events) await store.putEvent(e);
-  await store.saveModel(w.model);
+  if (w.model !== model0) await store.saveModel(w.model); // ~500 KB of JSON: not rewritten by a write that learned nothing (a held wheel value)
   if (diff) { await store.kvSet("plannedAt", String(now)); await recordMoves(w.moves); await saveWarn(diff.warn ?? []); }
 
   const ins = diff?.insight;
@@ -408,6 +427,7 @@ async function transactNow(now: number, mutate: (w: Work) => Promise<void> | voi
     steps: diff?.steps,
     warn: diff?.warn,
     moved: w.moves.length,
+    ...extra,
     undo: () => serial(async () => {
       // Only a task still as this change left it goes back: an edit made since (a rename between two picks, a later sync) stays.
       const now = new Map((await store.allTasks()).map((x) => [x.id, x]));
@@ -426,7 +446,8 @@ async function transactNow(now: number, mutate: (w: Work) => Promise<void> | voi
 /** One spoken line: all actions, one plan, one undo. */
 export function apply(actions: Action[], now = Date.now()): Promise<Result> {
   // Only a create, or a change of an existing task's time, due date or length, moves the plan.
-  const replan = actions.some((a) => a.op === "create" || (a.op === "edit" && (a.when !== undefined || a.deadline !== undefined || !!a.effortMinutes)));
+  // A done or delete frees time: only a task still without one may take it.
+  const replan = actions.some((a) => a.op === "create" || (a.op === "edit" && (a.when !== undefined || a.deadline !== undefined || !!a.effortMinutes))) || (actions.some((a) => a.op === "done" || a.op === "delete") && "waiting");
   return transact(now, async (w) => { for (const a of actions) await act(w, a); }, {
     replan,
     text: (d, w) => {
@@ -441,7 +462,7 @@ export function apply(actions: Action[], now = Date.now()): Promise<Result> {
 }
 
 export type LiveEdit = { when?: number; effortMinutes?: number; deadline?: number | "" };
-const toAction = (id: string, e: LiveEdit): Action => ({ op: "edit", target: id, ...(e.when !== undefined ? { when: new Date(e.when).toISOString() } : {}),
+export const toAction = (id: string, e: LiveEdit): Action => ({ op: "edit", target: id, ...(e.when !== undefined ? { when: new Date(e.when).toISOString() } : {}),
   ...(e.effortMinutes ? { effortMinutes: e.effortMinutes } : {}), ...(e.deadline !== undefined ? { deadline: e.deadline === "" ? "" : new Date(e.deadline).toISOString() } : {}) });
 // One task's live edits (wheel turns): each value is saved at once with nothing else moved, so a force quit loses nothing.
 // Once the edits rest for `rest` ms, one replan moves what the new value now clashes with. Edits within 30 s are one session:
@@ -469,10 +490,12 @@ export function liveEdit(id: string, e: LiveEdit, now = Date.now(), rest = 500):
     held.catch(fail); // the held write itself failed: say so now
   });
 }
+/** What a value would do, with nothing written: the detail screen's line while its dial is open. */
+export const preview = (id: string, e: LiveEdit, now = Date.now()) => transact(now, (w) => act(w, toAction(id, e)), { dry: true });
 /** A start (and length) set on a wheel: liveEdit for a time. */
 export const retime = (id: string, start: number, minutes?: number, now = Date.now(), rest?: number) => liveEdit(id, { when: start, effortMinutes: minutes }, now, rest);
 
-export const swipeDone = (id: string, now = Date.now()) => transact(now, (w) => act(w, { op: "done", target: id }), { replan: false });
+export const swipeDone = (id: string, now = Date.now()) => transact(now, (w) => act(w, { op: "done", target: id }), { replan: "waiting", text: (_, w) => w.toast });
 export const swipeLater = (id: string, now = Date.now()) =>
   transact(now, (w) => { const tk = w.tasks.get(id); if (tk) w.log("later", tk); w.toast = t("later"); }, { plan: { later: id } });
 

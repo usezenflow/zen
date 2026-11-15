@@ -17,6 +17,13 @@ export async function recordMoves(moves: Move[]): Promise<void> {
   await store.kvSet("moves", JSON.stringify([...(await loadMoves()), ...moves].filter((m) => m.at >= cut).slice(-60)));
 }
 
+/** The brief showed these: it never shows them again. Their trail dots stay until seen. */
+export async function briefMoves(ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  const all = await loadMoves();
+  await store.kvSet("moves", JSON.stringify(all.map((m) => (ids.includes(m.id) ? { ...m, briefed: true } : m))));
+}
+
 export async function seeMoves(ids?: string[]): Promise<void> {
   const all = await loadMoves();
   await store.kvSet("moves", JSON.stringify(all.map((m) => (!ids || ids.includes(m.id) ? { ...m, seen: true } : m))));

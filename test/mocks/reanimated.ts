@@ -16,6 +16,8 @@ export function useSharedValue<T>(init: T) {
 }
 export type SharedValue<T> = ReturnType<typeof useSharedValue<T>>;
 export const makeMutable = useSharedValue;
+// gesture-handler asks this of every pan offset (activeOffsetX and the like)
+export const isSharedValue = (v: unknown) => !!v && typeof v === "object" && "value" in v;
 export const useAnimatedStyle = (f: () => object) => f();
 export const useAnimatedProps = (f: () => object) => f();
 export const useDerivedValue = <T,>(f: () => T) => ({ value: f(), get: f });

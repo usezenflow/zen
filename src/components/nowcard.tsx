@@ -1,9 +1,11 @@
 import { BlurView } from "expo-blur";
 import { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import Animated, { Easing, FadeInDown, Keyframe, useAnimatedStyle, useFrameCallback, useSharedValue, withRepeat, withTiming, type SharedValue } from "react-native-reanimated";
+import Animated, { Easing, FadeInDown, interpolate, Keyframe, useAnimatedStyle, useFrameCallback, useSharedValue, withRepeat, withTiming, type SharedValue } from "react-native-reanimated";
+import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
+import { scheduleOnRN } from "react-native-worklets";
 import { Fill } from "@/components/meter";
-import { fadeIn, Tap, EASE } from "@/components/tap";
+import { fadeIn, settle, Tap, EASE } from "@/components/tap";
 import { Icon, Logo, TypeArt } from "@/components/art";
 import { hhmm } from "@/components/cal";
 import type { HoldState } from "@/components/hold";
@@ -115,8 +117,23 @@ export function Live({ state, words = "", level }: { state: Exclude<HoldState, "
 const biggest = (ms: Move[]) => ms.reduce((a, b) => (Math.abs(b.to - b.from) > Math.abs(a.to - a.from) ? b : a));
 
 // views.html magic 1: the art slot's replacement on a day something moved. Tap opens the story in place.
-export function Brief({ moves, now, onOpen }: { moves: Move[]; now: number; onOpen: () => void }) {
+// magic 1b: swiped sideways past 110 it flicks off as the now-card does, and `onDismiss` retires it; short of that it springs back.
+export function Brief({ moves, now, onOpen, onDismiss }: { moves: Move[]; now: number; onOpen: () => void; onDismiss?: () => void }) {
   const th = useTheme();
+  const x = useSharedValue(0);
+  const pan = usePanGesture({
+    testID: "brief",
+    enabled: !!onDismiss,
+    activeOffsetX: [-12, 12],
+    failOffsetY: [-10, 10],
+    onUpdate: (e) => { "worklet"; x.set(e.translationX); },
+    onDeactivate: (e) => {
+      "worklet";
+      if (Math.abs(e.translationX) <= 110) { x.set(settle(0)); return; }
+      x.set(withTiming(Math.sign(e.translationX) * 500, { duration: 180 }, (ok) => { if (ok && onDismiss) scheduleOnRN(onDismiss); }));
+    },
+  });
+  const flick = useAnimatedStyle(() => ({ transform: [{ translateX: x.get() }, { rotate: `${interpolate(x.get(), [-300, 300], [-8, 8]).toFixed(2)}deg` }] }));
   if (!moves.length) return null; // nothing moved: no brief (biggest() needs one)
   const direct = moves.filter((x) => x.cause && x.cause !== t("causeKnock")); // the sentence names a real cause, not a knock-on
   const m = biggest(direct.length ? direct : moves), r = topReason(m.why?.filter((x) => x.key !== "guess"));
@@ -124,7 +141,11 @@ export function Brief({ moves, now, onOpen }: { moves: Move[]; now: number; onOp
   const sub = [m.cause ? t("briefCause", { cause: m.cause, what }) : what, r && reasonText(r, true)].filter(Boolean).join(". ") + ".";
   const at = sub.indexOf(what), toAt = at + what.length - to.length; // `what` opens with the title and ends with the time
   return (
-    <Tap onPress={onOpen} scale={0.98} accessibilityRole="button" accessibilityLabel={t("briefOpen")} style={[s.brief, { backgroundColor: th.chip }]}>
+    <GestureDetector gesture={pan}>
+    <Animated.View style={flick}>
+    <Tap onPress={onOpen} scale={0.98} accessibilityRole="button" accessibilityLabel={t("briefOpen")} style={[s.brief, { backgroundColor: th.chip }]}
+      // the swipe, for a screen reader: a custom action
+      accessibilityActions={onDismiss ? [{ name: "dismiss", label: t("briefHide") }] : undefined} onAccessibilityAction={(e) => { if (e.nativeEvent.actionName === "dismiss") onDismiss?.(); }}>
       <Text style={[s.lab, { color: th.muted, opacity: 1 }]}>{t(new Date(now).getHours() < 12 ? "briefMorning" : "briefNow")}</Text>
       <View style={s.lf}><Logo size={30} mode="line" color={th.ink} /></View>
       <Text style={[s.t, { color: th.ink, marginTop: 26, paddingRight: 40 }]}>{moves.length === 1 ? t("briefOne", { title: m.title }) : t("briefN", { n: moves.length })}</Text>
@@ -135,11 +156,14 @@ export function Brief({ moves, now, onOpen }: { moves: Move[]; now: number; onOp
         {sub.slice(toAt + to.length)}
       </Text>
     </Tap>
+    </Animated.View>
+    </GestureDetector>
   );
 }
 
 // magic 2: the moves grouped by cause, old time struck, new time, one reason each.
-export function Story({ moves, now, onClose }: { moves: Move[]; now: number; onClose: () => void }) {
+// `onUndo`: where the user made the change (the detail screen), the story can take it back.
+export function Story({ moves, now, onClose, onUndo }: { moves: Move[]; now: number; onClose: () => void; onUndo?: () => void }) {
   const th = useTheme();
   const groups = new Map<string, Move[]>();
   const rank = (c?: string) => (!c ? 2 : c === t("causeKnock") ? 1 : 0); // real causes first, then knock-ons, then plain refinements
@@ -166,7 +190,10 @@ export function Story({ moves, now, onClose }: { moves: Move[]; now: number; onC
           })}
         </View>
       ))}
-      <Tap onPress={onClose} accessibilityRole="button" accessibilityLabel={t("briefClose")} style={[s.close, { backgroundColor: th.ink }]}><Text style={[s.ct, { color: th.bg }]}>{t("briefClose")}</Text></Tap>
+      <View style={s.acts}>
+        <Tap onPress={onClose} accessibilityRole="button" accessibilityLabel={t("briefClose")} style={[s.close, { backgroundColor: th.ink }]}><Text style={[s.ct, { color: th.bg }]}>{t("briefClose")}</Text></Tap>
+        {onUndo && <Tap onPress={onUndo} accessibilityRole="button" accessibilityLabel={t("undo")} style={[s.close, { borderColor: th.line, borderWidth: 1 }]}><Text style={[s.ct, { color: th.ink, fontFamily: ff("500") }]}>{t("undo")}</Text></Tap>}
+      </View>
     </Animated.View>
   );
 }
@@ -241,7 +268,8 @@ const s = StyleSheet.create({
   ft: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 3 },
   fr: { fontSize: font.md, fontFamily: ff("500"), fontVariant: ["tabular-nums"] },
   rs: { marginTop: 3, fontSize: font.md, lineHeight: 20.25, fontFamily: ff("500") },
-  close: { alignSelf: "flex-start", marginTop: 14, height: 36, paddingHorizontal: 16, borderRadius: 99, alignItems: "center", justifyContent: "center" },
+  acts: { flexDirection: "row", gap: 8, marginTop: 14 },
+  close: { alignSelf: "flex-start", height: 36, paddingHorizontal: 16, borderRadius: 99, alignItems: "center", justifyContent: "center" },
   ct: { fontSize: font.sub, fontFamily: ff("700") },
   steps: { position: "absolute", left: 24, right: 24, bottom: 150, gap: 10, zIndex: 7 },
   st: { flexDirection: "row", alignItems: "center", gap: 10 },

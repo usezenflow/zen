@@ -341,8 +341,8 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
       {warns.map((w, k) => {
         const late = w.deadline <= now, own = tasks.find((x) => x.id === w.id), vars = { title: w.title, need: mins(w.need), when: when(w.deadline, now), free: mins(w.free) };
         // Past due: pushing others can't help, so the one tap is "done" (often it was handed in already).
-        const pills = late ? (own ? [{ key: "done", label: t("warnDone"), go: () => act.onToggle(own) }] : [])
-          : w.fixes.map((f) => ({ key: f.id, label: t("warnFix", { title: f.title, day: dayName(f.start, now) }), go: () => onFix(w, f) }));
+        const pills: { key: string; label: string; day?: string; go: () => void }[] = late ? (own ? [{ key: "done", label: t("warnDone"), go: () => act.onToggle(own) }] : [])
+          : w.fixes.map((f) => ({ key: f.id, label: t("warnFix", { title: f.title }), day: dayName(f.start, now), go: () => onFix(w, f) }));
         return (
           <Animated.View key={w.id} entering={FadeInDown.duration(220).easing(EASE)} exiting={fadeOut} layout={glide} style={[s.warn, { borderColor: th.seal, marginTop: k ? 10 : 0 }]}>
             {/* The words open the task, so it can be found, done or deleted from the card. */}
@@ -353,8 +353,9 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
             {pills.length > 0 && (
               <View style={[s.pills, s.blk]}>
                 {pills.map((p, i) => (
-                  <Tap key={p.key} onPress={p.go} style={[s.pl, s.plBlk, i === 0 ? { backgroundColor: th.ink } : { borderColor: th.line, borderWidth: 1 }]}>
-                    <Text numberOfLines={1} style={[s.plt, i === 0 ? { color: th.bg, fontFamily: ff("700") } : { color: th.ink }]}>{p.label}</Text>
+                  <Tap key={p.key} onPress={p.go} accessibilityLabel={[p.label, p.day].filter(Boolean).join(" ")} style={[s.pl, s.plBlk, i === 0 ? { backgroundColor: th.ink } : { borderColor: th.line, borderWidth: 1 }]}>
+                    <Text numberOfLines={1} style={[s.plt, s.nm, i === 0 ? { color: th.bg, fontFamily: ff("700") } : { color: th.ink }]}>{p.label}</Text>
+                    {!!p.day && <Text style={[s.plt, { opacity: 0.7, fontVariant: ["tabular-nums"] }, i === 0 ? { color: th.bg, fontFamily: ff("700") } : { color: th.ink }]}>{p.day}</Text>}
                   </Tap>
                 ))}
               </View>
@@ -424,7 +425,8 @@ const s = StyleSheet.create({
   wb: { marginTop: 4, fontFamily: ff(), fontSize: font.sub, lineHeight: 21 },
   pills: { flexDirection: "row", gap: 8, marginTop: 12 }, // one row: a long label shrinks its pill to an ellipsis
   blk: { flexDirection: "column" }, // heads up (magic.html 9): pills name tasks, so each is a full-width block
-  plBlk: { alignSelf: "stretch", height: 44, paddingHorizontal: 18 },
+  plBlk: { alignSelf: "stretch", height: 44, paddingHorizontal: 18, flexDirection: "row", justifyContent: "flex-start", gap: 12 }, // name left, day right: every pill shares both edges
+  nm: { flex: 1, minWidth: 0 },
   pl: { height: 36, paddingHorizontal: 16, borderRadius: 99, alignItems: "center", justifyContent: "center", flexShrink: 1, minWidth: 0 },
   plt: { fontSize: font.sub, fontFamily: ff("500") },
   rest: { marginTop: 16, borderRadius: 28, padding: 20 },

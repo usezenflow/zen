@@ -111,7 +111,7 @@ export interface Warn { id: string; title: string; deadline: number; need: numbe
 export interface Rule { id: string; text: string; days: number[]; from: number; to: number; kinds: Kind[]; at: number }
 
 /** A move the user has not seen yet: drives the brief, the trail dot and the ghost row. */
-export interface Move { id: string; title: string; from: number; to: number; why?: Reason[]; cause?: string; at: number; seen?: boolean; self?: boolean } // self: from the user's own action just now, so it shows the trail but not the brief
+export interface Move { id: string; title: string; from: number; to: number; why?: Reason[]; cause?: string; at: number; seen?: boolean; self?: boolean; briefed?: boolean } // self: from the user's own action just now, so it shows the trail but not the brief; briefed: a brief showed it once, never again (the trail stays)
 
 export interface Diff {
   placed: Placement[];

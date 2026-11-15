@@ -27,9 +27,11 @@ export function bell(p: Piece, now: number, start: number): number {
   return Math.exp(-((pos - centre) ** 2) / (2 * 0.2 ** 2));
 }
 
-// Leaving a prior costs 1, so a piece moves only with a cause. A prior that is no longer feasible scores -1000
+// Leaving a prior costs 1, so a piece moves only with a cause, plus 0.5 a day of distance (capped at a week), so a piece
+// that must move takes the nearest good slot, not one days away. A prior that is no longer feasible scores -1000
 // or worse, so it loses anyway. Inside the score so every solver move pays it.
-export const moveCost = (p: Piece, start: number, _now: number) => (p.prior === undefined || p.prior === start ? 0 : 1);
+export const moveCost = (p: Piece, start: number, _now: number) =>
+  p.prior === undefined || p.prior === start ? 0 : 1 + (0.5 * Math.min(Math.abs(start - p.prior), 7 * DAY)) / DAY;
 
 export const lateH = (p: Piece, start: number) => (p.task.deadline === undefined ? 0 : Math.max(0, start + dur(p) - p.task.deadline) / HOUR);
 

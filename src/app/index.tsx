@@ -28,7 +28,7 @@ import { Sweep, useSweep } from "@/components/sweep";
 import { Toast } from "@/components/toast";
 import { Swipe, Week } from "@/components/week";
 import { apply, retime, makeRoom, moveMine, pickNow, addRule, pin, putBack, removeRule, removeScope, scopeIds, swipeDone, swipeLater, take, type Result } from "@/lib/apply";
-import { loadMoves, loadWarn, seeMoves } from "@/lib/moves";
+import { briefMoves, loadMoves, loadWarn, seeMoves } from "@/lib/moves";
 import { reasonText, stepText, topReason } from "@/lib/reasons";
 import { holidays } from "@/lib/holidays";
 import { askMic, listenLive, micReset, type Heard } from "@/lib/ears";
@@ -52,7 +52,7 @@ type View_ = "day" | "week" | "month" | "rhythm"; // rhythm sits apart on the ri
 const VIEWS: View_[] = ["day", "week", "month"];
 // A row says only what Zen learned or was told; "the day is free" on every row is noise, so that stays on the detail screen.
 const ROW = new Set(["hour", "after", "similar", "kind", "energy", "weekend", "said", "pace", "rule", "pinned"]);
-type ToastState = { text: string; sub?: string; error?: boolean; action?: { label?: string; run: () => void }; alt?: { label: string; run: () => void } };
+type ToastState = { text: string; sub?: string; error?: boolean; action?: { label?: string; run: () => void }; alt?: { label: string; run: () => void; plain?: boolean } };
 
 const longDate = (ms: number) => { const d = new Date(ms); return `${d.getDate()}/${d.getMonth() + 1}`; };
 const dm = (ms: number) => { const d = new Date(ms); return `${d.getDate()}/${d.getMonth() + 1}`; };
@@ -90,6 +90,8 @@ export default function Home() {
   const [maps, setMaps] = useState<{ trail: Record<string, string>; froms: Record<string, number>; reason: Record<string, string>; alts: Record<string, number> }>({ trail: {}, froms: {}, reason: {}, alts: {} });
   const [wk, setWk] = useState<{ title: string; sub: string } | undefined>(); // Sunday card
   const [story, setStory] = useState(false);
+  const briefed = useRef<string[]>([]);
+  const [mine, setMine] = useState<{ moves: Move[]; r: Result }>(); // what the user's own change just moved, opened from its toast (magic.html 7d)
   const shuf = useRef(false); // the plan is playing out on the list; no second run until it ends
   const [shufOn, setShufOn] = useState(false);
   const tasksRef = useRef<Task[]>([]);
@@ -152,10 +154,12 @@ export default function Home() {
   }, [toast]);
 
   const say = useCallback((text: string, r?: Result, extra?: { sub?: string; alt?: { label: string; run: () => void } }) => {
+    // It moved other things (a knock-on has a cause): "Xem" opens the story on today, where it can be read and undone.
+    const ms = r?.moves ?? [], see = ms.length > 1 || ms.some((m) => m.cause) ? { label: t("briefSee"), plain: true, run: () => { setMine({ moves: ms, r: r! }); setView("day"); setSel(startOfDay(Date.now())); } } : undefined;
     setToasts((q) => [{
       text,
       sub: extra?.sub ?? r?.sub,
-      alt: extra?.alt,
+      alt: extra?.alt ?? see,
       action: r && { run: (() => { let done = false; return async () => { if (done) return; done = true; await r.undo(); setToasts((u) => [{ text: t("undone") }, ...u.slice(1)]); refresh(); }; })() }, // a double tap undoes once
     }, ...q.slice(1)]);
   }, [refresh]);
@@ -221,6 +225,8 @@ export default function Home() {
   useEffect(() => {
     const sub = AppState.addEventListener("change", (s) => {
       if (s === "active") { onForeground().then(landed).catch(() => refresh()); pushWidgets(); }
+      // a brief is shown for one visit: leaving the app retires it (magic.html 1)
+      else if (s === "background" && briefed.current.length) { const ids = briefed.current; briefed.current = []; setStory(false); void briefMoves(ids).then(refresh); }
     });
     return () => sub.remove();
   }, [refresh, landed]);
@@ -606,10 +612,12 @@ export default function Home() {
   const isToday = sel === today0;
   const running = !!card && !card.gap && card.start! <= now && now < card.end!;
   const quiet = isToday && view === "day" && !running;
-  const said = moves.filter((m) => !m.self); // the user's own moves keep the trail dot, not the brief
+  const said = moves.filter((m) => !m.self && !m.briefed); // the user's own moves keep the trail dot, not the brief
   const briefOn = quiet && said.length > 0; // the running card keeps priority
   const sunOn = quiet && !briefOn && !!wk;
-  const showStory = briefOn && story;
+  useEffect(() => { if (briefOn) briefed.current = said.map((m) => m.id); }); // what this visit has shown: retired on leaving
+  const showStory = (briefOn && story) || !!mine; // the list becomes the story, in place
+  const dismissBrief = () => { const ids = said.map((m) => m.id); briefed.current = []; void briefMoves(ids).then(refresh); }; // magic 1b: swiped away for good
   const closeStory = async () => { setStory(false); await seeMoves(said.map((m) => m.id)); refresh(); };
   const busy = state !== "idle";
   const listing = busy && !shufOn && !!words; // the day stays under the veil until words are heard; while the plan plays out the list stays, the dock keeps thinking
@@ -622,7 +630,9 @@ export default function Home() {
   const weekEmpty = view === "week" && Array.from({ length: 7 }, (_, i) => addDays(mon, i)).every((d) => !hols.has(d) && !onDay(tasks, d).length);
   // Rest card only where the art card would sit: day view, and no now-card above it.
   const empty = weekEmpty ? "week" : view === "day" && selEmpty && !(isToday && card) && !briefOn && !sunOn ? "rest" : "inl";
-  const hero = briefOn ? (story ? "story" : "brief") : sunOn ? "sun" : card ? card.task.id : "none";
+  const closeMine = () => { if (mine) void seeMoves(mine.moves.map((m) => m.id)).then(refresh); setMine(undefined); };
+  const undoMine = async () => { const r = mine?.r; setMine(undefined); await r?.undo(); setToasts((u) => [{ text: t("undone") }, ...u.slice(1)]); refresh(); };
+  const hero = mine ? "mine" : briefOn ? (story ? "story" : "brief") : sunOn ? "sun" : card ? card.task.id : "none";
 
   const cardView = card && (
     <GestureDetector gesture={swipe}>
@@ -706,7 +716,7 @@ export default function Home() {
           {view === "day" && isToday && (
             // Keyed per branch so hero swaps cross-fade; a new now-card lands with a small pop.
             <Reanimated.View key={hero} entering={card && hero === card.task.id ? popIn : fadeIn} exiting={fadeOut} layout={glide}>
-              {briefOn ? (story ? <Story moves={said} now={now} onClose={closeStory} /> : <Brief moves={said} now={now} onOpen={() => setStory(true)} />) : sunOn ? <Weekly title={wk!.title} sub={wk!.sub} onPress={() => setView("rhythm")} /> : cardView}
+              {mine ? <Story moves={mine.moves} now={now} onClose={closeMine} onUndo={undoMine} /> : briefOn ? (story ? <Story moves={said} now={now} onClose={closeStory} /> : <Brief moves={said} now={now} onOpen={() => setStory(true)} onDismiss={dismissBrief} />) : sunOn ? <Weekly title={wk!.title} sub={wk!.sub} onPress={() => setView("rhythm")} /> : cardView}
             </Reanimated.View>
           )}
           {view === "rhythm" && mind && <Rhythm i={mind.i} rules={mind.rules} onForget={async (x) => { const r = await removeRule(x.id); say(r.toast, r); refresh(); }} />}
@@ -738,7 +748,7 @@ export default function Home() {
       {lines.length > 0 && <Steps lines={lines} />}
       {finding && <Search origin={finding} tasks={tasks} now={now} acts={rowActs} onClose={() => setFinding(undefined)} />}
       {menu && <RowMenu items={menu.items} top={menu.top} onClose={() => setMenu(undefined)} />}
-      {toast && <Toast key={toastKey(toast)} onDismiss={() => setToasts((q) => q.slice(1))} error={toast.error} text={toast.text} sub={toast.sub} onAction={toast.action?.run} actionLabel={toast.action?.label} onAlt={toast.alt?.run} altLabel={toast.alt?.label} />}
+      {toast && <Toast key={toastKey(toast)} onDismiss={() => setToasts((q) => q.slice(1))} error={toast.error} text={toast.text} sub={toast.sub} onAction={toast.action?.run} actionLabel={toast.action?.label} onAlt={toast.alt?.run} altLabel={toast.alt?.label} altPlain={toast.alt?.plain} />}
     </SafeAreaView>
     </Sweep>
   );

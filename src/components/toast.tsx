@@ -14,13 +14,13 @@ const toastOut = new Keyframe({ 0: { opacity: 1, transform: [{ translateY: 0 }, 
 
 /**
  * ui.js toast(): title and sub wrap (two lines each); actions sit in a bottom row, right-aligned.
- * The alternative slot is an outline pill left of Undo ("hoặc T7 09:00").
+ * The alternative slot is an outline pill left of Undo ("hoặc T7 09:00"); `altPlain`: an action of its own ("Xem"), no "hoặc".
  * Swipe it up or sideways to put it away (`onDismiss`).
  * `error`: vermilion with white text, for failures (model not ready, mic, download).
  * `lead`: drawn left of the text (the update download's ring).
  */
-export function Toast({ text, sub, onAction, actionLabel, onAlt, altLabel, error, onDismiss, lead }: {
-  text: string; sub?: string; onAction?: () => void; actionLabel?: string; onAlt?: () => void; altLabel?: string; error?: boolean; onDismiss?: () => void; lead?: ReactNode;
+export function Toast({ text, sub, onAction, actionLabel, onAlt, altLabel, altPlain, error, onDismiss, lead }: {
+  text: string; sub?: string; onAction?: () => void; actionLabel?: string; onAlt?: () => void; altLabel?: string; altPlain?: boolean; error?: boolean; onDismiss?: () => void; lead?: ReactNode;
 }) {
   const th = useTheme();
   const top = useSafeAreaInsets().top - 8; // .toast top 46 against the mockup's 54 content top
@@ -54,7 +54,7 @@ export function Toast({ text, sub, onAction, actionLabel, onAlt, altLabel, error
       </View>
       {(!!alt || !!onAction) && (
         <View style={s.row}>
-          {alt && <Tap onPress={onAlt} hitSlop={8} style={[s.a, { borderWidth: 1, borderColor: "rgba(127,127,127,0.5)" }]}><Text style={[s.at, { color: fg }]}>{t("orWhen", { when: altLabel })}</Text></Tap>}
+          {alt && <Tap onPress={onAlt} hitSlop={8} style={[s.a, { borderWidth: 1, borderColor: "rgba(127,127,127,0.5)" }]}><Text style={[s.at, { color: fg }]}>{altPlain ? altLabel : t("orWhen", { when: altLabel })}</Text></Tap>}
           {onAction && (
             <Tap onPress={onAction} hitSlop={8} style={[s.a, { backgroundColor: error ? "#fff" : th.bg }]}>
               <Text style={[s.at, { color: bg }]}>{actionLabel ?? t("undo")}</Text>

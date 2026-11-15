@@ -312,11 +312,12 @@ export function read(raw: string, opts: ReadOpts): ReaderResult {
   }
 
   // a pasted text keeps all its words: with no note of its own, the text is the note
-  // (the input box sends a paste as "typed"; a short line needs no note repeating it)
+  // (the input box sends a paste as "typed"; a short line needs no note repeating it,
+  // nor does a jotted list: each task's words are its own title, the rest is only the other tasks)
+  const lines = raw.trim().includes("\n");
   if (
-    opts.source === "paste" ||
-    opts.source === "ocr" ||
-    (opts.source === "typed" && (raw.trim().includes("\n") || raw.length > 120))
+    ((opts.source === "paste" || opts.source === "ocr") && (items.length === 1 || lines)) ||
+    (opts.source === "typed" && items.length === 1 && (lines || raw.length > 120))
   )
     for (const it of items) it.note ||= sanitizeNoteHtml(raw) || null;
 

@@ -82,12 +82,20 @@
 .pl.q { border-style: dashed; }
 /* What Zen read from the note or title, one muted line under it (as Search, understood). */
 .got { margin-top: 8px; font-size: 14px; font-weight: 600; color: var(--muted); }
+/* views.html: the detail time line as chips (7c) */
+.meta .ed { gap: 5px; color: var(--ink); flex-wrap: wrap; row-gap: 8px; }
+.meta .ed svg { margin-right: 4px; }
+.meta .ed em { font-style: normal; color: var(--muted); font-weight: 500; }
+.pk { flex: none; white-space: nowrap; height: 34px; padding: 0 7px; border-radius: 9px; background: var(--chip); display: inline-grid; place-items: center; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
+.pk.on { box-shadow: 0 0 0 1.5px var(--seal); }
+/* 1b: the brief on its way out, as the now-card flicks */
+.brief.out { transform: translateX(150px) rotate(4deg); opacity: .85; }
 </style>
 </head>
 <body>
 <div class="head">
   <h1>Magic, quietly</h1>
-  <p>Zen places your flexible work and leaves it alone. It re-plans only when something happened: <b>the school changed</b> a class, an exam or a due date; <b>you added</b> something or changed a due date; <b>you asked</b> (a rule, "later", a new time); or a block <b>passed undone</b>. Then the change is shown in three sizes: <b>motion</b> when it happens in front of you (rows move one at a time), a <b>trail</b> on each moved row (a vermilion dot and "từ T3 14:00"), and a <b>brief</b> when it happened while you were away. Exam and assignment <b>preps</b> (18 onward) are a budget of minutes, not a fixed "2 buổi": a base for the format, multiplied by what Zen knows (credits, a retake, your marks, your pace, what you said last time, a crowded exam week, and what the title and notes say), poured into 60–90 minute sittings named for their step, longer on light days. When the budget changes, the next two days stay as they are and sittings are added or removed further out. Every sentence on this page is one the app can produce from what it knows.</p>
+  <p>Zen places your flexible work and leaves it alone. It re-plans only when something happened: <b>the school changed</b> a class, an exam or a due date; <b>you added</b> something or changed a due date; <b>you asked</b> (a rule, "later", a new time); or a block <b>passed undone</b>. Finishing or deleting something frees time; it moves nothing, except that a task still without a time takes it (the toast says “Đọc sách có giờ: T3 16:00”). Then the change is shown in three sizes: <b>motion</b> when it happens in front of you (rows move one at a time), a <b>trail</b> on each moved row (a vermilion dot and "từ T3 14:00"), and a <b>brief</b> when it happened while you were away. Exam and assignment <b>preps</b> (18 onward) are a budget of minutes, not a fixed "2 buổi": a base for the format, multiplied by what Zen knows (credits, a retake, your marks, your pace, what you said last time, a crowded exam week, and what the title and notes say), poured into 60–90 minute sittings named for their step, longer on light days. When the budget changes, the next two days stay as they are and sittings are added or removed further out. Every sentence on this page is one the app can produce from what it knows.</p>
   <nav><a href="views.html">Views</a><a href="settings.html">Settings</a></nav>
 </div>
 <div class="gallery"></div>
@@ -113,6 +121,9 @@ const brief = `${head("T3", "17/11", "3 việc, 1 tiết học")}${tabs("Ngày")
     <div class="t">Xếp lại 2 việc</div><div class="s">${CAUSE}, nên <b>Gym</b> sang <b class="tn">T4 7:00</b>. Giờ này hợp với việc tập thể dục.</div></div>
   <div class="lab" style="margin-top:26px">Hôm nay</div>
   <div class="list" style="margin-top:6px">${row("13:30", "Tiết bù Mạng máy tính", "lecture", "B1.201")}${row("15:00", "Gym", "plan", "Sang T4 7:00", "ghost")}${row("16:30", "Ôn Giải tích", "plan", moved("T3 14:00"))}${row("20:00", "Đọc sách mỗi tối", "plan", "Buổi tối")}</div>`;
+
+// 1b. The brief swiped sideways: it flicks away like the now-card, and does not come back.
+const briefOut = brief.replace('<div class="brief">', '<div class="brief out">');
 
 // 2. Brief opened in place: the trigger as a heading, then each move with its old time struck, its new time and one reason.
 const story = `${head("T3", "17/11", "3 việc, 1 tiết học")}${tabs("Ngày")}
@@ -151,6 +162,42 @@ const why = `${dtop}
   <div class="lab" style="margin-top:20px">Cũng hợp</div>
   <div class="pills" style="margin-top:10px"><span class="pl sm">T3 8:00</span></div>`;
 
+// 7c-e. You set a time on the detail screen: a preview while the dial is open, the story in place once it closes, a clash with a class.
+const youSet = (meta, after) => `${dtop}
+  <div style="display:flex;align-items:center;gap:10px;margin-top:22px">${swatch("plan")}<span class="sub" style="margin:0">Việc của bạn</span></div>
+  <div class="h" style="margin-top:14px">Gym</div>
+  <div class="meta">${meta}</div>${after}`;
+// The story's groups: the cause first, then what made room for it ("Kéo theo"), each move with one reason.
+function storyOf(knock = true) {
+  return `<div class="lab" style="margin-top:22px">Vì Gym T3 15:00</div>
+  <div style="margin-top:2px">${mv("Ôn Giải tích", "T3 15:00", "T3 16:30", "Có khoảng nghỉ trước và sau")}</div>${knock ? `
+  <div class="lab" style="margin-top:22px">Kéo theo</div>
+  <div style="margin-top:2px">${mv("Đọc sách", "T3 16:30", "T3 17:30", "Giờ này bạn hay làm xong việc")}</div>` : ""}
+  <div class="pills" style="margin-top:14px"><span class="pl sm on">Xong, mình thấy rồi</span><span class="pl sm">Hoàn tác</span></div>`;
+}
+// 7g/7h: changed from the list, the toast offers Xem; Xem opens the same story on today, in the art card's slot.
+const homeList = `${head("T3", "17/11", "4 việc, 1 tiết học")}${tabs("Ngày")}
+  <div class="lab" style="margin-top:28px">Hôm nay</div>
+  <div class="list" style="margin-top:6px">${row("13:30", "Cơ sở dữ liệu", "lecture", "A2.104")}${row("15:00", "Gym", "plan")}${row("16:30", "Ôn Giải tích", "plan", moved("T3 15:00"))}${row("17:30", "Đọc sách", "plan", moved("T3 16:30"))}</div>`;
+const setToast = toast("Đã dời Gym sang 15:00", "", [["Xem", true, true], ["Hoàn tác"]]) + homeList;
+const setHome = `${head("T3", "17/11", "4 việc, 1 tiết học")}${tabs("Ngày")}
+  ${storyOf()}`;
+// 7i: a done frees time; a task with none takes it, and nothing else moves.
+const pullIn = toast("Xong. Tốt lắm.", "Đọc sách có giờ: T3 16:00", [["Hoàn tác"]]) + `${head("T3", "17/11", "3 việc, 1 tiết học")}${tabs("Ngày")}
+  <div class="lab" style="margin-top:28px">Hôm nay</div>
+  <div class="list" style="margin-top:6px">${row("13:30", "Cơ sở dữ liệu", "lecture", "A2.104")}${row("16:00", "Đọc sách", "plan")}${row("17:30", "Ôn Giải tích", "plan")}</div>`;
+const pv = (t) => `<div style="margin:6px 0 0 30px;font-size:15px;font-weight:500;color:var(--muted)">${t}</div>`;
+const chips = (on) => `<div class="ed">${ic(I.clock, 20, 1.9)}<span class="pk">T3 17/11</span><span class="pk ${on ? "on" : ""}">15:00</span><em>đến</em><span class="pk">T3 17/11</span><span class="pk">16:00</span></div>`;
+const setPreview = youSet(chips(1) + pv("Sẽ dời Ôn Giải tích sang 16:30"), "");
+const setStory = youSet(ml("clock", "Làm lúc T3 15:00 - 16:00"), `
+  ${storyOf()}`);
+const setLost = youSet(ml("clock", "Làm lúc T3 15:00 - 16:00"), `
+  <div style="margin-top:18px;font-size:15px;font-weight:400;line-height:21px;color:var(--seal)">Đọc sách chưa có giờ trống</div>
+  ${storyOf(false)}`);
+const setClash = youSet(ml("clock", "Làm lúc T3 13:30 - 14:30"), `
+  <div class="warn" style="margin-top:22px"><b>Trùng giờ</b><small>Cơ sở dữ liệu cũng lúc này.</small>
+    <div class="pills" style="margin-top:12px"><span class="pl sm on">Dời việc mình</span><span class="pl sm">Giữ cả hai</span></div></div>`);
+
 // 7b. The same screen before Zen knows you: one honest line, no bars to compare.
 const whyCold = `${dtop}
   <div style="display:flex;align-items:center;gap:10px;margin-top:22px">${swatch("plan")}<span class="sub" style="margin:0">Việc của bạn</span></div>
@@ -170,7 +217,7 @@ const back = `${head("T3", "17/11", "3 việc, 1 tiết học")}${tabs("Ngày")}
 // 9. Heads up: a due date the plan cannot meet; each pill pushes one other flexible task past that due date.
 const heads = `${head("T4", "18/11", "3 việc, 1 tiết học")}${tabs("Ngày")}
   <div class="warn"><b>Báo cáo nhóm hơi gấp</b><small>Còn khoảng 5h mà trước T6 23:59 chỉ trống 3h.</small>
-    <div class="pills blk" style="margin-top:12px"><span class="pl sm on">Lùi Ôn tập Cấu trúc dữ liệu và giải thuật T5</span><span class="pl sm">Lùi Đọc sách T5</span></div></div>
+    <div class="pills blk" style="margin-top:12px"><span class="pl sm on"><span class="nm">Lùi Ôn tập Cấu trúc dữ liệu và giải thuật</span><span class="dy">T5</span></span><span class="pl sm"><span class="nm">Lùi Đọc sách</span><span class="dy">T5</span></span></div></div>
   <div class="lab" style="margin-top:26px">Hôm nay</div>
   <div class="list" style="margin-top:6px">${row("14:00", "Báo cáo nhóm", "assignment", "Buổi 1/4")}${row("17:30", "Cơ sở dữ liệu", "lecture", "A2.104")}${row("20:00", "Báo cáo nhóm", "assignment", "Buổi 2/4")}</div>`;
 
@@ -381,7 +428,8 @@ const prepRhythm = `${head("Mình hiểu bạn", "Nhịp của bạn", "8h-11h")
   <div class="ins"><b>Buổi dài bạn hay dời</b><small>4 trên 9 lần. Mình giữ mỗi buổi trong 1h.</small><div class="viz"><span class="meterh" style="--v:44%"></span></div></div>`;
 
 mount([
-  { tag: "1. Brief, while you were away", sub: "Only for changes made when you were not looking: the school added or moved a class or an exam, or changed a due date. One sentence: the trigger, the biggest move, its reason. Moved rows carry a vermilion dot and their old time; a row that left the day stays as a dashed ghost saying where it went. A change you caused yourself never raises the brief; you watched it happen.", html: chrome(brief) },
+  { tag: "1. Brief, while you were away", sub: "Only for changes made when you were not looking: the school added or moved a class or an exam, or changed a due date. One sentence: the trigger, the biggest move, its reason. Moved rows carry a vermilion dot and their old time; a row that left the day stays as a dashed ghost saying where it went. A change you caused yourself never raises the brief; you watched it happen. It is shown once: the first time you open the app after the change. Swipe it away (1b), or leave the app, and it is gone; the trail dots stay until you look.", html: chrome(brief) },
+  { tag: "1b. Brief, swiped away", sub: "Swipe the brief sideways and it flicks off, as the now-card does; past a short distance it springs back. Gone for good: it never returns for those moves, and the trail dots stay until you look.", html: chrome(briefOut) },
   { tag: "2. Brief, opened", sub: "Tap the brief: the list becomes the story, in place, no sheet. The heading is the trigger: “Vì trường thêm … 13:30”, “Vì trường dời … sang T5 9:00” or “Vì hạn … đổi sang T5 23:59”. Only tasks whose own time stopped working move; nothing else is touched. Each move: old time struck, new time, one reason. The button marks them seen and clears the dots.", html: chrome(story, { dock: null }) },
   { tag: "3. Motion is the diff", sub: "When the plan changes in front of you, the rows move one at a time: a moved row glides to its new time and lifts for a moment. A row that left for another day cannot travel across lists, so its old slot keeps a dashed ghost. In the week view the block travels from one day's column to the other.", html: chrome(glide) },
   { tag: "4. Thinking out loud", sub: "“Tuần này thêm Gym ba buổi.” The list stays on screen, on the day of the first new task, behind the page-colour veil Capture uses while dragging, so the lines read clearly. Up to four lines appear, one per task that was placed or moved, and each line's row lands as the line appears. Nothing is listed that did not change.", html: chrome(think, { dock: "think" }) },
@@ -389,8 +437,15 @@ mount([
   { tag: "6. Reason in the row", sub: "A flexible row's second line is its top reason, when Zen has one: a learned habit (only after it has seen it three times), the window you said, or the sitting count. An assignment keeps its course and due date. With nothing to say, the line stays empty.", html: chrome(reasons) },
   { tag: "7. Why this time", sub: "Detail: up to four sentences, each with a hairline bar for how much it mattered against the next best time. Vermilion counts against it, and is only shown next to a reason for. Below, the one other good free time; tapping it moves the task and teaches.", html: chrome(why, { dock: null }) },
   { tag: "Why, before Zen knows you", sub: "No habits yet, so no habit sentences: one honest line. The time comes from a default for this kind of task.", html: chrome(whyCold, { dock: null }) },
+  { tag: "7c. You set a time: what it will move", sub: "While the time line is open, nothing is saved and nothing re-planned. Under the chips, one muted line says what the time you are turning to would do: “Sẽ dời Ôn Giải tích sang 16:30”, or “Trùng Cơ sở dữ liệu” on a class or exam; more than one move reads “Sẽ xếp lại 3 việc”. A time that touches nothing says nothing.", html: chrome(setPreview, { dock: null }) },
+  { tag: "7d. You set a time: the story, in place", sub: "Close the line (tap outside, or go back) and Zen re-plans once. When anything else moved, the story opens right here, under the time: the cause as its heading, each move with its old time struck, its new time and one reason. A task that made room for a moved one says “Kéo theo”. A time you set before on another task gives way to the newer one. When the cause took a task's last free time, a vermilion line says so above the story (7f). Hoàn tác puts everything back; Xong clears the dots on the list.", html: chrome(setStory, { dock: null }) },
+  { tag: "7e. You set a time on a class", sub: "Classes and exams never move. A time over one keeps your time and asks, in the same card as the list's clash: move yours, or keep both.", html: chrome(setClash, { dock: null }) },
+  { tag: "7f. You set a time: one is left without", sub: "The cause took the last free time a task had: “Đọc sách chưa có giờ trống”, in vermilion, above the story. Its row says “Chưa có giờ trống” until a slot frees up (7i).", html: chrome(setLost, { dock: null }) },
+  { tag: "7g. Set from the list: Xem", sub: "A row’s time chip saves at once. When that moved other tasks, the toast says what you did and offers “Xem” next to Hoàn tác; the moved rows carry their dots.", html: chrome(setToast) },
+  { tag: "7h. Set from the list: the story", sub: "Xem opens the same story on today, in the art card’s slot: the list and the dock step aside until Xong or Hoàn tác.", html: chrome(setHome, { dock: null }) },
+  { tag: "7i. A done frees time", sub: "Finishing or deleting moves nothing, except that a task with no time yet takes the freed time. The toast says where it went.", html: chrome(pullIn) },
   { tag: "8. Put it back", sub: "Long-press a moved row. Back to the old time, the other good time, or pin it. The first two teach the model, the same as changing the time by hand; pinning just holds it.", html: chrome(back) },
-  { tag: "9. Heads up", sub: "After a re-plan, a due date that cannot be met in free time shows on today's list: how much work is left and how much time is free. Each pill pushes one other flexible task to after that due date, longest first; each pill is a full-width block so the task name reads; one too long ends in an ellipsis. One tap applies. Tapping the words opens the task. The card shows only while it is true: real shortfall, the task still open; a task late by its own pin with time to spare raises none.", html: chrome(heads) },
+  { tag: "9. Heads up", sub: "After a re-plan, a due date that cannot be met in free time shows on today's list: how much work is left and how much time is free. Each pill pushes one other flexible task to after that due date, longest first; each pill is a full-width block, the task name on the left (one too long ends in an ellipsis) and its day on the right, so every pill shares both edges. One tap applies. Tapping the words opens the task. The card shows only while it is true: real shortfall, the task still open; a task late by its own pin with time to spare raises none.", html: chrome(heads) },
   { tag: "10. A rule, said once", sub: "“Tối thứ sáu để trống nhé.” Zen repeats it in its own words and names the first task it moved to keep it. The week shows the kept evening as a striped block; the day shows it with its words and hours.", html: chrome(rule) },
   { tag: "11. Nhịp", sub: "The pill right of Tháng. Golden hours: each hour's learned value. One card each, only with evidence: what goes well after a kind of task, the best three hours for a kind, the kind you push later most, and the hours it knows least.", html: chrome(rhythm()) },
   { tag: "12. Nhịp, scrolled", sub: "What you said is a hard rule; swipe it to forget. What it guessed shows how sure it is in three words. Guesses cannot be forgotten one by one.", html: chrome(mem) },

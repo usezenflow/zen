@@ -38,7 +38,10 @@ body { font-family: 'Be Vietnam Pro', system-ui, sans-serif; background: var(--p
 .pl.sm { height: 36px; padding: 0 16px; font-size: 15px; }
 /* Heads-up pills carry task names, so each is a full-width block, one under the other; a title too long still ends in an ellipsis. */
 .pills.blk { flex-direction: column; flex-wrap: nowrap; }
-.pills.blk .pl { display: block; width: 100%; text-align: center; line-height: 34px; overflow: hidden; text-overflow: ellipsis; }
+.pills.blk .pl { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; line-height: 34px; padding: 0 18px; }
+/* the task name left (ellipsis when long), its day pinned right: every pill shares both edges, whatever the length */
+.pills.blk .pl .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pills.blk .pl .dy { opacity: .7; font-variant-numeric: tabular-nums; }
 .btn { height: 56px; border-radius: 99px; display: grid; place-items: center; font-size: 17px; font-weight: 700; background: var(--ink); color: var(--bg); }
 .field { height: 56px; padding: 0 22px; border-radius: 99px; border: 1px solid var(--line); display: flex; align-items: center; font-size: 17px; font-weight: 500; }
 .field.ph { color: var(--muted); }

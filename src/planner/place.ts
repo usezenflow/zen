@@ -41,6 +41,8 @@ export function cells(p: Piece, now: number): number[] {
   const t = p.task;
   const lo = ceil(Math.max(now, t.notBefore ?? now));
   let hi = t.deadline === undefined ? now + (p.soon ? 2 : 7) * DAY : Math.min(t.deadline + 3 * DAY, now + 120 * DAY);
+  // a piece already placed further out (by hand, or a week ago) that must move stays near its day, not dragged into this week
+  if (t.deadline === undefined && p.prior !== undefined) hi = Math.max(hi, dayStart(p.prior) + 2 * DAY);
   if (hi <= lo) hi = lo + 3 * DAY;
   // a repeat's occurrence stays on its own day: the next day has its own
   if (t.rrule && t.deadline !== undefined) hi = Math.min(hi, t.deadline);

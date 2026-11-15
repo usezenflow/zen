@@ -182,15 +182,18 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
   const solved = solve(pieces, { busy: allBusy, fixedEnds, now, util: linUtil, utilAll: linAll }, [...pieces.map((p) => p.id)].sort().join("|").split("").reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0, 2166136261)); // same pieces, same plan
   const at = (p: Piece) => solved.starts.get(p.id)!;
 
+  // Busy time and every placed piece, sorted once per plan (not once per piece: that was O(P² log P)).
+  const taken: (Busy & { by?: Piece })[] = [...allBusy, ...pieces.filter((q) => at(q) >= 0).map((q) => ({ start: at(q), end: at(q) + dur(q), by: q }))].sort((x, y) => x.start - y.start);
   // Second-best start in solver terms: at least 1 h from the pick, clear of busy time.
   const altOf = (p: Piece, start: number) => {
     let top: { c: number; v: number } | undefined;
     const cs = cells(p, now), u = linAll(p, fixedEnds);
-    // Busy time and the other placed pieces, merged into sorted disjoint spans, swept once with the ascending cells.
+    // The others' time merged into disjoint spans, swept once with the ascending cells.
     const spans: Busy[] = [];
-    for (const b of [...allBusy, ...pieces.filter((q) => q !== p && at(q) >= 0).map((q) => ({ start: at(q), end: at(q) + dur(q) }))].sort((x, y) => x.start - y.start)) {
+    for (const b of taken) {
+      if (b.by === p) continue;
       const last = spans[spans.length - 1];
-      if (last && b.start <= last.end) last.end = Math.max(last.end, b.end); else spans.push({ ...b });
+      if (last && b.start <= last.end) last.end = Math.max(last.end, b.end); else spans.push({ start: b.start, end: b.end });
     }
     let j = 0;
     for (let i = 0; i < cs.length; i++) {
@@ -267,7 +270,9 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
   for (const p of pieces) {
     const s = at(p);
     if (s < 0) { (diff.unplaced ??= []).push({ id: p.id, effort: p.effort }); continue; } // no free, awake slot at all: warned below
-    const changed = p.prior !== s, alt = altOf(p, s);
+    const changed = p.prior !== s, known0 = m.placed[p.id];
+    if (!changed && known0 && p.lock) continue; // held, and placed before: it keeps the reasons it was placed for, nothing to recompute
+    const alt = altOf(p, s);
     const c = changed && p.prior !== undefined ? p.prior : alt;
     const r = c === undefined ? { why: [guessOf(p)], explore: false } : whyOf(p, s, c);
     if (p.task.notAfter !== undefined) r.why = [{ key: "said", w: 1 } as Reason, ...r.why].slice(0, 4);

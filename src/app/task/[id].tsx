@@ -11,7 +11,10 @@ import { EdLine, Gly, Meta } from "@/components/detail-meta";
 import { useTapOutside, type Box } from "@/components/outside";
 import { DropMenu } from "@/components/menu";
 import { RichText } from "@/components/richtext";
-import { apply, liveEdit, retime, moveMine, removeScope, type Result } from "@/lib/apply";
+import { apply, moveMine, preview, removeScope, toAction, type LiveEdit, type Result } from "@/lib/apply";
+import { Story } from "@/components/nowcard";
+import { seeMoves } from "@/lib/moves";
+import { keepBoth } from "@/lib/overlap";
 import { t } from "@/lib/i18n";
 import { leftSaved, openedOnDay, setFlash } from "@/lib/flash";
 import { allTasks, loadModel } from "@/lib/store";
@@ -41,6 +44,12 @@ export default function Detail() {
   const [dr, setDr] = useState({ s: 0, m: 30 }); // time draft: start and length in minutes
   const [dv, setDv] = useState(0); // due draft
   const [loc, setLoc] = useState("");
+  // The open time or due line's value: nothing is saved or planned until the line closes (magic.html 7c), then once.
+  const draft = useRef<{ id: string; e: LiveEdit }>(undefined);
+  const [pv, setPv] = useState<Result>(); // what the draft would do: a dry run, shown as one line under the chips
+  const [told, setTold] = useState<{ r: Result; id: string }>(); // what the saved value did, shown in place (magic.html 7d)
+  const pvGen = useRef(0);
+  const pvT = useRef<ReturnType<typeof setTimeout>>(undefined);
   const saved = useRef("");
   const latest = useRef("");
   const nav = useNavigation();
@@ -76,9 +85,22 @@ export default function Detail() {
   }, [id, nav]);
   // on every focus, not only the first: back from a sitting deleted on its own screen drops it from "Các buổi" here
   useFocusEffect(useCallback(() => { void load(); }, [load]));
-  // The open time or due line: every value is saved as it settles (liveEdit), so a tap outside only closes the line.
+  // Saves the open line's value: one edit, one plan, one undo.
+  const commit = useCallback(() => {
+    const d = draft.current;
+    draft.current = undefined; pvGen.current++; clearTimeout(pvT.current); setPv(undefined);
+    return d && apply([toAction(d.id, d.e)]).then((r) => ({ r, id: d.id }));
+  }, []);
+  useEffect(() => () => leftSaved(commit()), [commit]); // leaving with the line open keeps the value; the list reloads once it lands
+  const close = () => {
+    setEd(undefined);
+    const p = commit();
+    if (!p) return void load();
+    leftSaved(p);
+    p.then(({ r, id }) => { if (r.moves?.some((m) => m.id !== id) || r.clashes?.length || r.lost?.length) setTold({ r, id }); void load(); }, () => void load());
+  };
   const edBox = useRef<Box>(null);
-  useTapOutside(edBox, ed === "time" || ed === "due", () => { setEd(undefined); void load(); }); // a dropdown open over it takes its own taps
+  useTapOutside(edBox, ed === "time" || ed === "due", close); // a dropdown open over it takes its own taps
 
   // Note: save on blur, after a pause, and when leaving.
   const saveNote = useCallback(() => {
@@ -137,17 +159,22 @@ export default function Detail() {
   const mine = task.source !== "dlu" && !task.forId;
   const canTime = !!tt && (task.fixed ? task.fixed === "busy" && mine && task.start !== undefined : true);
   const hasDue = mine && !task.fixed && !task.rrule && task.deadline !== undefined;
-  // Each settled value is saved at once; the re-plan runs half a second after the last one (lib/apply liveEdit), then the screen reloads.
-  // leftSaved: the list reloads once it lands, even when the user has already gone back.
-  const live = (p: Promise<Result | undefined>) => { leftSaved(p); p.then((r) => { if (r) void load(); }, () => void load()); };
+  // A dry run of the draft, once the wheel rests a moment; a later turn drops an earlier answer.
+  const ask = () => {
+    clearTimeout(pvT.current);
+    const g = ++pvGen.current;
+    pvT.current = setTimeout(() => { const d = draft.current; if (d) void preview(d.id, d.e).then((r) => { if (g === pvGen.current) setPv(r); }, () => {}); }, 120);
+  };
   const setTime = (s: number, m: number) => {
     if (!tt) return;
     setDr({ s, m });
+    setTold(undefined);
     const moved = (x: Task) => ({ ...x, start: s, end: s + m * 60_000, effort: m });
     if (tt.id === task.id) setTask((x) => x && moved(x)); else setSits((xs) => xs.map((x) => (x.id === tt.id ? moved(x) : x)));
-    live(retime(tt.id, s, m));
+    draft.current = { id: tt.id, e: { when: s, effortMinutes: m } };
+    ask();
   };
-  const setDue = (d: number) => { setDv(d); setTask((x) => x && { ...x, deadline: d }); live(liveEdit(task.id, { deadline: d })); };
+  const setDue = (d: number) => { setDv(d); setTold(undefined); setTask((x) => x && { ...x, deadline: d }); draft.current = { id: task.id, e: { deadline: d } }; };
   const setEnd = (end: number) => setTime(dr.s, Math.max(15, Math.round((end - dr.s) / 60_000))); // never before the start
   const clock = (base: number, d: Date) => { const n = new Date(base); n.setHours(d.getHours(), d.getMinutes(), 0, 0); return n.getTime(); };
   const dayOf = (base: number, d: Date) => { const n = new Date(base); n.setFullYear(d.getFullYear(), d.getMonth(), d.getDate()); return n.getTime(); };
@@ -187,7 +214,7 @@ export default function Detail() {
       <EdLine key="d" ref={edBox} icon="hourglass" tone="red">
         <DateChip value={dv} onChange={(d) => setDue(dayOf(dv, d))} />
         <TimeChip value={dv} due onChange={(d) => setDue(clock(dv, d))} />
-        <Tap onPress={() => { setEd(undefined); if (task.deadline !== undefined) live(liveEdit(task.id, { deadline: "" })); }} accessibilityLabel={t("clearDue")} style={s.clr}>
+        <Tap onPress={() => { if (task.deadline !== undefined) draft.current = { id: task.id, e: { deadline: "" } }; close(); }} accessibilityLabel={t("clearDue")} style={s.clr}>
           <Text style={{ fontFamily: ff("600"), fontSize: font.sub, color: th.muted }}>{t("clearDue")}</Text>
         </Tap>
       </EdLine>
@@ -213,6 +240,10 @@ export default function Detail() {
       </EdLine>
     );
     if (i >= 0) lines[i] = row; else lines.push(row);
+    // magic.html 7c: what the time being turned to would do; nothing when it touches nothing
+    const c = pv?.clashes?.[0], ms = (pv?.moves ?? []).filter((x) => x.id !== tt?.id);
+    const say = c ? t("previewClash", { title: c.fixed.title }) : ms.length > 1 ? t("previewMoves", { n: ms.length }) : ms[0] && t("previewMove", { title: ms[0].title, when: at(ms[0].to) });
+    if (say) lines.splice((i >= 0 ? i : lines.length - 1) + 1, 0, <Text key="pv" accessibilityLiveRegion="polite" style={[s.pv, { color: th.muted }]}>{say}</Text>);
   }
   // a link place opens on tap; the dots menu edits it
   if (link && ed !== "place") lines.push(<Meta key="l" icon="link" tone="link" text={host(link)} onPress={() => void Linking.openURL(link).catch(() => {})} />);
@@ -239,6 +270,11 @@ export default function Detail() {
     setFlash({ text: r.toast, sub: r.sub, r });
     router.back();
   });
+  const toldMoves = told ? (told.r.moves ?? []).filter((x) => x.id !== told.id) : [];
+  const giveBack = async (id: string) => { setTold(undefined); const r = await moveMine(id); setFlash({ text: r.toast, sub: r.sub, r }); void load(); };
+  const keep = async (c: NonNullable<Result["clashes"]>[number]) => { await keepBoth(c); setTold((x) => x && { ...x, r: { ...x.r, clashes: x.r.clashes?.filter((y) => y !== c) } }); };
+  const seen = () => { setTold(undefined); void seeMoves(toldMoves.map((x) => x.id)); };
+  const undoTold = async () => { const r = told?.r; setTold(undefined); await r?.undo(); void load(); };
   const circle = [s.o, { borderColor: th.line, backgroundColor: th.bg }];
   const danger = [s.o, { borderColor: th.seal, backgroundColor: th.bg }]; // red: not mistaken for the dots next to it
   return (
@@ -275,6 +311,23 @@ export default function Detail() {
           </View>
           <TextInput value={title} onChangeText={setTitle} selectionColor={th.seal} cursorColor={th.seal} onEndEditing={submitTitle} returnKeyType="done" submitBehavior="blurAndSubmit" multiline style={[s.h, { color: th.ink }]} />
           {lines.length > 0 && <View style={s.meta}>{lines}</View>}
+          {/* magic.html 7d/7e: what the time just set did, in place: a clash with a class asks, the moves tell their story with Undo */}
+          {told && (
+              <View style={{ marginTop: 6 }}>
+                {told.r.clashes?.map((c) => (
+                  <View key={c.fixed.id} style={[s.warn, { borderColor: th.seal }]}>
+                    <Text style={[s.wht, { color: th.seal }]}>{t("clash")}</Text>
+                    <Text style={[s.wb, { color: th.muted }]}>{t("clashHere", { a: c.fixed.title })}</Text>
+                    <View style={[s.pills, { marginTop: 12 }]}>
+                      <Tap onPress={() => giveBack(c.mine.id)} style={[s.pill2, { backgroundColor: th.ink }]}><Text numberOfLines={1} style={[s.plt, { color: th.bg, fontFamily: ff("700") }]}>{t("overlapMine")}</Text></Tap>
+                      <Tap onPress={() => keep(c)} style={[s.pill2, { borderColor: th.line, borderWidth: 1 }]}><Text numberOfLines={1} style={[s.plt, { color: th.ink }]}>{t("overlapKeep")}</Text></Tap>
+                    </View>
+                  </View>
+                ))}
+                {told.r.lost?.map((x) => <Text key={x.id} style={[s.wb, { color: th.seal, marginTop: 12 }]}>{t("lostSlot", { title: x.title })}</Text>)}
+                {toldMoves.length > 0 && <Story moves={toldMoves} now={now} onClose={seen} onUndo={undoTold} />}
+              </View>
+          )}
           {/* prep.html "Các buổi": every sitting with its day, step and length; done ones struck, this one bold. Only for two or more; above the LMS content, each row opens its sitting. */}
           {sits.length > 1 && (
             <View style={s.why}>
@@ -353,6 +406,12 @@ const s = StyleSheet.create({
   wt: { flex: 1, fontFamily: ff("500"), fontSize: font.meta, lineHeight: 21.6 },
   bar2: { width: 46, height: 4, borderRadius: 4, overflow: "hidden" },
   pills: { flexDirection: "row", gap: 8, marginTop: 10 },
+  pv: { marginLeft: 30, marginTop: -4, fontFamily: ff("500"), fontSize: font.sub, lineHeight: 20 },
+  warn: { marginTop: 16, padding: 14, paddingHorizontal: 16, borderRadius: 22, borderWidth: 1.5 }, // day.tsx .warn
+  wht: { fontSize: font.meta, fontFamily: ff("700") },
+  wb: { marginTop: 4, fontFamily: ff(), fontSize: font.sub, lineHeight: 21 },
+  pill2: { height: 36, paddingHorizontal: 16, borderRadius: 99, alignItems: "center", justifyContent: "center", flexShrink: 1, minWidth: 0 },
+  plt: { fontSize: font.sub, fontFamily: ff("500") },
   pill: { height: 36, paddingHorizontal: 16, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   note: { marginTop: 18, fontFamily: ff(), fontSize: font.base, lineHeight: 25.5, minHeight: 120, textAlignVertical: "top", padding: 0 },
 });

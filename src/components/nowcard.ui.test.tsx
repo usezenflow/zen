@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
 import { StyleSheet } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Brief, Live, NowCard, Steps, Story, Weekly } from "./nowcard";
 import { t } from "@/lib/i18n";
 import { when } from "@/lib/when";
@@ -76,34 +77,35 @@ describe("Live", () => {
   });
 });
 
+const root = { wrapper: GestureHandlerRootView }; // the brief swipes away
 const mv = (over: Partial<Move>): Move => ({ id: "m", title: "Ôn tập", from: at(14), to: at(16), at: NOW, ...over });
 
 describe("Brief", () => {
   it("one move: its title, the morning header, and the bold task and time", async () => {
-    await render(<Brief moves={[mv({ cause: "Có tiết bù" })]} now={NOW} onOpen={jest.fn()} />);
+    await render(<Brief moves={[mv({ cause: "Có tiết bù" })]} now={NOW} onOpen={jest.fn()} />, root);
     expect(screen.getByText(t("briefMorning"))).toBeOnTheScreen();
     expect(screen.getByText(t("briefOne", { title: "Ôn tập" }))).toBeOnTheScreen();
     expect(screen.getByText(when(at(16), NOW))).toBeOnTheScreen(); // the new time in its own bold run
     expect(screen.getByText(/^Có tiết bù, nên/)).toBeOnTheScreen();
   });
   it("several moves count them; after noon the header is 'just now'", async () => {
-    await render(<Brief moves={[mv({ id: "a" }), mv({ id: "b", title: "Đi chợ" })]} now={at(15)} onOpen={jest.fn()} />);
+    await render(<Brief moves={[mv({ id: "a" }), mv({ id: "b", title: "Đi chợ" })]} now={at(15)} onOpen={jest.fn()} />, root);
     expect(screen.getByText(t("briefNow"))).toBeOnTheScreen();
     expect(screen.getByText(t("briefN", { n: 2 }))).toBeOnTheScreen();
   });
   it("names a real cause over a bigger knock-on", async () => {
     const moves = [mv({ id: "a", title: "Giặt đồ", to: at(15), cause: "Có tiết bù" }), mv({ id: "b", title: "Đi chợ", to: at(20), cause: t("causeKnock") })];
-    await render(<Brief moves={moves} now={NOW} onOpen={jest.fn()} />);
+    await render(<Brief moves={moves} now={NOW} onOpen={jest.fn()} />, root);
     expect(screen.getByText("Giặt đồ")).toBeOnTheScreen();
     expect(screen.queryByText("Đi chợ")).toBeNull();
   });
   it("without a real cause the biggest move wins", async () => {
-    await render(<Brief moves={[mv({ id: "a", title: "Giặt đồ", to: at(15) }), mv({ id: "b", title: "Đi chợ", to: at(20) })]} now={NOW} onOpen={jest.fn()} />);
+    await render(<Brief moves={[mv({ id: "a", title: "Giặt đồ", to: at(15) }), mv({ id: "b", title: "Đi chợ", to: at(20) })]} now={NOW} onOpen={jest.fn()} />, root);
     expect(screen.getByText("Đi chợ")).toBeOnTheScreen();
   });
   it("opens the story on tap", async () => {
     const onOpen = jest.fn();
-    await render(<Brief moves={[mv({})]} now={NOW} onOpen={onOpen} />);
+    await render(<Brief moves={[mv({})]} now={NOW} onOpen={onOpen} />, root);
     await fireEvent.press(screen.getByLabelText(t("briefOpen")));
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
@@ -111,6 +113,13 @@ describe("Brief", () => {
     await render(<Brief moves={[]} now={NOW} onOpen={jest.fn()} />);
     expect(screen.toJSON()).toBeNull();
   });
+});
+
+it("Brief: a screen reader can put it away, as the swipe does", async () => {
+  const onDismiss = jest.fn();
+  await render(<Brief moves={[mv({})]} now={NOW} onOpen={jest.fn()} onDismiss={onDismiss} />, root);
+  await fireEvent(screen.getByLabelText(t("briefOpen")), "accessibilityAction", { nativeEvent: { actionName: "dismiss" } });
+  expect(onDismiss).toHaveBeenCalledTimes(1);
 });
 
 describe("Story", () => {
@@ -132,6 +141,14 @@ describe("Story", () => {
     await render(<Story moves={[mv({})]} now={NOW} onClose={onClose} />);
     await fireEvent.press(screen.getByLabelText(t("briefClose")));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+  it("offers Undo only where the change was made", async () => {
+    const onUndo = jest.fn();
+    const r = await render(<Story moves={[mv({})]} now={NOW} onClose={jest.fn()} />);
+    expect(screen.queryByLabelText(t("undo"))).toBeNull();
+    await r.rerender(<Story moves={[mv({})]} now={NOW} onClose={jest.fn()} onUndo={onUndo} />);
+    await fireEvent.press(screen.getByLabelText(t("undo")));
+    expect(onUndo).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -1,5 +1,25 @@
 # zen
 
+## 26.0.3
+
+### Patch Changes
+
+- Đổi giờ một việc mượt hơn, không còn khựng
+    - Lúc đang xoay bánh xe giờ, chưa có gì được lưu hay xếp lại; đóng dòng giờ là lưu một lần, xếp lại một lần
+    - Ngay dưới các ô giờ, một dòng nhỏ báo trước: "Sẽ dời Ôn Giải tích sang 16:30", "Sẽ xếp lại 3 việc" hay "Trùng Cơ sở dữ liệu"
+    - Đóng lại, những gì bị dời hiện ngay tại chỗ: giờ cũ gạch đi, giờ mới, lý do, kèm "Hoàn tác"
+- Giờ đặt sau cùng thắng
+    - Đặt một việc đè lên việc khác mà bạn đã đặt giờ trước đó, việc cũ tự nhường chỗ, không còn hai việc chồng lên nhau
+    - Việc bị dời đi tìm chỗ gần nhất, không nhảy sang hôm khác; việc ở tuần sau vẫn ở tuần sau
+    - Đè lên tiết học, giờ thi hay giờ cố định thì không dời gì, chỉ hỏi: "Dời việc mình" hay "Giữ cả hai"
+    - Việc nào hết chỗ thì báo rõ: "Đọc sách chưa có giờ trống"
+- Đổi giờ ngay trên danh sách mà làm dời việc khác: thông báo có nút "Xem" để mở lại những gì đã đổi
+- Xong hay xoá một việc thì giờ trống được dành cho việc đang chưa có giờ, các việc khác vẫn đứng yên
+- Bảng "Sáng nay" chỉ hiện một lần: vuốt sang bên để ẩn, hoặc rời ứng dụng là tự mất; chấm đỏ trên việc bị dời vẫn còn tới khi bạn xem
+- Gõ nhiều việc cách nhau bằng dấu phẩy: mỗi việc không còn chép cả câu vào ghi chú
+- Nút trong thẻ "hơi gấp" gọn hơn: tên việc canh trái, ngày ở bên phải
+- Xếp lịch nhanh hơn khi có nhiều việc
+
 ## 26.0.2
 
 ### Patch Changes
