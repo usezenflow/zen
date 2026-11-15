@@ -38,7 +38,6 @@ export interface Task {
   createdAt: number;
 }
 
-export interface Note { id: string; text: string; at: number }
 
 export type EventType = "placed" | "kept" | "done" | "drag" | "later" | "delete" | "edit";
 export interface TaskEvent {
@@ -49,7 +48,7 @@ export interface TaskEvent {
   data?: Record<string, unknown>; // drag: { fromStart, toStart }, placed: { policy, arm, x }
 }
 
-export type Op = "create" | "edit" | "done" | "delete" | "note"; // standing rules have their own reader (lib/rules.ts)
+export type Op = "create" | "edit" | "done" | "delete"; // standing rules have their own reader (lib/rules.ts)
 export interface Action {
   op: Op;
   target?: string;

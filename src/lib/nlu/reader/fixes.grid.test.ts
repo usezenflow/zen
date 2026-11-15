@@ -2,7 +2,6 @@
 // and each checks fixed (a said clock is a block) and flexible (a day, a part, a deadline) outputs both.
 import { describe, expect, it } from "vitest";
 import { itemAction } from "../adapt";
-import { think } from "../commands";
 import type { ReaderWC } from "../shared";
 import { lengthMin } from "./calendar";
 import { read } from "./reader";
@@ -21,12 +20,6 @@ const acts = (s: string, ref: WC = SUN) => items(s, ref).map(itemAction);
 const check = (rows: [string, unknown, unknown][]) =>
   expect(rows.filter(([, got, want]) => JSON.stringify(got) !== JSON.stringify(want)).map(([s, g, w]) => `${s}: got ${JSON.stringify(g)} want ${JSON.stringify(w)}`)).toEqual([]);
 
-describe("grid: notes", () => {
-  const now = new Date("2026-11-15T03:00:00Z");
-  it("a note keeps every line", () => {
-    expect(think("ghi chú: dòng 1\ndòng 2", now)).toEqual([{ op: "note", title: "dòng 1\ndòng 2" }]);
-  });
-});
 
 describe("grid: a said start snaps to the 15-minute grid", () => {
   it("every hh:mm at 5-minute steps, fixed and as a deadline", () => {

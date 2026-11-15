@@ -3,12 +3,23 @@ import { think } from "./commands";
 
 const now = new Date("2026-11-13T03:00:00Z"); // 10:00 Fri, UTC+7
 
-describe("a spoken line", () => {
-  it("a note keeps the original words", () => {
-    expect(think("Ghi chú: ba gọi điện chiều mai", now)).toEqual([{ op: "note", title: "ba gọi điện chiều mai" }]);
-  });
-  it("anything else is a create", () => {
+describe("a spoken line always creates", () => {
+  it("a read line keeps what was read", () => {
     expect(think("họp nhóm mai 9h", now)).toEqual([expect.objectContaining({ op: "create", when: "2026-11-14T09:00:00" })]);
-    for (const s of ["mua sữa", "dọn phòng vào thứ 7", "chuyển tiền vào thứ 6", "hoàn thành báo cáo nhóm trước thứ 6"]) expect(think(s, now)[0]).toMatchObject({ op: "create" });
+  });
+  it("any input, gibberish too, gives at least one create with a title", () => {
+    const lines = [
+      "mua sữa", "xong bai tap toan", "xoá họp nhóm", "dời bài tập sang mai", "ghi chú: ba gọi điện", "dọn phòng vào thứ 7",
+      "asdkjh qwe", "???", "!!!", "...", "123", "3h", "mai", "9h sáng mai", "thứ 2", "hàng tuần", "mỗi", "a", "🙂🙂", "ok", "lol 42 zz",
+      "x".repeat(500), "đi đi đi đi đi đi", "   lạ   lắm   ", "hôm qua", "31/2", "25:99", "trước", "từ đến", "sáng hoặc tối",
+    ];
+    for (const s of lines) {
+      const a = think(s, now);
+      expect(a.length, s).toBeGreaterThan(0);
+      for (const x of a) { expect(x.op, s).toBe("create"); expect(x.title?.trim(), s).toBeTruthy(); }
+    }
+  });
+  it("a line the reader cannot use is the title as said", () => {
+    expect(think("  asdkjh   qwe ", now)[0].title).toMatch(/asdkjh/i);
   });
 });

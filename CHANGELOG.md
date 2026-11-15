@@ -1,5 +1,20 @@
 # zen
 
+## 26.0.2
+
+### Patch Changes
+
+- Nói hay gõ gì cũng thành việc
+    - Câu nào cũng tạo ít nhất một việc, kể cả câu khó hiểu: cả câu thành tên việc, phần còn lại để mặc định
+    - Không còn "Mình chưa hiểu câu này"
+    - Bỏ lệnh bằng giọng nói: "xong …", "xoá …", "dời … sang …" giờ là tên việc mới; đánh dấu xong, xoá, dời làm ngay trên việc
+    - Bỏ ghi chú riêng bằng giọng nói; ghi chú trong từng việc vẫn giữ
+- Việc mới không còn "nuốt" việc cũ: "dọn phòng vào thứ 7" khi đã có "Dọn phòng" là một việc mới, không dời việc cũ
+- Việc lặp không còn bị nhân đôi khi mở lại ứng dụng
+- Gần hạn thì không chia nhỏ
+    - Mỗi ngày còn lại tối đa một buổi; còn dưới một ngày thì làm một lần
+    - Việc giữ nguyên thời lượng, mỗi buổi dài tối đa 3h
+
 ## 26.0.1
 
 ### Patch Changes

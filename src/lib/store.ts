@@ -1,7 +1,7 @@
 import * as SQLite from "expo-sqlite";
 import { newModel, type Model } from "../planner";
 import { upgradePrior } from "../planner/linucb";
-import type { Note, Task, TaskEvent } from "./types";
+import type { Task, TaskEvent } from "./types";
 
 let db: Promise<SQLite.SQLiteDatabase> | undefined;
 
@@ -12,7 +12,6 @@ const open = () =>
       PRAGMA journal_mode = WAL;
       CREATE TABLE IF NOT EXISTS tasks(id TEXT PRIMARY KEY, title TEXT, vec BLOB, kind TEXT, effort REAL,
         deadline REAL, notBefore REAL, rrule TEXT, start REAL, "end" REAL, doneAt REAL, meta TEXT); -- older installs also have an unused calendarEventId column
-      CREATE TABLE IF NOT EXISTS notes(id TEXT PRIMARY KEY, text TEXT, at REAL);
       CREATE TABLE IF NOT EXISTS events(id TEXT PRIMARY KEY, taskId TEXT, type TEXT, at REAL, data TEXT);
       CREATE TABLE IF NOT EXISTS model(key TEXT PRIMARY KEY, json TEXT);
       CREATE TABLE IF NOT EXISTS kv(key TEXT PRIMARY KEY, value TEXT);`);
@@ -69,17 +68,6 @@ export async function removeTasks(ids: string[]) {
   const d = await open();
   for (const id of ids) await d.runAsync("DELETE FROM tasks WHERE id=?", [id]);
   widgets();
-}
-
-export async function allNotes(): Promise<Note[]> {
-  return (await open()).getAllAsync<Note>("SELECT id,text,at FROM notes ORDER BY at DESC");
-}
-export async function putNote(n: Note) {
-  await (await open()).runAsync("INSERT OR REPLACE INTO notes(id,text,at) VALUES(?,?,?)", [n.id, n.text, n.at]);
-}
-export async function removeNotes(ids: string[]) {
-  const d = await open();
-  for (const id of ids) await d.runAsync("DELETE FROM notes WHERE id=?", [id]);
 }
 
 export async function allEvents(taskId?: string): Promise<TaskEvent[]> {

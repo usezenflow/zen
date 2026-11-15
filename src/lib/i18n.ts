@@ -16,7 +16,6 @@ const S = {
   added: "Đã thêm {title}",
   done: "Xong. Tốt lắm.",
   later: "Đã dời lại",
-  noted: "Đã lưu ghi chú",
   deleted: "Đã xóa {title}",
   renamed: "Đã đổi tên thành {title}",
   moved: "Đã dời {title} sang {time}",

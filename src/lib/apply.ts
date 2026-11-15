@@ -7,7 +7,7 @@ import { when as at12 } from "./when";
 import * as stats from "./stats";
 import * as store from "./store";
 import { recordMoves, saveWarn, seeMoves } from "./moves";
-import type { Action, Diff, EventType, Gone, Kind, Move, Note, Notice, Rule, Step, Task, TaskEvent, Warn } from "./types";
+import type { Action, Diff, EventType, Gone, Kind, Move, Notice, Rule, Step, Task, TaskEvent, Warn } from "./types";
 
 const DAY = 86400_000;
 const kv: stats.Storage = { get: store.kvGet, set: store.kvSet };
@@ -31,7 +31,6 @@ interface Work {
   tasks: Map<string, Task>;
   model: Model;
   events: TaskEvent[];
-  notes: Note[];
   now: number;
   toast?: string;
   sub?: string;
@@ -220,11 +219,6 @@ function pushRule(w: Work, r: Omit<Rule, "id" | "at">) {
 
 async function act(w: Work, a: Action) {
   const { now } = w;
-  if (a.op === "note") {
-    const text = (a.title ?? "").trim();
-    if (text) { w.notes.push({ id: uid(), text, at: now }); w.toast = t("noted"); }
-    return;
-  }
   if (a.op === "create") {
     const title = a.title?.trim();
     if (!title) return;
@@ -323,7 +317,7 @@ async function transactNow(now: number, mutate: (w: Work) => Promise<void> | voi
   const model0 = await store.loadModel(now);
   const before = new Map((await store.allTasks()).map((x) => [x.id, x]));
   const w: Work = {
-    tasks: new Map(before), model: model0, events: [], notes: [], moves: [], now,
+    tasks: new Map(before), model: model0, events: [], moves: [], now,
     log(type, task, data) {
       if (o.quiet) return; // a value held mid-edit: the edit that settles it is the one worth learning from
       const ev: TaskEvent = { id: uid(), taskId: task.id, type, at: now, data };
@@ -386,7 +380,6 @@ async function transactNow(now: number, mutate: (w: Work) => Promise<void> | voi
 
   const changed = [...w.tasks.values()].filter((x) => before.get(x.id) !== x);
   await store.putTasks(changed);
-  for (const n of w.notes) await store.putNote(n);
   for (const e of w.events) await store.putEvent(e);
   await store.saveModel(w.model);
   if (diff) { await store.kvSet("plannedAt", String(now)); await recordMoves(w.moves); await saveWarn(diff.warn ?? []); }
@@ -409,7 +402,6 @@ async function transactNow(now: number, mutate: (w: Work) => Promise<void> | voi
       const restored = mine.filter((x) => before.has(x.id)).map((x) => before.get(x.id)!);
       await store.removeTasks(gone.map((x) => x.id));
       await store.putTasks(restored);
-      await store.removeNotes(w.notes.map((n) => n.id));
       await store.removeEvents(w.events.map((e) => e.id));
       await store.saveModel(model0);
       for (const k of ["moves", "warn"] as const) await store.kvSet(k, kv0[k] ?? "[]");

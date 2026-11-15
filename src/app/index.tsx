@@ -342,7 +342,8 @@ export default function Home() {
       const actions = think(text, nowD, source, extra);
       // dev only: what the recognizer wrote and what was read from it, so a wrong day can be traced to its transcript
       if (__DEV__) console.log("[heard]", JSON.stringify({ via, text, alternatives, actions, readErrors }));
-      const read = actions.some((a) => a.op === "create") ? readFull(text, nowD, source, { ...extra, alternatives: undefined }) : undefined; // offsets in the notes point into this transcript, not a winning alternative
+      let read: ReturnType<typeof readFull> | undefined; // offsets in the notes point into this transcript, not a winning alternative
+      try { read = readFull(text, nowD, source, { ...extra, alternatives: undefined }); } catch { /* the tasks are made without the hints */ }
       const notes = read ? readNotes(text, read) : {};
       const now = nowD.getTime();
       const r = await apply(actions, now);

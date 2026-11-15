@@ -1,14 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { newModel } from "../planner";
-import type { Note, Task, TaskEvent } from "./types";
+import type { Task, TaskEvent } from "./types";
 
-const db = vi.hoisted(() => ({ tasks: new Map<string, any>(), notes: new Map<string, any>(), events: new Map<string, any>(), kv: new Map<string, string>(), model: null as any }));
+const db = vi.hoisted(() => ({ tasks: new Map<string, any>(), events: new Map<string, any>(), kv: new Map<string, string>(), model: null as any }));
 vi.mock("./store", () => ({
   allTasks: async () => [...db.tasks.values()],
   putTasks: async (ts: Task[]) => ts.forEach((x) => db.tasks.set(x.id, x)),
   removeTasks: async (ids: string[]) => ids.forEach((i) => db.tasks.delete(i)),
-  putNote: async (n: Note) => void db.notes.set(n.id, n),
-  removeNotes: async (ids: string[]) => ids.forEach((i) => db.notes.delete(i)),
   allEvents: async () => [...db.events.values()],
   putEvent: async (e: TaskEvent) => void db.events.set(e.id, e),
   removeEvents: async (ids: string[]) => ids.forEach((i) => db.events.delete(i)),
@@ -36,24 +34,21 @@ const NOW = new Date("2026-11-13T10:00:00").getTime();
 const live = () => [...db.tasks.values()].filter((x: Task) => !x.deletedAt);
 
 beforeEach(() => {
-  pl.from = undefined; db.tasks.clear(); db.notes.clear(); db.events.clear(); db.kv.clear(); db.model = null;
+  pl.from = undefined; db.tasks.clear(); db.events.clear(); db.kv.clear(); db.model = null;
 });
 
 it("one line becomes several placed tasks, one undo removes all", async () => {
   const r = await apply([
     { op: "create", title: "Gym", kind: "exercise", repeat: "FREQ=WEEKLY;COUNT=3" },
     { op: "create", title: "Essay", kind: "study", effortMinutes: 240, deadline: "2026-11-17T23:00:00" },
-    { op: "note", title: "call mom" },
   ], NOW);
   const tasks = live();
   expect(tasks.filter((x) => x.title === "Gym")).toHaveLength(3);
   expect(tasks.filter((x) => x.parentId).length).toBeGreaterThan(1); // essay split into sittings
   expect(tasks.filter((x) => !x.parentId && x.title === "Gym").every((x) => x.start !== undefined)).toBe(true);
-  expect(db.notes.size).toBe(1);
   expect(r.toast).toMatch(/sittings|buổi/);
   await r.undo();
   expect(db.tasks.size).toBe(0);
-  expect(db.notes.size).toBe(0);
   expect(db.events.size).toBe(0);
 });
 
