@@ -1,6 +1,5 @@
 import { render, screen } from "@testing-library/react-native";
 import { StyleSheet } from "react-native";
-import type { ReactTestRendererJSON } from "react-test-renderer";
 import { Fill, Meter } from "./meter";
 
 // test/mocks/reanimated makes a new shared value per render and a style computed once, which React Compiler then caches:
@@ -15,6 +14,8 @@ jest.mock("react-native-reanimated", () => {
   return { __esModule: true, ...m, useSharedValue: (v: unknown) => { const r = useRef(null); return (r.current ??= m.useSharedValue(v)); }, useAnimatedStyle: live };
 });
 
+// What toJSON() returns, typed here: react-test-renderer is not a declared dependency.
+type ReactTestRendererJSON = { type: string; props: { style?: never; [k: string]: unknown }; children: ReactTestRendererJSON[] | null };
 const style = (n: ReactTestRendererJSON) => StyleSheet.flatten(n.props.style);
 const tree = () => screen.toJSON() as ReactTestRendererJSON;
 const fill = () => style((tree().children as ReactTestRendererJSON[])[0]);
