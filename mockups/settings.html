@@ -69,7 +69,7 @@ const dlg = (lab, v, btn, ghost) => `<div class="dscrim"></div><div class="dlg">
 const main = (p, l, theme = "Hệ thống", extra = "", up = "") => `${close}<div class="h" style="margin-top:18px">Cài đặt</div>
   <div class="lab" style="margin-top:28px">Giao diện</div>${pills(["Hệ thống", "Sáng", "Tối"], theme)}
   ${p}${l}${extra}${ver(up)}`;
-const toggles = set("Chia sẻ số liệu ẩn danh", '<span class="tog"></span>') + set("Báo lỗi", `<span class="v">${ic(I.right, 16)}</span>`);
+const toggles = set("Chia sẻ số liệu ẩn danh", '<span class="tog"></span>');
 mount([
   { tag: "Not connected", sub: "Nothing connected yet: one row, as before.", html: chrome(main(first(), "", "Hệ thống", toggles), { dock: null }) },
   { tag: "Connect", sub: "One student ID and two password fields, Online and LMS. A blank one is simply not connected.", html: chrome(main(first({ open: 1, id: "2112345", pw: "••••••••", lms: "••••••" }), ""), { dock: null }) },

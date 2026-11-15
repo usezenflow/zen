@@ -2,7 +2,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import * as Haptics from "expo-haptics";
-import { Appearance, Dimensions, KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { Appearance, Dimensions, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { Icon, TypeArt } from "@/components/art";
 import { Chevron } from "@/components/day";
@@ -191,8 +191,6 @@ export default function Settings() {
         {!on && !open && (
           <Animated.View entering={fadeIn} exiting={fadeOut} layout={glide}>
             <Row label={t("stats")} right={<Switch value={share} onValueChange={(v) => { setShare(v); stats.setOptOut(kvStorage, !v); }} trackColor={{ true: th.ink, false: th.line }} ios_backgroundColor={th.line} thumbColor={share ? th.bg : th.dark ? th.muted : "#fff"} />} />
-            {/* shortcut: opens a blank mail draft, no support address yet; set EXPO_PUBLIC_SUPPORT_EMAIL when there is one. */}
-            <Row label={t("report")} right={<Icon name="right" size={16} color={th.muted} />} onPress={() => Linking.openURL(`mailto:${process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? ""}?subject=zen`).catch(() => {})} />
           </Animated.View>
         )}
         {/* settings.html Version: the last row; a newer release turns it vermilion and opens the update dialog. */}

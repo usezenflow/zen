@@ -84,7 +84,6 @@ const S = {
   save: "Lưu",
   disconnect: "Ngắt kết nối",
   stats: "Chia sẻ số liệu ẩn danh",
-  report: "Báo lỗi",
   back: "Quay lại",
   theme: "Giao diện",
   themeSystem: "Hệ thống",
