@@ -387,6 +387,12 @@ const RULES: Rule[] = [
     /(?<![a-z])(?:moi|hang)\s+dau\s+thang(?![a-z])/g,
     () => ({ k: "recur", freq: "MONTHLY" }),
   ],
+  // "mỗi 2 tháng", "cách tháng": every n months, every other one by default; the rule is built with the piece
+  [
+    "recur",
+    /(?<![a-z])(?:moi\s+\d{1,2}\s+thang|cach\s+thang)(?![a-z])/g,
+    () => ({ k: "recur", freq: "MONTHLY" }),
+  ],
   // "mỗi tháng", "hàng tháng": every month, on the day of the month named beside it
   [
     "recur",
@@ -419,7 +425,7 @@ const RULES: Rule[] = [
   // complex recurrence (rules.ts reads the rule itself): weekdays, weekends, every n weeks, n a week, yearly, nth weekday, hourly
   [
     "recur",
-    /(?<![a-z])(?:(?:moi|hang)\s+ngay\s+trong\s+tuan|ngay\s+thuong|weekdays?|thu\s*2\s+den\s+thu\s*6|t2\s*-\s*t6|t2\s+den\s+t6)(?![a-z])/g,
+    /(?<![a-z])(?:(?:moi|hang)\s+ngay\s+trong\s+tuan|ngay\s+thuong|weekdays?|thu\s*2\s+den\s+thu\s*6|t2\s*-\s*t6|t2\s+den\s+t6)(?![a-z])(?!\s+tuan\s+(?:sau|nay|toi)(?![a-z]))/g,
     () => ({ k: "recur", freq: "WEEKLY" }),
   ],
   [

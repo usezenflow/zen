@@ -25,6 +25,11 @@
     - Có ngày kết thúc vẫn giữ buổi đã nói: "tối nào cũng … đến 20/12" vẫn xếp vào buổi tối
     - Không nói giờ thì việc lặp linh hoạt trong buổi; nói giờ thì giữ đúng giờ
     - Câu không nói lặp thì không bao giờ tự lặp
+    - "Mỗi 2 tháng", "cách tháng", "2 tháng 1 lần"
+    - Nhiều buổi một lần nói: "sáng và tối nào cũng chạy bộ", "mỗi sáng, chiều, tối uống thuốc" thành một việc lặp cho mỗi buổi
+    - Nhiều giờ một lần nói: "uống thuốc 7h sáng và 9h tối mỗi ngày" thành hai việc lặp đúng giờ, cùng ngày bắt đầu và kết thúc
+- Không nói giờ thì không đoán giờ: "họp nhóm sáng thứ 2", "liên hoan Noel" được xếp linh hoạt trong buổi, trong ngày, thay vì cố định 9:00
+- Đọc được giờ dính chữ hay gõ sai: "họp nhóm9h", "lớp2 giờ", "2 giiờ chiều", "9 do sang"
 
 ## 26.0.0
 

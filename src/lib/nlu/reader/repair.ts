@@ -702,7 +702,8 @@ function repeats(): [RegExp, (m: RegExpExecArray) => string][] {
   const UNIT = `(${["ngày", "tuần", "tháng", "năm"].map(P).join("|")})`;
   const TIMES = `(?:${P("buổi")}|${P("lần")})`;
   const WD = `(?:${P("thứ")}\\s*(?:[2-7]|${["hai", "ba", "tư", "năm", "sáu", "bảy"].map(P).join("|")})|${P("chủ nhật")}|cn|t[2-7])`;
-  const HEAD = `(${WD}|${["ngày thường", "cuối tuần", "sáng", "trưa", "chiều", "tối", "đêm", "khuya", "ngày", "hôm", "tuần", "tháng", "năm"].map(P).join("|")})`;
+  const PART = `(?:${["sáng", "trưa", "chiều", "tối", "đêm", "khuya"].map(P).join("|")})`;
+  const HEAD = `(${WD}|${["ngày thường", "cuối tuần", "ngày", "hôm", "tuần", "tháng", "năm"].map(P).join("|")}|${PART}(?:\\s*(?:,|${P("và")}|${P("với")})?\\s*${PART})*)`;
   const EN = `(${Object.keys(EN_DAY).join("|")})s?`;
   const re = (s: string) => new RegExp(s, "giu");
   REPEATS = [
@@ -712,8 +713,19 @@ function repeats(): [RegExp, (m: RegExpExecArray) => string][] {
       (m) => {
         const head = fold(m[1]).text.toLowerCase();
         if (head === "ngay thuong") return "ngày thường";
-        return `mỗi ${head === "hom" ? "ngày" : m[1].toLowerCase()}${m[2]}`;
+        if (head === "cuoi tuan") return "mỗi T7 CN";
+        // "sáng tối nào cũng", "sáng, chiều nào cũng": every part of the list, "mỗi sáng và tối"
+        const parts = m[1].toLowerCase().split(new RegExp(`\\s*(?:,|${P("và")}|${P("với")})\\s*|\\s+`, "u")).filter(Boolean);
+        const list = new RegExp(`^${PART}$`, "iu").test(parts[0] ?? "") && parts.length > 1 ? parts.join(" và ") : m[1].toLowerCase();
+        return `mỗi ${head === "hom" ? "ngày" : list}${m[2]}`;
       },
+    ],
+    // "mỗi cuối tuần": Saturday and Sunday, said as days so a part after it ("cuối tuần … tối") is no "tuần tới", and with no "và" to split a clause on
+    [re(`${L}(?:${P("mỗi")}|${P("hàng")}|${P("hằng")})\\s+${P("cuối tuần")}${R}`), () => "mỗi T7 CN"],
+    // "mỗi sáng, chiều", "ngày thường sáng, chiều", "mỗi ngày buổi sáng, buổi tối": the parts of one repeat, not two clauses
+    [
+      re(`${L}((?:(?:${P("mỗi")}|${P("hàng")}|${P("hằng")})(?:\\s+${P("ngày")})?|${P("ngày thường")}|${WD}(?:\\s*(?:,|${P("và")})\\s*(?:${P("thứ")}\\s*)?[2-7])*)\\s+(?:${P("buổi")}\\s+)?${PART}(?:\\s*,\\s*(?:${P("buổi")}\\s+)?${PART})+)${R}`),
+      (m) => m[1].replace(/\s*,\s*/g, " và "),
     ],
     // once every n: "tuần 1 lần", "một tháng một lần", "2 tuần 1 lần", "hai ngày một lần", "mỗi tuần một lần"
     [
@@ -931,6 +943,10 @@ const ASR_CONFUSIONS: [
   (text: string, s: number, e: number) => boolean,
 ][] = [
   [/(?<!\p{L})(?:dờ|rờ)(?!\p{L})/giu, () => "giờ", anchored],
+  // after a number, a misspelt "giờ" is still the hour: "2 giiờ", "9 gờ"
+  [/(?<=(?<![\d.,/:])\d{1,2}\s*)(?:gi+ờ+|gờ+|gi+ơ+)(?!\p{L})/giu, () => "giờ", () => true],
+  // toneless, "9 do sang" is only "9 giờ sáng": a number before, a part of the day or a day after
+  [/(?<=(?<![\d.,/:])\d{1,2}\s+)(?:do|ro)(?=\s+(?:s[aá]ng|chi[eêề]u|tr[uư]a|t[oốô]i|[dđ][eê]m|mai|nay)(?!\p{L}))/giu, () => "giờ", () => true],
   // "phúc" is a name after a person cue or in capitals ("anh Phúc 9 giờ"): only lowercase and cue-free is "phút"
   [
     /(?<!\p{L})phúc(?!\p{L})/giu,
@@ -1621,6 +1637,9 @@ export function repair(raw: string, source: ReaderSource): Repaired {
   r = examRows(r);
   // 8 typed forms
   r = decodeTypedForms(r);
+  // after the VNI digits are tones again: a word glued to a clock: "nhóm9h", "lớp2 giờ", "mai8h" (a room code has no clock unit after its digits)
+  // never a one-letter weekday: "t6 h…" stays T6
+  r = sub(r, /(?<=\p{L}\p{Ll})(\d{1,2})(?=(?:h|g|:\d{2})(?![\p{L}\d])|\s*(?:giờ|gio)(?!\p{L}))/gu, (m) => ` ${m[1]}`);
   for (const [re, rep] of ZONE) r = sub(r, re, rep);
   for (const [re, rep] of MIDNIGHT) r = sub(r, re, rep);
   for (const [re, rep] of MONTH_WORDS) r = sub(r, re, rep);

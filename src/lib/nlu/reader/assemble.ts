@@ -1456,8 +1456,33 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
     pieceSpans.push([bounds[p], bounds[p + 1] - 1]);
   const inPiece = (m: Found, a: number, b: number) =>
     m.start >= a && m.start < b;
+  // a date after "đến/tới" in a recurring clause is the series' UNTIL, not its day: "… 8h và 14h đến 20/12" ends both
+  const clauseRecur = all.some((m) => m.kind === "recur");
+  const untilDate = clauseRecur
+    ? all.find(
+        (m) =>
+          m.kind === "date" &&
+          (m.v.k === "date" || m.v.k === "holiday" || m.v.k === "month_end") &&
+          roleOf(
+            blank.slice(0, m.start).replace(/\s*(?:ngày|ngay)\s*$/iu, ""),
+          )?.role === "until",
+      )
+    : undefined;
+  // "từ 1/12", "bắt đầu từ thứ 2 tuần sau" in a recurring piece: the day the series starts, not a day of it
+  const fromDate = clauseRecur
+    ? all.find(
+        (m) =>
+          m.kind === "date" &&
+          m !== untilDate &&
+          (m.v.k === "date" || m.v.k === "dow" || m.v.k === "rel") &&
+          roleOf(
+            blank.slice(0, m.start).replace(/\s*(?:ngày|ngay)\s*$/iu, ""),
+          )?.role === "from",
+      )
+    : undefined;
+  // a series' start and end are no piece's day
   const datesIn = (p: [number, number]) =>
-    all.filter((m) => m.kind === "date" && inPiece(m, p[0], p[1]));
+    all.filter((m) => m.kind === "date" && m !== untilDate && m !== fromDate && inPiece(m, p[0], p[1]));
   const datedPieces = pieceSpans.filter((p) => datesIn(p).length > 0);
   const explicitPieces = datedPieces.filter((p) =>
     datesIn(p).some((m) => m.v.k === "date"),
@@ -1519,6 +1544,9 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
     .join(" ");
 
   const produced: ReaderItem[] = [];
+  // items of a piece with a said repeat, and of pieces with no day and no repeat of their own
+  const ruledItems = new Set<ReaderItem>();
+  const looseItems = new Set<ReaderItem>();
   // a piece with a date and no clock takes the clock and place of a clock-only piece after it: "Chủ nhật đi tình nguyện, tập trung 6h30 cổng trường"
   const absorbs = new Map<number, number>();
   const joined = new Set<number>();
@@ -1562,29 +1590,6 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
           m.start >= pieceSpans[absorbed][0] &&
           m.start < pieceSpans[absorbed][1]),
     );
-    // a date after "đến/tới" in a recurring piece is the series' UNTIL, not its day
-    const untilDate = piece.some((m) => m.kind === "recur")
-      ? piece.find(
-          (m) =>
-            m.kind === "date" &&
-            (m.v.k === "date" || m.v.k === "holiday" || m.v.k === "month_end") &&
-            roleOf(
-              blank.slice(a, m.start).replace(/\s*(?:ngày|ngay)\s*$/iu, ""),
-            )?.role === "until",
-        )
-      : undefined;
-    // "từ 1/12", "bắt đầu từ thứ 2 tuần sau" in a recurring piece: the day the series starts, not a day of it
-    const fromDate = piece.some((m) => m.kind === "recur")
-      ? piece.find(
-          (m) =>
-            m.kind === "date" &&
-            m !== untilDate &&
-            (m.v.k === "date" || m.v.k === "dow" || m.v.k === "rel") &&
-            roleOf(
-              blank.slice(a, m.start).replace(/\s*(?:ngày|ngay)\s*$/iu, ""),
-            )?.role === "from",
-        )
-      : undefined;
     const seriesFrom = (fromDate && resolveDate(fromDate, ctx.ref)?.wc) || ctx.ref;
     const pieceDates = piece.filter(
       (m) => m.kind === "date" && m !== untilDate && m !== fromDate,
@@ -1711,7 +1716,7 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
     // "đến hết Tết" ends on the fifth day of Tết; "trước Tết" on the eve, the day before the holiday
     // "trong 120 ngày", "trong 3 tháng": a repeat that long from its first day ("trong 4 tuần" is a COUNT)
     const lasting = recur
-      ? /(?<![a-z])trong\s+(?:vong\s+|khoang\s+)?(\d{1,3})\s+(ngay|thang)(?![a-z])/.exec(fpiece)
+      ? /(?<![a-z])trong\s+(?:vong\s+|khoang\s+)?(\d{1,3})\s+(ngay|thang)(?![a-z])/.exec(folded)
       : null;
     const untilWc =
       untilDate?.v.k === "date" || untilDate?.v.k === "month_end"
@@ -2260,11 +2265,13 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
     ): ReaderItem => {
       // "họp sau thứ 6": a fixed kind with no clock can start after the day, so it is a task from there
       // "sau 9h họp nhóm" is a task that may not start before 9
+      // "họp nhóm sáng thứ 2": with no clock said, a busy kind is a plan kept in its day or part, never a guessed fixed hour
       const kind: ReaderItemType =
-        (kindIn === "BUSY" || kindIn === "EXAM" || kindIn === "LECTURE") &&
-        !at &&
-        !rrule &&
-        (fromCue || (!time && (cue?.role === "after" || cue?.role === "from")))
+        ((kindIn === "BUSY" || kindIn === "EXAM" || kindIn === "LECTURE") &&
+          !at &&
+          !rrule &&
+          (fromCue || (!time && (cue?.role === "after" || cue?.role === "from")))) ||
+        (kindIn === "BUSY" && !at && !time && !to && !periodMention && !/\bca (?:buoi|ngay)\b/.test(fpiece))
           ? "PLAN"
           : kindIn;
       // an offset moves a written date: "2 ngày trước 20/11" is 18/11
@@ -2319,10 +2326,11 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
         note: noteHtml || null,
         durationMinutes:
           durMin ??
-          (kind === "PLAN" || kind === "ASSIGNMENT"
+          // a meeting made flexible keeps a meeting's length, not a task's
+          ((kind === "PLAN" && kindIn !== "BUSY") || kind === "ASSIGNMENT"
             ? workloadMinutes(kind, `${pieceText} ${c.sectionTitle ?? ""}`)
             : undefined) ??
-          PRIOR[kind],
+          PRIOR[kindIn === "BUSY" ? kindIn : kind],
         location,
         confidence: 0,
         inferred,
@@ -2510,7 +2518,8 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
         !inferred.includes("deadline") &&
         !prep &&
         gate !== "menu";
-      if (rrule && item.startsAt) item.rrule = rrule;
+      // a said repeat ("hàng tuần", "mỗi 2 tuần") repeats a flexible row too; a bare weekday list repeats only a fixed one
+      if (rrule && (item.startsAt || recur)) item.rrule = rrule;
       item.inferred = [...new Set(inferred)];
       return item;
     };
@@ -2737,7 +2746,34 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
         }
       }
     }
+    for (const it of produced.slice(producedBefore))
+      if (recur) ruledItems.add(it);
+      else if (!pieceDates.length) looseItems.add(it);
   }
+  // "uống thuốc 7h sáng và 9h tối mỗi ngày": a same-titled piece with no day of its own repeats with the repeat beside it, from its first day
+  const ruled = produced.find((it) => ruledItems.has(it) && it.rrule);
+  // one series per title and clock: a piece that inherited each day of "T7 CN" is one row once it repeats
+  const seriesKey = (it: ReaderItem) => `${fold(it.title).text}|${(it.startsAt ?? it.notBefore ?? "").slice(11)}|${it.windows?.join() ?? ""}|${it.rrule}`;
+  const seen = new Set(produced.filter((it) => ruledItems.has(it)).map(seriesKey));
+  if (ruled)
+    for (const it of [...produced]) {
+      if (!looseItems.has(it) || it.rrule || fold(it.title).text !== fold(ruled.title).text) continue;
+      const at = it.startsAt ?? it.notBefore ?? it.deadline;
+      if (!at) continue;
+      const wc = (x: string): ReaderWC => ({ y: +x.slice(0, 4), m: +x.slice(5, 7), d: +x.slice(8, 10) });
+      // a said start ("từ 1/12") holds every row; otherwise each clock starts on its own next day
+      const start = fromDate && resolveDate(fromDate, ctx.ref)?.wc;
+      const from = start && dayNo(wc(at)) < dayNo(start) ? start : wc(at);
+      const n = dayNo(firstByDay(from, ruled.rrule!)) - dayNo(wc(at));
+      const move = (x?: string) => x && stamp(addDays(wc(x), n), +x.slice(11, 13), +x.slice(14, 16));
+      it.rrule = ruled.rrule;
+      if (it.startsAt) it.startsAt = move(it.startsAt);
+      if (it.notBefore) it.notBefore = move(it.notBefore);
+      if (it.deadline) it.deadline = move(it.deadline);
+      if (it.days) it.days = it.days.map((d) => stamp(addDays(wc(d), n), 0, 0).slice(0, 10));
+      if (seen.has(seriesKey(it))) produced.splice(produced.indexOf(it), 1);
+      else seen.add(seriesKey(it));
+    }
 
   // S7 gates: relevance first, then expiry
   const reason: ReaderDropReason | undefined =

@@ -100,6 +100,9 @@ export function ruleBase(f: string, clause: string = f): string | undefined {
   if (per)
     return `FREQ=WEEKLY;BYDAY=${SPREAD[+(per[1] ?? per[2])] ?? SPREAD[5]}`;
   if (/(?<![a-z])(?:moi|hang) tuan(?![a-z])/.test(f)) return "FREQ=WEEKLY";
+  // every n months: "mỗi 2 tháng", "cách tháng"
+  const months = /(?<![a-z])moi (\d{1,2}) thang(?![a-z])/.exec(f);
+  if (months || /(?<![a-z])cach thang(?![a-z])/.test(f)) return `FREQ=MONTHLY;INTERVAL=${months ? +months[1] : 2}`;
   // yearly on the day and month named beside it
   if (/(?<![a-z])(?:moi|hang) nam(?![a-z])|every year/.test(f)) {
     const d = /(\d{1,2})[/.](\d{1,2})/.exec(f);

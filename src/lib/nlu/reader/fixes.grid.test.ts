@@ -100,12 +100,13 @@ describe("grid: a said day keeps today; midnight ends the day it names", () => {
     for (const [d, n] of [["thứ 6", 5], ["mai", 1], ["20/11", 5]] as const) rows.push([`nộp bài trước 24h ${d}`, items(`nộp bài trước 24h ${d}`)[0]?.deadline, `${day(SUN, n)} 23:59`]);
     check(rows);
   });
-  it("a guessed start is never in the past", () => {
+  it("a guessed start is never in the past; a meeting with no clock has no start, it is a plan in its day", () => {
     const rows: [string, unknown, unknown][] = [];
     for (let h = 0; h < 23; h++) for (const s of ["thi cuối tuần", "họp hôm nay", "họp ngày 15"]) {
       const ref = { ...SUN, h, mi: 20 };
-      const at = items(s, ref)[0]?.startsAt;
-      rows.push([`${s} @${h}:20`, !!at && at >= `${day(SUN)} ${pad(h)}:20`, true]);
+      const it = items(s, ref)[0];
+      const at = it?.startsAt;
+      rows.push([`${s} @${h}:20`, at ? at >= `${day(SUN)} ${pad(h)}:20` : s.startsWith("họp") && it?.type === "PLAN", true]);
     }
     check(rows);
   });

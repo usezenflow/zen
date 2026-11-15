@@ -32,7 +32,8 @@ const PHRASES: [string, string][] = [
   ["cách ngày", "FREQ=DAILY;INTERVAL=2"], ["2 ngày 1 lần", "FREQ=DAILY;INTERVAL=2"], ["mỗi 2 ngày", "FREQ=DAILY;INTERVAL=2"], ["3 ngày một lần", "FREQ=DAILY;INTERVAL=3"], ["hai ngày một lần", "FREQ=DAILY;INTERVAL=2"],
   ["mỗi tuần", "FREQ=WEEKLY"], ["hàng tuần", "FREQ=WEEKLY"], ["tuần nào cũng", "FREQ=WEEKLY"], ["mỗi tuần một lần", "FREQ=WEEKLY"], ["tuần 1 lần", "FREQ=WEEKLY"], ["một tuần một lần", "FREQ=WEEKLY"], ["1 tuần 1 lần", "FREQ=WEEKLY"],
   ["cách tuần", "FREQ=WEEKLY;INTERVAL=2"], ["2 tuần 1 lần", "FREQ=WEEKLY;INTERVAL=2"], ["mỗi 2 tuần", "FREQ=WEEKLY;INTERVAL=2"], ["hai tuần một lần", "FREQ=WEEKLY;INTERVAL=2"],
-  ["mỗi tháng", "FREQ=MONTHLY"], ["hàng tháng", "FREQ=MONTHLY"], ["tháng nào cũng", "FREQ=MONTHLY"], ["tháng 1 lần", "FREQ=MONTHLY"], ["mỗi tháng một lần", "FREQ=MONTHLY"], ["một tháng một lần", "FREQ=MONTHLY"],
+  ["mỗi tháng", "FREQ=MONTHLY"], ["mỗi 2 tháng", "FREQ=MONTHLY;INTERVAL=2"], ["2 tháng 1 lần", "FREQ=MONTHLY;INTERVAL=2"], ["cách tháng", "FREQ=MONTHLY;INTERVAL=2"],
+  ["hai tháng một lần", "FREQ=MONTHLY;INTERVAL=2"], ["mỗi 3 tháng", "FREQ=MONTHLY;INTERVAL=3"], ["hàng tháng", "FREQ=MONTHLY"], ["tháng nào cũng", "FREQ=MONTHLY"], ["tháng 1 lần", "FREQ=MONTHLY"], ["mỗi tháng một lần", "FREQ=MONTHLY"], ["một tháng một lần", "FREQ=MONTHLY"],
   // n a week
   ["3 buổi một tuần", "FREQ=WEEKLY;BYDAY=MO,WE,FR"], ["ba buổi một tuần", "FREQ=WEEKLY;BYDAY=MO,WE,FR"], ["mỗi tuần 3 buổi", "FREQ=WEEKLY;BYDAY=MO,WE,FR"], ["tuần 3 buổi", "FREQ=WEEKLY;BYDAY=MO,WE,FR"],
   ["2 lần/tuần", "FREQ=WEEKLY;BYDAY=MO,TH"], ["mỗi tuần 2 lần", "FREQ=WEEKLY;BYDAY=MO,TH"], ["1 tuần 2 lần", "FREQ=WEEKLY;BYDAY=MO,TH"], ["hai lần một tuần", "FREQ=WEEKLY;BYDAY=MO,TH"],
@@ -104,7 +105,8 @@ function firstDay(rule: string, from: string): string {
 interface Combo { said: string; title: string; rule: string; until?: string; first: string; clock?: string; mins?: number; part?: string; loc?: string; eff?: number }
 function combos(): Combo[] {
   const out: Combo[] = [];
-  const titles = ["Giải code", "Chạy bộ"];
+  // a meeting with no clock is as flexible as a task
+  const titles = ["Giải code", "Chạy bộ", "Họp nhóm"];
   for (const [rp, rule, rpart] of CREP)
     for (const [pt, part] of CPART) {
       if (rpart && part) continue;
@@ -118,7 +120,7 @@ function combos(): Combo[] {
               const start = from ?? "2026-11-14";
               const first = firstDay(rule, start);
               const end = until === "120" ? dayAdd(start, 119).replace(/-/g, "") : until;
-              for (const t of titles.slice(0, 1 + (out.length % 2))) {
+              for (const t of [titles[out.length % 3]]) {
                 const said = [t, rp, pt, ck, ex, fr, un].filter(Boolean).join(" ");
                 out.push({ said, title: t, rule, until: end, first, clock: at, mins, part: rpart ?? part, loc: extra.loc, eff: extra.eff });
               }
@@ -170,4 +172,63 @@ it("recur grid: a sentence with no repeat cue never repeats", () => {
   ];
   const repeated = said.filter((s) => read(s, { ref: REF, source: "typed" }).items.map(itemAction).some((a) => a.repeat));
   expect(repeated).toEqual([]);
+});
+
+// Several parts of the day with one repeat: one series per part, each kept in its own window.
+it("recur grid: a repeat over several parts of the day is one series per part", () => {
+  const LISTS: [string, string[]][] = [["sáng và tối", ["sáng", "tối"]], ["sáng, chiều", ["sáng", "chiều"]], ["sáng tối", ["sáng", "tối"]], ["chiều và tối", ["chiều", "tối"]], ["sáng, chiều và tối", ["sáng", "chiều", "tối"]]];
+  const REPS: [(l: string) => string, string][] = [
+    [(l) => `${l} nào cũng`, "FREQ=DAILY"], [(l) => `mỗi ${l}`, "FREQ=DAILY"], [(l) => `mỗi ngày buổi ${l.replace(/ và /, " và buổi ")}`, "FREQ=DAILY"],
+    [(l) => `ngày thường ${l}`, WK], [(l) => `mỗi thứ 2, 4 ${l}`, "FREQ=WEEKLY;BYDAY=MO,WE"], [(l) => `mỗi cuối tuần ${l}`, WE],
+  ];
+  const MORE: [string, string?, string?][] = [["", undefined, undefined], ["đến 20/12", "20261220", undefined], ["từ 1/12", undefined, "2026-12-01"], ["ở thư viện", undefined, undefined]];
+  const misses: string[] = [];
+  for (const [l, parts] of LISTS) for (const [mk, rule] of REPS) for (const [more, until, from] of MORE) for (const t of ["Chạy bộ", "Học tiếng Anh", "Họp nhóm"]) {
+    const said = `${t} ${mk(l)} ${more}`.trim();
+    const all = read(said, { ref: REF, source: "typed" }).items.map(itemAction);
+    const first = firstDay(rule, from ?? "2026-11-14");
+    const why =
+      all.length !== parts.length ? "count"
+      : all.some((a) => strip(a.title ?? "") !== strip(t)) ? "title"
+      : all.some((a) => (a.repeat ?? "").replace(/;UNTIL=[^;]*/, "") !== rule || /UNTIL=(\d{8})/.exec(a.repeat ?? "")?.[1] !== until) ? "rule"
+      : all.some((a) => a.fixed || a.when?.slice(0, 10) !== first) ? "first"
+      : parts.some((p, i) => { const hm = all[i].when?.slice(11, 16) ?? ""; return hm < WINDOW[p][0] || hm > WINDOW[p][1]; }) ? "part"
+      : undefined;
+    if (why) misses.push(`${why} | ${said} | ${all.map((a) => `${a.title} ${a.when} ${a.fixed ?? ""} ${a.repeat ?? ""}`).join(" ; ")}`);
+  }
+  expect(misses.slice(0, 15)).toEqual([]);
+});
+
+// "no fixed time without an exact time": an event with only a day or a part of it is a plan in that day or part
+it("an event with no clock is never fixed; with one it is", () => {
+  const misses: string[] = [];
+  for (const t of ["Họp nhóm", "Đi khám răng", "Cà phê với Lan", "Đá bóng", "Họp lớp", "Gặp thầy"]) for (const d of ["sáng thứ 2", "tối mai", "chiều thứ 6", "thứ 2", "mai", "20/11", "mỗi thứ 2", "tối nào cũng"]) {
+    const loose = read(`${t} ${d}`, { ref: REF, source: "typed" }).items.map(itemAction);
+    if (loose.some((a) => a.fixed)) misses.push(`fixed | ${t} ${d}`);
+    const firm = read(`${t} ${d} lúc 8h`, { ref: REF, source: "typed" }).items.map(itemAction);
+    if (!firm.length || firm.some((a) => !a.fixed)) misses.push(`not-fixed | ${t} ${d} lúc 8h`);
+  }
+  expect(misses).toEqual([]);
+});
+
+// Several clocks with one repeat: one fixed series per clock, all with the repeat's rule, start and end.
+it("recur grid: a repeat over several clocks is one fixed series per clock", () => {
+  const CLOCKS: [string, string[]][] = [["7h sáng và 9h tối", ["07:00", "21:00"]], ["lúc 7h và 19h", ["07:00", "19:00"]], ["6h30 sáng và 5h chiều", ["06:30", "17:00"]], ["8h, 14h và 20h", ["08:00", "14:00", "20:00"]]];
+  const REPS: [string, string][] = [["mỗi ngày", "FREQ=DAILY"], ["ngày thường", WK], ["mỗi thứ 2", "FREQ=WEEKLY;BYDAY=MO"], ["mỗi cuối tuần", WE], ["thứ 3 và thứ 5 hàng tuần", "FREQ=WEEKLY;BYDAY=TU,TH"]];
+  const MORE: [string, string?, string?][] = [["", undefined, undefined], ["đến 20/12", "20261220", undefined], ["từ 1/12", undefined, "2026-12-01"], ["đến hết tháng 12", "20261231", undefined]];
+  const misses: string[] = [];
+  for (const [ck, at] of CLOCKS) for (const [rp, rule] of REPS) for (const [more, until, from] of MORE) for (const t of ["Uống thuốc", "Họp nhóm"])
+    for (const said of [`${t} ${ck} ${rp} ${more}`, `${rp} ${t} ${ck} ${more}`]) {
+      const all = read(said.trim(), { ref: REF, source: "typed" }).items.map(itemAction);
+      const first = firstDay(rule, from ?? "2026-11-14");
+      const why =
+        all.length !== at.length ? "count"
+        : all.some((a) => strip(a.title ?? "") !== strip(t)) ? "title"
+        : all.some((a) => (a.repeat ?? "").replace(/;UNTIL=[^;]*/, "") !== rule || /UNTIL=(\d{8})/.exec(a.repeat ?? "")?.[1] !== until) ? "rule"
+        : all.some((a) => !a.fixed) ? "not-fixed"
+        : at.some((c, i) => all[i].when !== `${first}T${c}:00`) ? "when"
+        : undefined;
+      if (why) misses.push(`${why} | ${said.trim()} | ${all.map((a) => `${a.title} ${a.when} ${a.repeat ?? ""}`).join(" ; ")}`);
+    }
+  expect(misses.slice(0, 15)).toEqual([]);
 });
