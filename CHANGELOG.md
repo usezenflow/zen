@@ -6,7 +6,8 @@
 
 - Sửa lỗi trên Android
     - Ô gõ không còn bị bàn phím che, màn hình không bị đẩy lên thanh trạng thái
-    - Nói trên Android 11: im lặng lâu không còn báo lỗi ghi âm
+    - Giữ để nói hoạt động trên Android 11
+    - Nút nói không còn bị thanh điều hướng che
 - Widget Hôm nay không còn ô trống
     - Việc cuối hôm nay vẫn ở bên trái, bên phải hiện ngày tới có việc
     - Tuần tới trống thì hiện ngày xa hơn có việc
