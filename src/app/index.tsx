@@ -14,7 +14,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { Icon, Logo } from "@/components/art";
 import { Rhythm } from "@/components/rhythm";
-import { addDays, live, mondayOf, monthLabel, onDay, startOfDay, weekday, type Hols } from "@/components/cal";
+import { addDays, live, mondayOf, monthLabel, onDay, short, startOfDay, weekday, type Hols } from "@/components/cal";
 import { Day, DayPull, First } from "@/components/day";
 import { Search, type Origin } from "@/components/search";
 import { PdfView, PhotoMenu, PhotoView, TypeBar, Veil } from "@/components/capture";
@@ -603,7 +603,7 @@ export default function Home() {
       <>
         {/* Swipe the header left/right to switch day / week / month (wraps around); the grids below keep their own swipes. */}
         <Swipe stepKey={VIEWS.indexOf(view)} onStep={(d) => setView(VIEWS[(VIEWS.indexOf(view) + d + 3) % 3])}>
-        {firstRun ? first(t("hello"), `${weekday(sel)}, ${dm(sel)}`, t("nothingYet")) : first(head.hello, head.h, head.n)}
+        {firstRun ? first(t("hello"), `${short[(new Date(sel).getDay() + 6) % 7]}, ${dm(sel)}`, t("nothingYet"))  : first(head.hello, head.h, head.n)}
         <Reanimated.View entering={fadeIn} style={s.tabs}>
           <View style={s.tabL}>
             {VIEWS.map((v) => (
