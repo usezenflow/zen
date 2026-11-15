@@ -232,3 +232,62 @@ it("recur grid: a repeat over several clocks is one fixed series per clock", () 
     }
   expect(misses.slice(0, 15)).toEqual([]);
 });
+
+// A weekday list with no repeat said is those days, once each; with one it is a weekly rule.
+it("a weekday list repeats only with a said repeat; alone it is one item per day", () => {
+  const LISTS: [string, string[], string][] = [["t2, t4", ["2026-11-16", "2026-11-18"], "MO,WE"], ["thứ 2 và thứ 4", ["2026-11-16", "2026-11-18"], "MO,WE"], ["thứ 2, 4, 6", ["2026-11-16", "2026-11-18", "2026-11-20"], "MO,WE,FR"], ["thứ 3, thứ 5", ["2026-11-17", "2026-11-19"], "TU,TH"]];
+  const misses: string[] = [];
+  for (const [l, days, by] of LISTS) for (const t of ["Họp nhóm", "Đọc sách"]) for (const ck of ["", " lúc 9h"]) {
+    const once = read(`${t} ${l}${ck}`, { ref: REF, source: "typed" }).items.map(itemAction);
+    if (once.length !== days.length || once.some((a, i) => a.repeat || a.when?.slice(0, 10) !== days[i] || !!a.fixed !== !!ck)) misses.push(`once | ${t} ${l}${ck} | ${once.map((a) => `${a.when} ${a.repeat ?? ""}`).join(" ; ")}`);
+    for (const cue of ["hàng tuần", "mỗi tuần"]) {
+      const weekly = read(`${t} ${l}${ck} ${cue}`, { ref: REF, source: "typed" }).items.map(itemAction);
+      if (weekly.length !== 1 || weekly[0].repeat !== `FREQ=WEEKLY;BYDAY=${by}`) misses.push(`weekly | ${t} ${l}${ck} ${cue} | ${weekly.map((a) => `${a.when} ${a.repeat ?? ""}`).join(" ; ")}`);
+    }
+  }
+  expect(misses).toEqual([]);
+});
+
+// "sáng hoặc tối": one item that may run in either part (tods); "sáng và tối": one item per part.
+it("parts joined by hoặc are one item with both as options; joined by và, one item each", () => {
+  const MORNING: [number, number] = [300, 720], NIGHT: [number, number] = [1020, 1320], AFTERNOON: [number, number] = [720, 1020];
+  const CASES: [string, [number, number][][], string | undefined][] = [
+    ["Chạy bộ sáng hoặc tối mai", [[MORNING, NIGHT]], undefined],
+    ["Mỗi ngày chạy bộ sáng hoặc tối", [[MORNING, NIGHT]], "FREQ=DAILY"],
+    ["Sáng hoặc tối nào cũng chạy bộ", [[MORNING, NIGHT]], "FREQ=DAILY"],
+    ["Mỗi sáng hoặc tối chạy bộ", [[MORNING, NIGHT]], "FREQ=DAILY"],
+    ["Ngày thường chạy bộ sáng hoặc chiều đến 20/12", [[MORNING, AFTERNOON]], "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;UNTIL=20261220T235959"],
+    ["Sáng và tối nào cũng chạy bộ", [[MORNING], [NIGHT]], "FREQ=DAILY"],
+    ["Tối nào cũng giải code", [[NIGHT]], "FREQ=DAILY"],
+  ];
+  const misses: string[] = [];
+  for (const [said, tods, rule] of CASES) {
+    const all = read(said, { ref: REF, source: "typed" }).items.map(itemAction);
+    if (JSON.stringify(all.map((a) => a.tods)) !== JSON.stringify(tods) || all.some((a) => a.repeat !== rule || a.fixed)) misses.push(`${said} | ${all.map((a) => `${JSON.stringify(a.tods)} ${a.repeat ?? ""} ${a.fixed ?? ""}`).join(" ; ")}`);
+  }
+  expect(misses).toEqual([]);
+});
+
+// No clock said: an exam starts at 7:30, 9:30, 13:00 or 15:00, a makeup class at 7:30, 13:00 or 16:45, the first one in the
+// said part that the user's classes and exams leave free; every one taken, the first of the part still.
+it("an exam or a makeup class with no clock takes the first free usual start", () => {
+  const calendar = [
+    { date: "2026-11-16", classes: [{ title: "Toán", start: 450, end: 670 }], exams: [] }, // Monday morning taken
+    { date: "2026-11-17", classes: [{ title: "Lý", start: 780, end: 1000 }], exams: [{ title: "Hóa", start: 450 }] }, // Tuesday 7:30 exam, afternoon class
+  ];
+  const CASES: [string, string][] = [
+    ["Thi toán thứ 4", "2026-11-18T07:30:00"], ["Thi toán thứ 2", "2026-11-16T13:00:00"], ["Thi toán chiều thứ 4", "2026-11-18T13:00:00"],
+    ["Thi lý thứ 3", "2026-11-17T09:30:00"], ["Thi toán sáng thứ 2", "2026-11-16T07:30:00"], ["Thi lý chiều thứ 3", "2026-11-17T13:00:00"],
+    ["Học bù môn web thứ 4", "2026-11-18T07:30:00"], ["Học bù môn web thứ 2", "2026-11-16T13:00:00"], ["Học bù môn web chiều thứ 3", "2026-11-17T16:45:00"],
+    ["Học bù môn web tối thứ 4", "2026-11-18T16:45:00"], ["Thi toán 9h thứ 2", "2026-11-16T09:00:00"],
+  ];
+  const misses: string[] = [];
+  for (const [said, when] of CASES) {
+    const a = read(said, { ref: REF, source: "typed", calendar }).items.map(itemAction).find((x) => x.fixed);
+    if (a?.when !== when) misses.push(`${said} | want ${when} | got ${a?.when} ${a?.fixed ?? ""}`);
+  }
+  // two exams on one day: the second takes the next free start
+  const two = read("Thi toán thứ 4, thi lý thứ 4", { ref: REF, source: "typed", calendar }).items.map(itemAction).filter((x) => x.fixed).map((x) => x.when);
+  if (JSON.stringify(two) !== JSON.stringify(["2026-11-18T07:30:00", "2026-11-18T09:30:00"])) misses.push(`two exams | ${two.join(" ; ")}`);
+  expect(misses).toEqual([]);
+});

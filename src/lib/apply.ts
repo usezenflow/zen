@@ -234,15 +234,16 @@ async function act(w: Work, a: Action) {
     // A kind the user corrected on a title that reads alike wins.
     const near = [...w.tasks.values()].filter((x) => x.vec && x.userEdited?.includes("kind")).map((x) => ({ c: cosine(vec, x.vec!), k: x.kind })).filter((n) => n.c > 0.6).sort((p, q) => q.c - p.c)[0];
     const fixed = a.fixed && when !== undefined ? a.fixed : undefined;
-    const notAfter = a.repeat ? undefined : ms(a.notAfter); // shortcut: a repeat drops the said window, give each occurrence its own notAfter if that matters
+    // a repeat's said window is its parts of the day (tods), which every occurrence keeps; a day's notAfter would hold only the first
+    const notAfter = a.repeat ? undefined : ms(a.notAfter);
     for (const o of occ.list) {
       const task: Task = {
         id: uid(), title, vec, kind: near?.k ?? a.kind ?? "other", source: "user", effort: a.effortMinutes ?? 0, createdAt: now,
-        deadline: o.deadline, notBefore: o.notBefore, rrule: a.repeat, ...(a.location ? { location: a.location } : {}), ...(a.note ? { note: a.note } : {}), ...(notAfter !== undefined ? { notAfter } : {}),
+        deadline: o.deadline, notBefore: o.notBefore, rrule: a.repeat, ...(a.location ? { location: a.location } : {}), ...(a.note ? { note: a.note } : {}), ...(notAfter !== undefined ? { notAfter } : {}), ...(a.tods?.length ? { tods: a.tods } : {}),
       };
       if (fixed && o.notBefore !== undefined) { // an exact said time is a busy block, not a plan
         task.effort = effort(task, w.model);
-        Object.assign(task, { fixed, start: o.notBefore, end: o.notBefore + task.effort * 60_000, notBefore: undefined, deadline: undefined, notAfter: undefined });
+        Object.assign(task, { fixed, start: o.notBefore, end: o.notBefore + task.effort * 60_000, notBefore: undefined, deadline: undefined, notAfter: undefined, tods: undefined });
       }
       w.tasks.set(task.id, task);
     }
@@ -278,6 +279,8 @@ async function act(w: Work, a: Action) {
       if (a.note !== undefined) { next.note = a.note; edited.add("note"); }
       const dl = ms(a.deadline);
       if (dl) { next.deadline = dl; edited.add("deadline"); }
+      // a time the user sets wins over the parts of the day it was said in
+      if (when !== undefined) next.tods = undefined;
       if (when !== undefined && tk !== lead) {
         // A split task moved as a whole: its first open sitting takes the time, the rest are planned after it, not stacked on it.
         Object.assign(next, { start: undefined, end: undefined, pinned: false, notBefore: when + (lead.effort || 30) * 60_000 });

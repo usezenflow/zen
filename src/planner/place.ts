@@ -50,6 +50,9 @@ export function cells(p: Piece, now: number): number[] {
  *  Cells stay contiguous (index = offset / STEP), so the solver skips the rest. `day` is dayStart(c) when the caller has it. */
 export function awake(p: Piece, c: number, day = dayStart(c)): boolean {
   const nb = p.task.notBefore, m = (c - day) / MIN;
+  // said parts of the day ("sáng hoặc tối"): the whole sitting inside one of them
+  const tods = p.task.tods;
+  if (tods?.length && !tods.some(([a, b]) => m >= a && m + p.effort <= b)) return false;
   if (nb !== undefined && nb !== dayStart(nb) && c === ceil(nb)) return m + p.effort <= 24 * 60;
   return m >= WAKE_FROM && m + p.effort <= WAKE_TO;
 }

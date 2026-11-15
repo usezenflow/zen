@@ -26,6 +26,7 @@ export interface Task {
   deadline?: number;
   notBefore?: number;
   notAfter?: number; // end of a said window ("tối thứ 5"): the planner keeps the whole task inside notBefore..notAfter
+  tods?: [number, number][]; // minutes of the day a flexible task runs in, any one of them ("sáng hoặc tối"); every occurrence of a repeat keeps them
   rrule?: string;
   parentId?: string; // sitting of a split task
   start?: number;
@@ -68,6 +69,7 @@ export interface Action {
   days?: string[];
   clocks?: { from: string; to: string }[];
   windows?: string[];
+  tods?: [number, number][]; // the said parts of the day as minutes of the day, for a flexible plan: one of them holds the task
   ref?: string;
   after?: string;
   confidence?: number;

@@ -664,6 +664,21 @@ function repairTeencode(src: Repaired): Repaired {
   return r;
 }
 
+/** Time and repeat words a stray space splits: "t ối", "th ứ", "m ỗi", "hàng tu ần". */
+const SPLIT_CUES = ["sáng", "trưa", "chiều", "tối", "đêm", "mỗi", "hàng", "hằng", "tuần", "tháng", "thứ", "ngày", "giờ", "mai"];
+const SPLIT_RE = new RegExp(
+  `(?<!\\p{L})(?:${SPLIT_CUES.flatMap((w) => [...Array(w.length - 1).keys()].map((i) => `${w.slice(0, i + 1)} ${w.slice(i + 1)}`)).join("|")})(?!\\p{L})`,
+  "giu",
+);
+/** Rejoins a split cue word when a fragment is no syllable of its own, or after "hàng"/"mỗi" ("hàng tu ần"). */
+function joinSplitCues(src: Repaired): Repaired {
+  return sub(src, SPLIT_RE, (m) => {
+    const [x, y] = m[0].split(" ");
+    const before = fold(src.text.slice(Math.max(0, m.index - 6), m.index)).text;
+    return !isSyllable(x) || !isSyllable(y) || /(?:hang|hang|moi)\s+$/.test(before) ? x + y : m[0];
+  });
+}
+
 /** Vietnamese letters grouped by plain form, so "rồi", "roi" and "rôi" share a class. */
 const SAME_PLAIN = new Map<string, string>();
 for (let cp = 0x41; cp <= 0x1ef9; cp++) {
@@ -703,7 +718,7 @@ function repeats(): [RegExp, (m: RegExpExecArray) => string][] {
   const TIMES = `(?:${P("buổi")}|${P("lần")})`;
   const WD = `(?:${P("thứ")}\\s*(?:[2-7]|${["hai", "ba", "tư", "năm", "sáu", "bảy"].map(P).join("|")})|${P("chủ nhật")}|cn|t[2-7])`;
   const PART = `(?:${["sáng", "trưa", "chiều", "tối", "đêm", "khuya"].map(P).join("|")})`;
-  const HEAD = `(${WD}|${["ngày thường", "cuối tuần", "ngày", "hôm", "tuần", "tháng", "năm"].map(P).join("|")}|${PART}(?:\\s*(?:,|${P("và")}|${P("với")})?\\s*${PART})*)`;
+  const HEAD = `(${WD}|${["ngày thường", "cuối tuần", "ngày", "hôm", "tuần", "tháng", "năm"].map(P).join("|")}|${PART}(?:\\s*(?:,|${P("và")}|${P("với")}|${P("hoặc")})?\\s*${PART})*)`;
   const EN = `(${Object.keys(EN_DAY).join("|")})s?`;
   const re = (s: string) => new RegExp(s, "giu");
   REPEATS = [
@@ -715,8 +730,10 @@ function repeats(): [RegExp, (m: RegExpExecArray) => string][] {
         if (head === "ngay thuong") return "ngày thường";
         if (head === "cuoi tuan") return "mỗi T7 CN";
         // "sáng tối nào cũng", "sáng, chiều nào cũng": every part of the list, "mỗi sáng và tối"
-        const parts = m[1].toLowerCase().split(new RegExp(`\\s*(?:,|${P("và")}|${P("với")})\\s*|\\s+`, "u")).filter(Boolean);
-        const list = new RegExp(`^${PART}$`, "iu").test(parts[0] ?? "") && parts.length > 1 ? parts.join(" và ") : m[1].toLowerCase();
+        // "sáng hoặc tối nào cũng": one repeat in either part, kept as "hoặc"
+        const or = new RegExp(P("hoặc"), "iu").test(m[1]);
+        const parts = m[1].toLowerCase().split(new RegExp(`\\s*(?:,|${P("và")}|${P("với")}|${P("hoặc")})\\s*|\\s+`, "u")).filter(Boolean);
+        const list = new RegExp(`^${PART}$`, "iu").test(parts[0] ?? "") && parts.length > 1 ? parts.join(or ? " hoặc " : " và ") : m[1].toLowerCase();
         return `mỗi ${head === "hom" ? "ngày" : list}${m[2]}`;
       },
     ],
@@ -1595,6 +1612,7 @@ export function repair(raw: string, source: ReaderSource): Repaired {
   r = repairSwaps(r);
   // 6.6 teencode on raw tokens
   r = repairTeencode(r);
+  r = joinSplitCues(r);
   // a spaced minute after the hour: "23 giờ 5 9" is 23 giờ 59
   r = sub(
     r,

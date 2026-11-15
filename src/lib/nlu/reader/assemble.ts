@@ -33,6 +33,7 @@ import { resolvePeriods } from "./periods";
 import { holidayOf, isHolidayDate } from "./holidays";
 import { roleOf, withinDays } from "./roles";
 import { exceptSpans, ruleBase, withBounds } from "./rules";
+import type { CalDay } from "./daypick";
 import type { Clause } from "./segment";
 import {
   IN_PART,
@@ -77,7 +78,22 @@ export interface Ctx {
   req?: Requirements;
   /** Course multiplier of prep tasks by folded course title, from the marks. */
   affinity?: Map<string, number>;
+  /** The user's classes and exams by day: a guessed exam or class start skips the slots they hold. */
+  calendar?: CalDay[];
+  /** Fixed blocks this read has made so far, by day, in minutes: a second exam that day takes the next usual start. */
+  taken?: { day: string; start: number; end: number }[];
 }
+
+/** Where an exam or a class usually starts, tried in order when no clock is said: the first free one in the said part wins. */
+const SLOTS: Partial<Record<ReaderItemType, [number, number][]>> = {
+  EXAM: [[7, 30], [9, 30], [13, 0], [15, 0]],
+  LECTURE: [[7, 30], [13, 0], [16, 45]],
+};
+/** The minutes of the day a part of it holds, for picking a slot: "tối" takes the 16:45 evening class. */
+const SLOT_PART: Record<string, [number, number]> = {
+  EARLY_MORNING: [0, 720], DAWN: [0, 720], MORNING: [0, 720], NOON: [660, 840],
+  AFTERNOON: [720, 1020], EVENING: [990, 1440], NIGHT: [990, 1440], MIDNIGHT: [1320, 1440],
+};
 
 export interface Out {
   items: ReaderItem[];
@@ -1601,7 +1617,14 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
     const holidayBefore =
       !!holidayM && roleOf(blank.slice(a, holidayM.start))?.role === "before";
     const pieceExplicit = pieceDates.some((m) => m.v.k === "date");
-    const pDates = ownDates(pieceDates);
+    // "họp t2, t4 9h" with no repeat said: Monday and Wednesday, once each; a said repeat or a timetable row keeps the list for its weekly rule
+    const listOnce = !piece.some((m) => m.kind === "recur") && !c.timetable;
+    const pDates = ownDates(pieceDates).flatMap((m) => {
+      const v = m.v;
+      return listOnce && m.kind === "date" && v.k === "dow" && v.more?.length
+        ? [v.dow, ...v.more].map((dow): Found => ({ ...m, v: { ...v, dow, more: undefined } }))
+        : [m];
+    });
     // a bare clock takes the one part of the day the piece names: "tối nay đi ăn lúc 7 giờ" is 19:00
     // "7h tới 17h": a "tới" between two clocks ends a range, it is no evening word
     // "tuần tới 8h": the "tới" of next week, month or year is no evening word either
@@ -1686,8 +1709,9 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
         !!periodMention);
     const weekday = pDates.find((m) => m.v.k === "dow");
     // a weekday list ("t2, t4, t6") repeats weekly on all its days
+    // a weekday list ("t2, t4, t6") repeats weekly only with a said repeat; alone it is those days, once each
     const plainRule =
-      weekday?.v.k === "dow" && weekday.v.more?.length
+      weekday?.v.k === "dow" && weekday.v.more?.length && recur
         ? `FREQ=WEEKLY;BYDAY=${bydayOf(weekday.v)}`
         : c.timetable && weekday?.v.k === "dow"
           ? `FREQ=WEEKLY;BYDAY=${bydayOf(weekday.v)}`
@@ -2042,12 +2066,12 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
       type = "BUSY";
     if (isPresentation && hasTimeHint && !due && !range) type = "BUSY";
     // a prepare-cue document: the class or exam is already on the timetable, what is new is the preparation
-    // a regular class is never an item (the timetable syncs it); a makeup or online class needs a clock or periods
+    // a regular class is never an item (the timetable syncs it); a makeup or online class with no clock takes a usual class start (SLOTS)
     const clock = !!timeFound || !!periodRes || PERIODS.test(fpiece);
     if (
       type === "LECTURE" &&
       !c.timetable &&
-      !(MAKEUP.test(cueText) && clock && !due && !range)
+      !(MAKEUP.test(cueText) && !due && !range)
     ) {
       if (!(ctx.prepCue && !clock && !due && !range)) continue;
     }
@@ -2382,6 +2406,24 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
           timeF = 0.8;
         } else {
           c = partSpec ? partSpec.start : [8, 0];
+          // an exam or a class: its usual starts in order, the first in the said part that is ahead and free of the user's classes, exams and this read's blocks
+          const slots = SLOTS[kind];
+          if (slots) {
+            const len = item.durationMinutes ?? 90;
+            const day = stamp(date, 0, 0).slice(0, 10);
+            const cal = ctx.calendar?.find((d) => d.date === day);
+            const held: [number, number][] = [
+              ...(cal?.classes.map((x): [number, number] => [x.start, x.end]) ?? []),
+              ...(cal?.exams.map((x): [number, number] => [x.start, x.start + 120]) ?? []),
+              ...(ctx.taken ?? []).filter((x) => x.day === day).map((x): [number, number] => [x.start, x.end]),
+            ];
+            const [lo, hi] = partSpec ? SLOT_PART[partSpec.window] ?? [0, 1440] : [0, 1440];
+            const ahead = dayNo(date) > dayNo(ctx.ref) ? -1 : (ctx.ref.h ?? 0) * 60 + (ctx.ref.mi ?? 0);
+            const open = slots.filter(([h, mi]) => h * 60 + mi >= lo && h * 60 + mi < hi && h * 60 + mi > ahead);
+            // every slot of the part taken: its first usual start still, so the clash shows, never an odd hour
+            const free = open.find(([h, mi]) => !held.some(([a, b]) => h * 60 + mi < b && h * 60 + mi + len > a)) ?? open[0];
+            if (free) c = free;
+          }
           // a guessed start already past today moves to the next half hour: "thi cuối tuần" said Sunday 10:00 is 10:30
           const now = (ctx.ref.h ?? 0) * 60 + (ctx.ref.mi ?? 0);
           const next = Math.ceil((now + 1) / 30) * 30;
@@ -2392,8 +2434,11 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
           inferred.push("startsAt");
         }
         // a fixed start rounds to the 15-minute grid: "9h10" is 9:15, "9h15" stays
-        if (!periodUnknown || clock)
+        if (!periodUnknown || clock) {
           item.startsAt = untilStart ? gridStamp(date, c!) : startOn(date, c!);
+          const s = +item.startsAt.slice(11, 13) * 60 + +item.startsAt.slice(14, 16);
+          ctx.taken?.push({ day: item.startsAt.slice(0, 10), start: s, end: s + (item.durationMinutes ?? 60) });
+        }
       } else if (range && to) {
         if (evalRange) {
           // Evaluation window: preparation must finish before the window opens

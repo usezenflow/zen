@@ -17,6 +17,11 @@ const START: Record<ReaderWindow, string> = {
   AFTERNOON: "14:00", EVENING: "18:00", NIGHT: "20:00", MIDNIGHT: "23:00",
 };
 // Where a said part of the day ends (the reader's own bounds in reader/parts.ts); a task of that part stays inside it.
+/** Where a part of the day opens for the planner: "tối" is from 17:00, though a plan in it is first tried at 20:00. */
+const FROM: Record<ReaderWindow, string> = {
+  EARLY_MORNING: "05:00", DAWN: "04:00", MORNING: "05:00", NOON: "11:00",
+  AFTERNOON: "12:00", EVENING: "17:00", NIGHT: "17:00", MIDNIGHT: "22:00",
+};
 const END: Record<ReaderWindow, string> = {
   EARLY_MORNING: "08:00", DAWN: "08:00", MORNING: "12:00", NOON: "14:00",
   AFTERNOON: "17:00", EVENING: "22:00", NIGHT: "22:00", MIDNIGHT: "23:59",
@@ -54,7 +59,9 @@ export function itemAction(it: ReaderItem): Action {
   const at = it.startsAt ? iso(it.startsAt) : day && `${day}T${it.clocks?.[0]?.from ?? (w && START[w]) ?? from ?? "09:00"}:00`;
   if (at) a.when = at;
   if (fixed && at) a.fixed = fixed;
-  else if (day && !it.clocks?.length) a.notAfter = `${day}T${(w && END[w]) ?? "23:59"}:00`;
+  // "sáng hoặc tối mai": the day's window runs to the last part's end; `tods` keeps the task inside one of the parts
+  const last = it.windows?.at(-1) as ReaderWindow | undefined;
+  if (!(fixed && at) && day && !it.clocks?.length) a.notAfter = `${day}T${(last && END[last]) ?? "23:59"}:00`;
   // That same-day pair is the said window, not a due time: as a deadline it would make the plan an assignment ("Hạn 22:00").
   const win = !!one && !!a.notAfter && !it.rrule;
   if (it.deadline && !win) a.deadline = iso(it.deadline);
@@ -70,6 +77,8 @@ export function itemAction(it: ReaderItem): Action {
   if (it.days?.length) a.days = it.days;
   if (it.clocks?.length) a.clocks = it.clocks;
   if (it.windows?.length) a.windows = it.windows;
+  if (!a.fixed && !it.clocks?.length && it.windows?.length)
+    a.tods = (it.windows as ReaderWindow[]).filter((x) => FROM[x]).map((x): [number, number] => [mins(FROM[x]), mins(END[x])]);
   if (it.ref) a.ref = it.ref;
   if (it.after) a.after = it.after;
   if (it.flags.length) a.flags = it.flags;

@@ -327,6 +327,16 @@ describe("said times, edits, replans, causes", () => {
     for (const x of gym) { expect(x.fixed).toBe("busy"); expect(x.start! - dayStartOf(x.start!)).toBe(18 * H1); expect(x.end! - x.start!).toBe(45 * 60_000); }
   });
 
+  it("a repeat keeps its said parts of the day on every occurrence, and a set time clears them", async () => {
+    const tods: [number, number][] = [[1020, 1320]];
+    await apply([{ op: "create", title: "Giải code", kind: "study", effortMinutes: 60, notBefore: iso(clock(0, 0)), deadline: iso(clock(0, 22)), repeat: "FREQ=DAILY", tods }], NOW);
+    const all = mine("Giải code");
+    expect(all.length).toBeGreaterThan(1);
+    for (const x of all) expect(x.tods).toEqual(tods);
+    await apply([{ op: "edit", target: all[0].id, when: iso(clock(1, 9)) }], NOW + 1000);
+    expect(db.tasks.get(all[0].id).tods).toBeUndefined();
+  });
+
   it("notAfter is stored on a single create", async () => {
     await apply([{ op: "create", title: "Toán", kind: "study", effortMinutes: 60, notBefore: iso(clock(1, 18)), notAfter: iso(clock(1, 22)) }], NOW);
     expect(mine("Toán")[0].notAfter).toBe(clock(1, 22));

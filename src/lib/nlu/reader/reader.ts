@@ -169,6 +169,8 @@ export function read(raw: string, opts: ReadOpts): ReaderResult {
 
   const ctx: Ctx = {
     prepCue,
+    calendar: opts.calendar,
+    taken: [],
     affinity: opts.affinity,
     fullText: rep.text,
     ref: opts.ref,

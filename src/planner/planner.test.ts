@@ -495,6 +495,19 @@ describe("scheduler behaviour", () => {
     for (const p of diff.placed) expect(p.why!.some((r) => LEARNED.includes(r.key))).toBe(false); // 1 update per hour, under 3
   });
 
+  it("said parts of the day hold every sitting in one of them: morning or evening, the free one when the other is taken", () => {
+    const tods: [number, number][] = [[5 * 60, 12 * 60], [17 * 60, 22 * 60]];
+    // mornings are taken all week: only the evening is left
+    const busy = Array.from({ length: 8 }, (_, d) => ({ start: at(d, 5), end: at(d, 12) }));
+    const { diff } = plan([task("w", { tods, deadline: at(3, 23) }), task("x", { tods, effort: 30 })], busy, newModel(now), now);
+    expect(diff.placed.length).toBe(2);
+    for (const p of diff.placed) {
+      const m = (p.start - dayStart(p.start)) / MIN, e = (p.end - dayStart(p.start)) / MIN;
+      expect(tods.some(([a, b]) => m >= a && e <= b), `${p.id} ${m}-${e}`).toBe(true);
+      expect(m).toBeGreaterThanOrEqual(17 * 60);
+    }
+  });
+
   it("a planned said window is kept and named", () => {
     const { diff } = plan([task("w", { notBefore: at(1, 18), notAfter: at(1, 21) })], [], newModel(now), now);
     const p = diff.placed[0];

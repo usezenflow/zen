@@ -28,8 +28,14 @@
     - "Mỗi 2 tháng", "cách tháng", "2 tháng 1 lần"
     - Nhiều buổi một lần nói: "sáng và tối nào cũng chạy bộ", "mỗi sáng, chiều, tối uống thuốc" thành một việc lặp cho mỗi buổi
     - Nhiều giờ một lần nói: "uống thuốc 7h sáng và 9h tối mỗi ngày" thành hai việc lặp đúng giờ, cùng ngày bắt đầu và kết thúc
+    - "Họp t2, t4 9h" là hai buổi họp riêng thứ 2 và thứ 4; nói thêm "hàng tuần" hay "mỗi" thì mới lặp
+    - "Sáng hoặc tối": một việc, zen xếp vào buổi nào còn trống; "sáng và tối" là hai việc
+    - Việc lặp giữ đúng buổi đã nói ở mọi ngày, không chỉ ngày đầu
 - Không nói giờ thì không đoán giờ: "họp nhóm sáng thứ 2", "liên hoan Noel" được xếp linh hoạt trong buổi, trong ngày, thay vì cố định 9:00
-- Đọc được giờ dính chữ hay gõ sai: "họp nhóm9h", "lớp2 giờ", "2 giiờ chiều", "9 do sang"
+- Thi không nói giờ lấy giờ thi thường gặp đầu tiên còn trống: 7:30, 9:30, 13:00, 15:00
+- Học bù không nói giờ vẫn được thêm, lấy giờ học đầu tiên còn trống: 7:30, 13:00, 16:45
+    - Tránh giờ đã có lớp, có thi, hay việc vừa nói cùng lúc; nói buổi thì chọn trong buổi đó
+- Đọc được giờ dính chữ hay gõ sai: "họp nhóm9h", "lớp2 giờ", "2 giiờ chiều", "9 do sang", chữ bị tách như "t ối", "th ứ 2", "m ỗi"
 
 ## 26.0.0
 
