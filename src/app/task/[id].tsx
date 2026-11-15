@@ -42,6 +42,8 @@ export default function Detail() {
   const [loc, setLoc] = useState("");
   const saved = useRef("");
   const latest = useRef("");
+  const pend = useRef({ title: "", loc: "", task });
+  useEffect(() => { pend.current = { title, loc, task }; });
 
   const load = useCallback(async () => {
     const all = await allTasks();
@@ -49,8 +51,11 @@ export default function Detail() {
     const n = Date.now();
     setPlc(id ? (await loadModel(n)).placed[id] : undefined);
     setNow(n); setTask(x); setExam(x?.forId ? all.find((y) => y.id === x.forId) : undefined);
-    setTitle(x?.title ?? ""); setNote(x?.note ?? ""); setLoc(x?.location ?? "");
-    saved.current = latest.current = x?.note ?? "";
+    // A reload after a save must not wipe what is still being typed in another field: only untouched fields take the stored value.
+    const p = pend.current, first = !p.task;
+    if (first || p.title === p.task?.title) setTitle(x?.title ?? "");
+    if (first || latest.current === saved.current) { setNote(x?.note ?? ""); saved.current = latest.current = x?.note ?? ""; }
+    if (first || p.loc === (p.task?.location ?? "")) setLoc(x?.location ?? "");
   }, [id]);
   useEffect(() => { void Promise.resolve().then(load); }, [load]);
   // The open time or due line keeps every turn of its pickers as a draft; a tap outside the line (or leaving) saves it and closes it.
@@ -73,8 +78,6 @@ export default function Detail() {
   const typing = (v: string) => { setNote(v); latest.current = v; clearTimeout(noteTimer.current); noteTimer.current = setTimeout(saveNote, 800); };
 
   // Leaving with the keyboard still up keeps the title and place typed so far, as the note does.
-  const pend = useRef({ title: "", loc: "", task });
-  useEffect(() => { pend.current = { title, loc, task }; });
   useEffect(() => () => {
     const { title: ti, loc: lo, task: tk } = pend.current;
     if (!tk) return;
@@ -104,14 +107,14 @@ export default function Detail() {
   const canTime = task.start !== undefined && (task.fixed ? task.fixed === "busy" && mine : true);
   const hasDue = mine && !task.fixed && !task.rrule && task.deadline !== undefined;
   // Edits land once the wheel rests (as in row.tsx), then the screen closes the line and reloads.
-  // Also saved ~1 s after the wheel rests, since blur alone is not reliable (iOS eats the tap that closes a compact picker's popover).
+  // Also saved ~0.35 s after the wheel rests, since blur alone is not reliable (iOS eats the tap that closes a compact picker's popover).
   const rest = (fn: () => Promise<unknown>) => {
     draft.current = fn;
     clearTimeout(restT.current);
-    restT.current = setTimeout(() => { const f = draft.current; draft.current = undefined; if (f) void f().then(load); }, 900);
+    restT.current = setTimeout(() => { const f = draft.current; draft.current = undefined; if (f) void f().then(load); }, 350);
   };
-  const setTime = (s: number, m: number) => { setDr({ s, m }); rest(() => apply([{ op: "edit", target: task.id, when: new Date(s).toISOString(), effortMinutes: m }])); };
-  const setDue = (d: number) => { setDv(d); rest(() => apply([{ op: "edit", target: task.id, deadline: new Date(d).toISOString() }])); };
+  const setTime = (s: number, m: number) => { setDr({ s, m }); setTask((x) => x && { ...x, start: s, end: s + m * 60_000, effort: m }); rest(() => apply([{ op: "edit", target: task.id, when: new Date(s).toISOString(), effortMinutes: m }])); };
+  const setDue = (d: number) => { setDv(d); setTask((x) => x && { ...x, deadline: d }); rest(() => apply([{ op: "edit", target: task.id, deadline: new Date(d).toISOString() }])); };
   const clock = (base: number, d: Date) => { const n = new Date(base); n.setHours(d.getHours(), d.getMinutes(), 0, 0); return n.getTime(); };
   const dayOf = (base: number, d: Date) => { const n = new Date(base); n.setFullYear(d.getFullYear(), d.getMonth(), d.getDate()); return n.getTime(); };
   const openTime = canTime ? () => { setDr({ s: task.start!, m: task.end !== undefined ? Math.max(5, Math.round((task.end - task.start!) / 60000)) : task.effort }); setEd("time"); } : undefined;

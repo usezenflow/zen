@@ -81,7 +81,7 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
     live.current.draft = undefined;
     if (d && tk.start !== undefined && hhmm(d.getTime()) !== hhmm(tk.start)) save(d);
   };
-  const turn = (d: Date) => { setDraft(d); live.current.draft = d; clearTimeout(rest.current); rest.current = setTimeout(commit, 900); };
+  const turn = (d: Date) => { setDraft(d); live.current.draft = d; clearTimeout(rest.current); rest.current = setTimeout(commit, 350); };
   useEffect(() => () => { // eslint-disable-line react-hooks/exhaustive-deps
     commit();
     const v = typed.current?.trim(); // a title still being typed when the row goes away is kept, as the detail screen does

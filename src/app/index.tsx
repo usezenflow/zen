@@ -27,7 +27,7 @@ import { fadeIn, fadeOut, glide, popIn, settle, Tap, EASE } from "@/components/t
 import { Sweep, useSweep } from "@/components/sweep";
 import { Toast } from "@/components/toast";
 import { Swipe, Week } from "@/components/week";
-import { apply, makeRoom, moveMine, pickNow, addRule, pin, putBack, removeRule, removeScope, swipeDone, swipeLater, take, type Result } from "@/lib/apply";
+import { apply, makeRoom, moveMine, pickNow, addRule, pin, putBack, removeRule, removeScope, scopeIds, swipeDone, swipeLater, take, type Result } from "@/lib/apply";
 import { loadMoves, loadWarn, seeMoves } from "@/lib/moves";
 import { reasonText, stepText, topReason } from "@/lib/reasons";
 import { holidays } from "@/lib/holidays";
@@ -96,10 +96,13 @@ export default function Home() {
   const [photo, setPhoto] = useState<{ uri: string; w: number; h: number; text?: string; marks?: { start: number; end: number }[] }>();
   const [pdf, setPdf] = useState<{ page: number; pages: number; text?: string; marks?: { start: number; end: number }[]; image?: string }>();
 
+  // A refresh that began before a newer edit or refresh must not land after it with older tasks.
+  const gen = useRef(0);
   const refresh = useCallback(async () => {
-    const now = Date.now();
+    const now = Date.now(), mine = ++gen.current;
     setNow(now);
     const all = await store.allTasks();
+    if (mine !== gen.current) return;
     setTasks(all);
     setOver(await pendingOverlaps(now));
     // Moves and the model load once per refresh; rows get plain maps.
@@ -210,6 +213,16 @@ export default function Home() {
     return () => sub.remove();
   }, [refresh, landed]);
   useEffect(() => { pushWidgets(); return listenWidgets(refresh); }, [refresh]);
+  // `now` otherwise moves only on a refresh: left open, rows would never turn late and "today" would not roll over at midnight.
+  useEffect(() => {
+    let day = startOfDay(Date.now());
+    const i = setInterval(() => {
+      const n = Date.now();
+      setNow(n);
+      if (startOfDay(n) !== day) { day = startOfDay(n); refresh(); }
+    }, 30_000);
+    return () => clearInterval(i);
+  }, [refresh]);
   useEffect(() => onSynced(landed), [landed]); // the campus queue lands its changes here whenever a drain ends
   const monthKey = new Date(sel).getFullYear() * 12 + new Date(sel).getMonth();
   const hols = useMemo<Hols>(() => { // public holidays across the month grid
@@ -461,6 +474,9 @@ export default function Home() {
   };
 
   const toggle = async (x: Task) => {
+    const at = Date.now();
+    gen.current++;
+    setTasks((p) => p.map((a) => (a.id === x.id || a.parentId === x.id ? { ...a, doneAt: at } : a))); // ticks at once; the save confirms
     const r = await swipeDone(x.id);
     setPop((p) => new Set(p).add(x.id));
     setTimeout(() => setPop((p) => { const n = new Set(p); n.delete(x.id); return n; }), 1400);
@@ -470,6 +486,9 @@ export default function Home() {
   };
   const edit = async (x: Task, a: { title?: string; when?: string }) => { const r = await apply([{ op: "edit", target: x.id, ...a }]); say(r.toast, r); refresh(); };
   const del = async (x: Task, scope: "this" | "following" | "all") => {
+    const gone = new Set(scopeIds(tasks, x.id, scope)), stamp = Date.now();
+    gen.current++;
+    setTasks((p) => p.map((a) => (gone.has(a.id) ? { ...a, deletedAt: stamp } : a))); // leaves the list at once; the save confirms
     const r = await removeScope(x.id, scope);
     const at = x.start ?? x.deadline;
     const sub = scope === "all" ? t("allSessions") : scope === "following" ? t("fromOn", { day: at !== undefined ? dayName(at, now) : "" }) : at !== undefined ? when(at, now) : undefined;
@@ -490,8 +509,15 @@ export default function Home() {
     return [...out, ...seriesItems(x)];
   };
   const rowActs = {
-    onToggle: toggle, onTitle: (x: Task, title: string) => edit(x, { title }), itemsFor,
-    onTime: (x: Task, at: Date) => { const d = new Date(x.start ?? Date.now()); d.setHours(at.getHours(), at.getMinutes(), 0, 0); edit(x, { when: d.toISOString() }); },
+    // Edits show at once and persist behind: the list takes the new value now, and the refresh after the save confirms it.
+    onToggle: toggle, onTitle: (x: Task, title: string) => { gen.current++; setTasks((p) => p.map((y) => (y.id === x.id ? { ...y, title } : y))); edit(x, { title }); }, itemsFor,
+    onTime: (x: Task, at: Date) => {
+      const d = new Date(x.start ?? Date.now()); d.setHours(at.getHours(), at.getMinutes(), 0, 0);
+      const start = d.getTime(), len = x.start !== undefined && x.end !== undefined ? x.end - x.start : Math.max(30, x.effort || 30) * 60_000;
+      gen.current++;
+      setTasks((p) => p.map((y) => (y.id === x.id ? { ...y, start, end: start + len, pinned: true } : y)));
+      edit(x, { when: d.toISOString() });
+    },
     onOpen: (x: Task) => router.push(`/task/${x.id}`),
     // Swipe right: a plain task is deleted at once; a series opens the scope dropdown under the row.
     onSwipeDelete: (x: Task, bottom?: number) => (bottom === undefined ? del(x, "this") : setMenu({ task: x, top: bottom - inset + 4, items: seriesItems(x) })),
