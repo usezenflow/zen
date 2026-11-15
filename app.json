@@ -83,6 +83,7 @@
       "./plugins/with-widget-fonts",
       "./plugins/with-lms-ca",
       "./plugins/with-release-signing",
+      "./plugins/with-proguard-rules",
       [
         "expo-widgets",
         {
