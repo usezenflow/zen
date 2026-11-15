@@ -3,7 +3,7 @@ import { readActions, type ReadExtra } from "./adapt";
 import type { ReaderSource } from "./shared";
 import { fold } from "./reader/fold";
 
-// Pure rule-based voice commands: done / delete / move / note on existing tasks, else the reader's creates.
+// Pure rule-based voice commands: done / delete / note on existing tasks, else the reader's creates.
 export type Known = { id: string; title: string; start?: number };
 
 const words = (s: string) => fold(s).text.split(/[^\p{L}\p{N}]+/u).filter((x) => x.length > 1);
@@ -40,11 +40,9 @@ const DONE = [
 // "hoàn thành X trước thứ 6" gives a due time: a create, not a done.
 const DUE = new RegExp(`(?:^|\\s)(?:${alt("trước", "vào", "hạn", "lúc")})\\s`);
 const DELETE = re(`^(?:${alt("xoá", "xóa", "huỷ", "hủy", "bỏ")})\\s+(?:(?:${alt("lịch", "việc")})\\s+)?(.+?)(?:\\s+(?:${alt("đi", "nhé", "nha")}))?$`);
-const MOVE = re(`^(${alt("dời", "đổi", "chuyển", "đẩy", "lùi", "dọn", "để")})\\s+(.+?)\\s+(?:${alt("sang", "qua", "đến", "tới", "vào", "lên", "xuống", "lại")})\\s+(.+)$`);
-// "dọn/để" are everyday verbs ("để sách lên phòng"): a move only when they name a task, else the line is a create.
-const WEAK = new Set(alt("dọn", "để").split("|"));
+// A spoken move is not a command (moves are made on the task by hand), but naming a task it must not make a second one.
+const MOVE = re(`^(${alt("dời", "đổi", "chuyển", "đẩy", "lùi")})\\s+(.+?)\\s+(?:${alt("sang", "qua", "đến", "tới", "vào", "lên", "xuống", "lại")})\\s+.+$`);
 const NOTE = re(`^(?:${alt("ghi chú", "ghi lại")}|note)\\s*[:,]?\\s*(.+)$`);
-const wallHm = (ms: number) => new Date(ms + 7 * 3600_000).toISOString().slice(11, 16); // app time is fixed UTC+7
 
 /**
  * Actions for one spoken line. Commands need a task they can name; when the words point at none, the line is
@@ -63,13 +61,9 @@ export function think(text: string, now: Date, tasks: Known[], source: ReaderSou
   const del = DELETE.exec(f);
   if (del) { const x = target(del[1], tasks); return x ? [{ op: "delete", target: x.id }] : []; }
   const mv = MOVE.exec(f);
-  const x = mv ? target(mv[2], tasks) : undefined;
-  if (mv && (x || !WEAK.has(mv[1]))) {
-    const a = readActions(orig(mv[3]), now, source, { ...extra, alternatives: undefined })[0];
-    // A day without a clock ("sang thứ sáu") keeps the task's own time on that day.
-    const at = a?.when ?? (a?.deadline && (a.deadline.endsWith("23:59:00") ? `${a.deadline.slice(0, 10)}T${x?.start !== undefined ? wallHm(x.start) : "09:00"}:00` : a.deadline));
-    return x && at ? [{ op: "edit", target: x.id, when: at }] : [];
-  }
+  const hit = mv ? target(mv[2], tasks) : undefined;
+  // "chuyển tiền vào thứ 6" with a "Chuyển tiền" there is a new one: a verb that is a word of the title is part of it
+  if (hit && !words(hit.title).includes(words(mv![1])[0])) return [];
   const a = readActions(text, now, source, extra);
   return a.length ? a : [{ op: "create", title: text.trim() }];
 }

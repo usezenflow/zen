@@ -196,9 +196,12 @@ function missing(tasks: Task[], gone: Gone, now: number): Task[] {
 }
 
 /** Keeps live repeating series 120 days ahead (a foreground hook); replans only when something was added. */
-export async function topUp(now = Date.now()): Promise<Result | undefined> {
-  const add = missing(await store.allTasks(), await loadGone(), now);
-  return add.length ? transact(now, (w) => { for (const x of add) w.tasks.set(x.id, x); }, { self: false }) : undefined;
+// Read inside the write queue: two at once (app focus and resume both fire it) each saw the series short and both added copies.
+export function topUp(now = Date.now()): Promise<Result | undefined> {
+  return serial(async () => {
+    const add = missing(await store.allTasks(), await loadGone(), now);
+    return add.length ? transactNow(now, (w) => { for (const x of add) w.tasks.set(x.id, x); }, { self: false }) : undefined;
+  });
 }
 
 /** Resolves an id the model gave; a split parent resolves to its sittings. */

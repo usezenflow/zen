@@ -183,6 +183,13 @@ it("topUp keeps a daily series 120 days ahead without duplicating days", async (
   expect(live().filter((x: Task) => x.title === "Read")).toHaveLength(n);
 });
 
+it("two topUps at once add each missing day once", async () => {
+  await apply([{ op: "create", title: "Run", kind: "other", repeat: "FREQ=DAILY" }], NOW);
+  await Promise.all([topUp(NOW + 6 * DAYMS), topUp(NOW + 6 * DAYMS)]);
+  const days = live().filter((x: Task) => x.title === "Run").map((x: Task) => x.deadline!);
+  expect(new Set(days).size).toBe(days.length);
+});
+
 it("topUp adds per-week copies of COUNT=3, stops after a following delete, ignores DLU and finite daily", async () => {
   await apply([{ op: "create", title: "Gym", repeat: "FREQ=WEEKLY;COUNT=3" }, { op: "create", title: "Once", repeat: "FREQ=DAILY;COUNT=2" }], NOW);
   db.tasks.set("d", T({ id: "d", source: "dlu", rrule: "FREQ=WEEKLY", deadline: NOW + DAYMS }));

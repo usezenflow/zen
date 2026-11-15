@@ -8,6 +8,8 @@ import { day, dayLabel, when } from "../lib/when";
 import { split } from "./split";
 import { type Piece, bell, dur, lateH, moveCost, startValue } from "./value";
 
+const LONG_SITTING = 180; // near a deadline sittings merge up to this; longer work still splits
+
 export interface Opts { later?: string; hourOnly?: boolean }
 
 const HALF = 21 * DAY;
@@ -80,9 +82,10 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
     let eff = round15(left);
     let cap = t.maxSitting ?? 120;
     // A tight deadline gets fewer sittings, one per whole day left (under a day: one), not a full set crammed in.
-    // The total shrinks a little with them (halfway to proportional), so a lone sitting runs long but not the whole job.
-    const natural = Math.ceil(eff / cap), room = t.deadline === undefined || t.maxSitting === undefined ? natural : Math.max(1, Math.floor((t.deadline - now) / DAY));
-    if (natural > room) { eff = round15((eff * (natural + room)) / (2 * natural)); cap = round15(eff / room); }
+    // Exam prep (maxSitting) shrinks its total a little with them (halfway to proportional); other work keeps its size, in sittings of at most 3 h.
+    const natural = Math.ceil(eff / cap), room = t.deadline === undefined ? natural : Math.max(1, Math.floor((t.deadline - now) / DAY));
+    if (natural > room && t.maxSitting !== undefined) { eff = round15((eff * (natural + room)) / (2 * natural)); cap = round15(eff / room); }
+    else if (natural > room) cap = Math.max(cap, Math.min(round15(eff / room), LONG_SITTING));
     if (eff > cap || old) {
       const sizes = split(eff, cap), from = old ? Math.max(...old.map(ix)) : 0, d = done.length;
       const ids = sizes.map((_, i) => `${t.id}#${from + i + 1}`);

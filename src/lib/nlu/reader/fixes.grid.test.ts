@@ -28,10 +28,6 @@ describe("grid: commands need their words with accents and a strong match", () =
     const rows: [string, unknown, unknown][] = [];
     for (const [verbs, op] of [[["xoá", "xóa", "xoa", "huỷ", "hủy", "huy", "bỏ", "bo"], "delete"], [["xong", "hoàn thành", "hoan thanh"], "done"]] as const)
       for (const v of verbs) for (const t of tasks) { const s = `${v} ${t.title.toLowerCase()}`; rows.push([s, think(s, now, tasks).map((a) => [a.op, a.target]), [[op, t.id]]]); }
-    for (const v of ["dời", "đổi", "chuyển", "đẩy", "lùi", "doi", "chuyen"]) for (const sep of ["sang", "qua", "tới", "đến", "toi", "den"]) for (const t of tasks) {
-      const s = `${v} ${t.title.toLowerCase()} ${sep} mai 9h`;
-      rows.push([s, think(s, now, tasks).map((a) => [a.op, a.target, a.when]), [["edit", t.id, "2026-11-16T09:00:00"]]]);
-    }
     check(rows);
   });
   it("a look-alike word, a weak match or a due time is a create", () => {

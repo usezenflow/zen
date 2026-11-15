@@ -20,9 +20,10 @@ describe("voice commands", () => {
   it("delete", () => {
     expect(think("xoá lịch đi nha sĩ", now, tasks)).toEqual([{ op: "delete", target: "t3" }]);
   });
-  it("move to a clock, or to a day keeping its own time", () => {
-    expect(think("dời bài tập toán sang mai 9h", now, tasks)).toEqual([{ op: "edit", target: "t1", when: "2026-11-14T09:00:00" }]);
-    expect(think("chuyển bài tập toán sang tuần sau", now, tasks)[0]).toMatchObject({ op: "edit", target: "t1", when: expect.stringMatching(/T14:00:00$/) });
+  it("a move verb that is part of a task's title makes a new task", () => {
+    const ts = [...tasks, { id: "t4", title: "Dọn phòng" }, { id: "t5", title: "Chuyển tiền" }];
+    expect(think("dọn phòng vào thứ 7", now, ts)[0]).toMatchObject({ op: "create" });
+    expect(think("chuyển tiền vào thứ 6", now, ts)[0]).toMatchObject({ op: "create" });
   });
   it("note keeps the original words", () => {
     expect(think("Ghi chú: ba gọi điện chiều mai", now, tasks)).toEqual([{ op: "note", title: "ba gọi điện chiều mai" }]);

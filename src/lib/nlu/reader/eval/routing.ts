@@ -18,11 +18,9 @@ export const ROUTING: { text: string; route: Route; phase?: number; why?: string
   { text: "học toán 2 tiếng", route: "task" },
   { text: "xong báo cáo rồi", route: "command" },
   { text: "xóa họp nhóm", route: "command" },
-  { text: "đổi họp nhóm sang thứ 6", route: "command" },
   { text: "ghi chú mua sữa", route: "command" },
   { text: "để trống tối thứ 7", route: "rule" },
   { text: "đừng xếp việc sáng chủ nhật", route: "rule" },
   { text: "mai có gì?", route: "question", phase: 6, why: "6.9 intent before parsing: a question becomes a task today" },
   { text: "tuần này mình bận không?", route: "question", phase: 6, why: "6.9 intent before parsing" },
-  { text: "hoãn họp nhóm 1 tiếng", route: "command", phase: 6, why: "6.10 hoãn/lùi by an amount is not a command shape yet" },
 ];

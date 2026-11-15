@@ -6,7 +6,7 @@ No on-device models. Speech is the system recognizer; everything after it is rul
 
 - Ears (`lib/ears.ts`): `expo-speech-recognition`, `vi-VN`, interim results, continuous until the button is released. On-device when Vietnamese is installed (`getSupportedLocales().installedLocales`), else the system's server recognizer. Volume events drive the wave. Every exit (stop, early release, error, app to background, launch after a reload) aborts and deactivates the audio session, so the iOS mic dot clears.
 - Mind (`lib/nlu/commands.ts`): `think(text, now, tasks)`.
-  - Commands first, on the accent-folded line: `xong …` / `… xong rồi` (done), `xoá|huỷ|bỏ …` (delete), `dời|chuyển … sang <when>` (edit; a bare day keeps the task's own clock), `ghi chú: …` (note).
+  - Commands first, on the accent-folded line: `xong …` / `… xong rồi` (done), `xoá|huỷ|bỏ …` (delete), `dời|chuyển <a task> sang …` is not understood (moves are made on the task by hand; no second task), `ghi chú: …` (note).
   - The target is the task whose title words the phrase covers best (at least half). A command that names no known task returns `[]` and the home screen says it didn't understand, never creating "xong lau nhà".
   - Anything else goes to the rule reader (`nlu/reader`); nothing read means a plain task with the words as title.
 - Rules (Nhịp): `readRule` only (`lib/rules.ts`).
@@ -15,5 +15,5 @@ No on-device models. Speech is the system recognizer; everything after it is rul
 ## Later
 
 1. `contextualStrings`: pass course names and task titles to the recognizer so "CTDL" or a teacher's name comes back spelled right.
-2. More command shapes as they show up in real use ("hoãn", "lùi … một tiếng", relative moves).
+2. More command shapes as they show up in real use.
 3. A clarification chip when two tasks tie as the target, instead of picking the earliest.

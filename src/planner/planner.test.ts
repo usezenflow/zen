@@ -228,6 +228,17 @@ describe("first move, maxSitting, typeOf, alt", () => {
     expect(p.end - p.start).toBeGreaterThan(45 * MIN);
   });
 
+  it("near a deadline other work is not split, keeps its size, and splits only past 3 h a sitting", () => {
+    const go = (eff: number, due?: number) => plan([task("w", { effort: eff, deadline: due })], [], newModel(now), now).diff;
+    const lone = go(180, now + 20 * HOUR);
+    expect(lone.split).toHaveLength(0);
+    const p = lone.placed.find((x) => x.id === "w")!;
+    expect(p.end - p.start).toBe(180 * MIN);
+    expect(go(360, now + 20 * HOUR).split[0].ids).toHaveLength(2); // 6 h in one day: two of 3 h
+    expect(go(240, at(2, 18)).split[0].ids).toHaveLength(2); // 2.x days: two of 2 h, as before
+    expect(go(180, at(5, 18)).split[0].ids).toHaveLength(2); // plenty of time: the usual 2 h cap
+  });
+
   it("a parent whose open sittings were dropped (resized) splits what is left again, with new ids", () => {
     const p = task("p", { effort: 180, maxSitting: 60, deadline: at(5, 18) });
     const k = (n: number, o: Partial<Task>) => task(`p#${n}`, { parentId: "p", effort: 45, ...o });
