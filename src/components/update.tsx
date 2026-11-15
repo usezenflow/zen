@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { AppState, Modal, Platform, StyleSheet, Text, View } from "react-native";
+import { AppState, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Tap } from "@/components/tap";
 import { t } from "@/lib/i18n";
 import { kvGet, kvSet } from "@/lib/store";
@@ -12,7 +13,7 @@ export type Dlg = { kind: "update"; update: Update } | { kind: "new"; version: s
 
 /** A centred card over a dimmed screen (.dlg in ui.css). Modal so it also sits above the settings screen. */
 export function UpdateDialog({ d, onClose }: { d: Dlg; onClose: () => void }) {
-  const th = useTheme();
+  const th = useTheme(), ins = useSafeAreaInsets();
   const [pct, setPct] = useState<number | null>(null);
   const up = d.kind === "update";
   const go = async () => {
@@ -25,13 +26,17 @@ export function UpdateDialog({ d, onClose }: { d: Dlg; onClose: () => void }) {
   const label = !up ? t("gotIt") : pct !== null ? t("downloadingPct", { n: pct }) : Platform.OS === "ios" ? t("installSideStore") : t("updateBtn");
   return (
     <Modal transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={pct === null ? onClose : undefined}>
-      <View style={s.scrim}>
+      {/* A long changelog scrolls inside the card; the button always stays on screen, and a tap outside closes */}
+      <View style={[s.scrim, { paddingTop: ins.top + 24, paddingBottom: ins.bottom + 24 }]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={pct === null ? onClose : undefined} accessibilityLabel={t("close")} />
         <View style={[s.dlg, { backgroundColor: th.bg }]} accessibilityViewIsModal>
           <Text style={[s.lab, { color: th.muted }]}>{t(up ? "newVersion" : "whatsNew")}</Text>
           <Text style={[s.h, { color: th.ink }]}>zen {up ? d.update.version : d.version}</Text>
-          {(up ? d.update.notes : d.notes).map((n, i) => (
-            <View key={i} style={s.li}><Text style={[s.note, { color: th.ink }]}>•</Text><Text style={[s.note, { color: th.ink, flex: 1 }]}>{n}</Text></View>
-          ))}
+          <ScrollView style={s.list} showsVerticalScrollIndicator>
+            {(up ? d.update.notes : d.notes).map((n, i) => (
+              <View key={i} style={s.li}><Text style={[s.note, { color: th.ink }]}>•</Text><Text style={[s.note, { color: th.ink, flex: 1 }]}>{n}</Text></View>
+            ))}
+          </ScrollView>
           <Tap onPress={go} style={[s.btn, { backgroundColor: th.ink }]} accessibilityRole="button"><Text style={[s.bt, { color: th.bg }]}>{label}</Text></Tap>
           {up && pct === null && <Tap onPress={onClose} hitSlop={8} accessibilityRole="button"><Text style={[s.ghost, { color: th.muted }]}>{t("notNow")}</Text></Tap>}
         </View>
@@ -68,7 +73,8 @@ export function UpdatePrompt() {
 
 const s = StyleSheet.create({
   scrim: { flex: 1, justifyContent: "center", paddingHorizontal: 20, backgroundColor: "rgba(0,0,0,.38)" },
-  dlg: { borderRadius: 28, paddingTop: 24, paddingHorizontal: 22, paddingBottom: 18 },
+  dlg: { maxHeight: "100%", borderRadius: 28, paddingTop: 24, paddingHorizontal: 22, paddingBottom: 18 },
+  list: { flexGrow: 0, flexShrink: 1 },
   lab: { fontSize: 15, fontFamily: ff("500") },
   h: { marginTop: 4, marginBottom: 8, fontSize: 24, lineHeight: 28.8, fontFamily: ff("600"), letterSpacing: -0.6 },
   li: { flexDirection: "row", gap: 8, marginTop: 6 },

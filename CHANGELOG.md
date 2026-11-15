@@ -58,6 +58,7 @@
 - Chi tiết việc hiện giờ bắt đầu và kết thúc: "Làm lúc T2 9:00 - 10:00" thay cho "9:00, 60p"
 - Buổi trong ngày theo cách mọi người nói: sáng đến 11h, trưa 11h-13h, chiều 13h-18h, tối 18h-22h, đêm 22h-24h
 - Giờ gọn hơn: "7:00" thay cho "07:00"
+- "Có gì mới" dài thì cuộn được, nút luôn hiện; chạm ra ngoài để đóng
 
 ## 26.0.0
 

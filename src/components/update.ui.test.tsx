@@ -9,6 +9,7 @@ import { server } from "../../test/msw/server";
 import { githubDown, githubNewer } from "../../test/msw/scenarios";
 
 // install downloads an APK or opens SideStore: a stub. checkUpdate stays real and asks the MSW GitHub handler.
+jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 54, bottom: 34, left: 0, right: 0 }) }));
 jest.mock("@/lib/update", () => ({ __esModule: true, ...jest.requireActual("@/lib/update"), install: jest.fn(async () => {}), notes: ["Lịch thi mới"] }));
 
 const U: Update = { version: "99.0.0", url: "https://github.com/usezenflow/zen/releases/download/v99.0.0/zen-android.apk", page: "https://github.com/usezenflow/zen/releases", notes: ["Sửa lỗi đồng bộ", "Lịch thi mới"] };
@@ -29,6 +30,19 @@ describe("UpdateDialog", () => {
     expect(screen.queryByText(t("notNow"))).toBeNull();
     await fireEvent.press(screen.getByText(t("gotIt")));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  // 26.0.1's notes ran past the screen with no way out: they scroll inside the card, the button stays, a tap outside closes.
+  it("a long list of notes scrolls under the button, and a tap outside closes", async () => {
+    const onClose = jest.fn();
+    const many = Array.from({ length: 60 }, (_, i) => `Ghi chú ${i + 1}`);
+    await render(<UpdateDialog d={{ kind: "new", version: "26.0.1", notes: many }} onClose={onClose} />);
+    expect(screen.getByText("Ghi chú 60")).toBeTruthy(); // all in the scroll, the button after them
+    expect(screen.getByText(t("gotIt"))).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText(t("close"), { includeHiddenElements: true })); // hidden from a screen reader beside the modal card: it has the button
+    expect(onClose).toHaveBeenCalledTimes(1);
+    await fireEvent.press(screen.getByText(t("gotIt")));
+    expect(onClose).toHaveBeenCalledTimes(2);
   });
 
   it("Android: downloads with a percentage, back ignored meanwhile, then closes", async () => {
