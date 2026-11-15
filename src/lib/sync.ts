@@ -169,7 +169,8 @@ async function run(j: queue.Job, acc: Acc): Promise<void> {
   const { upserts, deletes, digest } = materialize(fetched, await store.allTasks(), now, prepMult(await getMarks()), await loadGone());
   acc.digest.exams.push(...digest.exams); acc.digest.assignments.push(...digest.assignments); acc.digest.rooms.push(...digest.rooms);
   acc.digest.lectures!.push(...(digest.lectures ?? []));
-  if (upserts.length || deletes.length) acc.changed = (await ingest(upserts, deletes, now)).changed || acc.changed;
+  // Stored now, planned once when the drain ends: a term's ~26 weekly jobs would otherwise each run the whole planner.
+  if (upserts.length || deletes.length) acc.changed = (await ingest(upserts, deletes, now, [], false)).changed || acc.changed;
 }
 
 let draining: Promise<Synced | undefined> | undefined;
@@ -186,6 +187,7 @@ export function drain(opts: { budget?: number } = {}): Promise<Synced | undefine
     const acc: Acc = { digest: { exams: [], assignments: [], rooms: [], lectures: [] }, extra: [], changed: false,
       hadTimetable: tasks.some((x) => x.source === "dlu" && x.fixed === "lecture" && !x.deletedAt && x.start! > now) };
     await queue.work((j) => run(j, acc), opts.budget);
+    if (acc.changed) await replan(Date.now());
     const ls = acc.digest.lectures!;
     acc.digest.timetable = !acc.hadTimetable && ls.length >= 3 ? { n: ls.length, first: Math.min(...ls) } : undefined;
     const notices = [...digestNotices(acc.digest, now), ...acc.extra];
@@ -252,8 +254,14 @@ async function backfill(now: number): Promise<Result | undefined> {
   return upserts.length || deletes.length ? ingest(upserts, deletes, now) : undefined;
 }
 
-/** Foreground hook: keep sweep once a day, missed check, top-up, queue what is due and start it, flush stats. No daily replan. */
-export async function onForeground(now = Date.now()): Promise<Synced | undefined> {
+let foreground: Promise<Synced | undefined> | undefined;
+/** Foreground hook: keep sweep once a day, missed check, top-up, queue what is due and start it, flush stats. No daily replan.
+ *  App focus and resume both call it at launch: a call while one runs waits for it and lands nothing of its own. */
+export function onForeground(now = Date.now()): Promise<Synced | undefined> {
+  if (foreground) return foreground.then(() => undefined, () => undefined);
+  return (foreground = foregroundNow(now).finally(() => { foreground = undefined; }));
+}
+async function foregroundNow(now: number): Promise<Synced | undefined> {
   let out: Synced | undefined;
   const wrap = (r: Result): Synced => ({ ...r, notices: [] });
   const day = new Date(now).toDateString();

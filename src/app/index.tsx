@@ -14,7 +14,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { Icon, Logo } from "@/components/art";
 import { Rhythm } from "@/components/rhythm";
-import { addDays, live, mondayOf, monthLabel, onDay, short, startOfDay, weekday, type Hols } from "@/components/cal";
+import { addDays, live, mondayOf, monthLabel, onDay, parents, short, startOfDay, weekday, type Hols } from "@/components/cal";
 import { Day, DayPull, First } from "@/components/day";
 import { Search, type Origin } from "@/components/search";
 import { PdfView, PhotoMenu, PhotoView, TypeBar, Veil } from "@/components/capture";
@@ -210,7 +210,7 @@ export default function Home() {
   const landed = useCallback((r?: Result & { notices?: Notice[] }) => {
     if (r?.notices?.length) setToasts((q) => [...q, ...r.notices!.map((n): ToastState => ({ text: n.title, sub: n.sub, action: n.route ? { label: t("view"), run: () => go(n.route!) } : undefined }))]);
     else if (r) say(r.toast, r);
-    void shuffle(r);
+    if (r) void shuffle(r); // nothing landed: focus already refreshed, resume refreshes itself
   }, [say, go, shuffle]);
 
   useFocusEffect(useCallback(() => {
@@ -224,7 +224,7 @@ export default function Home() {
 
   useEffect(() => {
     const sub = AppState.addEventListener("change", (s) => {
-      if (s === "active") { onForeground().then(landed).catch(() => refresh()); pushWidgets(); }
+      if (s === "active") { onForeground().then((r) => (r ? landed(r) : refresh())).catch(() => refresh()); pushWidgets(); }
       // a brief is shown for one visit: leaving the app retires it (magic.html 1)
       else if (s === "background" && briefed.current.length) { const ids = briefed.current; briefed.current = []; setStory(false); void briefMoves(ids).then(refresh); }
     });
@@ -499,7 +499,8 @@ export default function Home() {
     const r = await swipeDone(x.id);
     setPop((p) => new Set(p).add(x.id));
     setTimeout(() => setPop((p) => { const n = new Set(p); n.delete(x.id); return n; }), 1400);
-    const left = tasks.filter((a) => live(a) && a.id !== x.id && a.start !== undefined && a.start < addDays(startOfDay(Date.now()), 1) && !tasks.some((c) => c.parentId === a.id)).length;
+    const ps = parents(tasks);
+    const left = tasks.filter((a) => live(a) && a.id !== x.id && a.start !== undefined && a.start < addDays(startOfDay(Date.now()), 1) && !ps.has(a.id)).length;
     say(t("doneTitle", { title: x.title }), r, { sub: t("leftToday", { n: left }) });
     refresh();
   };
@@ -583,7 +584,8 @@ export default function Home() {
 
   const mon = mondayOf(sel);
   const today0 = startOfDay(now);
-  const inView = (a: Task) => live(a) && a.start !== undefined && !tasks.some((c) => c.parentId === a.id);
+  const ps = useMemo(() => parents(tasks), [tasks]);
+  const inView = (a: Task) => live(a) && a.start !== undefined && !ps.has(a.id);
   const count = (from: number, to: number, days = 0) => {
     const n = { a: 0, l: 0, e: 0 };
     for (const a of tasks) if (inView(a) && a.start! >= from && a.start! < to) { const ty = typeOf(a); n[ty === "lecture" ? "l" : ty === "exam" ? "e" : "a"]++; }
@@ -593,7 +595,7 @@ export default function Home() {
   };
   // views.html "Day, empty" / "Day, all done": nothing left reads "Không có việc", everything ticked "5 việc, xong hết".
   const dayDone = (d: number) => {
-    const n = tasks.filter((a) => a.doneAt && a.start !== undefined && a.start >= d && a.start < addDays(d, 1) && !tasks.some((c) => c.parentId === a.id)).length;
+    const n = tasks.filter((a) => a.doneAt && a.start !== undefined && a.start >= d && a.start < addDays(d, 1) && !ps.has(a.id)).length;
     return n ? t("nAllDone", { n }) : t("noTasks");
   };
   const sd = new Date(sel);

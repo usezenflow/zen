@@ -162,7 +162,7 @@ export async function removeScope(id: string, scope: "this" | "following" | "all
 function missing(tasks: Task[], gone: Gone, now: number): Task[] {
   const horizon = now + 119 * DAY;
   const series = new Map<string, Task[]>();
-  for (const x of tasks) if (x.source === "user" && x.rrule && !x.parentId) series.set(seriesKey(x), [...(series.get(seriesKey(x)) ?? []), x]);
+  for (const x of tasks) if (x.source === "user" && x.rrule && !x.parentId) { const k = seriesKey(x), xs = series.get(k); if (xs) xs.push(x); else series.set(k, [x]); }
   const out: Task[] = [];
   for (const [key, xs] of series) {
     const last = xs.reduce((a, b) => (at(b) > at(a) ? b : a));
@@ -550,12 +550,13 @@ export function replan(now = Date.now(), toast?: (d: Diff) => string | undefined
 }
 
 /** Applies upstream upserts and soft deletes, replans, and reports moved tasks. */
-export function ingest(upserts: Task[], deletes: string[], now = Date.now(), notices: Notice[] = []) {
+export function ingest(upserts: Task[], deletes: string[], now = Date.now(), notices: Notice[] = [], replan = true) {
   return transact(now, (w) => {
     for (const u of upserts) w.tasks.set(u.id, u);
     for (const id of deletes) { const x = w.tasks.get(id); if (x) w.tasks.set(id, { ...x, deletedAt: now }); }
   }, {
     self: false,
+    replan,
     text: (d, w) => {
       if (notices.length === 1) w.sub = notices[0].sub;
       return notices.length ? notices.map((n) => n.title).join(". ") : d?.displaced.length ? t("synced", { n: d.displaced.length }) : t("syncedNew");
@@ -565,17 +566,15 @@ export function ingest(upserts: Task[], deletes: string[], now = Date.now(), not
 
 /** Marks tasks placed over a day ago and still in place as kept. */
 export async function keepSweep(now = Date.now()) {
-  const [tasks, events] = [await store.allTasks(), await store.allEvents()];
-  const kept = new Set(events.filter((e) => e.type === "kept").map((e) => e.taskId));
-  const placed = new Map(events.filter((e) => e.type === "placed").map((e) => [e.taskId, e.at]));
+  const [tasks, { kept, placed }] = [await store.allTasks(), await store.keptPlaced()];
   const due = tasks.filter((x) => !x.doneAt && !x.deletedAt && x.start !== undefined && x.start > now && !kept.has(x.id) && (placed.get(x.id) ?? now) <= now - DAY);
   if (!due.length) return;
-  const model = await store.loadModel(now);
-  let m = model;
+  let m = await store.loadModel(now), own = false;
   for (const x of due) {
     const ev: TaskEvent = { id: uid(), taskId: x.id, type: "kept", at: now };
     stat(m, ev, x);
-    m = learn(m, ev, x);
+    m = learn(m, ev, x, own); // one copy of the ~500 KB model for the whole sweep, not one per task
+    own = true;
     await store.putEvent(ev);
   }
   await store.saveModel(m);
@@ -583,7 +582,8 @@ export async function keepSweep(now = Date.now()) {
 
 /** The task to show now: in progress, else next upcoming sitting. */
 export function pickNow(tasks: Task[], now: number): Task | undefined {
-  const live = tasks.filter((x) => !x.doneAt && !x.deletedAt && x.start !== undefined && x.end !== undefined && !tasks.some((c) => c.parentId === x.id));
+  const ps = new Set(tasks.map((c) => c.parentId));
+  const live = tasks.filter((x) => !x.doneAt && !x.deletedAt && x.start !== undefined && x.end !== undefined && !ps.has(x.id));
   return live.find((x) => x.start! <= now && now < x.end!) ?? live.filter((x) => x.start! > now).sort((a, b) => a.start! - b.start!)[0];
 }
 

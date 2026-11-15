@@ -391,8 +391,9 @@ export function outcome(model: Model, ev: TaskEvent, task: Task): { arm: number;
   return reward === undefined ? undefined : { arm: pl.arm, x: pl.x, policy: pl.policy ?? "linucb", reward };
 }
 
-export function learn(model: Model, ev: TaskEvent, task: Task): Model {
-  const m = clone(model);
+/** `own`: the caller already holds its own copy of `model` (a loop of learns), so it is updated in place instead of copied again. */
+export function learn(model: Model, ev: TaskEvent, task: Task, own = false): Model {
+  const m = own ? model : clone(model);
   decay(m, ev.at);
   const pl = m.placed[task.id];
   const hist = (start: number, r: number) => {

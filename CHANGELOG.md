@@ -33,6 +33,11 @@
 - Gõ nhiều việc cách nhau bằng dấu phẩy: mỗi việc không còn chép cả câu vào ghi chú
 - Nút trong thẻ "hơi gấp" gọn hơn: tên việc canh trái, ngày ở bên phải
 - Xếp lịch nhanh hơn khi có nhiều việc
+- Mở ứng dụng không còn đơ
+    - Chạm Tuần, Tháng là chuyển ngay, không còn tự nhảy qua lại giữa các chế độ xem
+    - Vuốt sang tuần khác không còn khựng giữa chừng
+    - Widget trên iOS cập nhật nhẹ hơn, không làm chậm ứng dụng
+- Đồng bộ thời khoá biểu cả học kỳ nhanh hơn: xếp lịch một lần khi xong, không xếp lại sau từng tuần
 
 ## 26.0.2
 

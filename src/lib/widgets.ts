@@ -74,7 +74,8 @@ async function push() {
   const now = Date.now();
   const at = instants(tasks, now);
   if (Platform.OS === "ios") { // iOS redraws on its own clock from a timeline
-    for (const w of Object.values(widgets)) w.updateTimeline(at.map((t) => ({ date: new Date(t), props: widgetData(tasks, t, a) })));
+    const tl = at.map((t) => ({ date: new Date(t), props: widgetData(tasks, t, a) })); // the same for every widget: built once
+    for (const w of Object.values(widgets)) w.updateTimeline(tl);
     return;
   }
   // Android shows one snapshot: it carries the timeline, the layout picks the entry due now and the patched provider redraws at the next.

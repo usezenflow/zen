@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
 import { Icon, Logo } from "@/components/art";
-import { addDays, carried, hhmm, keptOn, keptSpan, live, mondayOf, onDay, shown, startOfDay, type Hols } from "@/components/cal";
+import { addDays, carried, hhmm, keptOn, keptSpan, live, mondayOf, onDay, parents, shown, startOfDay, type Hols } from "@/components/cal";
 import type { Item } from "@/components/menu";
 import { Row, subOf } from "@/components/row";
 import { repeatText } from "@/components/detail-html";
@@ -298,7 +298,8 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
   // A spoken "để trống" window, striped in time order among the rows (magic.html 9: the kept evening shows as stripes).
   const kept = hols.has(day) ? [] : keptOn(rules, day);
   const keptBefore = (i: number) => kept.filter((r) => day + r.from * 60_000 <= (rows[i]?.x.start ?? Infinity) && (i === 0 || day + r.from * 60_000 > rows[i - 1].x.start!));
-  const done = tasks.filter((x) => x.doneAt && !x.deletedAt && !pop.has(x.id) && x.start !== undefined && x.start >= day && x.start < end && !tasks.some((c) => c.parentId === x.id));
+  const ps = parents(tasks);
+  const done = tasks.filter((x) => x.doneAt && !x.deletedAt && !pop.has(x.id) && x.start !== undefined && x.start >= day && x.start < end && !ps.has(x.id));
   const title = hols.get(day);
   const hol: Task | undefined = title === undefined ? undefined : { id: `hol${day}`, title, kind: "other", source: "user", fixed: "busy", effort: 0, start: day, end: day + 86400_000, createdAt: 0 };
   const isEmpty = !rows.length && !hol;

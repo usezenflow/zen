@@ -13,7 +13,9 @@ export const monthLabel = (ms: number) => `Tháng ${new Date(ms).getMonth() + 1}
 
 export const live = (x: Task) => !x.doneAt && !x.deletedAt;
 /** Tasks that show: not a split parent, placed. */
-export const shown = (all: Task[]) => all.filter((x) => live(x) && x.start !== undefined && x.end !== undefined && !all.some((c) => c.parentId === x.id));
+export const shown = (all: Task[]) => { const ps = parents(all); return all.filter((x) => live(x) && x.start !== undefined && x.end !== undefined && !ps.has(x.id)); };
+/** Ids of split parents: built once so callers test membership in O(1), not a scan per task. */
+export const parents = (all: Task[]) => new Set(all.map((x) => x.parentId));
 /** Everything on that day: what starts on it, and a block running over it from an earlier day (a trip, 23:00 to 01:00). */
 export const onDay = (all: Task[], day: number) => { const e = addDays(day, 1); return shown(all).filter((x) => x.start! < e && x.end! > day).sort((a, b) => a.start! - b.start!); };
 /** The time a row shows on a day its block began earlier: "đến 12:00" on the last day, `allDay` (Cả ngày) in between; undefined on its first day. */

@@ -43,14 +43,23 @@ const fromRow = (r: Row): Task => ({
   doneAt: nul(r.doneAt),
 });
 
+// Read and parsed once until the next write (a cold start reads it ~15 times). Each caller gets its own copies, as from a fresh read.
+let tasksCache: Task[] | undefined, tasksGen = 0;
+const dropTasks = () => { tasksGen++; tasksCache = undefined; };
 export async function allTasks(): Promise<Task[]> {
-  return (await (await open()).getAllAsync<Row>("SELECT * FROM tasks")).map(fromRow);
+  if (!tasksCache) {
+    const g = tasksGen, rows = (await (await open()).getAllAsync<Row>("SELECT * FROM tasks")).map(fromRow);
+    if (g !== tasksGen) return rows; // a write landed mid-read: don't keep what may predate it
+    tasksCache = rows;
+  }
+  return tasksCache.map((x) => ({ ...x }));
 }
 
 // withTransactionAsync is not exclusive: two writes at once (a sync and an edit) nest BEGINs on the one connection. Queue them.
 let writing: Promise<unknown> = Promise.resolve();
 export async function putTasks(ts: Task[]) {
   const d = await open();
+  dropTasks();
   const run = writing.catch(() => {}).then(() => d.withTransactionAsync(async () => {
     for (const t of ts) {
       await d.runAsync(
@@ -60,16 +69,22 @@ export async function putTasks(ts: Task[]) {
     }
   }));
   writing = run;
-  await run;
+  try { await run; } finally { dropTasks(); }
   widgets();
 }
 
 export async function removeTasks(ids: string[]) {
   const d = await open();
-  for (const id of ids) await d.runAsync("DELETE FROM tasks WHERE id=?", [id]);
+  dropTasks();
+  try { for (const id of ids) await d.runAsync("DELETE FROM tasks WHERE id=?", [id]); } finally { dropTasks(); }
   widgets();
 }
 
+/** The last `at` of each task's "kept" and "placed" events: the keep sweep's whole need, without parsing every event's data. */
+export async function keptPlaced(): Promise<{ kept: Set<string>; placed: Map<string, number> }> {
+  const rows = await (await open()).getAllAsync<Row>("SELECT taskId, type, MAX(at) at FROM events WHERE type IN ('kept','placed') GROUP BY taskId, type");
+  return { kept: new Set(rows.filter((r) => r.type === "kept").map((r) => r.taskId)), placed: new Map(rows.filter((r) => r.type === "placed").map((r) => [r.taskId, r.at])) };
+}
 export async function allEvents(taskId?: string): Promise<TaskEvent[]> {
   const d = await open();
   const rows = taskId

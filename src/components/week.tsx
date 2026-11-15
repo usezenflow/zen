@@ -1,8 +1,8 @@
 import * as Haptics from "expo-haptics";
-import { useEffect, useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
-import Animated, { Easing, Extrapolation, FadeIn, FadeOut, interpolate, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import Animated, { Easing, Extrapolation, FadeIn, interpolate, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import Svg, { Defs, Pattern, Rect } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
 import { TypeArt } from "@/components/art";
@@ -36,6 +36,10 @@ const tick = () => void Haptics.selectionAsync().catch(() => {});
 export function Swipe({ onStep, stepKey, children }: { onStep: (d: -1 | 1) => void; stepKey: number; children: ReactNode }) {
   const tx = useSharedValue(0), w = useSharedValue(1);
   useEffect(() => { tx.set(settle(0)); }, [stepKey, tx]);
+  // Through a ref: a new onStep each parent render would rebuild the pan's config and rebind it mid-drag.
+  const stepRef = useRef(onStep);
+  useEffect(() => { stepRef.current = onStep; });
+  const step = (d: -1 | 1) => stepRef.current(d);
   const pan = usePanGesture({
     activeOffsetX: [-20, 20],
     failOffsetY: [-14, 14],
@@ -48,7 +52,7 @@ export function Swipe({ onStep, stepKey, children }: { onStep: (d: -1 | 1) => vo
       tx.set(withTiming(-d * w.get(), { duration: motion.fast, easing: Easing.out(Easing.cubic) }, (ok) => {
         if (!ok) return;
         tx.set(d * w.get() * 0.35); // park on the far side; the stepKey effect springs it home
-        scheduleOnRN(onStep, d);
+        scheduleOnRN(step, d);
       }));
     },
   });
@@ -101,16 +105,16 @@ export function Week({ tasks, hols, monday, selected, now, onSelect, onStep, rul
               const x = xs[j], pos = { left: i * (cw + GRID), top, width: cw, height: h };
               top += h + GAP;
               over.push("text" in x ? (
-                <Animated.View key={`r${x.id}${day}`} layout={glide} entering={FadeIn} exiting={FadeOut} style={[s.b, pos, { borderWidth: 1, borderColor: th.line }]} accessibilityLabel={x.text}>
+                <Animated.View key={`r${x.id}${i}`} layout={glide} entering={FadeIn} style={[s.b, pos, { borderWidth: 1, borderColor: th.line }]} accessibilityLabel={x.text}>
                   <Stripes color={th.line} />
                 </Animated.View>
               ) : (
-                <Animated.View key={`${x.id}${day}`} layout={glide} entering={FadeIn} exiting={FadeOut} style={[s.b, pos]}>
+                <Animated.View key={`${x.id}${i}`} layout={glide} entering={FadeIn} style={[s.b, pos]}>
                   <TypeArt type={typeOf(x)} w={40} h={h} seed={j * 3 + h} />
                 </Animated.View>
               ));
             });
-            if (f.more > 0) over.push(<Animated.View key={`m${day}`} layout={glide} entering={FadeIn} exiting={FadeOut} style={[s.more, { left: i * (cw + GRID), top, width: cw, backgroundColor: th.chip }]}><Text style={[s.mt, { color: th.muted }]}>+{f.more}</Text></Animated.View>);
+            if (f.more > 0) over.push(<Animated.View key={`m${i}`} layout={glide} entering={FadeIn} style={[s.more, { left: i * (cw + GRID), top, width: cw, backgroundColor: th.chip }]}><Text style={[s.mt, { color: th.muted }]}>+{f.more}</Text></Animated.View>);
           }
           return (
             <Tap key={day} style={s.c} scale={0.97} onPress={() => onSelect(day)}>
