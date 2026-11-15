@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
+import Svg, { Circle } from "react-native-svg";
 import { AppState, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Tap } from "@/components/tap";
+import { Toast } from "@/components/toast";
 import { t } from "@/lib/i18n";
 import { kvGet, kvSet } from "@/lib/store";
 import { useTheme, ff } from "@/lib/theme";
-import { checkUpdate, install, installed, notes } from "@/lib/update";
+import { checkUpdate, install, installed, notes, useDownload } from "@/lib/update";
 import type { Update } from "@/lib/update-version";
 
 /** settings.html: "update" offers a newer release; "new" shows the notes of the version now installed. */
@@ -14,21 +16,15 @@ export type Dlg = { kind: "update"; update: Update } | { kind: "new"; version: s
 /** A centred card over a dimmed screen (.dlg in ui.css). Modal so it also sits above the settings screen. */
 export function UpdateDialog({ d, onClose }: { d: Dlg; onClose: () => void }) {
   const th = useTheme(), ins = useSafeAreaInsets();
-  const [pct, setPct] = useState<number | null>(null);
   const up = d.kind === "update";
-  const go = async () => {
-    if (!up) return onClose();
-    if (pct !== null) return;
-    setPct(0);
-    await install(d.update, setPct);
-    setPct(null); onClose();
-  };
-  const label = !up ? t("gotIt") : pct !== null ? t("downloadingPct", { n: pct }) : Platform.OS === "ios" ? t("installSideStore") : t("updateBtn");
+  // the download runs behind: the dialog closes at once and the top toast shows the ring (DownloadToast)
+  const go = () => { if (up) void install(d.update); onClose(); };
+  const label = !up ? t("gotIt") : Platform.OS === "ios" ? t("installSideStore") : t("updateBtn");
   return (
-    <Modal transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={pct === null ? onClose : undefined}>
+    <Modal transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
       {/* A long changelog scrolls inside the card; the button always stays on screen, and a tap outside closes */}
       <View style={[s.scrim, { paddingTop: ins.top + 24, paddingBottom: ins.bottom + 24 }]}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={pct === null ? onClose : undefined} accessibilityLabel={t("close")} />
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel={t("close")} />
         <View style={[s.dlg, { backgroundColor: th.bg }]} accessibilityViewIsModal>
           <Text style={[s.lab, { color: th.muted }]}>{t(up ? "newVersion" : "whatsNew")}</Text>
           <Text style={[s.h, { color: th.ink }]}>zen {up ? d.update.version : d.version}</Text>
@@ -38,11 +34,32 @@ export function UpdateDialog({ d, onClose }: { d: Dlg; onClose: () => void }) {
             ))}
           </ScrollView>
           <Tap onPress={go} style={[s.btn, { backgroundColor: th.ink }]} accessibilityRole="button"><Text style={[s.bt, { color: th.bg }]}>{label}</Text></Tap>
-          {up && pct === null && <Tap onPress={onClose} hitSlop={8} accessibilityRole="button"><Text style={[s.ghost, { color: th.muted }]}>{t("notNow")}</Text></Tap>}
+          {up && <Tap onPress={onClose} hitSlop={8} accessibilityRole="button"><Text style={[s.ghost, { color: th.muted }]}>{t("notNow")}</Text></Tap>}
         </View>
       </View>
     </Modal>
   );
+}
+
+/** ui.css .ring: the download's share as an arc, track faint, from twelve o'clock. */
+export function Ring({ pct, color, size = 30, w = 3 }: { pct: number; color: string; size?: number; w?: number }) {
+  const r = (size - w) / 2, c = 2 * Math.PI * r;
+  return (
+    <View accessible accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: pct }}>
+    <Svg width={size} height={size}>
+      <Circle cx={size / 2} cy={size / 2} r={r} stroke="rgba(127,127,127,0.35)" strokeWidth={w} fill="none" />
+      <Circle cx={size / 2} cy={size / 2} r={r} stroke={color} strokeWidth={w} fill="none" strokeLinecap="round"
+        strokeDasharray={`${c} ${c}`} strokeDashoffset={c * (1 - pct / 100)} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
+    </Svg>
+    </View>
+  );
+}
+
+/** settings.html "Downloading": the top toast while the APK comes down, over any screen; the installer opens when it is done. */
+export function DownloadToast() {
+  const th = useTheme(), dl = useDownload();
+  if (!dl) return null;
+  return <Toast text={t("updDownloading", { version: dl.version })} sub={t("updDownloadingSub", { n: dl.pct })} lead={<Ring pct={dl.pct} color={th.bg} />} />;
 }
 
 let offered: string | null = null; // each version is offered once a run
@@ -68,12 +85,12 @@ export function UpdatePrompt() {
     const sub = AppState.addEventListener("change", (st) => st === "active" && check());
     return () => sub.remove();
   }, []);
-  return d ? <UpdateDialog d={d} onClose={() => setD(null)} /> : null;
+  return <>{d && <UpdateDialog d={d} onClose={() => setD(null)} />}<DownloadToast /></>;
 }
 
 const s = StyleSheet.create({
   scrim: { flex: 1, justifyContent: "center", paddingHorizontal: 20, backgroundColor: "rgba(0,0,0,.38)" },
-  dlg: { maxHeight: "100%", borderRadius: 28, paddingTop: 24, paddingHorizontal: 22, paddingBottom: 18 },
+  dlg: { maxHeight: "100%", borderRadius: 28, paddingTop: 24, paddingHorizontal: 22, paddingBottom: 18, boxShadow: "0 24px 48px -20px rgba(0,0,0,0.5)" }, // ui.css .dlg
   list: { flexGrow: 0, flexShrink: 1 },
   lab: { fontSize: 15, fontFamily: ff("500") },
   h: { marginTop: 4, marginBottom: 8, fontSize: 24, lineHeight: 28.8, fontFamily: ff("600"), letterSpacing: -0.6 },

@@ -123,13 +123,13 @@ function occurrences(rrule: string | undefined, now: number, when?: number, due?
 }
 
 const at = (x: Task) => x.start ?? x.notBefore ?? x.deadline ?? 0;
-const seriesKey = (x: Task) => `${x.rrule}|${x.title}`;
+const seriesKey = (x: Task) => x.seriesId ?? `${x.rrule}|${x.title}`; // older repeats have no id: rule and title
 
 /** Ids a scope pick covers. Series = same section (DLU lectures) or same rrule and title (user repeats);
  *  "following" is this one and later ones, "all" the whole series, "this" just itself. */
 export function scopeIds(tasks: Task[], id: string, scope: "this" | "following" | "all"): string[] {
   const me = tasks.find((x) => x.id === id);
-  const kin = (x: Task) => (me?.section ? x.section === me.section : me?.parentId ? x.parentId === me.parentId : !!me?.rrule && x.rrule === me.rrule && x.title === me.title);
+  const kin = (x: Task) => (me?.section ? x.section === me.section : me?.parentId ? x.parentId === me.parentId : !!me?.rrule && !!x.rrule && seriesKey(x) === seriesKey(me));
   const ids = !me || scope === "this" ? [id] : tasks.filter((x) => x.id === id || (kin(x) && !x.deletedAt && !x.doneAt && (scope === "all" || at(x) >= at(me)))).map((x) => x.id);
   // Last live sitting gone: the parent goes too (last, after its sittings), or the planner splits it again.
   if (me?.parentId && tasks.every((x) => x.parentId !== me.parentId || x.deletedAt || x.doneAt || ids.includes(x.id))) ids.push(me.parentId);
@@ -170,8 +170,11 @@ function missing(tasks: Task[], gone: Gone, now: number): Task[] {
     if (!xs.some((x) => !x.deletedAt) || cut === 0) continue;
     const fx = last.fixed === "busy" && last.start !== undefined, len = (last.end ?? 0) - (last.start ?? 0);
     // a fixed block keeps its clock: the new day gets start and end, or the planner drops it
+    // a title changed on one occurrence only stays on it; a note set on all of them carries on
+    const base = xs.filter((x) => !x.userEdited?.includes("title")).reduce<Task | undefined>((a, b) => (!a || at(b) > at(a) ? b : a), undefined) ?? last;
+    const note = xs.every((x) => x.note === last.note) ? last.note : undefined;
     const copy = (o: { notBefore?: number; deadline?: number }): Task => ({
-      ...last, ...o, id: uid(), start: undefined, end: undefined, doneAt: undefined, deletedAt: undefined, userEdited: undefined, note: undefined, createdAt: now,
+      ...last, ...o, title: base.title, id: uid(), start: undefined, end: undefined, doneAt: undefined, deletedAt: undefined, userEdited: undefined, note, createdAt: now,
       ...(fx ? { start: o.notBefore, end: o.notBefore! + len, notBefore: undefined, deadline: undefined } : {}),
     });
     if (byDay(p) || (p.FREQ === "WEEKLY" && Number(p.INTERVAL) > 1)) {
@@ -198,17 +201,27 @@ function missing(tasks: Task[], gone: Gone, now: number): Task[] {
 // Read inside the write queue: two at once (app focus and resume both fire it) each saw the series short and both added copies.
 export function topUp(now = Date.now()): Promise<Result | undefined> {
   return serial(async () => {
-    const add = missing(await store.allTasks(), await loadGone(), now);
+    // older repeats get their series id once, before a rename of one occurrence splits them off
+    const tasks = await store.allTasks(), ids = new Map<string, string>();
+    const old = tasks.filter((x) => x.source === "user" && x.rrule && !x.parentId && !x.seriesId);
+    for (const x of old) if (!ids.has(seriesKey(x))) ids.set(seriesKey(x), uid());
+    const gone = await loadGone();
+    if (old.length) {
+      for (const [key, id] of ids) if (key in gone.series) gone.series[id] = gone.series[key]; // a deleted stretch stays deleted under the new key
+      await store.kvSet("gone", JSON.stringify(gone));
+      await store.putTasks(old.map((x) => Object.assign(x, { seriesId: ids.get(seriesKey(x)) })));
+    }
+    const add = missing(tasks, gone, now);
     return add.length ? transactNow(now, (w) => { for (const x of add) w.tasks.set(x.id, x); }, { self: false }) : undefined;
   });
 }
 
 /** Resolves an id the model gave; a split parent resolves to its sittings. */
-function targets(w: Work, id?: string): Task[] {
+function targets(w: Work, id?: string, whole = false): Task[] {
   const task = id ? w.tasks.get(id) : undefined;
   if (!task) return [];
   const kids = [...w.tasks.values()].filter((c) => c.parentId === task.id && !c.doneAt && !c.deletedAt);
-  return kids.length ? kids : [task];
+  return kids.length ? (whole ? [task, ...kids] : kids) : [task]; // whole: a name, place, note or kind is the task's and every sitting's
 }
 
 
@@ -235,11 +248,12 @@ async function act(w: Work, a: Action) {
     const fixed = a.fixed && when !== undefined ? a.fixed : undefined;
     // a repeat's said window is its parts of the day (tods), which every occurrence keeps; a day's notAfter would hold only the first
     const notAfter = a.repeat ? undefined : ms(a.notAfter);
+    const seriesId = a.repeat ? uid() : undefined;
     for (const o of occ.list) {
       if (!fixed && dayGone({ rrule: a.repeat, deadline: o.deadline, tods: a.tods, effort: a.effortMinutes ?? 0 } as Task, now)) continue; // today's part already gone: from the next day
       const task: Task = {
         id: uid(), title, vec, kind: near?.k ?? a.kind ?? "other", source: "user", effort: a.effortMinutes ?? 0, createdAt: now,
-        deadline: o.deadline, notBefore: o.notBefore, rrule: a.repeat, ...(a.location ? { location: a.location } : {}), ...(a.note ? { note: a.note } : {}), ...(notAfter !== undefined ? { notAfter } : {}), ...(a.tods?.length ? { tods: a.tods } : {}),
+        deadline: o.deadline, notBefore: o.notBefore, rrule: a.repeat, ...(seriesId ? { seriesId } : {}), ...(a.location ? { location: a.location } : {}), ...(a.note ? { note: a.note } : {}), ...(notAfter !== undefined ? { notAfter } : {}), ...(a.tods?.length ? { tods: a.tods } : {}),
       };
       if (fixed && o.notBefore !== undefined) { // an exact said time is a busy block, not a plan
         task.effort = effort(task, w.model);
@@ -250,7 +264,7 @@ async function act(w: Work, a: Action) {
     w.toast = t("added", { title });
     return;
   }
-  const all = targets(w, a.target), lead = [...all].sort((x, y) => (x.start ?? Infinity) - (y.start ?? Infinity))[0];
+  const all = targets(w, a.target, a.op === "edit" && a.when === undefined && a.deadline === undefined && !a.effortMinutes), lead = [...all].sort((x, y) => (x.start ?? Infinity) - (y.start ?? Infinity))[0];
   for (const tk of all) {
     if (a.op === "done") {
       const next = { ...tk, doneAt: now };

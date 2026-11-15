@@ -161,9 +161,10 @@ it("removeScope tombstones the section and a fresh repeating create clears a ser
   await apply([{ op: "create", title: "Gym", repeat: "FREQ=WEEKLY" }], NOW);
   const g = live().find((x: Task) => x.title === "Gym")!;
   await removeScope(g.id, "all", NOW);
-  expect((await loadGone()).series["FREQ=WEEKLY|Gym"]).toBe(0);
+  expect((await loadGone()).series[g.seriesId!]).toBe(0);
   await apply([{ op: "create", title: "Gym", repeat: "FREQ=WEEKLY" }], NOW);
-  expect((await loadGone()).series["FREQ=WEEKLY|Gym"]).toBeUndefined();
+  const g2 = live().find((x: Task) => x.title === "Gym" && !x.deletedAt)!;
+  expect(g2.seriesId).not.toBe(g.seriesId); // a fresh series, not under the old one's tombstone
 });
 
 it("topUp keeps a daily series 120 days ahead without duplicating days", async () => {
@@ -176,6 +177,36 @@ it("topUp keeps a daily series 120 days ahead without duplicating days", async (
   const n = days.length;
   expect(await topUp(later)).toBeUndefined();
   expect(live().filter((x: Task) => x.title === "Read")).toHaveLength(n);
+});
+
+it("a rename on one occurrence keeps it in the series", async () => {
+  await apply([{ op: "create", title: "Read", kind: "study", repeat: "FREQ=DAILY" }], NOW);
+  const xs = live().filter((x: Task) => x.title === "Read"), n = xs.length;
+  await apply([{ op: "edit", target: xs[1].id, title: "Read ch. 4" }], NOW);
+  await topUp(NOW + 6 * DAYMS); // no copies of the renamed one as a series of its own
+  const all = live().filter((x: Task) => x.seriesId === xs[0].seriesId);
+  expect(new Set(all.map((x: Task) => x.deadline)).size).toBe(all.length);
+  expect(all.filter((x: Task) => x.title === "Read ch. 4")).toHaveLength(1);
+  expect(all.length).toBeGreaterThanOrEqual(n);
+});
+
+it("an older repeat (no series id) gets one on topUp, and its tombstone moves with it", async () => {
+  const day = (k: number) => T({ id: `o${k}`, title: "Gym", source: "user", rrule: "FREQ=DAILY", deadline: NOW + k * DAYMS, notBefore: NOW + (k - 1) * DAYMS });
+  for (const k of [1, 2, 3]) db.tasks.set(`o${k}`, day(k));
+  db.kv.set("gone", JSON.stringify({ sections: {}, series: { "FREQ=DAILY|Gym": NOW + 3 * DAYMS } }));
+  await topUp(NOW);
+  const id = db.tasks.get("o1").seriesId;
+  expect(id).toBeTruthy();
+  expect(["o2", "o3"].every((k) => db.tasks.get(k).seriesId === id)).toBe(true);
+  expect((await loadGone()).series[id]).toBe(NOW + 3 * DAYMS);
+  expect(live().filter((x: Task) => x.title === "Gym")).toHaveLength(3); // still cut after day 3
+});
+
+it("a name on a split task is the task's and every open sitting's", async () => {
+  await apply([{ op: "create", title: "Essay", kind: "study", effortMinutes: 240, deadline: "2026-11-20T23:00:00" }], NOW);
+  const p = live().find((x: Task) => x.title === "Essay" && !x.parentId)!;
+  await apply([{ op: "edit", target: p.id, title: "Essay v2" }], NOW);
+  expect(live().filter((x: Task) => x.id === p.id || x.parentId === p.id).every((x: Task) => x.title === "Essay v2")).toBe(true);
 });
 
 it("two topUps at once add each missing day once", async () => {

@@ -340,6 +340,8 @@ const S = {
   whatsNew: "Có gì mới",
   updateBtn: "Cập nhật",
   downloadingPct: "Đang tải {n}%",
+  updDownloading: "Đang tải zen {version}",
+  updDownloadingSub: "{n}% · xong sẽ mở trình cài",
   installSideStore: "Cài qua SideStore",
   gotIt: "Đã hiểu",
 } as const;

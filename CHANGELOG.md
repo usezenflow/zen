@@ -14,6 +14,10 @@
 - Gần hạn thì không chia nhỏ
     - Mỗi ngày còn lại tối đa một buổi; còn dưới một ngày thì làm một lần
     - Việc giữ nguyên thời lượng, mỗi buổi dài tối đa 3h
+- Đổi tên một buổi của việc lặp vẫn giữ nó trong chuỗi lặp, không sinh thêm bản sao
+- Cập nhật tải ngầm: chạm "Cập nhật" là đóng hộp thoại, vòng tiến độ hiện ở trên cùng; tải xong tự mở trình cài
+- Biểu tượng "Gặp gỡ" vẽ lại cho rõ
+- Mở chi tiết một việc đã bị xoá không còn quay lại nhầm màn hình
 
 ## 26.0.1
 

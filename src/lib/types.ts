@@ -28,6 +28,7 @@ export interface Task {
   notAfter?: number; // end of a said window ("tối thứ 5"): the planner keeps the whole task inside notBefore..notAfter
   tods?: [number, number][]; // minutes of the day a flexible task runs in, any one of them ("sáng hoặc tối"); every occurrence of a repeat keeps them
   rrule?: string;
+  seriesId?: string; // one repeat said once: its occurrences, so renaming one keeps it in the series
   parentId?: string; // sitting of a split task
   start?: number;
   end?: number;

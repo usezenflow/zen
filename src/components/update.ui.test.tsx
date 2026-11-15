@@ -1,22 +1,25 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import { AppState, Platform } from "react-native";
-import { UpdateDialog, UpdatePrompt, type Dlg } from "./update";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { DownloadToast, UpdateDialog, UpdatePrompt, type Dlg } from "./update";
 import { t } from "@/lib/i18n";
-import { install } from "@/lib/update";
+import { install, useDownload } from "@/lib/update";
 import { kvGet, kvSet } from "@/lib/store";
 import type { Update } from "@/lib/update-version";
 import { server } from "../../test/msw/server";
 import { githubDown, githubNewer } from "../../test/msw/scenarios";
 
 // install downloads an APK or opens SideStore: a stub. checkUpdate stays real and asks the MSW GitHub handler.
+// Gesture events take RNGH's JS path: the Reanimated mock has no native event bridge (as row.ui.test).
+jest.mock("react-native-gesture-handler/lib/module/handlers/gestures/reanimatedWrapper", () => ({ Reanimated: undefined, Worklets: undefined }));
 jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 54, bottom: 34, left: 0, right: 0 }) }));
-jest.mock("@/lib/update", () => ({ __esModule: true, ...jest.requireActual("@/lib/update"), install: jest.fn(async () => {}), notes: ["Lịch thi mới"] }));
+jest.mock("@/lib/update", () => ({ __esModule: true, ...jest.requireActual("@/lib/update"), install: jest.fn(async () => {}), useDownload: jest.fn(() => null), notes: ["Lịch thi mới"] }));
 
 const U: Update = { version: "99.0.0", url: "https://github.com/usezenflow/zen/releases/download/v99.0.0/zen-android.apk", page: "https://github.com/usezenflow/zen/releases", notes: ["Sửa lỗi đồng bộ", "Lịch thi mới"] };
 const upd: Dlg = { kind: "update", update: U };
 const W = { timeout: 5_000 };
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => { jest.clearAllMocks(); jest.mocked(useDownload).mockReturnValue(null); });
 afterEach(() => jest.restoreAllMocks());
 
 describe("UpdateDialog", () => {
@@ -45,27 +48,25 @@ describe("UpdateDialog", () => {
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 
-  it("Android: downloads with a percentage, back ignored meanwhile, then closes", async () => {
+  it("Android: Cập nhật starts the download behind and closes at once", async () => {
     jest.replaceProperty(Platform, "OS", "android");
-    let finish!: () => void;
-    jest.mocked(install).mockImplementation((_u, onProgress) => new Promise((r) => { onProgress(42); finish = r; }));
     const onClose = jest.fn();
     await render(<UpdateDialog d={upd} onClose={onClose} />);
     expect(screen.getByText(t("newVersion"))).toBeTruthy();
     expect(screen.getByText("zen 99.0.0")).toBeTruthy();
-    expect(screen.getByText(t("notNow"))).toBeTruthy();
-    // The press stays in its act until the install resolves. No other act may start meanwhile (overlapping acts broke every later test),
-    // so the download state is read synchronously. A second tap mid-download would be a second act: shortcut: that guard (pct !== null in go) is untested here.
-    const pressed = fireEvent.press(screen.getByText(t("updateBtn")));
-    for (let i = 0; i < 20 && !screen.queryByText(t("downloadingPct", { n: 42 })); i++) await Promise.resolve();
-    expect(screen.getByText(t("downloadingPct", { n: 42 }))).toBeTruthy();
-    expect(screen.queryByText(t("notNow"))).toBeNull();
-    expect(screen.root!.props.onRequestClose).toBeUndefined(); // back does nothing mid-download
-    expect(install).toHaveBeenCalledWith(U, expect.any(Function));
-    finish();
-    await pressed;
-    expect(install).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    await fireEvent.press(screen.getByText(t("updateBtn")));
+    expect(install).toHaveBeenCalledWith(U);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("the download shows as a top toast with a ring, over any screen; none when idle", async () => {
+    const r = await render(<DownloadToast />, { wrapper: GestureHandlerRootView });
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    jest.mocked(useDownload).mockReturnValue({ version: "99.0.0", pct: 42 });
+    await r.rerender(<DownloadToast />);
+    expect(screen.getByText(t("updDownloading", { version: "99.0.0" }))).toBeTruthy();
+    expect(screen.getByText(t("updDownloadingSub", { n: 42 }))).toBeTruthy();
+    expect(screen.getByRole("progressbar").props.accessibilityValue).toEqual({ min: 0, max: 100, now: 42 });
   });
 
   it("iOS offers SideStore; not now and back close it", async () => {

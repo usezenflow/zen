@@ -1,7 +1,8 @@
 import Constants from "expo-constants";
 import * as FS from "expo-file-system/legacy";
 import * as Intent from "expo-intent-launcher";
-import { Linking, Platform } from "react-native";
+import { useSyncExternalStore } from "react";
+import { AppState, Linking, Platform } from "react-native";
 import { kvGet, kvSet } from "./store";
 import { APK, IPA, pickUpdate, REPO, type Release, type Update } from "./update-version";
 
@@ -29,19 +30,37 @@ export async function checkUpdate(): Promise<Update | null> {
   return pickUpdate(r, installed, asset);
 }
 
+// The APK download runs behind whatever screen is open: the dialog closes at once and the top toast shows the ring.
+export type Download = { version: string; pct: number };
+let dl: Download | null = null;
+const subs = new Set<() => void>();
+const set = (d: Download | null) => { dl = d; subs.forEach((f) => f()); };
+const onDownload = (f: () => void) => { subs.add(f); return () => { subs.delete(f); }; };
+/** The running download, or null. */
+export const useDownload = () => useSyncExternalStore(onDownload, () => dl);
+// Android does not let an app open an activity from the background: the installer waits for the app to be on screen.
+const onScreen = () => new Promise<void>((r) => {
+  if (AppState.currentState === "active") return r();
+  const sub = AppState.addEventListener("change", (st) => { if (st === "active") { sub.remove(); r(); } });
+});
+
 /**
- * Android: download the APK and open the system installer (it asks to confirm; it only accepts our signing key).
- * iOS: the .ipa is unsigned, so SideStore installs and re-signs it. Any failure opens the release page instead.
+ * Android: download the APK in the background, then open the system installer (it asks to confirm; it only accepts our signing key).
+ * iOS: the .ipa is unsigned, so SideStore installs and re-signs it. Any failure opens the release page instead. A second call mid-download does nothing.
  */
-export async function install(u: Update, onProgress: (pct: number) => void): Promise<void> {
+export async function install(u: Update): Promise<void> {
+  if (dl) return;
   try {
     if (Platform.OS === "ios") return void (await Linking.openURL(`sidestore://install?url=${encodeURIComponent(u.url)}`));
+    set({ version: u.version, pct: 0 });
     const target = `${FS.cacheDirectory}zen-update.apk`;
     await FS.deleteAsync(target, { idempotent: true });
     const res = await FS.createDownloadResumable(u.url, target, {}, ({ totalBytesWritten: w, totalBytesExpectedToWrite: t }) => {
-      if (t > 0) onProgress(Math.round((w / t) * 100));
+      if (t > 0 && dl) { const pct = Math.round((w / t) * 100); if (pct !== dl.pct) set({ ...dl, pct }); }
     }).downloadAsync();
     if (res?.status !== 200) throw new Error(`download ${res?.status}`);
+    set({ version: u.version, pct: 100 });
+    await onScreen();
     await Intent.startActivityAsync("android.intent.action.VIEW", {
       data: await FS.getContentUriAsync(res.uri),
       flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
@@ -49,5 +68,7 @@ export async function install(u: Update, onProgress: (pct: number) => void): Pro
     });
   } catch {
     await Linking.openURL(u.page).catch(() => {});
+  } finally {
+    set(null);
   }
 }

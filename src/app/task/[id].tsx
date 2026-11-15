@@ -1,4 +1,4 @@
-import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { DateChip, TimeChip } from "@/components/pick";
@@ -43,6 +43,7 @@ export default function Detail() {
   const [loc, setLoc] = useState("");
   const saved = useRef("");
   const latest = useRef("");
+  const nav = useNavigation();
   const pend = useRef({ title: "", loc: "", task });
   useEffect(() => { pend.current = { title, loc, task }; });
   // Delete, move and replan each close the screen: a second tap must not run them twice or pop the screen below.
@@ -58,7 +59,11 @@ export default function Detail() {
     const x = all.find((y) => y.id === id);
     const n = Date.now();
     setPlc(id ? (await loadModel(n)).placed[id] : undefined);
-    if (!x || x.deletedAt) { if (router.canGoBack()) router.back(); else router.replace("/"); return; } // opened from a stale widget or notification, or synced away
+    if (!x || x.deletedAt) { // opened from a stale widget or notification, or synced away
+      // only while on top: a screen under another popping itself took the top one (or nothing) with it
+      if (nav.isFocused()) { if (router.canGoBack()) router.back(); else router.replace("/"); }
+      return;
+    }
     const on = x.start ?? x.deadline;
     if (on !== undefined) openedOnDay(on);
     setNow(n); setTask(x); setExam(x?.forId ? all.find((y) => y.id === x.forId) : undefined);
@@ -68,7 +73,7 @@ export default function Detail() {
     if (first || p.title === p.task?.title) setTitle(x?.title ?? "");
     if (first || latest.current === saved.current) { setNote(x?.note ?? ""); saved.current = latest.current = x?.note ?? ""; }
     if (first || p.loc === (p.task?.location ?? "")) setLoc(x?.location ?? "");
-  }, [id]);
+  }, [id, nav]);
   // on every focus, not only the first: back from a sitting deleted on its own screen drops it from "Các buổi" here
   useFocusEffect(useCallback(() => { void load(); }, [load]));
   // The open time or due line: every value is saved as it settles (liveEdit), so a tap outside only closes the line.
@@ -160,6 +165,7 @@ export default function Detail() {
   // Opens the pickers on today 23:59; nothing is saved (and nothing re-planned) until the user picks.
   const defaultDue = () => { const d = new Date(now); d.setHours(23, 59, 0, 0); setDv(d.getTime()); setEd("due"); };
   const link = /^https?:\/\/\S+$/i.test(task.location ?? "") ? task.location! : undefined;
+  const goBack = once(async () => router.back()); // a second tap must not pop the screen below
   const more = () => [
     ...(mine && !task.fixed && !task.rrule && task.deadline === undefined ? [{ label: t("setDue"), icon: "hourglass" as const, onPress: defaultDue }] : []),
     ...(mine && !task.location && ed !== "place" ? [{ label: t("addPlace"), icon: "place" as const, onPress: () => setEd("place") }] : []),
@@ -242,7 +248,7 @@ export default function Detail() {
       <ScrollView contentContainerStyle={{ padding: space.gutter, paddingBottom: 60 }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets keyboardDismissMode="interactive">
         <Animated.View entering={fadeIn}>
           <View style={s.bar}>
-            <Tap onPress={() => router.back()} accessibilityLabel={t("back")} style={circle}><Icon name="back" size={20} color={th.ink} /></Tap>
+            <Tap onPress={goBack} accessibilityLabel={t("back")} style={circle}><Icon name="back" size={20} color={th.ink} /></Tap>
             <View style={s.acts}>
             {!!more().length && <View style={circle}><DropMenu sf="ellipsis" color={th.ink} size={20} icon={<Gly name="dots" size={20} color={th.ink} />} items={more()} /></View>}
             {series ? (

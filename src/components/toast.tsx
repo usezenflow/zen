@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
 import Animated, { Keyframe, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
@@ -16,9 +17,10 @@ const toastOut = new Keyframe({ 0: { opacity: 1, transform: [{ translateY: 0 }, 
  * The alternative slot is an outline pill left of Undo ("hoặc T7 09:00").
  * Swipe it up or sideways to put it away (`onDismiss`).
  * `error`: vermilion with white text, for failures (model not ready, mic, download).
+ * `lead`: drawn left of the text (the update download's ring).
  */
-export function Toast({ text, sub, onAction, actionLabel, onAlt, altLabel, error, onDismiss }: {
-  text: string; sub?: string; onAction?: () => void; actionLabel?: string; onAlt?: () => void; altLabel?: string; error?: boolean; onDismiss?: () => void;
+export function Toast({ text, sub, onAction, actionLabel, onAlt, altLabel, error, onDismiss, lead }: {
+  text: string; sub?: string; onAction?: () => void; actionLabel?: string; onAlt?: () => void; altLabel?: string; error?: boolean; onDismiss?: () => void; lead?: ReactNode;
 }) {
   const th = useTheme();
   const top = useSafeAreaInsets().top - 8; // .toast top 46 against the mockup's 54 content top
@@ -43,9 +45,12 @@ export function Toast({ text, sub, onAction, actionLabel, onAlt, altLabel, error
     <GestureDetector gesture={pan}>
     <Animated.View style={[s.drag, { top }, drag]}>
     <Animated.View entering={toastIn} exiting={toastOut} style={[s.toast, { backgroundColor: bg }]}>
-      <View style={s.tx} accessibilityRole={error ? "alert" : undefined}>
-        <Text numberOfLines={2} style={[s.t1, { color: fg }]}>{text}</Text>
-        {!!sub && <Text numberOfLines={2} style={[s.sub, error && { color: "rgba(255,255,255,0.85)" }]}>{sub}</Text>}
+      <View style={s.tl}>
+        {lead}
+        <View style={s.tx} accessibilityRole={error ? "alert" : undefined}>
+          <Text numberOfLines={2} style={[s.t1, { color: fg }]}>{text}</Text>
+          {!!sub && <Text numberOfLines={2} style={[s.sub, error && { color: "rgba(255,255,255,0.85)" }]}>{sub}</Text>}
+        </View>
       </View>
       {(!!alt || !!onAction) && (
         <View style={s.row}>
@@ -67,7 +72,8 @@ const s = StyleSheet.create({
   // ui.css .toast
   drag: { position: "absolute", left: 12, right: 12, zIndex: 30 },
   toast: { flexDirection: "column", gap: 10, paddingVertical: 12, paddingLeft: 18, paddingRight: 12, borderRadius: 24, boxShadow: "0 20px 40px -18px rgba(0,0,0,0.5)" },
-  tx: { minWidth: 0 },
+  tl: { flexDirection: "row", alignItems: "center", gap: 12 }, // ui.css .toast .tl
+  tx: { minWidth: 0, flexShrink: 1 },
   row: { flexDirection: "row", justifyContent: "flex-end", gap: 8 },
   t1: { fontSize: font.md, fontFamily: ff("700"), lineHeight: 19.5 }, // 15px, line-height 1.3
   sub: { marginTop: 1, fontSize: font.label, fontFamily: ff("500"), lineHeight: 19.5, color: "rgb(127,127,127)" },

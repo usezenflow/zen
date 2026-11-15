@@ -20,7 +20,7 @@ import { Sweep, useSweep } from "@/components/sweep";
 import { when } from "@/lib/when";
 import { LogoState } from "@/components/logostate";
 import { UpdateDialog, type Dlg } from "@/components/update";
-import { buildHash, checkUpdate, installed, notes } from "@/lib/update";
+import { buildHash, checkUpdate, installed, notes, useDownload } from "@/lib/update";
 import type { Update } from "@/lib/update-version";
 
 type Mode = "system" | "light" | "dark";
@@ -74,6 +74,7 @@ export default function Settings() {
   const [toast, setToast] = useState<{ text: string; sub: string }>();
   const [now, setNow] = useState(0);
   const [up, setUp] = useState<Update | null>(null); // a newer release on GitHub
+  const dl = useDownload(); // its APK coming down in the background
   const [dlg, setDlg] = useState<Dlg | null>(null);
 
   const refresh = useCallback(async () => {
@@ -195,8 +196,8 @@ export default function Settings() {
         )}
         {/* settings.html Version: the last row; a newer release turns it vermilion and opens the update dialog. */}
         <Row line={false} label={t("version")}
-          right={<Text style={{ fontSize: font.sub, fontFamily: ff(up ? "600" : "500"), color: up ? th.seal : th.muted }}>{up ? t("hasVersion", { version: up.version }) : `${installed} · ${buildHash}`}</Text>}
-          onPress={() => (up ? setDlg({ kind: "update", update: up }) : setDlg({ kind: "new", version: installed, notes }))} />
+          right={<Text style={{ fontSize: font.sub, fontFamily: ff(up ? "600" : "500"), color: up ? th.seal : th.muted }}>{dl ? t("downloadingPct", { n: dl.pct }) : up ? t("hasVersion", { version: up.version }) : `${installed} · ${buildHash}`}</Text>}
+          onPress={() => (dl ? undefined : up ? setDlg({ kind: "update", update: up }) : setDlg({ kind: "new", version: installed, notes }))} />
       </ScrollView>
       </KeyboardAvoidingView>
       {toast ? <Toast key={toast.text + toast.sub} text={toast.text} sub={toast.sub} onDismiss={() => setToast(undefined)} /> : null}

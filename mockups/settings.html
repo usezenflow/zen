@@ -62,13 +62,17 @@ const first = (f = {}) => `<div class="lab" style="margin-top:26px">Trường</d
   + (f.open ? fld("Mã sinh viên", f.id) + fld("Mật khẩu Online", f.pw, f.pwErr) + (f.slow ? slowt("Online đang chậm, sẽ tự thử lại") : "") + fld("Mật khẩu LMS", f.lms, f.lmsErr)
     + `<div class="btn sm" style="margin-top:18px">${f.slow || f.pwErr || f.lmsErr ? "Thử lại" : "Kết nối"}</div>` : "");
 // Last row: the installed version and build hash; an available update turns it vermilion.
-const ver = (up) => set("Phiên bản", `<span class="v" style="${up ? "color:var(--seal);font-weight:600" : ""}">${up ? `Có bản ${up}` : "26.0.0 · a1b2c3d"}</span>`);
+const ver = (up, pct) => set("Phiên bản", `<span class="v" style="${up ? "color:var(--seal);font-weight:600" : ""}">${pct !== undefined ? `Đang tải ${pct}%` : up ? `Có bản ${up}` : "26.0.1 · 3bf9b96"}</span>`);
+// The APK coming down behind: a top toast, the ring (an arc of the share, from twelve o'clock) left of the words.
+const ring = (p) => { const r = 13.5, c = 2 * Math.PI * r; return `<svg class="ring" viewBox="0 0 30 30"><circle cx="15" cy="15" r="${r}" fill="none" stroke="rgba(127,127,127,.35)" stroke-width="3"/><circle cx="15" cy="15" r="${r}" fill="none" stroke="var(--bg)" stroke-width="3" stroke-linecap="round" stroke-dasharray="${c} ${c}" stroke-dashoffset="${c * (1 - p / 100)}" transform="rotate(-90 15 15)"/></svg>`; };
+const dlToast = (p) => `<div class="toast"><div class="tl">${ring(p)}<div class="tx"><div class="t1">Đang tải zen 26.0.2</div><span>${p}% · xong sẽ mở trình cài</span></div></div></div>`;
 // The release notes are the GitHub release body (CHANGELOG.md's section), one line per bullet.
-const NOTES = ["Tự cập nhật bản mới từ GitHub", "Cài đặt hiện phiên bản đang dùng"];
+// 26.0.2's real notes, nested bullets flattened as the app reads them; a long list scrolls inside the card, the button stays.
+const NOTES = ["Nói hay gõ gì cũng thành việc", "Câu nào cũng tạo ít nhất một việc, kể cả câu khó hiểu: cả câu thành tên việc, phần còn lại để mặc định", "Không còn \"Mình chưa hiểu câu này\"", "Bỏ lệnh bằng giọng nói: \"xong …\", \"xoá …\", \"dời … sang …\" giờ là tên việc mới; đánh dấu xong, xoá, dời làm ngay trên việc", "Bỏ ghi chú riêng bằng giọng nói; ghi chú trong từng việc vẫn giữ", "Việc mới không còn \"nuốt\" việc cũ: \"dọn phòng vào thứ 7\" khi đã có \"Dọn phòng\" là một việc mới, không dời việc cũ", "Việc lặp không còn bị nhân đôi khi mở lại ứng dụng", "Gần hạn thì không chia nhỏ", "Mỗi ngày còn lại tối đa một buổi; còn dưới một ngày thì làm một lần", "Việc giữ nguyên thời lượng, mỗi buổi dài tối đa 3h"];
 const dlg = (lab, v, btn, ghost) => `<div class="dscrim"></div><div class="dlg"><div class="lab">${lab}</div><div class="h">zen ${v}</div><ul>${NOTES.map((n) => `<li>${n}</li>`).join("")}</ul><div class="btn sm">${btn}</div>${ghost ? `<div class="ghost">${ghost}</div>` : ""}</div>`;
-const main = (p, l, theme = "Hệ thống", extra = "", up = "") => `${close}<div class="h" style="margin-top:18px">Cài đặt</div>
+const main = (p, l, theme = "Hệ thống", extra = "", up = "", pct) => `${close}<div class="h" style="margin-top:18px">Cài đặt</div>
   <div class="lab" style="margin-top:28px">Giao diện</div>${pills(["Hệ thống", "Sáng", "Tối"], theme)}
-  ${p}${l}${extra}${ver(up)}`;
+  ${p}${l}${extra}${ver(up, pct)}`;
 const toggles = set("Chia sẻ số liệu ẩn danh", '<span class="tog"></span>');
 mount([
   { tag: "Not connected", sub: "Nothing connected yet: one row, as before.", html: chrome(main(first(), "", "Hệ thống", toggles), { dock: null }) },
@@ -89,11 +93,11 @@ mount([
   { tag: "Login changed, Online", sub: "Only that account's card turns exam red and names it; the other stays as it was. Tap to fix.", dark: true, html: chrome(main(sec("portal", "err"), sec("lms", "on"), "Tối"), { dock: null }) },
   { tag: "Login changed, LMS", sub: "Same card when only the LMS password changed.", dark: true, html: chrome(main(sec("portal", "on"), sec("lms", "err"), "Tối"), { dock: null }) },
   { tag: "Version", sub: "The last row: version and build hash, read from the app itself. Tapping it shows that version's notes.", html: chrome(main(sec("portal", "on"), sec("lms", "on")), { dock: null }) },
-  { tag: "Update available", sub: "A newer release is on GitHub: the row names it in vermilion and opens the dialog below.", html: chrome(main(sec("portal", "on"), sec("lms", "on"), "Hệ thống", "", "26.1.0"), { dock: null }) },
-  { tag: "Update, Android", sub: "Shown once a run when Zen finds it, over whatever screen is open, and from the row. Cập nhật downloads the APK and hands it to Android's installer, which asks to confirm. Để sau closes it until the next launch.", html: chrome(dlg("Bản mới", "26.1.0", "Cập nhật", "Để sau") + main(sec("portal", "on"), sec("lms", "on"), "Hệ thống", "", "26.1.0"), { dock: null }) },
-  { tag: "Downloading", sub: "The button counts the download; the dialog stays until the installer opens. If the download fails, the release page opens in the browser instead.", html: chrome(dlg("Bản mới", "26.1.0", "Đang tải 42%") + main(sec("portal", "on"), sec("lms", "on"), "Hệ thống", "", "26.1.0"), { dock: null }) },
-  { tag: "Update, iPhone", sub: "The .ipa is unsigned, so SideStore installs it: the button opens SideStore with the file's link and it re-signs on the phone.", html: chrome(dlg("Bản mới", "26.1.0", "Cài qua SideStore", "Để sau") + main(sec("portal", "on"), sec("lms", "on"), "Hệ thống", "", "26.1.0"), { dock: null }) },
-  { tag: "What's new", sub: "The first launch after an update shows that release's notes, once. A fresh install shows nothing. The notes ship inside the app, so this works offline.", html: chrome(dlg("Có gì mới", "26.1.0", "Đã hiểu") + main(sec("portal", "on"), sec("lms", "on")), { dock: null }) },
+  { tag: "Update available", sub: "A newer release is on GitHub: the row names it in vermilion and opens the dialog below.", html: chrome(main(sec("portal", "on"), sec("lms", "on"), "Hệ thống", "", "26.0.2"), { dock: null }) },
+  { tag: "Update, Android", sub: "Shown once a run when Zen finds it, over whatever screen is open, and from the row. Cập nhật closes the dialog at once and the APK downloads behind; Để sau or a tap outside closes it until the next launch.", html: chrome(dlg("Bản mới", "26.0.2", "Cập nhật", "Để sau") + main(sec("portal", "on"), sec("lms", "on"), "Hệ thống", "", "26.0.2"), { dock: null }) },
+  { tag: "Downloading", sub: "Nobody waits on it: a toast at the top of any screen shows the ring filling and the share, and the Phiên bản row counts too. When it is done Android's installer opens (once Zen is on screen) and asks to confirm. If the download fails, the release page opens in the browser instead.", html: chrome(dlToast(42) + main(sec("portal", "on"), sec("lms", "on"), "Hệ thống", "", "26.0.2", 42), { dock: null }) },
+  { tag: "Update, iPhone", sub: "The .ipa is unsigned, so SideStore installs it: the button opens SideStore with the file's link and it re-signs on the phone.", html: chrome(dlg("Bản mới", "26.0.2", "Cài qua SideStore", "Để sau") + main(sec("portal", "on"), sec("lms", "on"), "Hệ thống", "", "26.0.2"), { dock: null }) },
+  { tag: "What's new", sub: "The first launch after an update shows that release's notes, once. A fresh install shows nothing. The notes ship inside the app, so this works offline.", html: chrome(dlg("Có gì mới", "26.0.2", "Đã hiểu") + main(sec("portal", "on"), sec("lms", "on")), { dock: null }) },
 ]);
 </script>
 </body>
