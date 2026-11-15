@@ -170,7 +170,7 @@ const ZenToday = (p: WidgetData, env: WidgetEnvironment) => {
         )}
       <VStack alignment="leading" spacing={0} modifiers={[padding({ top: 3.75 }), frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: "topLeading" })]}>
         <HStack modifiers={[padding({ bottom: 2 })]}>
-          <Text modifiers={[f(13.75, "medium"), foregroundStyle(c.muted)]}>{head[0]}</Text>
+          <Text modifiers={[f(13.75, "medium"), foregroundStyle(c.muted), lineLimit(1)]}>{head[0]}</Text>
           <Spacer />
           <Text modifiers={[f(13.75, "medium"), foregroundStyle(c.muted), lineLimit(1)]}>{head[1]}</Text>
         </HStack>

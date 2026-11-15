@@ -48,12 +48,13 @@ export function widgetData(tasks: Task[], now: number, art: WidgetData["art"], t
   return {
     weekday: weekday(now), date: `${d.getDate()} tháng ${d.getMonth() + 1}`, short: `${short[(d.getDay() + 6) % 7]} ${d.getDate()}`,
     summary: summary(today),
-    count: t("nTasks", { n }), // medium "5 việc" next to large "5 việc, 1 tiết học": classes are not counted
+    count: brief(today), // medium "5 việc" next to large "5 việc, 1 tiết học"
     next, rows, doneLabel: doneN ? `Xong (${doneN})` : "",
     tomorrow: tm ? `${dayTag(tm.start!, now)}: ${tm.title} ${hhmm(tm.start!)}` : "",
     ahead: ahead.slice(0, 3).map(toRow),
-    aheadHead: !ahead.length ? "" : aheadDay === addDays(day, 1) ? "Mai" : far ? `${weekday(aheadDay)} ${new Date(aheadDay).getDate()}/${new Date(aheadDay).getMonth() + 1}` : weekday(aheadDay),
-    aheadCount: ahead.length ? summary(ahead) : "",
+    // The medium head fits ~21 characters: past this week the short date ("T4 2/12"), and one figure for the count.
+    aheadHead: !ahead.length ? "" : aheadDay === addDays(day, 1) ? "Mai" : far ? dayTag(aheadDay, now) : weekday(aheadDay),
+    aheadCount: ahead.length ? brief(ahead) : "",
     doneCount: doneN ? `${t("nTasks", { n: doneN })} xong` : "",
     dayName: `${weekday(now)} ${d.getDate()}`,
     exam: ex && {
@@ -77,6 +78,12 @@ function dayTag(ms: number, now: number): string {
 function summary(day: Task[]): string {
   const lec = day.filter((x) => typeOf(x) === "lecture").length, n = day.length - lec;
   return [n || !lec ? t("nTasks", { n }) : "", lec ? t("nLectures", { n: lec }) : ""].filter(Boolean).join(", ");
+}
+
+/** One figure for the medium head however packed the day: "12 việc", or "3 tiết học" on a classes-only day. */
+function brief(day: Task[]): string {
+  const lec = day.filter((x) => typeOf(x) === "lecture").length, n = day.length - lec;
+  return n || !lec ? t("nTasks", { n }) : t("nLectures", { n: lec });
 }
 
 /** Student short form for the lock line: "Giải tích 2" → "GT2", "Cơ sở dữ liệu" → "CSDL"; one word stays whole. */

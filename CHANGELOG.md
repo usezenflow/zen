@@ -11,6 +11,7 @@
     - Việc cuối hôm nay vẫn ở bên trái, bên phải hiện ngày tới có việc
     - Tuần tới trống thì hiện ngày xa hơn có việc
     - Không có gì sắp tới thì gợi ý vài câu để nói, chạm là mở micro
+    - Ngày dày việc vẫn hiện gọn: một con số như "12 việc"
 
 ## 26.0.0
 

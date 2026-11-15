@@ -56,7 +56,7 @@ it("turns an empty today to the next day with anything", () => {
   expect([done.aheadHead, done.aheadCount, done.ahead.map((r) => r.id)]).toEqual(["Mai", "1 tiết học", ["e"]]);
   // A free Thursday: no done count; the 27th's exam is 8 days out, past the week, so the head carries its date.
   const free = widgetData(tasks, at(10, 0, 19), art);
-  expect([free.doneCount, free.dayName, free.aheadHead]).toEqual(["", "Thứ năm 19", "Thứ sáu 27/11"]);
+  expect([free.doneCount, free.dayName, free.aheadHead]).toEqual(["", "Thứ năm 19", "T6 27/11"]);
   // Nothing ahead at all: no head, the widget shows the try-saying prompt instead.
   expect(widgetData(tasks, at(10, 0, 28), art).aheadHead).toBe("");
   expect(widgetData(tasks, at(10, 0, 24), art).aheadHead).toBe("Thứ sáu");
@@ -70,4 +70,18 @@ it("the timeline runs through the end of tomorrow, so it never freezes on yester
   expect(ts).toContain(at(7, 0, 17)); // tomorrow's lecture start
   expect(ts.length).toBeLessThan(250);
   expect(widgetData(tasks, at(7, 30, 17), art).next?.id).toBe("e");
+});
+
+it("keeps the medium head to one figure however packed the day", () => {
+  // 12 tasks and 4 classes on the 18th: never "12 việc, 4 tiết học", which overflows the ~21-character head.
+  const packed = [
+    ...Array.from({ length: 12 }, (_, i) => task(`p${i}`, `Việc ${i}`, at(6 + i, 0, 18), at(6 + i, 30, 18))),
+    ...Array.from({ length: 4 }, (_, i) => task(`l${i}`, `Môn ${i}`, at(7 + i, 30, 18), at(8 + i, 0, 18), { fixed: "lecture" })),
+  ];
+  const w = widgetData(packed, at(20, 0, 17), art);
+  expect([w.aheadHead, w.aheadCount]).toEqual(["Mai", "12 việc"]);
+  expect(w.ahead).toHaveLength(3);
+  expect((w.aheadHead + w.aheadCount).length).toBeLessThanOrEqual(21);
+  // A classes-only day reads in classes, not "0 việc".
+  expect(widgetData(packed.filter((x) => x.fixed), at(7, 0, 18), art).count).toBe("4 tiết học");
 });

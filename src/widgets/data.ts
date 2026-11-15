@@ -44,15 +44,15 @@ export interface WidgetData {
   date: string; // "16 tháng 11"
   short: string; // "T2 16"
   summary: string; // "5 việc, 1 tiết học"
-  count: string; // "5 việc", classes not counted
+  count: string; // one figure for the medium head: "5 việc", "3 tiết học" on a classes-only day
   next?: WNext; // undefined = nothing left today: "Xong hết hôm nay"
   rows: WRow[]; // today after `next`, start order, at most 6
   doneLabel: string; // "Xong (2)", "" when none
   tomorrow: string; // the next day with anything, within a week: "Mai: Cấu trúc dữ liệu 07:00", "T6: …" this week, "T6 27/11: …" past it; "" when none
   // Medium with nothing left today: the next day that has anything, within a week.
   ahead: WRow[]; // its first three, start order
-  aheadHead: string; // "Mai", "Thứ tư" this week, "Thứ tư 2/12" past it; "" when nothing is ahead at all
-  aheadCount: string; // "2 việc, 1 tiết học"
+  aheadHead: string; // "Mai", "Thứ tư" this week, "T4 2/12" past it; "" when nothing is ahead at all
+  aheadCount: string; // the same one figure: "2 việc"
   doneCount: string; // "5 việc xong", "" when none: all done; else a free day
   dayName: string; // "Thứ bảy 14", the free day's ink card
   exam?: WExam;
