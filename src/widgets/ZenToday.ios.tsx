@@ -151,10 +151,13 @@ const ZenToday = (p: WidgetData, env: WidgetEnvironment) => {
 
   const n = p.next, ex = p.exam;
   const card = [clipShape("roundedRectangle", 17.5)];
-  // Nothing left today: the right half turns to the next day that has anything.
   const empty = !n && !p.rows.length;
-  const list = empty ? p.ahead : p.rows.slice(0, 3);
-  const head = empty && p.aheadHead ? [p.aheadHead, p.aheadCount] : ["Hôm nay", p.count];
+  // Nothing else today (next may be the last one): the right half turns to the next day that has anything, never blank.
+  const later = !p.rows.length;
+  const list = later ? p.ahead : p.rows.slice(0, 3);
+  // Nothing ahead at all: the app's own try-saying lines (i18n trySay, try1-3) fill the right half; tapping one opens the mic.
+  const TRY = ["Mai 9 giờ ôn Giải tích", "T6 nộp báo cáo nhóm", "Tối nào cũng đọc sách"];
+  const head = !later ? ["Hôm nay", p.count] : p.aheadHead ? [p.aheadHead, p.aheadCount] : ["Thử nói", ""];
 
   return (
     <HStack spacing={15} modifiers={[padding({ vertical: 12.5, horizontal: 16.25 }), frame({ maxWidth: Infinity, maxHeight: Infinity }), containerBackground(c.bg, "widget"), widgetURL(p.home)]}>
@@ -172,8 +175,19 @@ const ZenToday = (p: WidgetData, env: WidgetEnvironment) => {
           <Text modifiers={[f(13.75, "medium"), foregroundStyle(c.muted), lineLimit(1)]}>{head[1]}</Text>
         </HStack>
         {list.map((r, i) => row(r, i === 0))}
-        {/* shortcut: a week with nothing at all is not in the mockup; one muted line, upgrade if it shows up in use. */}
-        {empty && !list.length ? <Text modifiers={[f(14.375), foregroundStyle(c.muted), padding({ top: 8.75 })]}>7 ngày tới trống</Text> : null}
+        {/* widgets.html tryRow: the 14px mic in the 18px box slot, muted; each line semibold, one line like any row. */}
+        {later && !list.length ? TRY.map((line, i) => (
+          <VStack key={line} spacing={0}>
+            {i ? <Rectangle modifiers={[foregroundStyle(c.line), frame({ height: 1.25 })]} /> : null}
+            <Link destination={p.listen}>
+              <HStack spacing={10} modifiers={[padding({ vertical: 7.5 })]}>
+                <Image systemName="mic" modifiers={[font({ size: 14 }), foregroundStyle(c.muted), frame({ width: 22.5 })]} />
+                <Text modifiers={[f(15, "semibold"), foregroundStyle(c.ink), lineLimit(1), truncationMode("tail")]}>{`“${line}”`}</Text>
+                <Spacer minLength={0} />
+              </HStack>
+            </Link>
+          </VStack>
+        )) : null}
         <Spacer minLength={0} />
       </VStack>
     </HStack>

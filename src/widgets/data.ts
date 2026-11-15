@@ -51,7 +51,7 @@ export interface WidgetData {
   tomorrow: string; // the next day with anything, within a week: "Mai: Cấu trúc dữ liệu 07:00", "T6: …" this week, "T6 27/11: …" past it; "" when none
   // Medium with nothing left today: the next day that has anything, within a week.
   ahead: WRow[]; // its first three, start order
-  aheadHead: string; // "Mai", "Thứ tư"; "" when the week is empty
+  aheadHead: string; // "Mai", "Thứ tư" this week, "Thứ tư 2/12" past it; "" when nothing is ahead at all
   aheadCount: string; // "2 việc, 1 tiết học"
   doneCount: string; // "5 việc xong", "" when none: all done; else a free day
   dayName: string; // "Thứ bảy 14", the free day's ink card

@@ -116,6 +116,27 @@ function ZenToday(p0: WidgetData, env: WidgetEnvironment) {
       </Box>
     );
   };
+  // widgets.html tryRow mic: ui.js I.mic at 14px x1.31 (18.3dp, 0.764dp a unit, 1.8-unit stroke) from boxes, as in ZenTalk:
+  // the lower half of the ring (a circle, its top half masked), the stroked capsule over it, the stem.
+  const at = (left: number, top: number, child: JSX.Element) => (
+    <Box modifiers={[fillMaxSize(), padding(left, top, 0, 0)]}>{child}</Box>
+  );
+  const mic = (fg: string, bg: string) => (
+    <Box modifiers={[size(18.3, 18.3)]}>
+      {at(3.5, 2.75, (
+        <Box modifiers={[size(11.3, 11.3), cornerRadius(5.65), background(fg), padding(1.37, 1.37, 1.37, 1.37)]}>
+          <Box modifiers={[fillMaxSize(), cornerRadius(4.3), background(bg)]} />
+        </Box>
+      ))}
+      {at(3.5, 2.75, <Box modifiers={[size(11.3, 5.65), background(bg)]} />)}
+      {at(6.17, 1.6, (
+        <Box modifiers={[size(5.96, 9.78), cornerRadius(2.98), background(fg), padding(1.37, 1.37, 1.37, 1.37)]}>
+          <Box modifiers={[fillMaxSize(), cornerRadius(1.6), background(bg)]} />
+        </Box>
+      ))}
+      {at(8.48, 13.4, <Box modifiers={[size(1.37, 2.67), background(fg)]} />)}
+    </Box>
+  );
   // Nothing left (`inkCard`): the line in ink at the foot, a muted count under it.
   const ink = (line: string, sub: string) => (
     <Box modifiers={[fillMaxSize(), cornerRadius(18.3), background(c.chip), padding(15.7, 13, 15.7, 13)]}>
@@ -132,9 +153,12 @@ function ZenToday(p0: WidgetData, env: WidgetEnvironment) {
   const n = p.next, ex = p.exam;
   // Nothing left today: the right half turns to the next day that has anything.
   const empty = !n && !p.rows.length;
-  const rows = empty ? p.ahead : p.rows.slice(0, 3);
+  const later = !p.rows.length; // next may be today's last: the right half shows the next day, never blank
+  const rows = later ? p.ahead : p.rows.slice(0, 3);
   const free = empty && !p.doneCount;
-  const head = empty && p.aheadHead ? [p.aheadHead, p.aheadCount] : ["Hôm nay", p.count];
+  // Nothing ahead at all: the app's own try-saying lines (i18n trySay, try1-3) fill the right half; tapping one opens the mic.
+  const TRY = ["Mai 9 giờ ôn Giải tích", "T6 nộp báo cáo nhóm", "Tối nào cũng đọc sách"];
+  const head = !later ? ["Hôm nay", p.count] : p.aheadHead ? [p.aheadHead, p.aheadCount] : ["Thử nói", ""];
   return (
     <Box modifiers={[fillMaxSize(), cornerRadius(28), background(c.bg), padding(17, 13, 17, 13)]}>
       <Row modifiers={[fillMaxSize()]}>
@@ -160,8 +184,16 @@ function ZenToday(p0: WidgetData, env: WidgetEnvironment) {
               </Box>
             </Row>
           </Button>
-          {/* shortcut: a week with nothing at all is not in the mockup; one muted line, upgrade if it shows up in use. */}
-          {empty && !rows.length ? <Text color={c.muted} maxLines={1} style={{ fontSize: 15 }}>7 ngày tới trống</Text> : null}
+          {later && !rows.length ? TRY.map((line, i) => [
+            i ? <Box key={`t${i}`} modifiers={[fillMaxWidth(), height(1.31), background(c.line)]} /> : null,
+            <Button key={line} {...tap(p.listen)} modifiers={[fillMaxWidth(), height(39.3)]}>
+              <Row verticalAlignment="center" modifiers={[fillMaxSize()]}>
+                <Box contentAlignment="center" modifiers={[size(23.6, 23.6)]}>{mic(c.muted, c.bg)}</Box>
+                <Spacer modifiers={[width(10.5)]} />
+                <Text color={c.ink} maxLines={1} style={{ fontSize: 15.7, fontWeight: "bold" }}>{`“${line}”`}</Text>
+              </Row>
+            </Button>,
+          ]) : null}
           {rows.map((r, i) => (i === 0 ? row(r) : [<Box key={`l${r.id}`} modifiers={[fillMaxWidth(), height(1.31), background(c.line)]} />, row(r)]))}
         </Column>
       </Row>

@@ -7,6 +7,10 @@
 - Sửa lỗi trên Android
     - Ô gõ không còn bị bàn phím che, màn hình không bị đẩy lên thanh trạng thái
     - Nói được trên Android 11 và cũ hơn
+- Widget Hôm nay không còn ô trống
+    - Việc cuối hôm nay vẫn ở bên trái, bên phải hiện ngày tới có việc
+    - Tuần tới trống thì hiện ngày xa hơn có việc
+    - Không có gì sắp tới thì gợi ý vài câu để nói, chạm là mở micro
 
 ## 26.0.0
 

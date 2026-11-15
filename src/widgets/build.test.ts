@@ -54,9 +54,11 @@ it("turns an empty today to the next day with anything", () => {
   expect(done.rows).toEqual([]);
   expect(done.doneCount).toBe("1 việc xong");
   expect([done.aheadHead, done.aheadCount, done.ahead.map((r) => r.id)]).toEqual(["Mai", "1 tiết học", ["e"]]);
-  // A free Thursday: no done count, and the 27th's exam is 8 days out, past the week, so nothing ahead.
+  // A free Thursday: no done count; the 27th's exam is 8 days out, past the week, so the head carries its date.
   const free = widgetData(tasks, at(10, 0, 19), art);
-  expect([free.doneCount, free.dayName, free.aheadHead]).toEqual(["", "Thứ năm 19", ""]);
+  expect([free.doneCount, free.dayName, free.aheadHead]).toEqual(["", "Thứ năm 19", "Thứ sáu 27/11"]);
+  // Nothing ahead at all: no head, the widget shows the try-saying prompt instead.
+  expect(widgetData(tasks, at(10, 0, 28), art).aheadHead).toBe("");
   expect(widgetData(tasks, at(10, 0, 24), art).aheadHead).toBe("Thứ sáu");
   expect(free.exam).toMatchObject({ n: "8", unit: "ngày nữa" });
   expect(widgetData(tasks, at(7, 0, 27), art).exam).toMatchObject({ n: "08:00", unit: "hôm nay" });

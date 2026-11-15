@@ -1,6 +1,7 @@
 import { expect, it, vi } from "vitest";
 
 vi.mock("expo-speech-recognition", () => ({ ExpoSpeechRecognitionModule: {} }));
+vi.mock("react-native", () => ({ Platform: { OS: "ios" } }));
 const { level, lowWords, transcripts } = await import("./ears");
 
 it("maps the recognizer volume to 0..1, inaudible as 0", () => {

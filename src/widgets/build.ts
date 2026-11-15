@@ -38,6 +38,9 @@ export function widgetData(tasks: Task[], now: number, art: WidgetData["art"], t
   const rows = today.filter((x) => x.id !== nextToday?.id && x.end! > now).slice(0, 6).map(toRow);
   let aheadDay = 0, ahead: Task[] = [];
   for (let i = 1; i <= 7 && !ahead.length; i++) { aheadDay = addDays(day, i); ahead = onDay(tasks, aheadDay); }
+  // A quiet week: reach to the first day past it that has anything, so the widget never shows a blank half.
+  const far = ahead.length ? undefined : shown(tasks).filter((x) => x.start! >= addDays(day, 8)).sort((a, b) => a.start! - b.start!)[0];
+  if (far) { aheadDay = startOfDay(far.start!); ahead = onDay(tasks, aheadDay); }
   const tm = ahead[0];
   const doneN = tasks.filter((x) => x.doneAt && !x.deletedAt && x.start !== undefined && x.start >= day && x.start < addDays(day, 1)).length;
   const ex = tasks.filter((x) => typeOf(x) === "exam" && !x.doneAt && !x.deletedAt && x.start !== undefined && x.start > now).sort((a, b) => a.start! - b.start!)[0];
@@ -49,7 +52,7 @@ export function widgetData(tasks: Task[], now: number, art: WidgetData["art"], t
     next, rows, doneLabel: doneN ? `Xong (${doneN})` : "",
     tomorrow: tm ? `${dayTag(tm.start!, now)}: ${tm.title} ${hhmm(tm.start!)}` : "",
     ahead: ahead.slice(0, 3).map(toRow),
-    aheadHead: !ahead.length ? "" : aheadDay === addDays(day, 1) ? "Mai" : weekday(aheadDay),
+    aheadHead: !ahead.length ? "" : aheadDay === addDays(day, 1) ? "Mai" : far ? `${weekday(aheadDay)} ${new Date(aheadDay).getDate()}/${new Date(aheadDay).getMonth() + 1}` : weekday(aheadDay),
     aheadCount: ahead.length ? summary(ahead) : "",
     doneCount: doneN ? `${t("nTasks", { n: doneN })} xong` : "",
     dayName: `${weekday(now)} ${d.getDate()}`,
