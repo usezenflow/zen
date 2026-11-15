@@ -65,7 +65,7 @@ const first = (f = {}) => `<div class="lab" style="margin-top:26px">Trường</d
 const ver = (up) => set("Phiên bản", `<span class="v" style="${up ? "color:var(--seal);font-weight:600" : ""}">${up ? `Có bản ${up}` : "26.0.0 · a1b2c3d"}</span>`);
 // The release notes are the GitHub release body (CHANGELOG.md's section), one line per bullet.
 const NOTES = ["Tự cập nhật bản mới từ GitHub", "Cài đặt hiện phiên bản đang dùng"];
-const dlg = (lab, v, btn, ghost) => `<div class="dscrim"></div><div class="dlg"><div class="lab">${lab}</div><div class="h">Zen ${v}</div><ul>${NOTES.map((n) => `<li>${n}</li>`).join("")}</ul><div class="btn sm">${btn}</div>${ghost ? `<div class="ghost">${ghost}</div>` : ""}</div>`;
+const dlg = (lab, v, btn, ghost) => `<div class="dscrim"></div><div class="dlg"><div class="lab">${lab}</div><div class="h">zen ${v}</div><ul>${NOTES.map((n) => `<li>${n}</li>`).join("")}</ul><div class="btn sm">${btn}</div>${ghost ? `<div class="ghost">${ghost}</div>` : ""}</div>`;
 const main = (p, l, theme = "Hệ thống", extra = "", up = "") => `${close}<div class="h" style="margin-top:18px">Cài đặt</div>
   <div class="lab" style="margin-top:28px">Giao diện</div>${pills(["Hệ thống", "Sáng", "Tối"], theme)}
   ${p}${l}${extra}${ver(up)}`;

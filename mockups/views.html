@@ -115,7 +115,7 @@ const detailPlain = dt("plan", mine("Việc nhà"), "Mua pin cho chuột", ml("c
 // Editing in place. Each state is the same screen with one line open.
 const edLine = (k, inner, cls = "") => `<div class="ed ${cls}">${ic(I[k], 20, 1.9)}${inner}</div>`;
 const detailTime = dt("plan", mine("Việc nhà"), "Mua pin cho chuột", edLine("clock", `${pk("T3 17/11")}${pk("17:00", 1)}<em>đến</em>${pk("17:30")}`), PH, "", dtop2);
-const MORE = [["Đặt hạn"], ["Thêm địa điểm"], ["Để Zen xếp lại"]];
+const MORE = [["Đặt hạn"], ["Thêm địa điểm"], ["Để zen xếp lại"]];
 const detailMore = detailPlain + menu(MORE, 96, 62);
 const detailDue = dt("plan", mine("Việc nhà"), "Mua pin cho chuột",
   edLine("hourglass", `${pk("T6 20/11")}${pk("23:59", 1)}<span class="clr">Bỏ hạn</span>`, "red") + ml("clock", `Làm lúc ${when("2026-11-17", "17:00")}, 30 phút`), PH, "", dtop2);
@@ -194,13 +194,13 @@ const dayDone = `${head("Thứ hai", "16 tháng 11", "5 việc, xong hết")}${t
   <div class="list" style="margin-top:6px">${row("08:00", "Ôn thi", "plan", "", "Buổi 2/2 · Xác suất")}${row("13:30", "Thi Xác suất", "exam", "", "B1.201")}</div>
   <div class="lab" style="margin-top:20px">Xong (5) ${ic(I.down, 14)}</div>`;
 const dayFirst = `${head("Chào bạn", "T2, 16/11", "Chưa có gì")}${tabs("Ngày")}
-  ${rest("Bắt đầu", "Giữ nút và kể tuần này", "Nói như nhắn cho bạn. Zen tự xếp giờ.", "line", 168)}
+  ${rest("Bắt đầu", "Giữ nút và kể tuần này", "Nói như nhắn cho bạn. zen tự xếp giờ.", "line", 168)}
   <div class="lab" style="margin-top:22px">Thử nói</div>
   <div style="margin-top:10px">${say("Mai 9 giờ ôn Giải tích")}${say("T6 nộp báo cáo nhóm")}${say("Tối nào cũng đọc sách")}</div>
   <div class="lab" style="margin-top:22px"><span>Hoặc lấy lịch từ trường</span>${ic(I.right, 14)}</div>`;
 const weekFree = `${head("Tuần sau", "23 đến 29/11", "Chưa có gì")}${tabs("Tuần")}
   <div class="wk" style="margin-top:20px">${["T2", "T3", "T4", "T5", "T6", "T7", "CN"].map((d, i) => `<div class="c"><span class="d ${i === 0 ? "on" : ""}">${d}<i>${23 + i}</i></span><div class="nil"></div></div>`).join("")}</div>
-  <div class="inl">${LOGO(34, "line")}<div><b>Tuần trống</b><small>Kể kế hoạch, Zen xếp vào.</small></div></div>
+  <div class="inl">${LOGO(34, "line")}<div><b>Tuần trống</b><small>Kể kế hoạch, zen xếp vào.</small></div></div>
   <div class="lab" style="margin-top:24px">Tuần này còn</div>
   <div class="list" style="margin-top:6px">${row("14:00", "Báo cáo nhóm", "assignment", "", when("2026-11-20"))}</div>`;
 const monthFree = `${head("Năm 2026", "Tháng 11", "42 việc, 3 bài thi")}${tabs("Tháng")}

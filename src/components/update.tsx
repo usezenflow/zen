@@ -28,7 +28,7 @@ export function UpdateDialog({ d, onClose }: { d: Dlg; onClose: () => void }) {
       <View style={s.scrim}>
         <View style={[s.dlg, { backgroundColor: th.bg }]} accessibilityViewIsModal>
           <Text style={[s.lab, { color: th.muted }]}>{t(up ? "newVersion" : "whatsNew")}</Text>
-          <Text style={[s.h, { color: th.ink }]}>Zen {up ? d.update.version : d.version}</Text>
+          <Text style={[s.h, { color: th.ink }]}>zen {up ? d.update.version : d.version}</Text>
           {(up ? d.update.notes : d.notes).map((n, i) => (
             <View key={i} style={s.li}><Text style={[s.note, { color: th.ink }]}>•</Text><Text style={[s.note, { color: th.ink, flex: 1 }]}>{n}</Text></View>
           ))}

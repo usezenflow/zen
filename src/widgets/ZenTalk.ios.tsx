@@ -33,7 +33,7 @@ const ZenTalk = (p: WidgetData, env: WidgetEnvironment) => {
       <HStack>
         {logo(22.5, c.ink)}
         <Spacer />
-        <Text modifiers={[font({ family: "BeVietnamPro-Medium", size: 13.75, weight: "medium" }), foregroundStyle(c.muted)]}>Zen</Text>
+        <Text modifiers={[font({ family: "BeVietnamPro-Medium", size: 13.75, weight: "medium" }), foregroundStyle(c.muted)]}>zen</Text>
       </HStack>
       <Spacer minLength={0} />
       {/* 58px ink disc with a 6px chip ring, x1.25 */}

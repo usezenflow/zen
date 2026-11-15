@@ -54,8 +54,8 @@
       [
         "expo-speech-recognition",
         {
-          "microphonePermission": "Zen dùng micro để bạn nói lịch của mình.",
-          "speechRecognitionPermission": "Zen chuyển lời bạn nói thành chữ để xếp lịch. Khi máy có sẵn tiếng Việt, việc này diễn ra ngay trên máy.",
+          "microphonePermission": "zen dùng micro để bạn nói lịch của mình.",
+          "speechRecognitionPermission": "zen chuyển lời bạn nói thành chữ để xếp lịch. Khi máy có sẵn tiếng Việt, việc này diễn ra ngay trên máy.",
           "androidSpeechServicePackages": [
             "com.google.android.googlequicksearchbox"
           ]
@@ -84,6 +84,7 @@
       "./plugins/with-lms-ca",
       "./plugins/with-release-signing",
       "./plugins/with-proguard-rules",
+      "./plugins/with-app-label",
       [
         "expo-widgets",
         {
@@ -112,7 +113,7 @@
             {
               "name": "ZenTalk",
               "displayName": "Nói",
-              "description": "Mở Zen và nghe ngay",
+              "description": "Mở zen và nghe ngay",
               "ios": {
                 "supportedFamilies": [
                   "systemSmall"
@@ -132,7 +133,7 @@
             {
               "name": "ZenScan",
               "displayName": "Chụp",
-              "description": "Mở Zen với camera, chụp thông báo hay lịch thi",
+              "description": "Mở zen với camera, chụp thông báo hay lịch thi",
               "ios": {
                 "supportedFamilies": [
                   "systemSmall"
@@ -191,7 +192,7 @@
             },
             {
               "name": "ZenLock",
-              "displayName": "Zen",
+              "displayName": "zen",
               "description": "Việc tiếp theo trên màn hình khoá",
               "ios": {
                 "supportedFamilies": [
@@ -210,9 +211,9 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Zen đọc ảnh bạn chọn để tìm lịch thi, hạn nộp trong đó.",
-          "cameraPermission": "Zen dùng camera để đọc thông báo, lịch thi bạn chụp.",
-          "microphonePermission": "Zen dùng micro để bạn nói lịch của mình."
+          "photosPermission": "zen đọc ảnh bạn chọn để tìm lịch thi, hạn nộp trong đó.",
+          "cameraPermission": "zen dùng camera để đọc thông báo, lịch thi bạn chụp.",
+          "microphonePermission": "zen dùng micro để bạn nói lịch của mình."
         }
       ],
       "expo-asset"

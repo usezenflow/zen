@@ -192,7 +192,7 @@ export default function Settings() {
           <Animated.View entering={fadeIn} exiting={fadeOut} layout={glide}>
             <Row label={t("stats")} right={<Switch value={share} onValueChange={(v) => { setShare(v); stats.setOptOut(kvStorage, !v); }} trackColor={{ true: th.ink, false: th.line }} ios_backgroundColor={th.line} thumbColor={share ? th.bg : th.dark ? th.muted : "#fff"} />} />
             {/* shortcut: opens a blank mail draft, no support address yet; set EXPO_PUBLIC_SUPPORT_EMAIL when there is one. */}
-            <Row label={t("report")} right={<Icon name="right" size={16} color={th.muted} />} onPress={() => Linking.openURL(`mailto:${process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? ""}?subject=Zen`).catch(() => {})} />
+            <Row label={t("report")} right={<Icon name="right" size={16} color={th.muted} />} onPress={() => Linking.openURL(`mailto:${process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? ""}?subject=zen`).catch(() => {})} />
           </Animated.View>
         )}
         {/* settings.html Version: the last row; a newer release turns it vermilion and opens the update dialog. */}
