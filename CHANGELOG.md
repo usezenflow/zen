@@ -1,5 +1,13 @@
 # zen
 
+## 26.0.1
+
+### Patch Changes
+
+- Sửa lỗi trên Android
+    - Ô gõ không còn bị bàn phím che, màn hình không bị đẩy lên thanh trạng thái
+    - Nói được trên Android 11 và cũ hơn
+
 ## 26.0.0
 
 ### Major Changes

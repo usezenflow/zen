@@ -10,6 +10,7 @@ import { MenuPanel } from "@/components/rowmenu";
 import { fadeIn, fadeOut } from "@/components/tap";
 import { t } from "@/lib/i18n";
 import { useTheme, ff, space } from "@/lib/theme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // Mic centre above the screen bottom: Hold's 26 padding + 20 label + 2 gap + half the 90 halo (capture.html: 93).
 const MIC_Y = 93;
@@ -46,7 +47,9 @@ export function TypeBar({ onSend, onClose }: { onSend: (text: string) => void; o
     const hide = Keyboard.addListener(ios ? "keyboardWillHide" : "keyboardDidHide", (e) => kb.set(withTiming(0, { duration: e.duration || 250 })));
     return () => { show.remove(); hide.remove(); };
   }, [kb]);
-  const lift = useAnimatedStyle(() => ({ bottom: kb.get() + 12 }));
+  // Android's keyboard height leaves out the nav bar, but the app draws under it (edge-to-edge): add it back, or the field hides behind the keys and the window pans up.
+  const navInset = useSafeAreaInsets().bottom, nav = Platform.OS === "android" ? navInset : 0;
+  const lift = useAnimatedStyle(() => ({ bottom: kb.get() + (kb.get() > 0 ? nav : 0) + 12 }));
   // capture.html 7: swipe down to drop it. Lowering the keyboard blurs the field, and blur closes.
   // Keyboard is a class instance, which can't cross to the UI runtime, so hand over a component-scope function instead.
   const dismiss = () => Keyboard.dismiss();

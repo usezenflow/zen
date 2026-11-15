@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import { ExpoSpeechRecognitionModule as SR, type ExpoSpeechRecognitionResult, type ExpoSpeechRecognitionResultEvent } from "expo-speech-recognition";
 
 const LANG = "vi-VN";
@@ -39,6 +40,10 @@ let onDevice: Promise<boolean> | undefined;
 // On-device when Vietnamese is installed (private, offline); otherwise the system's server recognizer.
 const local = () => (onDevice ??= SR.getSupportedLocales({}).then((l) => l.installedLocales.includes(LANG)).catch(() => false));
 
+const GOOGLE = "com.google.android.googlequicksearchbox";
+// Below Android 13 there is no on-device path and the default recognizer is often a vendor one without Vietnamese: use Google's when installed.
+const service = () => Platform.OS === "android" && (Platform.Version as number) < 33 && SR.getSpeechRecognitionServices().includes(GOOGLE) ? { androidRecognitionServicePackage: GOOGLE } : {};
+
 /**
  * Live Vietnamese words from the system recognizer. `onPartial` gets the whole text so far every time it is refined;
  * `stop()` ends the mic, waits for the final result and resolves it (empty text when nothing was heard).
@@ -73,6 +78,7 @@ export async function listenLive(o: { onPartial?(text: string): void; onLevel?(l
     ...(o.hints?.length ? { contextualStrings: o.hints } : {}),
     continuous: true, // keeps listening through pauses until the button is released
     requiresOnDeviceRecognition: dev,
+    ...service(),
     addsPunctuation: false,
     volumeChangeEventOptions: { enabled: true, intervalMillis: 90 },
   });

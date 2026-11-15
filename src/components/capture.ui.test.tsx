@@ -4,6 +4,8 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { PdfView, PhotoMenu, PhotoView, TypeBar, Veil } from "./capture";
 import { t } from "@/lib/i18n";
 
+jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
+
 // The native expo-image view carries circular refs; a plain view keeps the tree inspectable.
 jest.mock("expo-image", () => ({ Image: (p: object) => require("react").createElement(require("react-native").View, { ...p, testID: "image" }) }));
 // RNGH's gesture hooks ask Reanimated for isSharedValue, which the shared mock lacks.
