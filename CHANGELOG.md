@@ -4,6 +4,20 @@
 
 ### Patch Changes
 
+- Số sai hay quá lớn không còn làm hỏng việc
+    - Giờ, ngày không có thật ("lúc 25h", "9h99", "32/11", "30/13", "đầu tháng 13") được giữ nguyên trong tên việc, không còn bị đoán thành giờ hay ngày khác
+    - Ngày lố cuối tháng vẫn được hiểu: "31/11" là 30/11, "29/2/2027" là 28/2, kèm ghi chú đã chỉnh
+    - Năm ghi bao xa cũng giữ đúng: "20/11/2035" là năm 2035; năm đã qua được báo là ngày đã qua
+    - "Từ 20/11 đến 19/11" hiểu là từ 19/11 đến 20/11
+- Đếm thời gian đúng hơn
+    - "3 tuần nữa" là 21 ngày, không còn là 1 tuần; hiểu thêm "100 ngày nữa", "5 tháng nữa", "2 năm nữa"
+    - Nói "ba trăm ngày nữa", "một trăm linh năm phút" cũng hiểu
+    - "1.5 tiếng" là 90 phút, "3 tiết" là 150 phút
+    - Một việc dài nhất 40 tiếng, kể cả "50 hours" hay "99 tiếng rưỡi"
+- Việc lặp lại gọn hơn
+    - "Học mỗi ngày trước 20/11/2031" là một việc lặp lại, không còn tạo hàng nghìn việc
+    - "9 buổi trong tuần sau" là 7 buổi, mỗi ngày một buổi
+    - "Mỗi 0 tuần", "0 buổi" không còn tạo lịch lặp hỏng
 - Đổi giờ một việc mượt hơn, không còn khựng
     - Lúc đang xoay bánh xe giờ, chưa có gì được lưu hay xếp lại; đóng dòng giờ là lưu một lần, xếp lại một lần
     - Ngay dưới các ô giờ, một dòng nhỏ báo trước: "Sẽ dời Ôn Giải tích sang 16:30", "Sẽ xếp lại 3 việc" hay "Trùng Cơ sở dữ liệu"

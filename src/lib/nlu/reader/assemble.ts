@@ -1,4 +1,4 @@
-import { SLOT_MINUTES } from "../shared";
+import { MAX_SESSION_DAYS, SLOT_MINUTES } from "../shared";
 // S4 assemble, S5 relevance, S6 confidence: one clause to items. Pure.
 import {
   classifyWorkload,
@@ -32,7 +32,7 @@ import {
 import { resolvePeriods } from "./periods";
 import { holidayOf, isHolidayDate } from "./holidays";
 import { roleOf, withinDays } from "./roles";
-import { exceptSpans, ruleBase, withBounds } from "./rules";
+import { every, exceptSpans, ruleBase, thisWeekCount, weekSessions, withBounds } from "./rules";
 import type { CalDay } from "./daypick";
 import type { Clause } from "./segment";
 import {
@@ -200,8 +200,9 @@ const ASSIGN =
 // "kiểm tra" is an exam only with a course, a part-term, a period or a number ("kiểm tra lại app" is a task)
 const EXAM =
   /\b(thi|ktra|van dap|trac nghiem)\b|\bkiem tra\b(?=.*\b(mon|giua ky|cuoi ky|phut|tiet)\b|.*\d)|\d.*\bkiem tra\b/;
+// "3 tiết" is a length, not a class
 const LECT =
-  /\b(buoi hoc|buoi cuoi|hoc mon|tiet|lop hoc|lich hoc|hoc bu|lop bu|day bu)\b/;
+  /\b(buoi hoc|buoi cuoi|hoc mon|(?<!\d\s?)tiet|lop hoc|lich hoc|hoc bu|lop bu|day bu)\b/;
 /** The only classes that are items: a makeup class or one moved online, and only with a stated clock or periods. */
 const MAKEUP = /\b(hoc bu|lop bu|day bu|online|truc tuyen)\b/;
 const PERIODS = /\btiet\s*:?\s*\d/;
@@ -254,7 +255,7 @@ const TRUOC_NGAY =
 /** Cues that make a part of the day the deadline's clock before it. */
 const BEFORE_CUE = /\b(truoc|trc|cham nhat|muon nhat|tre nhat|kip)\b/;
 const PHRASE_CUE =
-  /\b(trong gio hanh chinh|ngoai gio hoc|dau tien (?=(?:moi |hang |cua )?thang)|cuoi cung (?=(?:moi |hang |cua )?thang)|cham nhat|muon nhat|tre nhat|kip|(?<!(?:kham|danh|nho|nieng|tram|lam|tay|chua|boc|nhuc|dau) )rang sang|sang som|buoi trua|giua trua|xe chieu|cuoi gio chieu|chieu toi|nua dem|trong (?:vong |khoang )?\d{1,3} ?(?:ngay|tuan|thang)|\d{1,2} (?:buoi|lan)|bat dau|keo dai|ket thuc(?=\s*:|\s+\d)|mat(?=\s+(?:khoang\s+|hon\s+|gan\s+|tam\s+)?\d)|tong cong|tong(?=\s+(?:khoang\s+|hon\s+|gan\s+|tam\s+)?\d)|in total|sau (?:bua|an) (?:trua|toi)|truoc khi ngu|sau khi thuc day|viec dau tien)\b/g;
+  /\b(trong gio hanh chinh|ngoai gio hoc|dau tien (?=(?:moi |hang |cua )?thang)|cuoi cung (?=(?:moi |hang |cua )?thang)|cham nhat|muon nhat|tre nhat|kip|(?<!(?:kham|danh|nho|nieng|tram|lam|tay|chua|boc|nhuc|dau) )rang sang|sang som|buoi trua|giua trua|xe chieu|cuoi gio chieu|chieu toi|nua dem|trong (?:vong |khoang )?\d{1,3} ?(?:ngay|tuan|thang)|\d{1,3} (?:buoi|lan)|bat dau|keo dai|ket thuc(?=\s*:|\s+\d)|mat(?=\s+(?:khoang\s+|hon\s+|gan\s+|tam\s+)?\d)|tong cong|tong(?=\s+(?:khoang\s+|hon\s+|gan\s+|tam\s+)?\d)|in total|sau (?:bua|an) (?:trua|toi)|truoc khi ngu|sau khi thuc day|viec dau tien)\b/g;
 /** Raw spans of the deadline cues and multi-word parts of the day in `text`: they are cues, not title words. */
 function phraseCueSpans(text: string): [number, number][] {
   // a list of parts ("sáng/tối", "sáng hoặc tối") is a cue too, separators included
@@ -1005,10 +1006,10 @@ export function resolveDate(f: Found, ref: ReaderWC): DateRes | null {
   const v = f.v;
   if (v.k === "date") {
     // a day past the month's end is its last day: "31/11" is 30/11
-    // a written year outside ref's year -1 to +5 is dropped: the nearest-year rule picks it
+    // a written year is kept however far; a past one is flagged date_past
     const wy =
       v.form === "full" || (v.form === "long" && v.y)
-        ? writtenYear(v.y as number, ref.y)
+        ? writtenYear(v.y as number)
         : undefined;
     if (wy !== undefined) {
       return {
@@ -1041,6 +1042,12 @@ export function resolveDate(f: Found, ref: ReaderWC): DateRes | null {
   }
   // "hôm qua" reads as today; a clock already past rolls it on in the clause
   // between 0:00 and 4:00 "mai" still means the night just begun: today, and "mốt" the day after it
+  if (v.k === "rel" && v.months) {
+    const t = ref.m - 1 + v.months;
+    const y = ref.y + Math.floor(t / 12);
+    const m = (t % 12) + 1;
+    return { wc: { y, m, d: Math.min(ref.d, daysInMonth(y, m)) }, how: "rel" };
+  }
   if (v.k === "rel")
     return {
       wc: addDays(
@@ -1729,9 +1736,7 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
                       : "FREQ=MONTHLY";
                 })()
               : recur.v.freq === "DAILY"
-                ? recur.v.interval
-                  ? `FREQ=DAILY;INTERVAL=${recur.v.interval}`
-                  : "FREQ=DAILY"
+                ? every("DAILY", recur.v.interval ?? 1)
                 : weekday?.v.k === "dow"
                   ? `FREQ=WEEKLY;BYDAY=${bydayOf(weekday.v)}`
                   : undefined;
@@ -1953,7 +1958,10 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
                     .text,
                 ) ||
                   !ASSIGN.test(fpiece))))
-          ? { from: resolved[0].res, to: resolved[1].res }
+          ? // a range written backwards ("từ 20/11 đến 19/11") is the same two days in order
+            dayNo(resolved[1].res.wc) < dayNo(resolved[0].res.wc)
+            ? { from: resolved[1].res, to: resolved[0].res }
+            : { from: resolved[0].res, to: resolved[1].res }
           : inPart && partSpec && resolved.length === 1
             ? {
                 from: resolved[0].res,
@@ -2358,7 +2366,8 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
         location,
         confidence: 0,
         inferred,
-        flags: passed && saidToday ? [...flags, "date_past"] : [...flags],
+        // a written year already gone ("20/11/1999") keeps its date, flagged like a passed "hôm nay"
+        flags: passed && (saidToday || (how === "explicit" && dayNo(date) < dayNo(ctx.ref))) ? [...flags, "date_past"] : [...flags],
         alternatives: [...alternatives],
         evidence: pieceText.trim().slice(0, 300),
         checked: false,
@@ -2641,7 +2650,22 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
         pieceDates.length && last ? dayNo(last) - dayNo(ctx.ref) + 1 : 7;
       const planKey = `recur${produced.length}`;
       const monthly = recur.v.k === "recur" && recur.v.freq === "MONTHLY";
-      if (rrule && /;(?:UNTIL|COUNT)=/.test(rrule)) {
+      const inWeek = thisWeekCount(fpiece);
+      const sessions = inWeek ? weekSessions(inWeek, ctx.ref) : [];
+      if (sessions.length) {
+        // "3 buổi trong tuần này": one row a session in the days left, a day with several keeps them in different parts
+        const key = `week${produced.length}`;
+        for (const { off, window } of sessions) {
+          const it = emit("PLAN", addDays(ctx.ref, off), "rel");
+          const day = stamp(addDays(ctx.ref, off), 0, 0).slice(0, 10);
+          it.notBefore = `${day} 00:00`;
+          it.deadline = `${day} 23:59`;
+          if (window) it.windows = [window];
+          else delete it.windows;
+          delete it.rrule;
+          produced.push(sessions.length > 1 ? { ...it, planKey: key } : it);
+        }
+      } else if (rrule && /;(?:UNTIL|COUNT)=/.test(rrule)) {
         // a bounded rule is one row: its UNTIL or COUNT ends the series; the row keeps its first day and its window, as an open one does
         produced.push({ ...emit("PLAN", ctx.ref, "rel"), rrule });
       } else if (!pieceDates.length)
@@ -2660,7 +2684,10 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
           ...emit("PLAN", f.res.wc, f.res.how, undefined, f.res.clock),
           rrule,
         });
-      } else if (count > 0)
+      } else if (count > MAX_SESSION_DAYS && last)
+        // a long run to a far deadline is one bounded row, not a row a day ("mỗi ngày trước 20/11/2031" was 1832 rows)
+        produced.push({ ...emit("PLAN", ctx.ref, "rel"), rrule: withBounds(rrule ?? "FREQ=DAILY", "", last) });
+      else if (count > 0)
         for (let k = 0; k < count; k++)
           produced.push({
             ...emit("PLAN", addDays(ctx.ref, k), "rel"),

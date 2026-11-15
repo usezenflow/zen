@@ -1003,7 +1003,8 @@ const ASR_CONFUSIONS: [
   [/(?<!\p{L})sán(?!\p{L})/giu, () => "sáng", anchored],
   // "ngày may" is tomorrow, "ngày may mắn" a lucky day
   [/(?<!\p{L})ngày may(?!\p{L})(?! mắn)/giu, () => "ngày mai", () => true],
-  [/(?<!\p{L})mươi lăm(?!\p{L})/giu, () => "mười lăm", anchored],
+  // "hai mươi lăm" is 25: only a "mươi lăm" with no tens word before it is a misheard "mười lăm"
+  [/(?<!(?:hai|ba|bốn|tư|năm|sáu|bảy|tám|chín)\s+)(?<!\p{L})mươi lăm(?!\p{L})/giu, () => "mười lăm", anchored],
   [/(?<!\p{L})(mười|mươi) năm(?!\p{L})/giu, (m) => `${m[1]} lăm`, anchored],
   // "từ giờ" (from now) keeps its word; "tử giờ" with its tone is 4 o'clock
   [

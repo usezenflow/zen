@@ -1,5 +1,6 @@
 // S3e recurrence: the RRULE base of a phrase the reader reads, and its COUNT and UNTIL bounds. Pure, on folded text.
-import type { ReaderWC } from "../shared";
+import type { ReaderWC, ReaderWindow } from "../shared";
+import { dowOf } from "./calendar";
 import { fold } from "./fold";
 
 /**
@@ -29,6 +30,10 @@ const EN_DAYS: Record<string, string> = {
   sat: "SA",
   sun: "SU",
 };
+/** A frequency every n: "mỗi 0 tuần" and "mỗi 1 tuần" are plain weekly, never INTERVAL=0 or 1. */
+export const every = (freq: string, n: number) => (n > 1 ? `FREQ=${freq};INTERVAL=${n}` : `FREQ=${freq}`);
+/** A week holds at most one session a day: "9 buổi trong tuần sau" is seven. */
+const perWeek = (n: number) => Math.min(n, 7);
 /** Days a week for "n buổi một tuần", spread over the week. */
 export const SPREAD: Record<number, string> = {
   1: "MO",
@@ -86,23 +91,23 @@ export function ruleBase(f: string, clause: string = f): string | undefined {
   }
   // every other week, or every n weeks
   const iv =
-    /(?<![a-z\d])(\d{1,2}) tuan 1 lan(?![a-z])|(?<![a-z])moi (\d{1,2}) tuan(?![a-z])/.exec(
+    /(?<![a-z\d])(\d{1,3}) tuan 1 lan(?![a-z])|(?<![a-z])moi (\d{1,3}) tuan(?![a-z])/.exec(
       f,
     );
   if (iv || /cach tuan|every other week/.test(f))
-    return `FREQ=WEEKLY;INTERVAL=${iv ? +(iv[1] ?? iv[2]) : 2}`;
+    return every("WEEKLY", iv ? +(iv[1] ?? iv[2]) : 2);
   // n a week: "3 buổi một tuần", "3 lần/tuần", "1 tuần 3 buổi"
   // "3 buổi trong 4 tuần": the weeks are the span, the days the rule
   const per =
-    /(?<![a-z\d])(\d) (?:buoi|lan)\s*(?:\/|mot|moi)?\s*tuan(?![a-z])|(?<![a-z\d])1 tuan (\d) buoi(?![a-z])/.exec(
-      f.replace(/(?<![a-z])trong \d{1,2} tuan(?![a-z])/, "tuan"),
+    /(?<![a-z\d])([1-9]\d{0,2}) (?:buoi|lan)\s*(?:\/|mot|moi)?\s*tuan(?![a-z])|(?<![a-z\d])1 tuan ([1-9]\d{0,2}) buoi(?![a-z])/.exec(
+      f.replace(/(?<![a-z])trong (?:\d{1,2} )?tuan(?![a-z])/, "tuan"),
     );
   if (per)
-    return `FREQ=WEEKLY;BYDAY=${SPREAD[+(per[1] ?? per[2])] ?? SPREAD[5]}`;
+    return `FREQ=WEEKLY;BYDAY=${SPREAD[perWeek(+(per[1] ?? per[2]))]}`;
   if (/(?<![a-z])(?:moi|hang) tuan(?![a-z])/.test(f)) return "FREQ=WEEKLY";
   // every n months: "mỗi 2 tháng", "cách tháng"
-  const months = /(?<![a-z])moi (\d{1,2}) thang(?![a-z])/.exec(f);
-  if (months || /(?<![a-z])cach thang(?![a-z])/.test(f)) return `FREQ=MONTHLY;INTERVAL=${months ? +months[1] : 2}`;
+  const months = /(?<![a-z])moi (\d{1,3}) thang(?![a-z])/.exec(f);
+  if (months || /(?<![a-z])cach thang(?![a-z])/.test(f)) return every("MONTHLY", months ? +months[1] : 2);
   // yearly on the day and month named beside it
   if (/(?<![a-z])(?:moi|hang) nam(?![a-z])|every year/.test(f)) {
     const d = /(\d{1,2})[/.](\d{1,2})/.exec(f);
@@ -130,7 +135,7 @@ export function ruleBase(f: string, clause: string = f): string | undefined {
     /(?<![a-z\d])(?:moi|every) (\d{1,2}) (?:tieng|hours?)(?![a-z])/.exec(f);
   if (hr) {
     const hours = Array.from({ length: 16 }, (_, i) => i + 7).join(",");
-    return `FREQ=HOURLY;INTERVAL=${+hr[1]};BYHOUR=${hours}`;
+    return `${every("HOURLY", +hr[1])};BYHOUR=${hours}`;
   }
   if (/(?<![a-z])(?:every day|daily)(?![a-z])/.test(f)) return "FREQ=DAILY";
   return undefined;
@@ -143,19 +148,61 @@ export function ruleBase(f: string, clause: string = f): string | undefined {
 export function withBounds(rule: string, f: string, until?: ReaderWC): string {
   const parts = [rule];
   const count =
-    /(?<![\d/.a-z])(?<!tuan )(?<!ngay )(\d{1,2}) (?:buoi|lan)(?![a-z])(?! (?:sang|trua|chieu|toi|dem)(?![a-z]))(?!\s*(?:\/|mot |moi )?\s*tuan)(?!\s+trong\s+\d{1,2}\s+tuan)/.exec(
+    /(?<![\d/.a-z])(?<!tuan )(?<!ngay )([1-9]\d{0,2}) (?:buoi|lan)(?![a-z])(?! (?:sang|trua|chieu|toi|dem)(?![a-z]))(?!\s*(?:\/|mot |moi )?\s*tuan)(?!\s+trong\s+\d{1,2}\s+tuan)/.exec(
       f,
     );
-  const weeks = /(?<![a-z\d])trong (\d{1,2}) tuan(?![a-z])/.exec(f);
-  if (count) parts.push(`COUNT=${+count[1]}`);
+  const weeks = /(?<![a-z\d])trong ([1-9]\d{0,2}) tuan(?![a-z])/.exec(f);
+  // "3 buổi (trong) tuần sau": that many, in that one week
+  const inWeek = /(?<![\d/.a-z])([1-9]\d{0,2}) (?:buoi|lan) (?:trong )?tuan (?:sau|toi)(?![a-z])/.exec(f);
+  if (inWeek) parts.push(`COUNT=${perWeek(+inWeek[1])}`);
+  else if (count) parts.push(`COUNT=${+count[1]}`);
   else if (weeks && !until) {
     const days =
       /BYDAY=([A-Z,]+)/.exec(rule)?.[1].split(",").length ??
       (rule.includes("FREQ=DAILY") ? 7 : 1);
-    const every = +(/INTERVAL=(\d+)/.exec(rule)?.[1] ?? 1);
-    parts.push(`COUNT=${days * Math.ceil(+weeks[1] / every)}`);
+    const step = +(/INTERVAL=(\d+)/.exec(rule)?.[1] ?? 1);
+    parts.push(`COUNT=${days * Math.ceil(+weeks[1] / step)}`);
   }
   if (until)
     parts.push(`UNTIL=${until.y}${pad(until.m)}${pad(until.d)}T235959`);
   return parts.join(";");
+}
+
+/** "3 buổi trong tuần này": the count said for the rest of this week, else undefined. */
+export function thisWeekCount(f: string): number | undefined {
+  const m = /(?<![\d/.a-z])([1-9]\d{0,2}) (?:buoi|lan) (?:trong )?tuan nay(?![a-z])/.exec(f);
+  return m ? +m[1] : undefined;
+}
+
+/** The parts a day holds sessions in, with the minute each ends (adapt.ts END). */
+const PARTS: [ReaderWindow, number][] = [["MORNING", 660], ["AFTERNOON", 1080], ["NIGHT", 1320]];
+/**
+ * n sessions over the days left of this week, Sunday last: one a day spread out while the days hold them,
+ * else several a day, each in its own part, spread over the parts left. A day offset from today and the part.
+ * shortcut: past three a day (or the parts left today) the rest are dropped, since two rows of one day and part are one row.
+ */
+export function weekSessions(n: number, ref: ReaderWC, minutes = 60) {
+  const now = (ref.h ?? 0) * 60 + (ref.mi ?? 0);
+  const left = (7 - dowOf(ref.y, ref.m, ref.d)) % 7;
+  // the parts each day still has: today only those with an hour of room left
+  const days = Array.from({ length: left + 1 }, (_, off) => ({
+    off,
+    parts: PARTS.filter(([, end]) => off > 0 || end - now >= minutes).map(([w]) => w),
+  })).filter((d) => d.parts.length);
+  // nothing left of the week: one session today, as the plain day reads
+  if (!days.length) return [{ off: 0, window: undefined as ReaderWindow | undefined }];
+  if (n <= days.length)
+    return Array.from({ length: n }, (_, k) => ({ off: days[Math.floor((k * days.length) / n)].off, window: undefined as ReaderWindow | undefined }));
+  // more sessions than days: round-robin from the last day, so today (often half gone) takes the fewest
+  const counts = days.map(() => 0);
+  for (let k = 0, i = days.length - 1, room = days.reduce((s, d) => s + d.parts.length, 0); k < Math.min(n, room); i = (i + days.length - 1) % days.length)
+    if (counts[i] < days[i].parts.length) {
+      counts[i]++;
+      k++;
+    }
+  return days.flatMap((d, i) => {
+    const c = counts[i];
+    const p = d.parts.length;
+    return Array.from({ length: c }, (_, k) => ({ off: d.off, window: c > 1 ? d.parts[Math.round((k * (p - 1)) / (c - 1))] : undefined }));
+  });
 }

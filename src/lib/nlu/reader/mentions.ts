@@ -84,7 +84,8 @@ export type Val =
     }
   /** A day of the month with no month: the next such day ("ngày 20", "mùng 5"). */
   | { k: "dom"; d: number }
-  | { k: "rel"; off: number }
+  /** Days from today; `months` counts calendar months instead ("3 tháng nữa"). */
+  | { k: "rel"; off: number; months?: number }
   | { k: "weekend" }
   | { k: "weekend_next" }
   | { k: "month_end" }
@@ -164,33 +165,25 @@ const RANGE_TAIL =
   /^\s*(?:-|den|toi|ket thuc)\s*:?\s*(?:het\s*)?(?:ngay\s*:?\s*)?(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{4,5}|\d{2}|0))?(?!\d)/;
 
 /**
- * A day and month as written. A "/" date clamps an invalid day or month to the nearest valid one
- * ("0" is 1, a day past 31 is 31, a month past 12 is 12); other separators must already be valid.
+ * A day and month as written, or null when no month has that day ("0/11", "32/11", "30/13" stay in the title).
+ * A day past its own month's end ("31/11") is clamped later, with the date_clamped flag.
  */
-function dayMonthOf(
-  d: number,
-  mo: number,
-  slash: boolean,
-): [number, number] | null {
-  if (slash)
-    return [Math.min(Math.max(d, 1), 31), Math.min(Math.max(mo, 1), 12)];
+function dayMonthOf(d: number, mo: number): [number, number] | null {
   return d < 1 || d > 31 || mo < 1 || mo > 12 ? null : [d, mo];
 }
 
-/** A written year as a year: a 5-digit year is its first four digits. Null outside ref's year -1 to +5, and for year 0. */
-export function writtenYear(y: number, refY: number): number | undefined {
+/**
+ * A written year as a year, however far: a 5-digit year is its first four digits (a doubled key).
+ * Null for a year no one writes for a task (before 1900, or year 0): the nearest-year rule picks it.
+ */
+export function writtenYear(y: number): number | undefined {
   const n = y >= 10000 ? Math.floor(y / 10) : y;
-  return n >= refY - 1 && n <= refY + 5 ? n : undefined;
+  return n >= 1900 ? n : undefined;
 }
 
 /** A day and month, with a year when written. Null when the date does not exist on the calendar. */
-function dayMonth(
-  d: string,
-  mo: string,
-  y?: string,
-  slash = false,
-): Val | null {
-  const dm = dayMonthOf(+d, +mo, slash);
+function dayMonth(d: string, mo: string, y?: string): Val | null {
+  const dm = dayMonthOf(+d, +mo);
   if (!dm) return null;
   const [dd, mm] = dm;
   if (y)
@@ -371,14 +364,18 @@ const RULES: Rule[] = [
   [
     "period",
     /(?<![a-z])(?:tiet)\s*:?\s*(\d{1,2})(?:\s*[-–]\s*(\d{1,2}))?(?![a-z\d])/g,
-    (m) => ({ k: "period", p1: +m[1], p2: m[2] ? +m[2] : +m[1] }),
+    (m) => {
+      // a range typed backwards ("tiết 5-2") is the same range; a period the portal does not know resolves to no clock (periods.ts)
+      const [p1, p2] = [+m[1], m[2] ? +m[2] : +m[1]].sort((a, b) => a - b);
+      return { k: "period", p1, p2 };
+    },
   ],
 
   // recurrence: "hàng ngày", "mỗi tối" (daily); "mỗi thứ 6" (weekly, the weekday is the date). Only the word "mỗi" is taken before a part of day or weekday.
   // "mỗi 2 ngày", "cách ngày": every N days, every other day by default
   [
     "recur",
-    /(?<![a-z])(?:moi\s+(\d{1,2})\s+ngay|cach\s+ngay)(?![a-z])/g,
+    /(?<![a-z])(?:moi\s+(\d{1,3})\s+ngay|cach\s+ngay)(?![a-z])/g,
     (m) => ({ k: "recur", freq: "DAILY", interval: m[1] ? +m[1] : 2 }),
   ],
   // "mỗi đầu tháng": every month on the first, the rule is built with the piece
@@ -435,7 +432,7 @@ const RULES: Rule[] = [
   ],
   [
     "recur",
-    /(?<![a-z\d])(?:cach\s+tuan|every\s+other\s+week|\d{1,2}\s+tuan\s+1\s+lan|moi\s+\d{1,2}\s+tuan|moi\s+tuan|\d\s+(?:buoi|lan)\s*(?:\/|mot|moi)?\s*tuan|\d\s+(?:buoi|lan)\s+trong\s+\d{1,2}\s+tuan|1\s+tuan\s+\d\s+buoi)(?![a-z])/g,
+    /(?<![a-z\d])(?:[1-9]\d{0,2}\s+(?:buoi|lan)(?:\s+trong)?(?=\s+tuan\s+(?:sau|toi|nay)(?![a-z]))|cach\s+tuan|every\s+other\s+week|\d{1,3}\s+tuan\s+1\s+lan|moi\s+\d{1,3}\s+tuan|moi\s+tuan|[1-9]\d{0,2}\s+(?:buoi|lan)\s*(?:\/|mot|moi)?\s*tuan|[1-9]\d{0,2}\s+(?:buoi|lan)\s+trong\s+[1-9]\d{0,2}\s+tuan|1\s+tuan\s+[1-9]\d{0,2}\s+buoi)(?![a-z])/g,
     () => ({ k: "recur", freq: "WEEKLY" }),
   ],
   [
@@ -476,7 +473,10 @@ const RULES: Rule[] = [
   [
     "dur",
     /(?<![a-z\d])(\d{1,2}(?:[.,]\d)?)\s+hours?(?![a-z])/g,
-    (m) => ({ k: "dur", min: Math.round(+m[1].replace(",", ".") * 60) }),
+    (m) => {
+      const min = Math.round(+m[1].replace(",", ".") * 60);
+      return min ? { k: "dur", min: Math.min(MAX_TASK_MINUTES, lengthMin(min)) } : null;
+    },
   ],
   [
     "dur",
@@ -488,7 +488,10 @@ const RULES: Rule[] = [
   [
     "dur",
     /(?<![\d.,:a-z])(?<!(?:luc|vao|tu|den|toi|truoc|sau|han|hen|bat dau|khoang)\s+)(\d{1,2})\s*(?:tieng|h)\s*(\d{1,2})\s*(?:phut|p)(?![a-z])(?!\s*(?:sang|trua|chieu|toi|dem|khuya)(?![a-z]))/g,
-    (m) => ({ k: "dur", min: Math.min(MAX_TASK_MINUTES, lengthMin(+m[1] * 60 + +m[2])) }),
+    (m) => {
+      const min = +m[1] * 60 + +m[2];
+      return min ? { k: "dur", min: Math.min(MAX_TASK_MINUTES, lengthMin(min)) } : null;
+    },
   ],
   // "3 ngày" is a span of days, read as a busy block only with a travel or rest word (see assemble)
   [
@@ -578,7 +581,7 @@ const RULES: Rule[] = [
   // "in 3 days", "in 2 weeks": a count from today
   [
     "date",
-    /(?<![a-z\d.])in\s+(\d{1,2})\s+(days?|weeks?)(?![a-z])/g,
+    /(?<![a-z\d.])in\s+(\d{1,4})\s+(days?|weeks?)(?![a-z])/g,
     (m) => ({ k: "rel", off: m[2].startsWith("week") ? 7 * +m[1] : +m[1] }),
   ],
   // one separator twice: "1-2/10" is a day range, not 1/2/2010
@@ -590,7 +593,7 @@ const RULES: Rule[] = [
         m[2] === "/" && +m[3] > 12 && +m[1] <= 12
           ? [+m[3], +m[1]]
           : [+m[1], +m[3]];
-      const dm = dayMonthOf(d, mo, m[2] === "/");
+      const dm = dayMonthOf(d, mo);
       if (!dm) return null;
       // the year is checked against the reference date when the date is resolved (resolveDate)
       return {
@@ -606,7 +609,7 @@ const RULES: Rule[] = [
     "date",
     /(?<!\d)(?:(?<![a-z])(?:ngay|mung|mong)\s+)?(\d{1,2})\s*thang\s*(\d{1,2})(?:\s*nam\s*(\d{4}))?(?!\d)/g,
     (m) => {
-      const dm = dayMonthOf(+m[1], +m[2], true);
+      const dm = dayMonthOf(+m[1], +m[2]);
       if (!dm) return null;
       return {
         k: "date",
@@ -623,7 +626,7 @@ const RULES: Rule[] = [
     /(?<![\d/.a-z-])(?<!(?:thu|t)\s*(?:[2-7]\s*(?:,|va)\s*)*)(\d{1,2})(?=\s*(?:-|den|toi|ket thuc)\s*:?\s*(?:het\s*)?(?:ngay\s*:?\s*)?\d{1,2}[/.-]\d{1,2})/g,
     (m) => {
       const t = RANGE_TAIL.exec(m.input.slice((m.index ?? 0) + m[0].length));
-      return t ? dayMonth(m[1], t[2], t[3], t[0].includes("/")) : null;
+      return t ? dayMonth(m[1], t[2], t[3]) : null;
     },
   ],
   [
@@ -633,19 +636,19 @@ const RULES: Rule[] = [
       const t = /^(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{4,5}|\d{2}|0))?$/.exec(
         m[0],
       );
-      return t ? dayMonth(t[1], t[2], t[3], m[0].includes("/")) : null;
+      return t ? dayMonth(t[1], t[2], t[3]) : null;
     },
   ],
   [
     "date",
-    /(?<![\d/.:a-z-])(\d{1,2})[/.-](\d{1,2})(?![\d/-])(?!\.\d)(?!\s*(?:h|gio)(?![a-z]))/g,
+    /(?<![\d/.:a-z-])(\d{1,2})[/.-](\d{1,2})(?![\d/-])(?!\.\d)(?!\s*(?:h|gio|tieng|phut|p|tiet|hours?)(?![a-z]))/g,
     (m) => {
       // "11/20" is 20 November: a second number over 12 is the day
       const [d, mo] =
         m[0].includes("/") && +m[2] > 12 && +m[1] <= 12
           ? [+m[2], +m[1]]
           : [+m[1], +m[2]];
-      const dm = dayMonthOf(d, mo, m[0].includes("/"));
+      const dm = dayMonthOf(d, mo);
       if (!dm) return null;
       // "lúc 9.20" is a clock: a dotted pair after a clock cue is no date
       if (
@@ -659,7 +662,7 @@ const RULES: Rule[] = [
   // "ngày 2 lần": twice a day, not a day of the month
   [
     "recur",
-    /(?<![a-z])ngay\s+\d{1,2}\s+(?:lan|buoi)(?![a-z])/g,
+    /(?<![a-z])ngay\s+\d{1,3}\s+(?:lan|buoi)(?![a-z])/g,
     () => ({ k: "recur", freq: "DAILY" }),
   ],
   // a day of the month with no month: "ngày 20", "mùng 5"; "ngày 20/11" and "5 tháng 1" are read by the rules above
@@ -672,7 +675,7 @@ const RULES: Rule[] = [
   [
     "date",
     /(?<![a-z])tuan\s+thu\s+([1-5])\s+cua\s+thang\s+(\d{1,2})(?!\d)/g,
-    (m) => ({ k: "span", key: `tuan_${m[1]}_thang_${m[2]}` }),
+    (m) => (+m[2] >= 1 && +m[2] <= 12 ? { k: "span", key: `tuan_${m[1]}_thang_${+m[2]}` } : null),
   ],
   // "thứ 6 này" is this week, "thứ 6 tới" next week; "thứ 6 tối" is the evening, so "tối" counts only as "tới"
   [
@@ -807,8 +810,14 @@ const RULES: Rule[] = [
   // counts from today: "2 ngày nữa", "vài ngày tới", "1 tuần nữa" (2 tuần nữa is the week after next)
   [
     "date",
-    /(?<![\d.a-z])(\d{1,2})\s+(?:ngay|hom|bua)\s+nua(?![a-z])/g,
+    /(?<![\d.a-z])(\d{1,4})\s+(?:ngay|hom|bua)\s+nua(?![a-z])/g,
     (m) => ({ k: "rel", off: +m[1] }),
+  ],
+  // "3 tháng nữa", "2 năm nữa": calendar months from today, the day clamped to the month's end
+  [
+    "date",
+    /(?<![\d.a-z])(\d{1,3})\s+(thang|nam)\s+nua(?![a-z])/g,
+    (m) => ({ k: "rel", off: 0, months: m[2] === "nam" ? 12 * +m[1] : +m[1] }),
   ],
   [
     "date",
@@ -825,8 +834,9 @@ const RULES: Rule[] = [
   ],
   [
     "date",
-    /(?<![\d.a-z])(?:(2|mot)\s+)?tuan\s+nua(?![a-z])/g,
-    (m) => (m[1] === "2" ? { k: "week", off: 2 } : { k: "rel", off: 7 }),
+    /(?<![\d.a-z])(?:(\d{1,3}|mot)\s+)?tuan\s+nua(?![a-z])/g,
+    // "2 tuần nữa" is the week after next; any other count is that many weeks from today
+    (m) => (m[1] === "2" ? { k: "week", off: 2 } : { k: "rel", off: 7 * (+m[1] || 1) }),
   ],
   // weeks and months: "hết" and "cuối" as deadlines, "đầu/giữa/cuối" and "trong" as spans
   [
@@ -862,7 +872,7 @@ const RULES: Rule[] = [
   [
     "date",
     /(?<![a-z])(dau|giua|cuoi)\s+thang\s+(\d{1,2})(?!\d)(?![/.:-]\d)(?!\s*nam\s*\d{4})(?![a-z])/g,
-    (m) => ({ k: "span", key: `${m[1]}_thang_${+m[2]}` }),
+    (m) => (+m[2] >= 1 && +m[2] <= 12 ? { k: "span", key: `${m[1]}_thang_${+m[2]}` } : null),
   ],
   [
     "date",
@@ -994,8 +1004,9 @@ const RULES: Rule[] = [
     /(?<![\d./a-z])(\d{1,2})\s*(?:gio|h|g)\s*kem\s*(\d{1,2})(?![\d:h])/g,
     (m) => {
       const mi = +m[2];
-      if (mi < 1 || mi > 59) return null;
-      return timeVal((+m[1] + 23) % 24, 60 - mi, partNear(m));
+      if (mi > 59) return null;
+      // "9h kém 0" is 9:00
+      return mi ? timeVal((+m[1] + 23) % 24, 60 - mi, partNear(m)) : timeVal(+m[1], 0, partNear(m));
     },
   ],
   // a clock after a time cue with no unit: "lúc 9.20", "lúc 1700", "lúc trưa", "đến trưa", "đến nửa đêm"
@@ -1068,17 +1079,23 @@ const RULES: Rule[] = [
   [
     "dur",
     /(?<![\d.,])(\d+)\s*(?:tieng|gio|h)\s+ruoi(?![a-z])/g,
-    (m) => ({ k: "dur", min: +m[1] * 60 + 30 }),
+    (m) => ({ k: "dur", min: Math.min(MAX_TASK_MINUTES, +m[1] * 60 + 30) }),
   ],
-  // "3h chiều" is a clock, never a length
+  // "3h chiều" is a clock, never a length; nor is anything after a clock cue ("lúc 25h" is a bad clock)
   [
     "dur",
-    /(?<![\d.,])(\d+(?:[.,]\d+)?)\s*(tieng|gio|h(?!\s*(?:sang|trua|chieu|toi|dem|khuya)(?![a-z]))|phut|p|tiet)(?![a-z])/g,
+    /(?<![\d.,])(?<!(?:luc|vao|hen|bat dau)\s+)(\d+(?:[.,]\d+)?)\s*(tieng|gio|h(?!\s*(?:sang|trua|chieu|toi|dem|khuya)(?![a-z]))|phut|p|tiet)(?![a-z])/g,
     (m) => {
       const n = parseFloat(m[1].replace(",", "."));
       const unit = m[2];
+      // "9h75", "9 giờ 75": a bad clock, not 9 hours; "họp 25h" is a bad clock too, a length only after a cue ("trong 25h")
+      const hourWord = unit === "gio" || unit.startsWith("h");
+      if (hourWord && /^\s*\d/.test(m.input.slice((m.index ?? 0) + m[0].length))) return null;
+      if (hourWord && n > 24 && !SPAN_CUE.test(m.input.slice(0, m.index))) return null;
       const raw =
         unit === "phut" || unit === "p" ? n : unit === "tiet" ? n * 50 : n * 60;
+      // "0 phút" is no length: the words stay in the title
+      if (!raw) return null;
       return {
         k: "dur",
         min: Math.min(MAX_TASK_MINUTES, lengthMin(raw)),
@@ -1244,8 +1261,8 @@ const SPAN_CUE =
   /(?<![a-z])(?:trong|mat|keo dai|tong(?: cong)?|in total)\s+(?:(?:khoang|hon|gan|tam)\s+)?$/;
 
 /**
- * A clock typed with an invalid hour or minute, clamped: minutes past 59 are :59, an hour past 23 is 23
- * with its minutes. Hour 24 with minutes is 00:MM of the next day; "24:00" is the end of the day.
+ * A typed clock. Hour 24 with minutes is 00:MM of the next day; "24:00" is the end of the day.
+ * An hour past 24 or minutes past 59 is no clock: the words stay in the title.
  */
 function clockVal(
   h: number,
@@ -1253,12 +1270,12 @@ function clockVal(
   part: string | undefined,
   hasMin: boolean,
 ): Val | null {
-  const m = Math.min(mi, 59);
+  if (h > 24 || mi > 59) return null;
   if (h === 24 && hasMin) {
-    const v = timeVal(0, m, part);
-    return v?.k === "time" && m > 0 ? { ...v, next: true } : v;
+    const v = timeVal(0, mi, part);
+    return v?.k === "time" && mi > 0 ? { ...v, next: true } : v;
   }
-  return timeVal(Math.min(h, 23), m, part);
+  return timeVal(Math.min(h, 23), mi, part);
 }
 
 function timeVal(h: number, mi: number, part: string | undefined): Val | null {

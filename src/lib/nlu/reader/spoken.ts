@@ -1,4 +1,4 @@
-// Spoken Vietnamese numbers (0–99) to digits (parseSpokenNumber).
+// Spoken Vietnamese numbers (0–999) to digits (parseSpokenNumber).
 // Works on folded text and returns edits on the raw text. Only clock, day, month, duration and minute shapes convert.
 import { fold } from "./fold";
 
@@ -23,10 +23,12 @@ const UNIT: Record<string, number> = {
   chin: 9,
 };
 const UNIT_RE = "mot|hai|ba|bon|tu|nam|lam|nham|sau|bay|tam|chin";
-const NUM_RE = `(?:(?:(?:hai|ba|bon|nam|sau|bay|tam|chin) muoi|ham|muoi)(?: (?:${UNIT_RE}))?|(?:hai|ba|bon|nam|sau|bay|tam|chin) (?:mot|tu|lam|nham)|${UNIT_RE})`;
+const TENS_RE = `(?:(?:(?:hai|ba|bon|nam|sau|bay|tam|chin) muoi|ham|muoi)(?: (?:${UNIT_RE}))?|(?:hai|ba|bon|nam|sau|bay|tam|chin) (?:mot|tu|lam|nham)|${UNIT_RE})`;
+/** "ba trăm", "một trăm linh năm", "hai trăm ba mươi": hundreds first, else a number under 100. */
+const NUM_RE = `(?:(?:${UNIT_RE}) tram(?: (?:linh|le) (?:${UNIT_RE})| ${TENS_RE})?|${TENS_RE})`;
 /** Unit words: the numbers sit next to them ("ba chương" is a count of chapters). Few per text, so the scan starts here. */
 const ANCHOR =
-  /(?<![a-z])(gio|tieng|phut|ngay|tuan|thang|mung|mong|ruoi|chuong|bai|trang)(?![a-z])/g;
+  /(?<![a-z])(gio|tieng|phut|ngay|tuan|thang|mung|mong|ruoi|chuong|bai|trang|buoi|lan)(?![a-z])/g;
 /** A number word ending before the window's end, after spaces. */
 const LEFT_NUM = new RegExp(`(?<![a-z\\d])(${NUM_RE})(\\s+)$`);
 /** A number word starting the window, after spaces. */
@@ -41,9 +43,17 @@ const WEEKDAY_BEFORE = /(?:^|[^a-z])thu\s+$/;
 /** Words that are also a common word unaccented ("sau" after, "bay" now): counted only with their mark. */
 const AMBIGUOUS = new Set(["sau", "tu", "tam", "bay", "mot", "nam"]);
 
-/** Parses a folded spoken number 0–99 ("hai muoi mot", "muoi lam", "chin"), or undefined. */
+/** Parses a folded spoken number 0–999 ("hai muoi mot", "muoi lam", "ba tram linh nam"), or undefined. */
 export function parseSpokenNumber(text: string): number | undefined {
   const w = text.trim().split(/\s+/);
+  if (w[1] === "tram" && (UNIT[w[0]] ?? 0) >= 1) {
+    const base = UNIT[w[0]] * 100;
+    const rest = w.slice(2);
+    if (!rest.length) return base;
+    if (rest.length === 2 && (rest[0] === "linh" || rest[0] === "le") && Object.hasOwn(UNIT, rest[1])) return base + UNIT[rest[1]];
+    const tens = parseSpokenNumber(rest.join(" "));
+    return tens !== undefined && tens >= 10 && tens < 100 ? base + tens : undefined;
+  }
   let base: number;
   let rest: string[];
   if (w[0] === "muoi") [base, rest] = [10, w.slice(1)];
