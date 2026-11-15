@@ -1,7 +1,18 @@
 import { expect, it, vi } from "vitest";
 
-vi.mock("expo-speech-recognition", () => ({ ExpoSpeechRecognitionModule: {} }));
-const { level, lowWords, transcripts } = await import("./ears");
+const SR = { getPermissionsAsync: vi.fn(), requestPermissionsAsync: vi.fn() };
+vi.mock("expo-speech-recognition", () => ({ ExpoSpeechRecognitionModule: SR }));
+const { askMic, level, lowWords, transcripts } = await import("./ears");
+
+it("asks for the mic only when it is missing (Android's ask pauses the app and cancels the hold)", async () => {
+  SR.getPermissionsAsync.mockResolvedValue({ granted: true });
+  expect(await askMic()).toBe(true);
+  expect(SR.requestPermissionsAsync).not.toHaveBeenCalled();
+  SR.getPermissionsAsync.mockResolvedValue({ granted: false });
+  SR.requestPermissionsAsync.mockResolvedValue({ granted: true });
+  expect(await askMic()).toBe(true);
+  expect(SR.requestPermissionsAsync).toHaveBeenCalledTimes(1);
+});
 
 it("maps the recognizer volume to 0..1, inaudible as 0", () => {
   expect(level(-2)).toBe(0);

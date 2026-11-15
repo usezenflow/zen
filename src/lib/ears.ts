@@ -5,8 +5,11 @@ const LANG = "vi-VN";
 /** The recognizer's -2..10 volume as 0..1 for the bars; under 0 is inaudible. */
 export const level = (v: number) => Math.max(0, Math.min(1, v / 10));
 
-/** Mic and speech permission in one prompt pair. */
-export const askMic = async () => (await SR.requestPermissionsAsync()).granted;
+/**
+ * Mic and speech permission in one prompt pair. Check first, ask only when missing: on Android the ask always opens the
+ * system permission activity, even when granted, which pauses the app and its AppState guard cancels the hold.
+ */
+export const askMic = async () => (await SR.getPermissionsAsync()).granted || (await SR.requestPermissionsAsync()).granted;
 
 /** Stops any recognition an earlier JS bundle left running (a reload keeps native modules alive) and releases the session, clearing iOS's orange dot. */
 export function micReset() {

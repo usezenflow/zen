@@ -6,7 +6,7 @@ import { extractTextFromPage, getPageCount } from "expo-pdf-text-extract";
 import { extractTextFromImage } from "expo-text-extractor";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from "react";
-import { Appearance, AppState, StyleSheet, Text, View } from "react-native";
+import { Appearance, AppState, Platform, StyleSheet, Text, View } from "react-native";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
 import Reanimated, { interpolate, useAnimatedStyle, useSharedValue, withTiming, ZoomIn, ZoomOut } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
@@ -64,7 +64,9 @@ const toastKey = (x: object) => { let k = toastKeys.get(x); if (k === undefined)
 
 export default function Home() {
   const th = useTheme();
-  const inset = useSafeAreaInsets().top;
+  const insets = useSafeAreaInsets(), inset = insets.top;
+  // The app draws under Android's nav bar (edge-to-edge): lift the dock above it. iOS's 93px mic centre already counts the home indicator.
+  const navLift = Platform.OS === "android" ? insets.bottom : 0;
   const [menu, setMenu] = useState<{ task: Task; top: number; items: Item[] } | undefined>();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [card, setCard] = useState<Card | undefined>();
@@ -726,7 +728,7 @@ export default function Home() {
       {/* The finger on the mic owns the touch, so the veil only hears a tap once a press is stuck: that tap lets go. Steps sit on it too. */}
       {(pressing || aside || picking || lines.length > 0) && <Veil onPress={picking ? () => setPicking(false) : pressing || aside ? cancel : undefined} />}
       {/* Over a photo or PDF too: thinking while it is read (capture.html 9, 12), then pressing it puts it away and listens, no close button. */}
-      {!showStory && !finding && <View style={s.dock} pointerEvents="box-none"><Hold state={state} pinned={picking ? "photo" : ""} onAside={onAside} onStart={() => { setPressing(true); setPhoto(undefined); setPdf(undefined); if (!latched.current) void start(); }} onEnd={onEnd} idle={view === "rhythm" ? "holdRule" : "hold"} /></View>}
+      {!showStory && !finding && <View style={[s.dock, { bottom: navLift }]} pointerEvents="box-none"><Hold state={state} pinned={picking ? "photo" : ""} onAside={onAside} onStart={() => { setPressing(true); setPhoto(undefined); setPdf(undefined); if (!latched.current) void start(); }} onEnd={onEnd} idle={view === "rhythm" ? "holdRule" : "hold"} /></View>}
       {picking && <PhotoMenu onPick={readPhoto} />}
       {typing && <><Veil z={9} onPress={() => setTyping(false)} /><TypeBar onClose={() => setTyping(false)} onSend={(text) => { setTyping(false); void run(text, "type"); }} /></>}
       {lines.length > 0 && <Steps lines={lines} />}

@@ -29,8 +29,9 @@ export function Veil({ onPress, z }: { onPress?: () => void; z?: number }) {
 
 /** capture.html frame 7: the house dropdown (.menu) above the lit Ảnh satellite. */
 export function PhotoMenu({ onPick }: { onPick: (src: "camera" | "library") => void }) {
+  const navInset = useSafeAreaInsets().bottom, nav = Platform.OS === "android" ? navInset : 0; // follows the dock above Android's nav bar
   const items = [{ label: t("camera"), onPress: () => onPick("camera") }, { label: t("library"), onPress: () => onPick("library") }];
-  return <MenuPanel items={items} onPick={(i) => i.onPress()} origin="bottom left" style={{ position: "absolute", left: "50%", bottom: MIC_Y + SAT_DY + SAT / 2 + 10, marginLeft: -SAT_DX - SAT / 2 }} />;
+  return <MenuPanel items={items} onPick={(i) => i.onPress()} origin="bottom left" style={{ position: "absolute", left: "50%", bottom: nav + MIC_Y + SAT_DY + SAT / 2 + 10, marginLeft: -SAT_DX - SAT / 2 }} />;
 }
 
 /** capture.html frames 5-6: one field over the keyboard. Blur (tap outside, keyboard down) drops it. */
