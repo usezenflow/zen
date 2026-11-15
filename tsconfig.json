@@ -3,7 +3,7 @@
   "compilerOptions": {
     "strict": true,
     "allowImportingTsExtensions": true,
-    "types": ["jest", "node"],
+    "types": ["jest"],
     "paths": {
       "@/*": [
         "./src/*"
@@ -22,6 +22,7 @@
   ],
   "exclude": [
     "sink",
+    "test/msw/serve.ts",
     "node_modules"
   ]
 }
