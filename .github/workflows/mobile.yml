@@ -200,7 +200,7 @@ jobs:
         with:
           path: dist/zen-ios-unsigned.ipa
           # package.json (version), app.config.js and CHANGELOG.md (bundled notes) change the app too.
-          key: ipa-${{ hashFiles('src/**', 'assets/**', 'plugins/**', 'patches/**', 'app.json', 'app.config.js', 'package.json', 'CHANGELOG.md', 'pnpm-lock.yaml') }}
+          key: ipa-${{ hashFiles('.github/workflows/mobile.yml', 'src/**', 'assets/**', 'plugins/**', 'patches/**', 'app.json', 'app.config.js', 'package.json', 'CHANGELOG.md', 'pnpm-lock.yaml') }}
       - uses: pnpm/action-setup@v4
         if: steps.ipa.outputs.cache-hit != 'true'
         with:
@@ -263,6 +263,11 @@ jobs:
           rm -rf Payload
           mkdir -p Payload dist
           cp -R ios/build-device/Build/Products/Release-iphoneos/Zen.app Payload/
+          # An unsigned build carries no entitlements, so SideStore has no app group to register and the widgets
+          # cannot read the app's data (they fall back to their sample). Fake-sign them into the binaries.
+          brew install ldid
+          ldid -Sios/ExpoWidgetsTarget/ExpoWidgetsTarget.entitlements Payload/Zen.app/PlugIns/ExpoWidgetsTarget.appex/ExpoWidgetsTarget
+          ldid -Sios/Zen/Zen.entitlements Payload/Zen.app/Zen
           zip -qry dist/zen-ios-unsigned.ipa Payload
       - uses: actions/upload-artifact@v7
         with:
