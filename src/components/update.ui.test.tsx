@@ -69,6 +69,14 @@ describe("UpdateDialog", () => {
     expect(screen.getByRole("progressbar").props.accessibilityValue).toEqual({ min: 0, max: 100, now: 42 });
   });
 
+  it("a failed download keeps the toast, ring stopped where it broke, and says the browser takes over", async () => {
+    jest.mocked(useDownload).mockReturnValue({ version: "99.0.0", pct: 42, failed: true });
+    await render(<DownloadToast />, { wrapper: GestureHandlerRootView });
+    expect(screen.getByText(t("updFailed", { version: "99.0.0" }))).toBeTruthy();
+    expect(screen.getByText(t("updFailedSub"))).toBeTruthy();
+    expect(screen.getByRole("progressbar").props.accessibilityValue).toEqual({ min: 0, max: 100, now: 42 });
+  });
+
   it("iOS offers SideStore; not now and back close it", async () => {
     jest.replaceProperty(Platform, "OS", "ios");
     const onClose = jest.fn();

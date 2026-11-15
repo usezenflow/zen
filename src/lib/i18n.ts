@@ -350,6 +350,8 @@ const S = {
   downloadingPct: "Đang tải {n}%",
   updDownloading: "Đang tải zen {version}",
   updDownloadingSub: "{n}% · xong sẽ mở trình cài",
+  updFailed: "Không tải được zen {version}",
+  updFailedSub: "Đang mở trang tải trong trình duyệt",
   installSideStore: "Cài qua SideStore",
   gotIt: "Đã hiểu",
 } as const;

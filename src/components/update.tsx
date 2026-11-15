@@ -55,10 +55,11 @@ export function Ring({ pct, color, size = 30, w = 3 }: { pct: number; color: str
   );
 }
 
-/** settings.html "Downloading": the top toast while the APK comes down, over any screen; the installer opens when it is done. */
+/** settings.html "Downloading" and "Download failed": the top toast while the APK comes down, over any screen; the installer opens when it is done. */
 export function DownloadToast() {
   const th = useTheme(), dl = useDownload();
   if (!dl) return null;
+  if (dl.failed) return <Toast text={t("updFailed", { version: dl.version })} sub={t("updFailedSub")} lead={<Ring pct={dl.pct} color={th.seal} />} />;
   return <Toast text={t("updDownloading", { version: dl.version })} sub={t("updDownloadingSub", { n: dl.pct })} lead={<Ring pct={dl.pct} color={th.bg} />} />;
 }
 

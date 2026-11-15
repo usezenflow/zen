@@ -17,21 +17,21 @@ const api = (path: string): Promise<Release | null> =>
     .then((r) => (r.ok ? r.json() : null)).catch(() => null);
 
 const asset = Platform.OS === "ios" ? IPA : APK;
-const H6 = 6 * 3600_000;
+const TTL = 15 * 60_000; // 4 asks an hour at most, well under GitHub's 60 for an unsigned caller
 
-// GitHub is asked at most every six hours, across restarts: the last answer is kept in kv with its time.
+// GitHub is asked at most every 15 minutes, across restarts: the last answer is kept in kv with its time.
 // A failure is just "no update". The answer carries the new release's notes for the update dialog.
 export async function checkUpdate(): Promise<Update | null> {
   let saved: { at: number; r: Release | null } | null = null;
   try { saved = JSON.parse((await kvGet("updateCheck")) ?? "null"); } catch {} // corrupt: as if never asked
-  if (saved && typeof saved.at === "number" && Date.now() - saved.at < H6) return pickUpdate(saved.r, installed, asset);
+  if (saved && typeof saved.at === "number" && Date.now() - saved.at < TTL) return pickUpdate(saved.r, installed, asset);
   const r = await api("latest");
   if (r) { await kvSet("updateCheck", JSON.stringify({ at: Date.now(), r })); }
   return pickUpdate(r, installed, asset);
 }
 
 // The APK download runs behind whatever screen is open: the dialog closes at once and the top toast shows the ring.
-export type Download = { version: string; pct: number };
+export type Download = { version: string; pct: number; failed?: true };
 let dl: Download | null = null;
 const subs = new Set<() => void>();
 const set = (d: Download | null) => { dl = d; subs.forEach((f) => f()); };
@@ -46,10 +46,10 @@ const onScreen = () => new Promise<void>((r) => {
 
 /**
  * Android: download the APK in the background, then open the system installer (it asks to confirm; it only accepts our signing key).
- * iOS: the .ipa is unsigned, so SideStore installs and re-signs it. Any failure opens the release page instead. A second call mid-download does nothing.
+ * iOS: the .ipa is unsigned, so SideStore installs and re-signs it. Any failure opens the release page instead (Android: the toast says so a moment). A second call mid-download does nothing.
  */
 export async function install(u: Update): Promise<void> {
-  if (dl) return;
+  if (dl && !dl.failed) return;
   try {
     if (Platform.OS === "ios") return void (await Linking.openURL(`sidestore://install?url=${encodeURIComponent(u.url)}`));
     set({ version: u.version, pct: 0 });
@@ -66,9 +66,11 @@ export async function install(u: Update): Promise<void> {
       flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
       type: "application/vnd.android.package-archive",
     });
-  } catch {
-    await Linking.openURL(u.page).catch(() => {});
-  } finally {
     set(null);
+  } catch {
+    if (!dl) return void (await Linking.openURL(u.page).catch(() => {})); // iOS: SideStore did not open
+    set({ ...dl, failed: true }); // the toast stays a moment, its ring stopped where it broke
+    await Linking.openURL(u.page).catch(() => {});
+    setTimeout(() => dl?.failed && set(null), 4000); // a retry meanwhile keeps its own toast
   }
 }

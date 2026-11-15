@@ -74,7 +74,7 @@ export default function Settings() {
   const [toast, setToast] = useState<{ text: string; sub: string }>();
   const [now, setNow] = useState(0);
   const [up, setUp] = useState<Update | null>(null); // a newer release on GitHub
-  const dl = useDownload(); // its APK coming down in the background
+  const d = useDownload(), dl = d?.failed ? null : d; // its APK coming down in the background; failed, the row offers it again
   const [dlg, setDlg] = useState<Dlg | null>(null);
 
   const refresh = useCallback(async () => {

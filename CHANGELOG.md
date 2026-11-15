@@ -38,6 +38,8 @@
     - Vuốt sang tuần khác không còn khựng giữa chừng
     - Widget trên iOS cập nhật nhẹ hơn, không làm chậm ứng dụng
 - Đồng bộ thời khoá biểu cả học kỳ nhanh hơn: xếp lịch một lần khi xong, không xếp lại sau từng tuần
+- Bản mới được tìm thấy sớm hơn: mỗi lần mở hay quay lại ứng dụng, cách nhau ít nhất 15p thay cho 6 tiếng
+- Tải bản mới không được thì thông báo vẫn hiện một lúc: "Không tải được", kèm mở trang tải trong trình duyệt; chạm "Có bản …" để thử lại
 
 ## 26.0.2
 
