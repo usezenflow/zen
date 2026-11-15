@@ -19,7 +19,7 @@ jest.mock("@expo/ui/swift-ui", () => {
 jest.mock("@expo/ui", () => ({ RNHostView: (p: { children: unknown }) => p.children }));
 jest.mock("@expo/ui/swift-ui/modifiers", () => ({ font: (o: object) => ({ font: o }), labelStyle: (s: string) => ({ labelStyle: s }), tint: (c: string) => ({ tint: c }) }));
 
-const items = () => [{ label: "Sửa", onPress: jest.fn() }, { label: "Xoá", destructive: true, onPress: jest.fn() }];
+const items = () => [{ label: "Sửa", icon: "pencil" as const, onPress: jest.fn() }, { label: "Xoá", icon: "trash" as const, destructive: true, onPress: jest.fn() }];
 
 describe("Android", () => {
   beforeEach(() => jest.replaceProperty(Platform, "OS", "android"));

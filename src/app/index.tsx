@@ -38,7 +38,7 @@ import { think } from "@/lib/nlu/commands";
 import { affinityOf, calendarOf, committedRows, vocab } from "@/lib/nlu/context";
 import { personalPrior } from "@/lib/nlu/reader/assemble";
 import { isRule, readRule } from "@/lib/rules";
-import { onLeftSaved, takeFlash } from "@/lib/flash";
+import { onLeftSaved, takeFlash, takeHomeDay } from "@/lib/flash";
 import { keepBoth, pendingOverlaps, type Overlap } from "@/lib/overlap";
 import * as store from "@/lib/store";
 import { getMarks, onForeground, onSynced } from "@/lib/sync";
@@ -210,6 +210,8 @@ export default function Home() {
   }, [say, go, shuffle]);
 
   useFocusEffect(useCallback(() => {
+    const d = takeHomeDay();
+    if (d !== undefined) setSel(startOfDay(d));
     const f = takeFlash();
     if (f) say(f.text, f.r, { sub: f.sub });
     refresh();
@@ -512,15 +514,15 @@ export default function Home() {
   };
   // Series (campus section, repeat, or split sittings): long-press or swipe opens three scopes. Plain tasks: swipe deletes. Undo is the net.
   const seriesItems = (x: Task): Item[] => x.section || x.rrule || x.parentId
-    ? [{ label: t("delThis"), onPress: () => del(x, "this") }, { label: t("delFollowing"), onPress: () => del(x, "following") }, { label: t("delAll"), destructive: true, onPress: () => del(x, "all") }]
+    ? [{ label: t("delThis"), icon: "minus", onPress: () => del(x, "this") }, { label: t("delFollowing"), icon: "toEnd", onPress: () => del(x, "following") }, { label: t("delAll"), icon: "trash", destructive: true, onPress: () => del(x, "all") }]
     : [];
   // Long-press adds the lessons: put it back, take the other good time, pin.
   const itemsFor = (x: Task): Item[] => {
     const from = maps.froms[x.id], alt = maps.alts[x.id], out: Item[] = [];
     const done = (r: Result) => { say(r.toast, r); refresh(); };
-    if (from !== undefined && !x.fixed) out.push({ label: t("itemPutBack", { when: when(from, now) }), onPress: async () => done(await putBack(x.id, from)) });
-    if (alt !== undefined && !x.fixed) out.push({ label: t("itemAlt", { when: when(alt, now) }), onPress: async () => done(await apply([{ op: "edit", target: x.id, when: new Date(alt).toISOString() }])) });
-    if (!x.fixed && !x.doneAt && (from !== undefined || alt !== undefined || maps.reason[x.id] || x.pinned)) out.push({ label: t(x.pinned ? "itemUnpin" : "itemPin"), onPress: async () => done(await pin(x.id, !x.pinned)) });
+    if (from !== undefined && !x.fixed) out.push({ label: t("itemPutBack", { when: when(from, now) }), icon: "undo", onPress: async () => done(await putBack(x.id, from)) });
+    if (alt !== undefined && !x.fixed) out.push({ label: t("itemAlt", { when: when(alt, now) }), icon: "clock", onPress: async () => done(await apply([{ op: "edit", target: x.id, when: new Date(alt).toISOString() }])) });
+    if (!x.fixed && !x.doneAt && (from !== undefined || alt !== undefined || maps.reason[x.id] || x.pinned)) out.push({ label: t(x.pinned ? "itemUnpin" : "itemPin"), icon: x.pinned ? "pinOff" : "pin", onPress: async () => done(await pin(x.id, !x.pinned)) });
     return [...out, ...seriesItems(x)];
   };
   const rowActs = {

@@ -105,12 +105,18 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
     prev.current = task.start;
   }, [task.start, ghost, lift]);
   // .r.fly: a page-colour card bleeding 10px each side, r16, 0 14px 30px -12px rgba(0,0,0,.3); no scale.
-  const fly = useAnimatedStyle(() => ({ boxShadow: `0 14px 30px -12px rgba(0,0,0,${(0.3 * lift.get()).toFixed(3)})` }));
   const series = !!(task.section || task.rrule || task.parentId);
   // views.html .lift: page-colour card, r16, scale 1.02, 0 10px 30px -10px rgba(0,0,0,.3), no separator.
   const up = useSharedValue(0);
   useEffect(() => { up.set(settle(lifted ? 1 : 0, 180)); }, [lifted, up]);
-  const liftSt = useAnimatedStyle(() => ({ transform: [{ scale: 1 + 0.02 * up.get() }], boxShadow: `0 10px 30px -10px rgba(0,0,0,${(0.3 * up.get()).toFixed(3)})` }));
+  // Raised: a card a step lighter than the page (dark: the chip colour, where a shadow alone is lost on black); at rest no card at all,
+  // so the row under a lifted one does not cover its shadow with a rounded patch of page colour.
+  const raised = th.dark ? th.chip : "#ffffff", shade = th.dark ? 0.75 : 0.22;
+  const liftSt = useAnimatedStyle(() => {
+    const u = up.get(), f = lift.get();
+    const shadow = u > 0 ? `0 12px 32px -6px rgba(0,0,0,${(shade * u).toFixed(3)})` : `0 14px 30px -12px rgba(0,0,0,${(0.3 * f).toFixed(3)})`; // .r.fly when only moved
+    return { transform: [{ scale: 1 + 0.03 * u }], backgroundColor: u > 0 ? interpolateColor(u, [0, 1], [th.bg, raised]) : f > 0 ? th.bg : "transparent", boxShadow: shadow };
+  });
   const holdBox = useRef<ComponentRef<typeof View>>(null);
   const hold = () => {
     if (!onHold) return;
@@ -175,7 +181,7 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
   );
   return (
     <View ref={holdBox} collapsable={false}>
-      <SwipeDelete enabled={!!onDelete && !allDay} onDelete={() => onDelete?.()} onSpring={series ? (bottom, top) => onSeries?.(bottom, top) : undefined} style={[fly, liftSt]}>
+      <SwipeDelete enabled={!!onDelete && !allDay} onDelete={() => onDelete?.()} onSpring={series ? (bottom, top) => onSeries?.(bottom, top) : undefined} style={liftSt}>
         {body}
       </SwipeDelete>
     </View>
@@ -184,7 +190,7 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
 
 const s = StyleSheet.create({
   r: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: space.row },
-  ck: { width: 34, height: 34, borderRadius: 17, borderWidth: 1.5, alignItems: "center", justifyContent: "center", shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 0, height: 0 } },
+  ck: { width: 34, height: 34, borderRadius: 17, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   art: { borderWidth: 0 },
   clip: { width: "100%", height: "100%", borderRadius: 17, overflow: "hidden" },
   tx: { flex: 1, minWidth: 0, paddingVertical: space.row + 2, marginVertical: -space.row },
@@ -240,17 +246,18 @@ export function SwipeDelete({ enabled = true, onDelete, onSpring, style, childre
       }));
     },
   });
-  const slide = useAnimatedStyle(() => ({ transform: [{ translateX: tx.get() }] }));
+  // page colour only while swiped, to hide the red under it; at rest the row is see-through (a lifted neighbour's shadow shows)
+  const slide = useAnimatedStyle(() => ({ transform: [{ translateX: tx.get() }], backgroundColor: tx.get() < 0 ? th.bg : "transparent" }));
   const wrap = useAnimatedStyle(() => (hgt.get() >= 0 ? { height: hgt.get(), overflow: "hidden" as const } : {}));
   const trash = useAnimatedStyle(() => ({ opacity: interpolate(tx.get(), [0, -SWIPE * 0.6], [0, 1], Extrapolation.CLAMP) }));
   const bin = useAnimatedStyle(() => ({ transform: [{ scale: settle(tx.get() <= -SWIPE ? 1.15 : 1, 160) }] }));
   return (
     <View ref={box} onLayout={(e) => { w.set(e.nativeEvent.layout.width); h.set(e.nativeEvent.layout.height); }}>
-      <Animated.View style={[wrap, s.bleed, { backgroundColor: th.bg }, style]}>
+      <Animated.View style={[wrap, s.bleed, style]}>
         <View style={s.clipRow}>
           <Animated.View style={[s.trash, trash]}><Animated.View style={bin}><Icon name="trash" size={20} color="#fff" /></Animated.View></Animated.View>
           <GestureDetector gesture={swipe}>
-            <Animated.View style={[slide, s.pad10, { backgroundColor: th.bg }]}>{children}</Animated.View>
+            <Animated.View style={[slide, s.pad10]}>{children}</Animated.View>
           </GestureDetector>
         </View>
       </Animated.View>

@@ -83,7 +83,7 @@ const exams = `<b>LỊCH THI KẾT THÚC HỌC PHẦN</b><br>HK1 2026-2027 · Kh
 const pasted = `Lịch học tuần 16/11<br>T2 7g30 Giải tích 2, A24.1<br>T4 9g00 Cơ sở dữ liệu, B1.105<br>T6 13g30 Lập trình web, B1.105<br>Nộp bài tập lớn trước 23g59 20/11`;
 const pdf = `<div class="shot pdf">${exams}</div><div class="pgs">Trang 1/4</div>`;
 // Let go on Ảnh: the satellite stays lit and the house dropdown opens above it. Tap outside to cancel.
-const pickPhoto = fan("l", 0, 0, "Chọn nguồn ảnh") + menu([["Chụp ảnh"], ["Chọn từ thư viện"]], 558, 109);
+const pickPhoto = fan("l", 0, 0, "Chọn nguồn ảnh") + menu([["Chụp ảnh", "camera"], ["Chọn từ thư viện", "image"]], 558, 109);
 
 mount([
   { tag: "1. Idle", sub: "Nothing new on screen. The mic is still the one button; the label is unchanged. The fan is found by doing it, and first launch can teach it once.", html: chrome(day) },

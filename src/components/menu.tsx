@@ -4,15 +4,23 @@ import { font as sfont, labelStyle, tint } from "@expo/ui/swift-ui/modifiers";
 import { useState, type ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { MenuPanel } from "@/components/rowmenu";
+import type { IconName } from "@/components/icons";
 import { useTheme, ff } from "@/lib/theme";
 import type { SFSymbol } from "sf-symbols-typescript";
 
-export interface Item { label: string; icon?: SFSymbol; destructive?: boolean; onPress: () => void }
+export interface Item { label: string; icon: IconName; destructive?: boolean; onPress: () => void }
+
+/** The same action's SF symbol in the native iOS menus; zen's own menus draw `icon`. */
+const SF: Partial<Record<IconName, SFSymbol>> = {
+  minus: "minus.circle", toEnd: "arrow.right.to.line", trash: "trash", undo: "arrow.uturn.backward", clock: "clock", pin: "pin", pinOff: "pin.slash",
+  hourglass: "hourglass", place: "mappin.and.ellipse", pencil: "pencil", sync: "arrow.triangle.2.circlepath", camera: "camera", image: "photo.on.rectangle",
+  study: "book", exercise: "figure.run", chores: "house", social: "person.2", other: "ellipsis.circle",
+};
 
 const buttons = (items: Item[]) =>
-  items.map((i) => <Button key={i.label} label={i.label} systemImage={i.icon} role={i.destructive ? "destructive" : "default"} onPress={i.onPress} />);
+  items.map((i) => <Button key={i.label} label={i.label} systemImage={SF[i.icon]} role={i.destructive ? "destructive" : "default"} onPress={i.onPress} />);
 
-/** Android fallback: small text-only dropdown (mockup .menu), anchored under the trigger. */
+/** Android fallback: small dropdown (mockup .menu), anchored under the trigger. */
 function AndroidDrop({ icon, label, items, color, size, style }: DropProps) {
   const th = useTheme();
   const [open, setOpen] = useState(false);

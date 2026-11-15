@@ -1,4 +1,4 @@
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { DateChip, TimeChip } from "@/components/pick";
@@ -13,7 +13,7 @@ import { DropMenu } from "@/components/menu";
 import { RichText } from "@/components/richtext";
 import { apply, liveEdit, retime, moveMine, removeScope, type Result } from "@/lib/apply";
 import { t } from "@/lib/i18n";
-import { leftSaved, setFlash } from "@/lib/flash";
+import { leftSaved, openedOnDay, setFlash } from "@/lib/flash";
 import { allTasks, loadModel } from "@/lib/store";
 import { KIND_VI, reasonText } from "@/lib/reasons";
 import { useTheme, type TypeName, font, space, ff } from "@/lib/theme";
@@ -59,6 +59,8 @@ export default function Detail() {
     const n = Date.now();
     setPlc(id ? (await loadModel(n)).placed[id] : undefined);
     if (!x || x.deletedAt) { if (router.canGoBack()) router.back(); else router.replace("/"); return; } // opened from a stale widget or notification, or synced away
+    const on = x.start ?? x.deadline;
+    if (on !== undefined) openedOnDay(on);
     setNow(n); setTask(x); setExam(x?.forId ? all.find((y) => y.id === x.forId) : undefined);
     setSits(all.filter((y) => y.parentId === (x.parentId ?? x.id) && !y.deletedAt).sort((a, b) => (a.start ?? Infinity) - (b.start ?? Infinity)));
     // A reload after a save must not wipe what is still being typed in another field: only untouched fields take the stored value.
@@ -67,7 +69,8 @@ export default function Detail() {
     if (first || latest.current === saved.current) { setNote(x?.note ?? ""); saved.current = latest.current = x?.note ?? ""; }
     if (first || p.loc === (p.task?.location ?? "")) setLoc(x?.location ?? "");
   }, [id]);
-  useEffect(() => { void Promise.resolve().then(load); }, [load]);
+  // on every focus, not only the first: back from a sitting deleted on its own screen drops it from "Các buổi" here
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
   // The open time or due line: every value is saved as it settles (liveEdit), so a tap outside only closes the line.
   const edBox = useRef<Box>(null);
   useTapOutside(edBox, ed === "time" || ed === "due", () => { setEd(undefined); void load(); }); // a dropdown open over it takes its own taps
@@ -106,12 +109,17 @@ export default function Detail() {
 
   if (!task) return <SafeAreaView style={{ flex: 1, backgroundColor: th.bg }} />;
   const type: TypeName = typeOf(task);
-  const series = !!(task.section || task.rrule || task.parentId);
+  // A split task's time line is its next open sitting's, and edits that sitting; a task with no time yet (no free slot) can be given one by hand.
+  const split = !task.parentId && sits.length > 0;
+  const tt = split ? sits.find((k) => !k.doneAt) : task;
+  const series = !!(task.section || task.rrule || task.parentId || split);
   const at = (ts: number) => when(ts, now);
 
+  // A split task deletes from its next open sitting, as its time line edits it: "this" is that sitting, "all" every one.
   const del = once(async (scope: Scope) => {
-    const r: Result = await removeScope(task.id, scope);
-    const sub = scope === "all" ? t("goneAll") : scope === "following" ? t("goneFrom", { d: task.start ? dayLabel(task.start) : "" }) : task.start ? at(task.start) : undefined;
+    const x = (split && tt) || task;
+    const r: Result = await removeScope(x.id, scope);
+    const sub = scope === "all" ? t("goneAll") : scope === "following" ? t("goneFrom", { d: x.start ? dayLabel(x.start) : "" }) : x.start ? at(x.start) : undefined;
     setFlash({ text: r.toast, sub, r });
     router.back();
   });
@@ -122,9 +130,6 @@ export default function Detail() {
   };
 
   const mine = task.source !== "dlu" && !task.forId;
-  // A split task's time line is its next open sitting's, and edits that sitting; a task with no time yet (no free slot) can be given one by hand.
-  const split = !task.parentId && sits.length > 0;
-  const tt = split ? sits.find((k) => !k.doneAt) : task;
   const canTime = !!tt && (task.fixed ? task.fixed === "busy" && mine && task.start !== undefined : true);
   const hasDue = mine && !task.fixed && !task.rrule && task.deadline !== undefined;
   // Each settled value is saved at once; the re-plan runs half a second after the last one (lib/apply liveEdit), then the screen reloads.
@@ -156,11 +161,11 @@ export default function Detail() {
   const defaultDue = () => { const d = new Date(now); d.setHours(23, 59, 0, 0); setDv(d.getTime()); setEd("due"); };
   const link = /^https?:\/\/\S+$/i.test(task.location ?? "") ? task.location! : undefined;
   const more = () => [
-    ...(mine && !task.fixed && !task.rrule && task.deadline === undefined ? [{ label: t("setDue"), onPress: defaultDue }] : []),
-    ...(mine && !task.location && ed !== "place" ? [{ label: t("addPlace"), onPress: () => setEd("place") }] : []),
-    ...(mine && link && ed !== "place" ? [{ label: t("editPlace"), onPress: () => setEd("place") }] : []),
+    ...(mine && !task.fixed && !task.rrule && task.deadline === undefined ? [{ label: t("setDue"), icon: "hourglass" as const, onPress: defaultDue }] : []),
+    ...(mine && !task.location && ed !== "place" ? [{ label: t("addPlace"), icon: "place" as const, onPress: () => setEd("place") }] : []),
+    ...(mine && link && ed !== "place" ? [{ label: t("editPlace"), icon: "pencil" as const, onPress: () => setEd("place") }] : []),
     // A fixed block is the user's own time: zen never offers to plan it, nor says why it is there.
-    ...(mine && !task.fixed && task.userEdited?.includes("start") ? [{ label: t("zenReplan"), onPress: once(async () => {
+    ...(mine && !task.fixed && task.userEdited?.includes("start") ? [{ label: t("zenReplan"), icon: "sync" as const, onPress: once(async () => {
       const r: Result = await moveMine(task.id);
       setFlash({ text: r.toast, sub: r.sub, r });
       router.back();
@@ -241,9 +246,9 @@ export default function Detail() {
             {series ? (
               <View style={danger}>
                 <DropMenu sf="trash" color={th.seal} size={20} icon={<Gly name="trash" size={20} color={th.seal} />} items={[
-                  { label: t("deleteThis"), onPress: () => del("this") },
-                  { label: t("deleteFollowing"), onPress: () => del("following") },
-                  { label: t("deleteAll"), destructive: true, onPress: () => del("all") },
+                  { label: t("deleteThis"), icon: "minus", onPress: () => del("this") },
+                  { label: t("deleteFollowing"), icon: "toEnd", onPress: () => del("following") },
+                  { label: t("deleteAll"), icon: "trash", destructive: true, onPress: () => del("all") },
                 ]} />
               </View>
             ) : (
@@ -255,7 +260,7 @@ export default function Detail() {
             <View style={s.sw}><TypeArt type={type} w={40} h={40} seed={7} /></View>
             {mine && !task.fixed ? (
               <DropMenu chevron label={t("youKind", { k: cap(KIND_VI[task.kind]) })} color={th.muted} size={font.md} icon={<View style={s.kd}><Text style={[s.sub, { color: th.muted }]}>{t("youKind", { k: cap(KIND_VI[task.kind]) })}</Text><Icon name="down" size={14} color={th.muted} /></View>}
-                items={KINDS.map((k) => ({ label: cap(KIND_VI[k]), onPress: () => void apply([{ op: "edit", target: task.id, kind: k }]).then(load) }))} />
+                items={KINDS.map((k) => ({ label: cap(KIND_VI[k]), icon: k, onPress: () => void apply([{ op: "edit", target: task.id, kind: k }]).then(load) }))} />
             ) : (
               <Text style={[s.sub, { color: th.muted }]}>{task.source === "dlu" && !task.forId ? (task.fixed ? t("fromCampus") : t("fromLms")) : mine && task.fixed === "busy" ? t("youKind", { k: t("fixedTime") }) : t("fromYou")}</Text>
             )}

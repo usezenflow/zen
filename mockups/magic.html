@@ -165,7 +165,7 @@ const whyCold = `${dtop}
 const back = `${head("T3", "17/11", "3 việc, 1 tiết học")}${tabs("Ngày")}
   <div class="lab" style="margin-top:28px">Hôm nay</div>
   <div class="list" style="margin-top:6px">${row("13:30", "Tiết bù Mạng máy tính", "lecture", "B1.201")}${row("16:30", "Ôn Giải tích", "plan", moved("T3 14:00"), "lift")}${row("20:00", "Đọc sách mỗi tối", "plan", "Buổi tối")}</div>
-  ${menu([["Để lại T3 14:00"], ["Giờ khác: T3 19:00"], ["Đừng dời việc này nữa"]], 396, 18)}`;
+  ${menu([["Để lại T3 14:00", "undo"], ["Giờ khác: T3 19:00", "clock"], ["Đừng dời việc này nữa", "pushpin"]], 396, "c")}`;
 
 // 9. Heads up: a due date the plan cannot meet; each pill pushes one other flexible task past that due date.
 const heads = `${head("T4", "18/11", "3 việc, 1 tiết học")}${tabs("Ngày")}
@@ -369,7 +369,7 @@ const early = toast("Xong sớm 25p", "Bớt 15p ở các buổi sau", [["Hoàn 
 const need = `${head("T4", "18/11", "3 việc, 1 tiết học")}${tabs("Ngày")}
   <div class="lab" style="margin-top:28px">Hôm nay</div>
   <div class="list" style="margin-top:6px">${row("7:00", "Cấu trúc dữ liệu", "lecture", "A2.301")}${row("19:00", "Luyện đề", "plan", `Buổi 5/10 · ${GT}`, "lift")}${row("21:00", "Đọc sách mỗi tối", "plan")}</div>
-  ${menu([["Cần thêm một buổi"], ["Bớt một buổi"], ["Đừng dời việc này nữa"], ...DEL], 300, 18)}`;
+  ${menu([["Cần thêm một buổi"], ["Bớt một buổi"], ["Đừng dời việc này nữa"], ...DEL], 300, "c")}`;
 const needDone = toast("Thêm một buổi Luyện đề", "T6 14:00", [["Hoàn tác"]]) + prepDay.replace(`Buổi 5/10 · ${GT}`, `Buổi 5/11 · ${GT}`);
 const less = toast("Ôn ít hơn: 9h, 8 buổi", GTX, [["Hoàn tác"]]) + prepDetail("9h, 8 buổi");
 const remembered = `${dtop}${mine}

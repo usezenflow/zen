@@ -63,12 +63,13 @@
 .si.me .d { color: var(--ink); font-weight: 600; }
 /* The dial: zen's own small drum, dropped from the time chip like a menu (same frosted card), floating over the page.
    Five rows of 36px, the middle one in a chip band; rows fade and tilt away. Minutes step 00/15/30/45; a light tick per row. */
-.dial { min-width: 224px; padding: 10px 12px; } /* three rows; wide enough that the pills keep 12px from the edge */
+.dial { width: 168px; padding: 10px 12px; } /* just past the drums; the presets wrap two to a line */
 /* Presets: one tap picks and closes. The calendar's sit over the month, the dial's under the drums. */
 .pre, .meta .att .pre { display: flex; gap: 6px; justify-content: center; }
 .pre span { height: 30px; padding: 0 10px; border-radius: 99px; background: var(--chip); display: grid; place-items: center; font-size: 14px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .cal .pre { justify-content: flex-start; padding: 0 4px 12px; }
-.dial .pre { padding: 8px 0 0; }
+.dial .pre { padding: 8px 0 0; flex-wrap: wrap; }
+.dial .pre span { width: calc(50% - 3px); padding: 0; }
 .wh { position: relative; display: flex; justify-content: center; gap: 4px; height: 108px; overflow: hidden;
   -webkit-mask: linear-gradient(transparent, #000 32%, #000 68%, transparent); mask: linear-gradient(transparent, #000 32%, #000 68%, transparent); }
 .wh::before { content: ""; position: absolute; left: 0; right: 0; top: 36px; height: 36px; border-radius: 9px; background: rgba(0,0,0,.06); }
@@ -151,7 +152,7 @@ const pk = (t, on, drop = "", side = "r") => `<span class="pk ${on ? "on" : ""}"
 const wcol = (vals) => `<div class="col">${vals.map((v, i) => `<span class="${["n1", "on", "p1"][i]}">${v}</span>`).join("")}</div>`;
 // The time dial drops from its chip: pos is the card's top and left or right, in device px.
 const pre = (xs) => `<div class="pre">${xs.map((x) => `<span>${x}</span>`).join("")}</div>`;
-const TPRE = ["8:00", "14:00", "20:00"], DPRE = ["23:59", "0:00"]; // a start's usual morning, afternoon, evening; a due's before midnight and midnight
+const TPRE = ["8:00", "14:00", "17:00", "20:00"], DPRE = ["23:59", "0:00"]; // a start's usual morning, afternoon, after class, evening; a due's before midnight and midnight
 const dialCard = (h, m, mins = MINS(m), ps = TPRE) => `<div class="menu dial"><div class="wh">${wcol(HOURS(h))}<span class="sep">:</span>${wcol(mins)}</div>${pre(ps)}</div>`;
 const dial = (pos, h, m, mins) => `<div class="mscrim"></div>${dialCard(h, m, mins).replace('class="menu dial"', `class="menu dial" style="${pos}"`)}`;
 const HOURS = (h) => [h - 1, h, h + 1].map((x) => String((x + 24) % 24).padStart(2, "0"));
@@ -202,7 +203,7 @@ const rowTime = `${head("T2", "16/11", "5 việc, 1 tiết học")}${tabs("Ngày
   <div class="list" style="margin-top:6px">${row("14:30", "Ôn Giải tích", "plan")}
     <div class="r"><span class="ck"></span><div class="tx"><b>Báo cáo nhóm</b><small>Hạn 23:59</small></div><span class="tm">${pk("16:00", 1, dialCard(16, 0))}</span></div>
     ${row("17:30", "Cơ sở dữ liệu", "lecture", "", "A2.104")}</div><div class="mscrim"></div>`;
-const MORE = [["Đặt hạn"], ["Thêm địa điểm"], ["Để zen xếp lại"]];
+const MORE = [["Đặt hạn", "hourglass"], ["Thêm địa điểm", "pin"], ["Để zen xếp lại", "sync"]];
 const detailMore = detailPlain + menu(MORE, 96, 62);
 const detailDue = dt("plan", mine("Việc nhà"), "Mua pin cho chuột",
   edLine("hourglass", `${pk("T6 20/11")}${pk("23:59", 1, dialCard(23, 59, ["45", "59", ""], DPRE))}<span class="clr">Bỏ hạn</span>`, "red") + ml("clock", `Làm lúc ${when("2026-11-17", "17:00")} - 17:30`), PH, "", dtop2) + '<div class="mscrim"></div>'; // a due at 23 also offers :59, the usual "before midnight"
@@ -212,7 +213,7 @@ const detailPlace = dt("plan", mine("Việc nhà"), "Mua pin cho chuột",
 const detailLink = dt("plan", mine("Học"), "Nộp Báo cáo toàn văn và 3 mục khác",
   ml("hourglass", `Hạn ${when("2026-11-16", "23:00")}`, "red") + ml("link", `drive.google.com ${ic(I.right, 16)}`, "lk"),
   "<p>các nhóm c hướng dẫn, tạo thư mục (Nhom_TenTatDeTai) - Hạn nộp: trước 23:00 ngày 16/11/2026, các nhóm tự hoàn thiện các nội dung để nộp:</p><p>1. Báo cáo toàn văn</p><p>2. Bài báo khoa học</p><p>3. Source code + video demo sản phẩm.</p><p>4. Hướng dẫn triển khai + sử dụng phần mềm</p><p>Link nộp: https://drive.google.com/drive/folders/12mF…</p>", "", dtop2);
-const KINDS = [["Học"], ["Tập thể dục"], ["Việc nhà"], ["Gặp gỡ"], ["Việc khác"]];
+const KINDS = [["Học", "study"], ["Tập thể dục", "exercise"], ["Việc nhà", "chores"], ["Gặp gỡ", "social"], ["Việc khác", "other"]];
 const detailKind = dt("plan", mine("Việc khác"), "Ôn từ vựng", ml("clock", `Làm lúc ${when("2026-11-17", "20:00")} - 20:30`), PH, "", dtop2) + menu(KINDS, 172, 84);
 const detailBusy = dt("busy", "Việc của bạn · Giờ cố định", "Đi gym", ml("clock", `${when("2026-11-18", "18:00")} - 19:00`) + ml("repeat", "Mỗi tuần vào T4"), PH, "", dtop2);
 const detailLmsTime = dt("assignment", "Từ LMS", "Bài tập lớn: Quản lý sinh viên",
@@ -384,7 +385,7 @@ mount([
   { tag: "Detail, exam prep", sub: "A prep task is titled by what to do for the exam format: Viết báo cáo, Viết tiểu luận, Ôn lý thuyết, luyện đề, Luyện thực hành, Luyện vấn đáp, else Ôn thi. The subject is not in the title: it is the link here (tappable, opens the exam), and the row's small line reads Buổi 1/4 · subject (which sitting, then the subject, never the due: the exam's own row has the time). Its length follows the student's marks, in half hours; sittings are at most an hour.", html: chrome(detailPrep, { dock: null }) },
   { tag: "Detail, repeating", sub: "Only the user's own repeating task shows a repeat line. It has no end, so just Mỗi ngày. Trash opens the same three-option dropdown.", html: chrome(detailRep(menu(DEL)), { dock: null }) },
   { tag: "Detail, single task", sub: "Your own task. The tag names its kind; the time line is where Zen put it. Every line you can change is tappable, and the dots hold what the task does not have yet. Not a series: the trash deletes at once, no menu.", html: chrome(detailPlain, { dock: null }) },
-  { tag: "Detail, change the time", sub: "Tap the time line: it becomes four chips in place on one line: the start day and time, đến, the end day and time. A time chip (ringed) drops zen's small dial over the page, hours and minutes in steps of 15, with 8:00, 14:00 and 20:00 under the drums, one tap each. On today the dial runs from now to midnight: hours gone are not on the drum, the current hour starts at the next quarter, and a preset already past is greyed out; the day chip drops zen's calendar. One is open at a time. Each value is saved as it settles; Zen re-plans half a second after you stop. Moving the end changes the length, and an end before the start runs past midnight. A time you set is kept; Zen plans the rest around it.", html: chrome(detailTime, { dock: null }) },
+  { tag: "Detail, change the time", sub: "Tap the time line: it becomes four chips in place on one line: the start day and time, đến, the end day and time. A time chip (ringed) drops zen's small dial over the page, hours and minutes in steps of 15, with 8:00, 14:00, 17:00 and 20:00 under the drums, two to a line, one tap each. On today the dial runs from now to midnight: hours gone are not on the drum, the current hour starts at the next quarter, and a preset already past is greyed out; the day chip drops zen's calendar; a day picked with its time already gone (today) moves the time to the next quarter hour. One is open at a time. Each value is saved as it settles; Zen re-plans half a second after you stop. Moving the end changes the length, and an end before the start runs past midnight. A time you set is kept; Zen plans the rest around it.", html: chrome(detailTime, { dock: null }) },
   { tag: "Detail, change the day", sub: "The day chip (ringed) drops zen's own calendar from the chip, in place, never a sheet, the same on iPhone and Android. Hôm nay, Ngày mai and Tuần sau (the same weekday next week) sit over the month: one tap picks and closes. Today is vermilion, the picked day a filled vermilion circle, days before today greyed out and not tappable (in every calendar); the arrows move the month. A tap on a day saves it at once (the time stays) and closes it; Zen re-plans half a second later. ", html: chrome(detailDate, { dock: null }) },
   { tag: "Detail, past midnight", sub: "Turn the end to a time before the start (0:00 after a 23:00 start) and the end day moves to the next day by itself: the block runs 23:00 to 0:00, one hour, never minus 23. Turn it back and the end day comes back.", html: chrome(detailMidnight, { dock: null }) },
   { tag: "Detail, over several days", sub: "A trip or a camp: pick the end day in its own calendar. Days before the start day are greyed out and can't be tapped, so an end can never come before its start. Moving the start day carries the end with it, keeping the length.", html: chrome(detailDays, { dock: null }) },
@@ -397,8 +398,8 @@ mount([
   { tag: "Detail, fixed time", sub: "Something you said with an exact time is a busy block, not a plan: Zen did not choose it, so it never explains or re-plans it: no “Vì sao lúc này”, no “Để zen xếp lại”, no other good time. Its time line opens the same three chips.", html: chrome(detailBusy, { dock: null }) },
   { tag: "Detail, LMS assignment, change the time", sub: "For school items the school owns the due date, room and teacher, so those lines do not open. The planned time is Zen's, so that one does.", html: chrome(detailLmsTime, { dock: null }) },
   { tag: "Row, swipe to delete", sub: "Swipe a row right to left: a red trash bed shows behind it, a light tick at the threshold. A single task goes at once with Undo.", html: chrome(lst("swiping")) },
-  { tag: "Row, swiped series", sub: "A lecture or repeating task springs back and the same three choices drop under the row. Tap outside to cancel.", html: chrome(lst("lift") + menu(DEL, 262, 18)) },
-  { tag: "Row, long-press", sub: "Long-press a lecture or repeating-task row: it lifts and the same dropdown opens beneath it. Nothing to confirm.", html: chrome(lst("lift") + menu(DEL, 262, 18)) },
+  { tag: "Row, swiped series", sub: "A lecture or repeating task springs back and the same three choices drop under the row. Tap outside to cancel.", html: chrome(lst("lift") + menu(DEL, 262, "c")) },
+  { tag: "Row, long-press", sub: "Long-press a lecture or repeating-task row: it lifts and the same dropdown opens beneath it. Nothing to confirm.", html: chrome(lst("lift") + menu(DEL, 262, "c")) },
   { tag: "Deleted, this one", sub: "Xoá buổi này: gone at once, Undo is the safety net.", html: gone("Đã xoá Cấu trúc dữ liệu", when("2026-11-18", "7:00")) },
   { tag: "Deleted, this and later", sub: "Xoá buổi này và các buổi sau.", html: gone("Đã xoá Cấu trúc dữ liệu", `Từ ${when("2026-11-18")} trở đi`) },
   { tag: "Deleted, all", sub: "Xoá tất cả (red in the menu).", html: gone("Đã xoá tất cả Cấu trúc dữ liệu", "Mọi buổi") },

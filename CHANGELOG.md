@@ -38,8 +38,9 @@
 - Đọc được giờ dính chữ hay gõ sai: "họp nhóm9h", "lớp2 giờ", "2 giiờ chiều", "9 do sang", chữ bị tách như "t ối", "th ứ 2", "m ỗi"
 - Chọn ngày giờ mượt hơn
     - Đổi ngày lần đầu là lưu ngay, không phải chọn lại lần nữa
-    - Chọn nhanh một chạm: "Hôm nay", "Ngày mai", "Tuần sau"; giờ hạn "23:59", "0:00"; giờ làm "8:00", "14:00", "20:00"
+    - Chọn nhanh một chạm: "Hôm nay", "Ngày mai", "Tuần sau"; giờ hạn "23:59", "0:00"; giờ làm "8:00", "14:00", "17:00", "20:00"
     - Không chọn được ngày đã qua; chọn hôm nay thì giờ chỉ từ bây giờ đến hết ngày
+    - Đổi sang ngày mà giờ đã qua thì giờ tự chuyển sang 15p tới
 - Chia buổi gọn hơn
     - Buổi ôn thi và bài tập LMS dài tối đa 1h, tròn nửa tiếng (30p hoặc 60p), không còn buổi 45p
     - Việc sắp tới đã có được chia lại theo cách mới; buổi đã xong giữ nguyên, việc đã qua hạn không đổi
@@ -59,7 +60,16 @@
 - Buổi trong ngày theo cách mọi người nói: sáng đến 11h, trưa 11h-13h, chiều 13h-18h, tối 18h-22h, đêm 22h-24h
 - Giờ gọn hơn: "7:00" thay cho "07:00"
 - "Có gì mới" dài thì cuộn được, nút luôn hiện; chạm ra ngoài để đóng
-- Vòng chọn giờ gọn hơn: 3 hàng, các nút chọn nhanh không còn sát mép; giờ kết thúc luôn sau giờ bắt đầu ít nhất 15p
+- Vòng chọn giờ gọn hơn: 3 hàng, 4 nút chọn nhanh trên 2 hàng, nút rộng, chữ không sát mép; giờ kết thúc luôn sau giờ bắt đầu ít nhất 15p
+- Xoá trong "Các buổi" có đủ 3 lựa chọn: buổi này, buổi này và các buổi sau, tất cả
+- Xoá một buổi rồi quay lại, "Các buổi" cập nhật ngay, không còn buổi đã xoá
+- Chạm việc trên widget khi app đang tắt: quay lại về ngày của việc đó, không còn kẹt ở chi tiết
+- Giữ một việc
+    - Menu nằm giữa màn hình, mỗi lựa chọn có biểu tượng riêng ở bên trái
+    - Việc được nhấc nổi rõ hơn, cả khi giao diện tối
+    - Không còn mảng trắng hay đường kẻ ở việc bên dưới
+    - Vòng tròn đánh dấu xong tròn đều
+- Mọi menu đều có biểu tượng, mỗi lựa chọn một biểu tượng khác nhau
 
 ## 26.0.0
 

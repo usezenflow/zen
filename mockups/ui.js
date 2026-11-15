@@ -99,8 +99,24 @@ const VIZ = (mode, lv = [0.4, 0.75, 1, 0.65, 0.35], lit = 2) => `<div class="vba
 }).join("")}</div>`;
 
 // Text-only rows; the panel fits its longest label.
-const menu = (items, top = 96, right = 18) => `<div class="mscrim"></div><div class="menu" style="top:${top}px;right:${right}px">${items.map(([t, , red]) => `<div class="mi ${red ? "red" : ""}">${t}</div>`).join("")}</div>`;
-const DEL = [["Xoá buổi này"], ["Xoá buổi này và các buổi sau"], ["Xoá tất cả", "", 1]];
+// Menu-row icons (src/components/icons.tsx): each action its own, no two deletes share the bin; place is I.pin, the rest from I.
+const MI = {
+  minus: '<circle cx="12" cy="12" r="8.5"/><path d="M8.5 12h7"/>',
+  toEnd: '<path d="M4 12h12M12 7l5 5-5 5M20 5v14"/>',
+  undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+  pushpin: '<path d="M9 4h6l-1 6 3 3H7l3-3-1-6Z"/><path d="M12 13v7"/>',
+  pinOff: '<path d="M9 4h6l-1 6 3 3H7l3-3-1-6Z"/><path d="M12 13v7M4 4l16 16"/>',
+  pencil: '<path d="M4 20h4L19 9l-4-4L4 16Z"/><path d="M13.5 6.5l4 4"/>',
+  image: '<rect x="3.5" y="4.5" width="17" height="15" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M4 17l5-4.5 4 3.5 3-2.5 4 3.5"/>',
+  study: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5Z"/><path d="M4 19.5V22h16"/>',
+  exercise: '<path d="M6.5 6.5v11M17.5 6.5v11M3 9.5v5M21 9.5v5M6.5 12h11"/>',
+  chores: '<path d="M3 21h18M5 21V9l7-6 7 6v12"/><path d="M9 21v-6h6v6"/>',
+  social: '<circle cx="9" cy="8" r="3.5"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20a6 6 0 0 1 12 0M15 20a4 4 0 0 1 6 0"/>',
+  other: '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>',
+};
+// right "c": a row's menu, centred on the screen. Each item: [label, icon, red]; the icon leads.
+const menu = (items, top = 96, right = 18) => `<div class="mscrim"></div><div class="menu" style="top:${top}px;${right === "c" ? "left:50%;transform:translateX(-50%)" : `right:${right}px`}">${items.map(([t, i, red]) => `<div class="mi ${red ? "red" : ""}">${i ? ic(MI[i] ?? I[i]) : ""}<span>${t}</span></div>`).join("")}</div>`;
+const DEL = [["Xoá buổi này", "minus"], ["Xoá buổi này và các buổi sau", "toEnd"], ["Xoá tất cả", "trash", 1]];
 
 function mount(frames) {
   document.querySelector(".gallery").innerHTML = frames.map((f) => `<div class="frame"><div class="cap"><b>${f.tag}</b><span>${f.sub}</span></div><div class="device${f.dark ? " dark" : ""}"><div class="island"></div>${f.html}</div></div>`).join("");

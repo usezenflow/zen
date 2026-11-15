@@ -271,7 +271,7 @@ export function Found({ tasks, q: raw, now, ...act }: RowActions & { tasks: Task
         <View key={g.day}>
           <Text style={[s.lab, { color: th.muted, marginTop: k ? 24 : got ? 22 : 28 }]}>{g.day === today ? t("today") : dayLabel(g.day)}</Text>
           <View style={{ marginTop: 6 }}>{g.xs.map((x, i) => (
-            <Row key={x.id} task={x} now={now} first={i === 0} done={!live(x)} hl={q} sub={subFor(x)} lifted={act.lifted === x.id} onHold={act.itemsFor(x).length ? (b, t) => act.onHold(x, b, t) : undefined} onDelete={() => act.onSwipeDelete(x)} onSeries={(b, t) => act.onSwipeDelete(x, b, t)} onToggle={() => act.onToggle(x)} onTitle={(v) => act.onTitle(x, v)} onTime={(a) => act.onTime(x, a)} onOpen={() => act.onOpen(x)} />
+            <Row key={x.id} task={x} now={now} first={i === 0 || g.xs[i - 1].id === act.lifted} done={!live(x)} hl={q} sub={subFor(x)} lifted={act.lifted === x.id} onHold={act.itemsFor(x).length ? (b, t) => act.onHold(x, b, t) : undefined} onDelete={() => act.onSwipeDelete(x)} onSeries={(b, t) => act.onSwipeDelete(x, b, t)} onToggle={() => act.onToggle(x)} onTitle={(v) => act.onTitle(x, v)} onTime={(a) => act.onTime(x, a)} onOpen={() => act.onOpen(x)} />
           ))}</View>
         </View>
       ))}
@@ -318,11 +318,12 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
     .flatMap((p) => tasks.filter((x) => x.parentId === p && live(x) && x.start !== undefined && x.start >= end).sort((a, b) => a.start! - b.start!).slice(0, 1));
   const sitDay = later.length ? startOfDay(Math.min(...later.map((x) => x.start!))) : undefined;
   const sits = sitDay === undefined ? [] : later.filter((x) => startOfDay(x.start!) === sitDay).sort((a, b) => a.start! - b.start!);
-  const row = (x: Task, i: number, d = false, g?: Move) => <Row key={x.id} task={x} now={now} tm={carried(x, day, t("allDay"), t("toWord"))} first={i === 0} done={d || !live(x)} trail={g ? undefined : trail[x.id]} sub={g ? t("ghostTo", { when: when(g.to, now) }) : x.forId ? subOf(x, "plan", now, tasks) : reason[x.id]} ghost={!!g} lifted={act.lifted === x.id} onHold={g || !act.itemsFor(x).length ? undefined : (b, t) => act.onHold(x, b, t)} onDelete={g ? undefined : () => act.onSwipeDelete(x)} onSeries={(b, t) => act.onSwipeDelete(x, b, t)} onToggle={() => act.onToggle(x)} onTitle={(v) => act.onTitle(x, v)} onTime={(a) => act.onTime(x, a)} onOpen={() => act.onOpen(x)} />;
+  // a row under the lifted one drops its separator: the line would cut across the raised card
+  const row = (x: Task, i: number, d = false, g?: Move, prev?: Task) => <Row key={x.id} task={x} now={now} tm={carried(x, day, t("allDay"), t("toWord"))} first={i === 0 || prev?.id === act.lifted} done={d || !live(x)} trail={g ? undefined : trail[x.id]} sub={g ? t("ghostTo", { when: when(g.to, now) }) : x.forId ? subOf(x, "plan", now, tasks) : reason[x.id]} ghost={!!g} lifted={act.lifted === x.id} onHold={g || !act.itemsFor(x).length ? undefined : (b, t) => act.onHold(x, b, t)} onDelete={g ? undefined : () => act.onSwipeDelete(x)} onSeries={(b, t) => act.onSwipeDelete(x, b, t)} onToggle={() => act.onToggle(x)} onTitle={(v) => act.onTitle(x, v)} onTime={(a) => act.onTime(x, a)} onOpen={() => act.onOpen(x)} />;
   const rowAt = ({ x, g }: (typeof rows)[number], i: number) => (
           // Wrapper outside the row's HoldMenu: inserts, moves to Done, undo and re-sorts glide instead of jumping. A moved row arrives with a lift.
           <Animated.View key={g ? `g${x.id}` : x.id} entering={trail[x.id] && !g ? FadeInUp.duration(220).easing(EASE) : fadeIn} exiting={fadeOut} layout={glide}>
-            {row(x, i, false, g)}
+            {row(x, i, false, g, rows[i - 1]?.x)}
             {overlaps.filter((o) => (o.mine.start! >= o.fixed.start! ? o.mine.id : o.fixed.id) === x.id).map((o) => (
               <Animated.View key={o.mine.id + o.fixed.id} entering={FadeInDown.duration(220).easing(EASE)} exiting={fadeOut} layout={glide} style={[s.warn, { borderColor: th.seal }]}>
                 <Text style={[s.wt, { color: th.seal }]}>{t("clash")}</Text>
@@ -381,7 +382,7 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
             <>
               <Text style={[s.lab, { color: th.muted, marginTop: empty === "week" ? 24 : 28 }]}>{next.lab}</Text>
               <View style={{ marginTop: 6 }}>{next.xs.map((x, i) => (
-                <Row key={x.id} task={x} now={now} first={i === 0} done={false} sub={next.dated ? soonSub(x, now, tasks) : x.forId ? subOf(x, "plan", now, tasks) : undefined} lifted={act.lifted === x.id} onHold={act.itemsFor(x).length ? (b, t) => act.onHold(x, b, t) : undefined} onDelete={() => act.onSwipeDelete(x)} onSeries={(b, t) => act.onSwipeDelete(x, b, t)} onToggle={() => act.onToggle(x)} onTitle={(v) => act.onTitle(x, v)} onTime={(a) => act.onTime(x, a)} onOpen={() => act.onOpen(x)} />
+                <Row key={x.id} task={x} now={now} first={i === 0 || next.xs[i - 1].id === act.lifted} done={false} sub={next.dated ? soonSub(x, now, tasks) : x.forId ? subOf(x, "plan", now, tasks) : undefined} lifted={act.lifted === x.id} onHold={act.itemsFor(x).length ? (b, t) => act.onHold(x, b, t) : undefined} onDelete={() => act.onSwipeDelete(x)} onSeries={(b, t) => act.onSwipeDelete(x, b, t)} onToggle={() => act.onToggle(x)} onTitle={(v) => act.onTitle(x, v)} onTime={(a) => act.onTime(x, a)} onOpen={() => act.onOpen(x)} />
               ))}</View>
             </>
           )}
@@ -390,7 +391,7 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
       {sits.length > 0 && (
         <Animated.View entering={fadeIn} exiting={fadeOut} layout={glide}>
           <Text style={[s.lab, { color: th.muted, marginTop: 28 }]}>{dayName(sits[0].start!, now)}</Text>
-          <View style={{ marginTop: 6 }}>{sits.map((x, i) => row(x, i))}</View>
+          <View style={{ marginTop: 6 }}>{sits.map((x, i) => row(x, i, false, undefined, sits[i - 1]))}</View>
         </Animated.View>
       )}
       {done.length > 0 && (
@@ -401,7 +402,7 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
           </Tap>
         </Animated.View>
       )}
-      {open && done.map((x, i) => <Animated.View key={x.id} entering={fadeIn} exiting={fadeOut} layout={glide}>{row(x, i, true)}</Animated.View>)}
+      {open && done.map((x, i) => <Animated.View key={x.id} entering={fadeIn} exiting={fadeOut} layout={glide}>{row(x, i, true, undefined, done[i - 1])}</Animated.View>)}
     </View>
   );
 }

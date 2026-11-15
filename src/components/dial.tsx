@@ -12,11 +12,12 @@ import { ff, useTheme } from "@/lib/theme";
 // views.html .dial: zen's small time drum dropped from its chip like a menu. Five 36px rows, the middle one in a band; minutes step 15.
 // Three rows: with five, the hours before today's first (or an end's start) left blank rows above the band.
 const ROW = 36, SHOW = 3, COL = 52, SEP = 16, PADX = 12, PADY = 10, BANDX = 12; // BANDX: the band reaches past the digits on both sides
-const PRE = 42; // the preset row: views.html .pre, one tap picks and closes
+const PRE = 42, PILL = 30, GAP = 6; // the preset row: views.html .pre, one tap picks and closes
 const W = 2 * COL + SEP + 2 * PADX, H = SHOW * ROW + 2 * PADY;
-const TW = 224, TH = H + PRE; // the dial with its presets: wide enough for three pills inside PADX
-// A start's usual morning, afternoon, evening; a due's before midnight and midnight.
-const TPRE: [number, number][] = [[8, 0], [14, 0], [20, 0]], DPRE: [number, number][] = [[23, 59], [0, 0]];
+const TW = 168; // just past the drums: two presets to a line, each time centred with room on both sides
+// A start's usual morning, afternoon, after class, evening; a due's before midnight and midnight.
+const TPRE: [number, number][] = [[8, 0], [14, 0], [17, 0], [20, 0]], DPRE: [number, number][] = [[23, 59], [0, 0]];
+const TH = (n: number) => H + PRE + (Math.ceil(n / 2) - 1) * (PILL + GAP);
 const HOURS = Array.from({ length: 24 }, (_, i) => i), MINUTES = [0, 15, 30, 45];
 const pad = (n: number) => String(n).padStart(2, "0");
 const tick = () => { Haptics.selectionAsync().catch(() => {}); };
@@ -24,13 +25,13 @@ const tick = () => { Haptics.selectionAsync().catch(() => {}); };
 export type Anchor = { x: number; y: number; w: number; h: number };
 
 /** A row of preset pills (views.html .pre). */
-function Presets({ items, style }: { items: { label: string; off?: boolean; onPress: () => void }[]; style?: object }) {
+function Presets({ items, style, pill }: { items: { label: string; off?: boolean; onPress: () => void }[]; style?: object; pill?: object }) {
   const th = useTheme();
   return (
     <View style={[s.pre, style]}>
       {items.map((x) => (
-        <Pressable key={x.label} disabled={x.off} onPress={x.onPress} accessibilityRole="button" accessibilityLabel={x.label} style={[s.pill, { backgroundColor: th.chip }, x.off && { opacity: 0.4 }]}>
-          <Text style={[s.pt, { color: th.ink }]}>{x.label}</Text>
+        <Pressable key={x.label} disabled={x.off} onPress={x.onPress} accessibilityRole="button" accessibilityLabel={x.label} style={[s.pill, pill, { backgroundColor: th.chip }, x.off && { opacity: 0.4 }]}>
+          <Text style={[s.pt, { color: th.ink }]} numberOfLines={1}>{x.label}</Text>
         </Pressable>
       ))}
     </View>
@@ -148,7 +149,7 @@ function Clock({ value, due, min, onChange, onClose }: { value: Date; due?: bool
         {/* keyed by its minutes: gaining or losing :59, or today's first hour, starts the drum again on the current minute */}
         <Drum key={mins.join()} values={mins} start={Math.max(0, mins.indexOf(at.current.m))} onPick={(v) => set("m", v)} />
       </View>
-      <Presets style={{ paddingTop: 8 }} items={(due ? DPRE : TPRE).map(([h, m]) => ({ label: `${h}:${pad(m)}`, off: gone(h, m), onPress: () => { const d = new Date(value); d.setHours(h, m, 0, 0); onChange(d); onClose(); } }))} />
+      <Presets style={s.dpre} pill={s.dpill} items={(due ? DPRE : TPRE).map(([h, m]) => ({ label: `${h}:${pad(m)}`, off: gone(h, m), onPress: () => { const d = new Date(value); d.setHours(h, m, 0, 0); onChange(d); onClose(); } }))} />
     </View>
   );
 }
@@ -156,7 +157,7 @@ function Clock({ value, due, min, onChange, onClose }: { value: Date; due?: bool
 /** The time dial under `anchor` (from measureInWindow). Each settled drum calls `onChange`; a tap outside closes. */
 export function TimeDial({ open, anchor, value, due, min, side = "right", onChange, onClose }: { open: boolean; anchor?: Anchor; value: Date; due?: boolean; min?: Date; side?: "left" | "right"; onChange: (d: Date) => void; onClose: () => void }) {
   if (!open || !anchor) return null;
-  return <Drop anchor={anchor} w={TW} h={TH} side={side} onClose={onClose}><Clock value={value} due={due} min={min} onChange={onChange} onClose={onClose} /></Drop>;
+  return <Drop anchor={anchor} w={TW} h={TH((due ? DPRE : TPRE).length)} side={side} onClose={onClose}><Clock value={value} due={due} min={min} onChange={onChange} onClose={onClose} /></Drop>;
 }
 
 // views.html .cal: the month, Monday first, six weeks. Today vermilion, the picked day a filled vermilion circle, days before today or `min` greyed out.
@@ -206,7 +207,8 @@ export function DateDrop({ open, anchor, value, min, side = "left", onChange, on
   if (!open || !anchor) return null;
   return (
     <Drop anchor={anchor} w={CW} h={CH} side={side} onClose={onClose}>
-      <Month value={value} min={min} onPick={(d) => { const n = new Date(value); n.setFullYear(d.getFullYear(), d.getMonth(), d.getDate()); onChange(n); onClose(); }} />
+      {/* a day whose time is already gone (today) takes the next quarter hour, as the dial does */}
+      <Month value={value} min={min} onPick={(d) => { const n = new Date(value); n.setFullYear(d.getFullYear(), d.getMonth(), d.getDate()); onChange(new Date(Math.max(n.getTime(), Math.ceil(Date.now() / 900_000) * 900_000))); onClose(); }} />
     </Drop>
   );
 }
@@ -226,8 +228,10 @@ const s = StyleSheet.create({
   dot: { width: CELL, height: CELL, borderRadius: CELL / 2, alignItems: "center", justifyContent: "center" },
   dn: { fontSize: 17, fontFamily: ff("500"), fontVariant: ["tabular-nums"] },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "center" },
-  pre: { flexDirection: "row", gap: 6, justifyContent: "center" },
-  pill: { height: 30, paddingHorizontal: 10, borderRadius: 99, alignItems: "center", justifyContent: "center" },
+  pre: { flexDirection: "row", gap: GAP, justifyContent: "center" },
+  dpre: { paddingTop: 8, flexWrap: "wrap" },
+  dpill: { width: (TW - 2 * PADX - GAP) / 2, paddingHorizontal: 0 }, // two to a line, the time centred
+  pill: { height: PILL, paddingHorizontal: 10, borderRadius: 99, alignItems: "center", justifyContent: "center" },
   pt: { fontSize: 14, fontFamily: ff("600"), fontVariant: ["tabular-nums"] },
   cell: { height: ROW, alignItems: "center", justifyContent: "center" },
   num: { fontSize: 20, fontFamily: ff("600"), fontVariant: ["tabular-nums"] },

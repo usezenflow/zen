@@ -19,6 +19,9 @@ Notifications.setNotificationHandler({ handleNotification: async () => ({ should
 SplashScreen.preventAutoHideAsync();
 SplashScreen.setOptions({ duration: 300, fade: true });
 
+// A widget or link opening a task cold still has Home under it, so back has somewhere to go.
+export const unstable_settings = { initialRouteName: "index" };
+
 export default function Layout() {
   const [ready, setReady] = useState(false);
   const dark = useColorScheme() === "dark"; // follows the in-app theme override too
