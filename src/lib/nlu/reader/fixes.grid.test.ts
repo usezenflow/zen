@@ -21,30 +21,10 @@ const acts = (s: string, ref: WC = SUN) => items(s, ref).map(itemAction);
 const check = (rows: [string, unknown, unknown][]) =>
   expect(rows.filter(([, got, want]) => JSON.stringify(got) !== JSON.stringify(want)).map(([s, g, w]) => `${s}: got ${JSON.stringify(g)} want ${JSON.stringify(w)}`)).toEqual([]);
 
-describe("grid: commands need their words with accents and a strong match", () => {
+describe("grid: notes", () => {
   const now = new Date("2026-11-15T03:00:00Z");
-  const tasks = [{ id: "a", title: "Báo cáo nhóm" }, { id: "b", title: "Tài liệu môn web" }, { id: "c", title: "Đề cương" }, { id: "d", title: "Họp phòng 302" }];
-  it("each verb, accented or typed bare, acts on the task it names", () => {
-    const rows: [string, unknown, unknown][] = [];
-    for (const [verbs, op] of [[["xoá", "xóa", "xoa", "huỷ", "hủy", "huy", "bỏ", "bo"], "delete"], [["xong", "hoàn thành", "hoan thanh"], "done"]] as const)
-      for (const v of verbs) for (const t of tasks) { const s = `${v} ${t.title.toLowerCase()}`; rows.push([s, think(s, now, tasks).map((a) => [a.op, a.target]), [[op, t.id]]]); }
-    check(rows);
-  });
-  it("a look-alike word, a weak match or a due time is a create", () => {
-    const rows: [string, unknown, unknown][] = [];
-    const creates = [
-      "bổ sung tài liệu môn web mai", "bỗ sung tài liệu môn web", "đề cương nộp vào thứ 6", "đề cương nộp sang tuần", "dọn phòng tối nay", "dọn phòng 302 tối nay", "để sách lên phòng tối nay",
-      "dời lịch tối nay", "hoàn thành báo cáo môn toán trước thứ 6", "hoàn thành báo cáo nhóm trước thứ 6", "hoàn thành báo cáo nhóm vào thứ 6", "hoàn thành tài liệu môn web hạn mai",
-    ];
-    for (const s of creates) rows.push([s, think(s, now, tasks).every((a) => a.op === "create") && think(s, now, tasks).length > 0, true]);
-    // a command whose words name no task is not understood, not a guess at the nearest one
-    for (const s of ["xong báo cáo môn toán thứ 6", "xoá họp lớp", "xong tài liệu môn toán", "xong báo cáo môn toán"]) rows.push([s, think(s, now, tasks), []]);
-    // a short name the title holds whole still names it
-    for (const [s, id] of [["xong báo cáo rồi", "a"], ["xong tài liệu", "b"], ["xoá họp 302 đi", "d"]]) rows.push([s, think(s, now, tasks).map((a) => a.target), [id]]);
-    check(rows);
-  });
   it("a note keeps every line", () => {
-    expect(think("ghi chú: dòng 1\ndòng 2", now, tasks)).toEqual([{ op: "note", title: "dòng 1\ndòng 2" }]);
+    expect(think("ghi chú: dòng 1\ndòng 2", now)).toEqual([{ op: "note", title: "dòng 1\ndòng 2" }]);
   });
 });
 

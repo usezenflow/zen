@@ -334,20 +334,16 @@ export default function Home() {
         if (view === "rhythm") { say(t("ruleHuh"), undefined, { sub: t("ruleHuhSub") }); return; }
       }
       const all = await store.allTasks();
-      const ctx = all.filter((x) => !x.doneAt && !x.deletedAt && !x.parentId)
-        .sort((a, b) => (a.start ?? Infinity) - (b.start ?? Infinity))
-        .map((x) => ({ id: x.id, title: x.title, start: x.start }));
       const nowD = new Date();
       // What the reader cannot know from the words: the timetable, what this user usually saves per title, and the marks.
       const old = JSON.parse((await store.kvGet("nlu.committed").catch(() => null)) ?? "[]");
       const extra = { calendar: calendarOf(all, nowD.getTime()), affinity: affinityOf((await getMarks().catch(() => null))?.marks ?? []), prior: personalPrior(old), alternatives };
       const source = via === "voice" ? "voice" : via === "photo" || via === "scan" ? "ocr" : via === "pdf" ? "paste" : "typed"; // ocr and paste: the reader reads a notice's lines and tables as such
-      const actions = think(text, nowD, ctx, source, extra);
+      const actions = think(text, nowD, source, extra);
       // dev only: what the recognizer wrote and what was read from it, so a wrong day can be traced to its transcript
       if (__DEV__) console.log("[heard]", JSON.stringify({ via, text, alternatives, actions, readErrors }));
       const read = actions.some((a) => a.op === "create") ? readFull(text, nowD, source, { ...extra, alternatives: undefined }) : undefined; // offsets in the notes point into this transcript, not a winning alternative
       const notes = read ? readNotes(text, read) : {};
-      if (!actions.length) return via === "photo" ? nothing("photo") : via === "pdf" || via === "scan" ? nothing("pdf") : say(t("huh"), undefined, { sub: t("huhSub") }); // a command naming no task we know
       const now = nowD.getTime();
       const r = await apply(actions, now);
       if (read?.items.length) store.kvSet("nlu.committed", JSON.stringify(committedRows(read.items, old))).catch(() => {});

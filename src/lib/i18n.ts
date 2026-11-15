@@ -73,8 +73,6 @@ const S = {
   micFail: "Không ghi âm được",
   heardNothing: "Chưa nghe thấy gì",
   heardNothingSub: "Giữ nút, nói rồi mới thả tay",
-  huh: "Mình chưa hiểu câu này",
-  huhSub: "Nói gần đúng tên việc, ví dụ “xong bài tập Toán”",
   thinkFail: "Không xử lý được câu vừa nói",
   mic: "Cho phép micro",
   settings: "Cài đặt",
