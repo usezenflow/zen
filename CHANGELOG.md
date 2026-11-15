@@ -1,5 +1,11 @@
 # zen
 
+## 26.0.4
+
+### Patch Changes
+
+- Sửa ghi chú trong chi tiết việc rồi đóng bàn phím: nút ba chấm không còn tụt khỏi vòng tròn, loại việc không còn đè lên tên việc
+
 ## 26.0.3
 
 ### Patch Changes

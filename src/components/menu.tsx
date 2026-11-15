@@ -45,12 +45,13 @@ const s = StyleSheet.create({
 
 interface DropProps { icon?: ReactElement; sf?: SFSymbol; label: string; items: Item[]; color?: string; size?: number; chevron?: boolean; style?: StyleProp<ViewStyle> }
 
+// ignoreSafeArea: each SwiftUI host otherwise shifts its content for the keyboard on its own, out of its RN box.
 /** Native iOS dropdown (Android: RN fallback). `icon` is the Android trigger glyph; `sf` the iOS SF symbol; `color`/`size` style a text trigger. */
 export function DropMenu(p: Omit<DropProps, "label"> & { label?: string }) {
   const { sf, label = "", items, color, size, style, chevron } = p;
   if (Platform.OS !== "ios") return <AndroidDrop {...p} label={label} />;
   return (
-    <Host matchContents style={style}>
+    <Host matchContents ignoreSafeArea="all" style={style}>
       <Menu label={chevron ? <HStack spacing={4}><SText>{label}</SText><Image systemName="chevron.down" size={size ? size * 0.7 : 10} /></HStack> : label} systemImage={chevron ? undefined : sf} modifiers={[...(color ? [tint(color)] : []), ...(size ? [sfont({ size, weight: "medium" })] : []), ...(label ? [] : [labelStyle("iconOnly")])]}>{buttons(items)}</Menu>
     </Host>
   );
@@ -60,7 +61,7 @@ export function DropMenu(p: Omit<DropProps, "label"> & { label?: string }) {
 export function HoldMenu({ items, children }: { items: Item[]; children: ReactElement }) {
   if (Platform.OS !== "ios") return children;
   return (
-    <Host matchContents={{ vertical: true }}>
+    <Host matchContents={{ vertical: true }} ignoreSafeArea="all">
       <ContextMenu>
         <ContextMenu.Items>{buttons(items)}</ContextMenu.Items>
         <ContextMenu.Trigger><RNHostView matchContents={{ vertical: true }}>{children}</RNHostView></ContextMenu.Trigger>
