@@ -35,5 +35,5 @@ describe("year sweep", () => {
           }
         }
     expect(bad.slice(0, 10)).toEqual([]);
-  });
+  }, 30_000); // ~2s here, past the 5s default on a slow CI runner
 });

@@ -59,6 +59,7 @@
 - Buổi trong ngày theo cách mọi người nói: sáng đến 11h, trưa 11h-13h, chiều 13h-18h, tối 18h-22h, đêm 22h-24h
 - Giờ gọn hơn: "7:00" thay cho "07:00"
 - "Có gì mới" dài thì cuộn được, nút luôn hiện; chạm ra ngoài để đóng
+- Vòng chọn giờ gọn hơn: 3 hàng, các nút chọn nhanh không còn sát mép; giờ kết thúc luôn sau giờ bắt đầu ít nhất 15p
 
 ## 26.0.0
 

@@ -63,15 +63,15 @@
 .si.me .d { color: var(--ink); font-weight: 600; }
 /* The dial: zen's own small drum, dropped from the time chip like a menu (same frosted card), floating over the page.
    Five rows of 36px, the middle one in a chip band; rows fade and tilt away. Minutes step 00/15/30/45; a light tick per row. */
-.dial { min-width: 0; padding: 6px 10px; }
+.dial { min-width: 224px; padding: 10px 12px; } /* three rows; wide enough that the pills keep 12px from the edge */
 /* Presets: one tap picks and closes. The calendar's sit over the month, the dial's under the drums. */
 .pre, .meta .att .pre { display: flex; gap: 6px; justify-content: center; }
 .pre span { height: 30px; padding: 0 10px; border-radius: 99px; background: var(--chip); display: grid; place-items: center; font-size: 14px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .cal .pre { justify-content: flex-start; padding: 0 4px 12px; }
-.dial .pre { padding: 8px 0 4px; }
-.wh { position: relative; display: flex; justify-content: center; gap: 4px; height: 180px; overflow: hidden;
+.dial .pre { padding: 8px 0 0; }
+.wh { position: relative; display: flex; justify-content: center; gap: 4px; height: 108px; overflow: hidden;
   -webkit-mask: linear-gradient(transparent, #000 32%, #000 68%, transparent); mask: linear-gradient(transparent, #000 32%, #000 68%, transparent); }
-.wh::before { content: ""; position: absolute; left: 0; right: 0; top: 72px; height: 36px; border-radius: 9px; background: rgba(0,0,0,.06); }
+.wh::before { content: ""; position: absolute; left: 0; right: 0; top: 36px; height: 36px; border-radius: 9px; background: rgba(0,0,0,.06); }
 .wh .col { position: relative; display: flex; flex-direction: column; min-width: 52px; }
 .wh .col span { height: 36px; display: grid; place-items: center; font-size: 20px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--muted); }
 .wh .col span.on { color: var(--ink); font-weight: 600; }
@@ -148,14 +148,14 @@ const mine = (kind) => `Việc của bạn · <span class="kd">${kind}${ic(I.dow
 // A chip; `drop` is a dropdown attached under it, its edge on the chip's left ("l") or right ("r") edge.
 const pk = (t, on, drop = "", side = "r") => `<span class="pk ${on ? "on" : ""}" style="position:relative">${t}${drop ? `<div class="att ${side}">${drop}</div>` : ""}</span>`;
 // The wheel: columns of five rows, the middle one picked. cols: [[...5 values], ...]; ":" between two columns makes a clock.
-const wcol = (vals) => `<div class="col">${vals.map((v, i) => `<span class="${["n2", "n1", "on", "p1", "p2"][i]}">${v}</span>`).join("")}</div>`;
+const wcol = (vals) => `<div class="col">${vals.map((v, i) => `<span class="${["n1", "on", "p1"][i]}">${v}</span>`).join("")}</div>`;
 // The time dial drops from its chip: pos is the card's top and left or right, in device px.
 const pre = (xs) => `<div class="pre">${xs.map((x) => `<span>${x}</span>`).join("")}</div>`;
 const TPRE = ["8:00", "14:00", "20:00"], DPRE = ["23:59", "0:00"]; // a start's usual morning, afternoon, evening; a due's before midnight and midnight
 const dialCard = (h, m, mins = MINS(m), ps = TPRE) => `<div class="menu dial"><div class="wh">${wcol(HOURS(h))}<span class="sep">:</span>${wcol(mins)}</div>${pre(ps)}</div>`;
 const dial = (pos, h, m, mins) => `<div class="mscrim"></div>${dialCard(h, m, mins).replace('class="menu dial"', `class="menu dial" style="${pos}"`)}`;
-const HOURS = (h) => [h - 2, h - 1, h, h + 1, h + 2].map((x) => String((x + 24) % 24).padStart(2, "0"));
-const MINS = (m) => [m - 30, m - 15, m, m + 15, m + 30].map((x) => String((x + 60) % 60).padStart(2, "0"));
+const HOURS = (h) => [h - 1, h, h + 1].map((x) => String((x + 24) % 24).padStart(2, "0"));
+const MINS = (m) => [m - 15, m, m + 15].map((x) => String((x + 60) % 60).padStart(2, "0"));
 const dt = (type, from, title, meta, note, lms = "", top = dtop) => `${top}
   <div style="display:flex;align-items:center;gap:10px;margin-top:22px">${swatch(type)}<span class="sub" style="margin:0">${from}</span></div>
   <div class="h" style="margin-top:14px">${title}</div>
@@ -205,7 +205,7 @@ const rowTime = `${head("T2", "16/11", "5 việc, 1 tiết học")}${tabs("Ngày
 const MORE = [["Đặt hạn"], ["Thêm địa điểm"], ["Để zen xếp lại"]];
 const detailMore = detailPlain + menu(MORE, 96, 62);
 const detailDue = dt("plan", mine("Việc nhà"), "Mua pin cho chuột",
-  edLine("hourglass", `${pk("T6 20/11")}${pk("23:59", 1, dialCard(23, 59, ["30", "45", "59", "", ""], DPRE))}<span class="clr">Bỏ hạn</span>`, "red") + ml("clock", `Làm lúc ${when("2026-11-17", "17:00")} - 17:30`), PH, "", dtop2) + '<div class="mscrim"></div>'; // a due at 23 also offers :59, the usual "before midnight"
+  edLine("hourglass", `${pk("T6 20/11")}${pk("23:59", 1, dialCard(23, 59, ["45", "59", ""], DPRE))}<span class="clr">Bỏ hạn</span>`, "red") + ml("clock", `Làm lúc ${when("2026-11-17", "17:00")} - 17:30`), PH, "", dtop2) + '<div class="mscrim"></div>'; // a due at 23 also offers :59, the usual "before midnight"
 const detailPlace = dt("plan", mine("Việc nhà"), "Mua pin cho chuột",
   ml("clock", `Làm lúc ${when("2026-11-17", "17:00")} - 17:30`) + `<div class="ed">${ic(I.pin, 20, 1.9)}<span class="caret">Siêu thị Go</span></div>`, PH, "", dtop2) + '<div class="kb"></div>';
 // A place that is a link opens it; "Sửa địa điểm" in the dots menu types it again.

@@ -10,10 +10,11 @@ import { t } from "@/lib/i18n";
 import { ff, useTheme } from "@/lib/theme";
 
 // views.html .dial: zen's small time drum dropped from its chip like a menu. Five 36px rows, the middle one in a band; minutes step 15.
-const ROW = 36, SHOW = 5, COL = 52, SEP = 16, PADX = 10, PADY = 6;
+// Three rows: with five, the hours before today's first (or an end's start) left blank rows above the band.
+const ROW = 36, SHOW = 3, COL = 52, SEP = 16, PADX = 12, PADY = 10, BANDX = 12; // BANDX: the band reaches past the digits on both sides
 const PRE = 42; // the preset row: views.html .pre, one tap picks and closes
 const W = 2 * COL + SEP + 2 * PADX, H = SHOW * ROW + 2 * PADY;
-const TW = 184, TH = H + PRE; // the dial with its presets
+const TW = 224, TH = H + PRE; // the dial with its presets: wide enough for three pills inside PADX
 // A start's usual morning, afternoon, evening; a due's before midnight and midnight.
 const TPRE: [number, number][] = [[8, 0], [14, 0], [20, 0]], DPRE: [number, number][] = [[23, 59], [0, 0]];
 const HOURS = Array.from({ length: 24 }, (_, i) => i), MINUTES = [0, 15, 30, 45];
@@ -75,7 +76,7 @@ function Drum({ values, start, onPick }: { values: number[]; start: number; onPi
       onLayout={() => ref.current?.scrollTo({ y: start * ROW, animated: false })} // Android ignores contentOffset
       onMomentumScrollEnd={(e) => land(e.nativeEvent.contentOffset.y)}
       onScrollEndDrag={(e) => { if (Math.abs(e.nativeEvent.velocity?.y ?? 0) < 0.05) land(e.nativeEvent.contentOffset.y); }} // let go without a flick: no momentum event follows
-      contentContainerStyle={{ paddingVertical: 2 * ROW }} style={{ width: COL, height: SHOW * ROW }}
+      contentContainerStyle={{ paddingVertical: ((SHOW - 1) / 2) * ROW }} style={{ width: COL, height: SHOW * ROW }}
     >
       {values.map((v, i) => <Cell key={v} i={i} y={y} label={pad(v)} />)}
     </Animated.ScrollView>
@@ -105,12 +106,14 @@ function Drop({ anchor, w, h, side, onClose, children }: { anchor: Anchor; w: nu
   );
 }
 
-function Clock({ value, due, onChange, onClose }: { value: Date; due?: boolean; onChange: (d: Date) => void; onClose: () => void }) {
+function Clock({ value, due, min, onChange, onClose }: { value: Date; due?: boolean; min?: Date; onChange: (d: Date) => void; onClose: () => void }) {
   const th = useTheme();
   // On today only now to midnight is offered: an hour once a quarter of it is left, minutes from now on.
   const [now] = useState(() => new Date(Date.now())); // Date.now, as the calendar: one clock for both
   const today = value.toDateString() === now.toDateString(), nh = now.getHours(), nm = now.getMinutes();
-  const minsOf = (h: number) => minutesAt(h, due).filter((m) => !today || h > nh || (h === nh && m >= nm));
+  // The earliest time offered, in minutes of the day: now on today; an end's `min` (its start + 15) on the start's day.
+  const floor = Math.max(today ? nh * 60 + nm : -1, min && min.toDateString() === value.toDateString() ? min.getHours() * 60 + min.getMinutes() : -1);
+  const minsOf = (h: number) => minutesAt(h, due).filter((m) => h * 60 + m >= floor);
   const open = HOURS.filter((h) => minsOf(h).length);
   const hours = open.length ? open : HOURS; // shortcut: past the day's last step (23:46 for a start) nothing is left today; the whole day shows rather than an empty drum
   const allowed = (h: number) => (open.length ? minsOf(h) : minutesAt(h, due));
@@ -135,7 +138,7 @@ function Clock({ value, due, onChange, onClose }: { value: Date; due?: boolean; 
     d.setHours(at.current.h, at.current.m, 0, 0);
     onChange(d);
   };
-  const gone = (h: number, m: number) => !!open.length && today && (h < nh || (h === nh && m < nm));
+  const gone = (h: number, m: number) => !!open.length && h * 60 + m < floor;
   return (
     <View style={s.pad}>
       <View style={[s.band, { backgroundColor: th.dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" }]} />
@@ -151,9 +154,9 @@ function Clock({ value, due, onChange, onClose }: { value: Date; due?: boolean; 
 }
 
 /** The time dial under `anchor` (from measureInWindow). Each settled drum calls `onChange`; a tap outside closes. */
-export function TimeDial({ open, anchor, value, due, side = "right", onChange, onClose }: { open: boolean; anchor?: Anchor; value: Date; due?: boolean; side?: "left" | "right"; onChange: (d: Date) => void; onClose: () => void }) {
+export function TimeDial({ open, anchor, value, due, min, side = "right", onChange, onClose }: { open: boolean; anchor?: Anchor; value: Date; due?: boolean; min?: Date; side?: "left" | "right"; onChange: (d: Date) => void; onClose: () => void }) {
   if (!open || !anchor) return null;
-  return <Drop anchor={anchor} w={TW} h={TH} side={side} onClose={onClose}><Clock value={value} due={due} onChange={onChange} onClose={onClose} /></Drop>;
+  return <Drop anchor={anchor} w={TW} h={TH} side={side} onClose={onClose}><Clock value={value} due={due} min={min} onChange={onChange} onClose={onClose} /></Drop>;
 }
 
 // views.html .cal: the month, Monday first, six weeks. Today vermilion, the picked day a filled vermilion circle, days before today or `min` greyed out.
@@ -211,7 +214,7 @@ export function DateDrop({ open, anchor, value, min, side = "left", onChange, on
 const s = StyleSheet.create({
   card: { position: "absolute", borderRadius: 16, overflow: "hidden", boxShadow: "0 0 0 0.5px rgba(0,0,0,0.08), 0 18px 40px -8px rgba(0,0,0,0.28)" },
   pad: { paddingHorizontal: PADX, paddingVertical: PADY },
-  band: { position: "absolute", left: (TW - W) / 2 + PADX, right: (TW - W) / 2 + PADX, top: PADY + 2 * ROW, height: ROW, borderRadius: 9 },
+  band: { position: "absolute", left: (TW - W) / 2 + PADX - BANDX, right: (TW - W) / 2 + PADX - BANDX, top: PADY + ((SHOW - 1) / 2) * ROW, height: ROW, borderRadius: 9 },
   cal: { paddingTop: 14, paddingHorizontal: 12, paddingBottom: 10 },
   mh: { height: 34, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 4 },
   mt: { fontSize: 17, fontFamily: ff("600") },

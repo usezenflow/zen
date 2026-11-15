@@ -25,13 +25,13 @@ function Chip({ label, on, onPress, box }: { label: string; on: boolean; onPress
   );
 }
 
-/** "17:00": drops zen's time dial, its right edge on the chip's. `due`: 23 also offers :59. */
-export function TimeChip({ value, due, onChange }: { value: number; due?: boolean; onChange: (d: Date) => void }) {
+/** "17:00": drops zen's time dial, its right edge on the chip's. `due`: 23 also offers :59. `min`: nothing earlier on that day (an end: its start + 15). */
+export function TimeChip({ value, due, min, onChange }: { value: number; due?: boolean; min?: number; onChange: (d: Date) => void }) {
   const c = useChip();
   return (
     <>
       <Chip label={hhmm(value)} on={!!c.anchor} onPress={c.open} box={c.box} />
-      <TimeDial open={!!c.anchor} anchor={c.anchor} value={new Date(value)} due={due} onChange={onChange} onClose={c.close} />
+      <TimeDial open={!!c.anchor} anchor={c.anchor} value={new Date(value)} due={due} min={min === undefined ? undefined : new Date(min)} onChange={onChange} onClose={c.close} />
     </>
   );
 }

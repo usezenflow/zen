@@ -113,3 +113,21 @@ it("another day keeps the whole day", async () => {
   await draw(new Date(2026, 10, 21, 9, 0), false);
   expect(screen.getByText("08")).toBeOnTheScreen();
 });
+
+// An end's dial starts 15 minutes after its start, on the start's day; on another day the whole day is offered.
+it("an end offers only times at least 15 minutes after its start", async () => {
+  const start = at(17, 0), onChange = jest.fn();
+  await render(<View><TimeDial open anchor={A} value={at(18, 0)} min={new Date(start.getTime() + 15 * 60_000)} onChange={onChange} onClose={jest.fn()} /></View>);
+  const [hours] = drums();
+  expect(screen.queryByText("16")).toBeNull();
+  expect(screen.getByText("17")).toBeOnTheScreen();
+  await settle(hours, 0); // the first hour offered: 17, its first minute 15
+  expect(onChange).toHaveBeenLastCalledWith(at(17, 15));
+  expect(screen.getByLabelText("14:00")).toBeDisabled(); // before the floor: off
+  expect(screen.getByLabelText("20:00")).toBeEnabled();
+});
+
+it("an end on a later day than its start keeps the whole day", async () => {
+  await render(<View><TimeDial open anchor={A} value={new Date(2026, 10, 21, 9, 0)} min={new Date(at(17, 0).getTime() + 15 * 60_000)} onChange={jest.fn()} onClose={jest.fn()} /></View>);
+  expect(screen.getByText("08")).toBeOnTheScreen();
+});

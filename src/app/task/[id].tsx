@@ -197,7 +197,8 @@ export default function Detail() {
         <Text style={{ fontFamily: ff("500"), fontSize: font.meta, color: th.muted }}>{t("toWord")}</Text>
         {/* views.html "Detail, over several days": the end day; days before the start are greyed out */}
         <DateChip value={e.getTime()} min={startDay(dr.s)} side="right" onChange={(d) => setEnd(dayOf(e.getTime(), d))} />
-        <TimeChip value={e.getTime()} onChange={(d) => setEnd(endAt(dr.s, dr.s + dr.m * 60_000, d))} />
+        {/* an end is at least 15 minutes after its start */}
+        <TimeChip value={e.getTime()} min={dr.s + 15 * 60_000} onChange={(d) => setEnd(endAt(dr.s, dr.s + dr.m * 60_000, d))} />
       </EdLine>
     );
     if (i >= 0) lines[i] = row; else lines.push(row);
