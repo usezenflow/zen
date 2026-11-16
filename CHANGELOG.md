@@ -32,6 +32,8 @@
 - Mỗi việc ghi rõ hơn: "Buổi 1/2 · Hạn T2 23/11", "5 buổi/tuần · đến 31/12"; hạn cuối ngày không còn kèm giờ ("Hạn hôm nay")
 - Nhấn giữ một buổi: "Cần thêm một buổi", "Bớt một buổi"
 - Xếp giờ trong 30 ngày tới; việc lặp vẫn hiện mọi ngày, ngày xa hơn ghi "Chưa xếp giờ"
+- Việc hạn hôm nay mà dài hơn phần còn lại trước 22h (như "đọc code 3 tiếng" lúc 19h) giờ xếp thành một buổi chạy quá 22h, không còn tách đôi hay báo "hơi gấp"
+- Mọi menu thả xuống đều dùng menu của zen, kể cả nút xoá trong chi tiết việc (iOS không còn menu hệ thống)
 
 ## 26.0.4
 
