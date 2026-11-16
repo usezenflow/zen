@@ -8,7 +8,7 @@ import { t } from "@/lib/i18n";
 import { KIND_VI } from "@/lib/reasons";
 import { useTheme, font, ff } from "@/lib/theme";
 import type { Kind, Rule } from "@/lib/types";
-import type { Insights } from "@/planner";
+import { EARLY, type Insights } from "@/planner";
 
 // magic 10 + 11 as one home view (the Nhịp tab): what Zen learned, then what you told it. Trust lives on the main screen, not in Settings.
 const WD = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
@@ -45,23 +45,31 @@ const Empty = ({ title, sub }: { title: string; sub: string }) => {
   return <View style={[s.set, { borderColor: th.line }]}><View style={s.tx}><Text style={[s.b, { color: th.ink }]}>{title}</Text><Text style={[s.small2, { color: th.muted }]}>{sub}</Text></View></View>;
 };
 
+/** The Nhịp headline: learned golden hours, else the early guess from what you did, else how much it has seen. */
+export const rhythmHead = (i: Insights) =>
+  i.golden ? t("goldenRange", { a: i.golden.from, b: i.golden.to })
+  : i.early ? t("earlyRange", { a: i.early.from, b: i.early.to })
+  : i.seen ? t("seenN", { n: i.seen }) : t("stillLearning");
+
 export function Rhythm({ i, rules, onForget }: { i: Insights; rules: Rule[]; onForget: (r: Rule) => void }) {
   const th = useTheme();
-  const g = i.golden, pair = i.pairs[0], slip = i.slip[0], kind = i.byKind[0], un = i.unsure;
+  const g = i.golden, e = i.early, pair = i.pairs[0], slip = i.slip[0], kind = i.byKind[0], un = i.unsure;
   const line = [s.set, { borderColor: th.line }];
   return (
     <Animated.View entering={fadeIn}>
       <View style={s.art}>
         <View style={StyleSheet.absoluteFill}><TypeArt type="plan" w={264} h={170} seed={5} /></View>
         <Text style={s.lab}>{t("goldenHours")}</Text>
-        <Text style={s.title}>{g ? t("goldenRange", { a: g.from, b: g.to }) : t("stillLearning")}</Text>
+        <Text style={s.title}>{rhythmHead(i)}</Text>
         {/* Before any evidence the bars are the cold prior (linucb curve), all dim: a guess, not a golden range. */}
-        <View style={s.strip} accessibilityLabel={g ? t("goldenRange", { a: g.from, b: g.to }) : t("stillLearning")}>
-          {i.hours.map((v, h) => <View key={h} style={[s.bar, { height: `${10 + v * 90}%` }, g && h >= g.from && h < g.to && { opacity: 1 }]} />)}
+        <View style={s.strip} accessibilityLabel={rhythmHead(i)}>
+          {i.hours.map((v, h) => { const w = g ?? e; return <View key={h} style={[s.bar, { height: `${10 + v * 90}%` }, w && h >= w.from && h < w.to && { opacity: 1 }]} />; })}
         </View>
         <View style={s.hrs}>{[0, 6, 12, 18, 24].map((h) => <Text key={h} style={s.hr}>{h}</Text>)}</View>
       </View>
-      {!g && <Card title={t("learningT")} sub={t("learningSub")} />}
+      {!g && (e ? <Card title={t("earlyTitle", { a: e.from, b: e.to })} sub={t("earlySub", { n: e.n })} />
+        : i.seen ? <Card title={t("moreN", { n: Math.max(1, EARLY - i.seen) })} sub={t("seenSub")} />
+        : <Card title={t("learningT")} sub={t("learningSub")} />)}
       {pair && <Card title={t("pairTitle", { k: KIND_VI[pair.before] })} sub={t("pairSub")}><Chip kind={pair.before} /></Card>}
       {kind && <Card title={t("kindTitle", { k: KIND_VI[kind.kind], a: kind.from, b: kind.to })} sub={t("kindSub")}><Chip kind={kind.kind} /><Meter v={kind.sure} /></Card>}
       {slip && <Card title={t("slipTitle", { k: KIND_VI[slip.kind] })} sub={t("slipSub", { n: Math.round(slip.rate * 10) })}><Meter v={slip.rate} /></Card>}

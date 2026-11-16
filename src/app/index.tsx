@@ -13,7 +13,7 @@ import { scheduleOnRN } from "react-native-worklets";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { Icon, Logo } from "@/components/art";
-import { Rhythm } from "@/components/rhythm";
+import { Rhythm, rhythmHead } from "@/components/rhythm";
 import { addDays, live, mondayOf, monthLabel, onDay, parents, short, startOfDay, weekday, type Hols } from "@/components/cal";
 import { Day, DayPull, First } from "@/components/day";
 import { Search, type Origin } from "@/components/search";
@@ -606,7 +606,7 @@ export default function Home() {
     : view === "week"
       ? { hello: mon === mondayOf(today0) ? t("thisWeek") : mon === addDays(mondayOf(today0), 7) ? t("nextWeek") : t("yearN", { y: sm.getFullYear() }), h: t("rangeTo", { a: sm.getMonth() === em.getMonth() ? sm.getDate() : dm(mon), b: dm(sun) }), n: count(mon, addDays(mon, 7), 1) || t("nothingYet") }
       : view === "rhythm"
-        ? { hello: t("rhythmHello"), h: t("rhythm"), n: mind?.i.golden ? t("goldenRange", { a: mind.i.golden.from, b: mind.i.golden.to }) : t("stillLearning") }
+        ? { hello: t("rhythmHello"), h: t("rhythm"), n: mind ? rhythmHead(mind.i) : t("stillLearning") }
       : { hello: t("yearN", { y: sd.getFullYear() }), h: monthLabel(sel), n: count(new Date(sd.getFullYear(), sd.getMonth(), 1).getTime(), new Date(sd.getFullYear(), sd.getMonth() + 1, 1).getTime(), 1) || t("nothingYet") };
   const stepWeek = (d: -1 | 1) => setSel(addDays(sel, 7 * d));
   const stepMonth = (d: -1 | 1) => setSel(new Date(sd.getFullYear(), sd.getMonth() + d, 1).getTime());

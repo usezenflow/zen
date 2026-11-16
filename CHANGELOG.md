@@ -15,6 +15,9 @@
     - Chữ viết tắt như "lsm", "sql" giữ nguyên, không còn bị sửa thành "làm"
 - Mở app lần đầu trong ngày không còn nhảy sang một ngày xa (như 15/3); vẫn ở hôm nay
 - Widget không còn chỉ hiện khung xám: dữ liệu gửi cho widget nhẹ đi khoảng 4 lần
+- Nhịp không còn chỉ nói "Mình còn đang học"
+    - Từ lần đầu bạn xong hay dời một việc: "Đã thấy 2 lần", "Thêm 1 lần nữa"
+    - Sau 3 lần: "Có vẻ 20h-22h", giờ bạn hay làm xong hay kéo việc tới, ghi "Đang đoán" cho tới khi mình chắc
 
 ## 26.0.3
 

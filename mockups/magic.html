@@ -263,6 +263,24 @@ const cold = `${head("Mình hiểu bạn", "Nhịp của bạn", "Mình còn đa
   <div class="lab" style="margin-top:22px">Mình đoán</div>
   <div class="set"><div class="tx">Chưa đoán được gì<small>Mình còn đang học.</small></div></div>`;
 
+// 13b. Nhịp after a couple of interactions: it says what it has seen, so the learning is visible from the first tick.
+const seen = `${head("Mình hiểu bạn", "Nhịp của bạn", "Đã thấy 2 lần")}${tabs("Nhịp")}
+  <div class="art" style="margin-top:16px;padding:18px 20px">${art("plan", { w: 264, h: 170, seed: 5, cls: "bgart" })}
+    <div class="lab" style="color:#fff;opacity:.85">Giờ vàng</div><div class="t" style="margin-top:6px">Đã thấy 2 lần</div>
+    <div class="strip" style="margin-top:14px">${[1, 1, 1, 1, 1, 1, 3, 5, 7, 9, 10, 8, 5, 5, 7, 9, 10, 8, 5, 4, 3, 2, 1, 1].map((h) => `<i style="height:${h * 10}%"></i>`).join("")}</div>
+    <div class="hrs"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div></div>
+  <div class="ins"><b>Thêm 1 lần nữa</b><small>Mỗi lần bạn xong hay dời một việc, mình hiểu bạn thêm.</small></div>`;
+
+// 13c. Nhịp after three: the hours where you actually finished or moved work, said as a guess until the model is sure.
+const early = `${head("Mình hiểu bạn", "Nhịp của bạn", "Có vẻ 20h-22h")}${tabs("Nhịp")}
+  <div class="art" style="margin-top:16px;padding:18px 20px">${art("plan", { w: 264, h: 170, seed: 5, cls: "bgart" })}
+    <div class="lab" style="color:#fff;opacity:.85">Giờ vàng</div><div class="t" style="margin-top:6px">Có vẻ 20h-22h</div>
+    <div class="strip" style="margin-top:14px">${[1, 1, 1, 1, 1, 1, 3, 5, 7, 9, 10, 8, 5, 5, 7, 9, 10, 8, 5, 4, 3, 2, 1, 1].map((h, i) => `<i class="${i >= 20 && i < 22 ? "pk" : ""}" style="height:${h * 10}%"></i>`).join("")}</div>
+    <div class="hrs"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div></div>
+  <div class="ins"><b>Bạn hay làm việc lúc 20h-22h</b><small>Từ 4 lần bạn xong hay dời việc. Mình sẽ chắc dần.</small></div>
+  <div class="lab" style="margin-top:22px">Mình đoán</div>
+  <div class="set"><div class="tx">Bạn hay làm việc lúc 20h-22h<small>Đang đoán</small></div></div>`;
+
 // 14. Sunday: once a week, and only when the model is sure of something, the art slot says it.
 const sunday = `${head("CN", "22/11", "1 việc")}${tabs("Ngày")}
   <div class="art" style="margin-top:16px;height:220px;padding:20px">${art("lecture", { w: 264, h: 220, seed: 8, cls: "bgart" })}
@@ -450,6 +468,8 @@ mount([
   { tag: "11. Nhịp", sub: "The pill right of Tháng. Golden hours: each hour's learned value. One card each, only with evidence: what goes well after a kind of task, the best three hours for a kind, the kind you push later most, and the hours it knows least.", html: chrome(rhythm()) },
   { tag: "12. Nhịp, scrolled", sub: "What you said is a hard rule; swipe it to forget. What it guessed shows how sure it is in three words. Guesses cannot be forgotten one by one.", html: chrome(mem) },
   { tag: "13. Nhịp, first days", sub: "Before Zen has seen enough it says so. The bars are its default guess, all dim; time passing alone never turns into a claim about you.", html: chrome(cold) },
+  { tag: "13b. Nhịp, first ticks", sub: "From the first done or moved task it counts what it has seen and how many more it needs, so learning shows before it can claim anything.", html: chrome(seen) },
+  { tag: "13c. Nhịp, an early guess", sub: "After three, the two hours where you most often finished work or dragged it to, marked Đang đoán. Learned golden hours replace it once the model is sure.", html: chrome(early) },
   { tag: "14. Sunday", sub: "Sundays only, and only when the model is at least fairly sure of something: one sentence, with the week's done and moved counts. Tap through to Nhịp.", html: chrome(sunday) },
   { tag: "15. Missed, no nag", sub: "A block that passed undone turns vermilion in place. The next time you open the app it has moved to the next good time within two days, and the row says so. That hour counts a little against itself.", html: chrome(missed) },
   { tag: "16. Trying something", sub: "Once Zen knows you a little, it may try an hour it is unsure about, and the row says it is a try. Only a new task without a due date, at most one per re-plan.", html: chrome(explore) },

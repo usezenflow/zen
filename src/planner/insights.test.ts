@@ -7,6 +7,23 @@ import { newModel, plan } from "./index";
 const now = new Date(2026, 10, 16, 8, 0).getTime();
 
 describe("insights", () => {
+  it("counts what it has seen, and after three names the hours you finished or dragged work to", () => {
+    const m = newModel(now), at = (h: number) => new Date(2026, 10, 15, h, 20).getTime();
+    expect(insights(m, now).seen).toBe(0); expect(insights(m, now).early).toBeUndefined();
+    m.doneHours.push({ hour: 20.3, at: at(20) });
+    m.hist.push({ vec: [], hour: 9, r: -1, at: at(9) }); // moved away from 9h: seen, not a good hour
+    expect(insights(m, now).seen).toBe(2); expect(insights(m, now).early).toBeUndefined();
+    m.placed.x = { arm: 21, x: [], start: at(21), at: at(8), moved: true }; // dragged to 21h
+    m.doneHours.push({ hour: 21.5, at: at(21) });
+    const i = insights(m, now);
+    expect(i).toMatchObject({ seen: 3, early: { from: 20, to: 22, n: 3 } });
+    expect(i.guesses).toContainEqual({ text: "Bạn hay làm việc lúc 20h-22h", sure: 0.3 });
+    // two weeks old says nothing; scattered hours name no range
+    expect(insights(m, now + 20 * 86400000).seen).toBe(0); expect(insights(m, now + 20 * 86400000).early).toBeUndefined();
+    const s = newModel(now);
+    for (const h of [7, 12, 18]) s.doneHours.push({ hour: h, at: at(h) });
+    expect(insights(s, now).seen).toBe(3); expect(insights(s, now).early).toBeUndefined();
+  });
   it("says nothing when cold", () => {
     const i = insights(newModel(now), now);
     expect(i.golden).toBeUndefined();

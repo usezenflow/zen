@@ -1,7 +1,7 @@
 // The model's weights as things a friend would notice. Pure; the rhythm page, memory page and Sunday card read it.
 import { KIND_VI } from "../lib/reasons";
 import type { Kind } from "../lib/types";
-import { D, energy, I_AFTER, I_ENERGY, KINDS } from "./features";
+import { D, DAY, energy, hourOf, I_AFTER, I_ENERGY, KINDS } from "./features";
 import { peakHour, slipOf } from "./habits";
 import { coldArms, prepare } from "./linucb";
 import type { Model } from "./model";
@@ -15,7 +15,11 @@ export interface Insights {
   guesses: { text: string; sure: number }[]; // sentences for "Mình đoán", sure in 0..1
   byKind: { kind: Kind; from: number; to: number; sure: number }[]; // best 3-hour window per kind, only when clearly better than its average
   weekly?: string; // one sentence for the Sunday card
+  seen: number; // done or moved tasks in the last two weeks: the first days show these, never a bare "still learning"
+  early?: { from: number; to: number; n: number }; // with EARLY of them and no golden yet: the two hours where you finished or dragged work most
 }
+
+export const EARLY = 3;
 
 const COLD = prepare(coldArms());
 const U0 = Math.sqrt(COLD.inv[0][0]); // uncertainty of an arm with no evidence
@@ -38,9 +42,24 @@ export function insights(m: Model, now: number): Insights {
   const unc = (hs: number[]) => mean(hs.map((h) => Math.min(Math.sqrt(p.inv[h][0]) / U0, ...KC.map((c, j) => Math.sqrt(p.inv[h][c * D + c]) / UK[j]))));
   const sureOf = (hs: number[]) => clamp(1 - unc(hs));
   const wake = range(7, 23);
-  const out: Insights = { hours, pairs: [], slip: [], byKind: [], guesses: [] };
+  // What you did, counted straight: ticks (the hour it happened), moves away, and the hours you dragged work to.
+  const recent = (at?: number) => at !== undefined && now - at <= 14 * DAY;
+  const done = m.doneHours.filter((d) => recent(d.at)).map((d) => d.hour);
+  const dragged = Object.values(m.placed).filter((x) => x.moved && recent(x.at)).map((x) => hourOf(x.start));
+  const out: Insights = { hours, pairs: [], slip: [], byKind: [], guesses: [], seen: done.length + m.hist.filter((x) => x.r < 0 && recent(x.at)).length };
   const weekly: { text: string; sure: number }[] = [];
-  if (!learned) return out;
+  const good = [...done, ...dragged].map(Math.floor);
+  if (out.seen >= EARLY && good.length >= 2) {
+    let top = 0;
+    for (let f = 6; f <= 22; f++) { const n = good.filter((h) => h === f || h === f + 1).length; if (n > top) { top = n; out.early = { from: f, to: f + 2, n: out.seen }; } }
+    if (top < 2) out.early = undefined; // scattered: no two in one stretch yet
+  }
+  const say = () => {
+    if (out.golden || !out.early) return;
+    out.guesses.push({ text: `Bạn hay làm việc lúc ${out.early.from}h-${out.early.to}h`, sure: 0.3 });
+    out.guesses.sort((a, b) => b.sure - a.sure);
+  };
+  if (!learned) { say(); return out; }
 
   let best = 0;
   for (let from = 0; from < 24; from++) for (let len = 2; len <= 4 && from + len <= 24; len++) {
@@ -93,6 +112,8 @@ export function insights(m: Model, now: number): Insights {
   }
   out.guesses = out.guesses.filter((g) => g.sure > 0);
   out.guesses.sort((a, b) => b.sure - a.sure);
+  if (out.golden) out.early = undefined;
+  say();
   out.weekly = weekly.filter((w) => w.sure >= 0.5).sort((a, b) => b.sure - a.sure)[0]?.text;
   return out;
 }

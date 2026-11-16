@@ -14,9 +14,9 @@ jest.mock("@/components/row", () => {
 });
 
 const hours = Array.from({ length: 24 }, (_, h) => (h >= 8 && h < 11 ? 0.9 : 0.3));
-const empty: Insights = { hours, pairs: [], slip: [], byKind: [], guesses: [] };
+const empty: Insights = { hours, pairs: [], slip: [], byKind: [], guesses: [], seen: 0 };
 const full: Insights = {
-  hours, golden: { from: 8, to: 11 }, pairs: [{ before: "exercise", w: 1 }], slip: [{ kind: "chores", rate: 0.62 }],
+  hours, seen: 40, golden: { from: 8, to: 11 }, pairs: [{ before: "exercise", w: 1 }], slip: [{ kind: "chores", rate: 0.62 }],
   byKind: [{ kind: "study", from: 8, to: 11, sure: 0.8 }], unsure: { from: 20, to: 22 },
   guesses: [{ text: "Bạn học tốt buổi sáng", sure: 0.8 }, { text: "Tối hay mệt", sure: 0.6 }, { text: "Cuối tuần rảnh", sure: 0.2 }],
 };
@@ -44,6 +44,20 @@ it("without evidence: still learning, the learning card, every bar dim, no other
   const dim = opacities(t("stillLearning"));
   expect(dim.every((o) => o === 0.45)).toBe(true);
   expect(screen.getByText(t("noGuessesT"))).toBeOnTheScreen();
+});
+
+it("first ticks: how many it has seen and how many more it needs", async () => {
+  await render(<Rhythm i={{ ...empty, seen: 2 }} rules={[]} onForget={jest.fn()} />);
+  expect(screen.getByText(t("seenN", { n: 2 }))).toBeOnTheScreen();
+  expect(screen.getByText(t("moreN", { n: 1 }))).toBeOnTheScreen();
+  expect(screen.queryByText(t("learningT"))).toBeNull();
+});
+
+it("an early guess titles the strip and lights its two hours", async () => {
+  await render(<Rhythm i={{ ...empty, seen: 4, early: { from: 20, to: 22, n: 4 } }} rules={[]} onForget={jest.fn()} />);
+  expect(screen.getByText(t("earlyTitle", { a: 20, b: 22 }))).toBeOnTheScreen();
+  expect(screen.getByText(t("earlySub", { n: 4 }))).toBeOnTheScreen();
+  expect(opacities(t("earlyRange", { a: 20, b: 22 })).map((o, h) => (o === 1 ? h : -1)).filter((h) => h >= 0)).toEqual([20, 21]);
 });
 
 it("a forgotten rule is passed back whole", async () => {
