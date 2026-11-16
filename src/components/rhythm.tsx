@@ -8,7 +8,7 @@ import { t } from "@/lib/i18n";
 import { KIND_VI } from "@/lib/reasons";
 import { useTheme, font, ff } from "@/lib/theme";
 import type { Kind, Rule } from "@/lib/types";
-import { EARLY, type Insights } from "@/planner";
+import { EARLY, PROMOTE, type Insights } from "@/planner";
 
 // magic 10 + 11 as one home view (the Nhịp tab): what Zen learned, then what you told it. Trust lives on the main screen, not in Settings.
 const WD = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
@@ -67,7 +67,7 @@ export function Rhythm({ i, rules, onForget }: { i: Insights; rules: Rule[]; onF
         </View>
         <View style={s.hrs}>{[0, 6, 12, 18, 24].map((h) => <Text key={h} style={s.hr}>{h}</Text>)}</View>
       </View>
-      {!g && (e ? <Card title={t("earlyTitle", { a: e.from, b: e.to })} sub={t("earlySub", { n: e.n })} />
+      {!g && (e ? <Card title={t("earlyTitle", { a: e.from, b: e.to })} sub={t("earlySub", { n: Math.max(1, PROMOTE - e.n) })} />
         : i.seen ? <Card title={t("moreN", { n: Math.max(1, EARLY - i.seen) })} sub={t("seenSub")} />
         : <Card title={t("learningT")} sub={t("learningSub")} />)}
       {pair && <Card title={t("pairTitle", { k: KIND_VI[pair.before] })} sub={t("pairSub")}><Chip kind={pair.before} /></Card>}

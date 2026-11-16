@@ -1,7 +1,7 @@
 import type { Kind, Reason, Rule } from "../lib/types";
 import { type Arm, coldArms } from "./linucb";
 
-export interface Hist { vec: number[]; hour: number; r: number; at: number }
+export interface Hist { vec: number[]; hour: number; r: number; at: number; miss?: true } // miss: the planner saw a block pass undone, not a move you made
 export interface Placed { arm: number; x: number[]; start: number; policy?: string; at?: number; moved?: boolean; why?: Reason[]; alt?: number; explore?: boolean }
 
 // Plain JSON, safe to store as-is.

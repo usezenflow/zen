@@ -44,10 +44,10 @@ describe("personal prior", () => {
 
   it("fills open fields of the read and keeps them inferred", () => {
     const prior = personalPrior([
-      row(90, { window: "EVENING" }),
-      row(90, { window: "EVENING" }),
+      row(90, { window: "EVENING", title: "Xem phim" }),
+      row(90, { window: "EVENING", title: "Xem phim" }),
     ]);
-    const [it] = read("ôn giải tích", { ref, source: "typed", prior }).items;
+    const [it] = read("xem phim", { ref, source: "typed", prior }).items;
     expect(it.durationMinutes).toBe(90);
     expect(it.inferred).toContain("durationMinutes");
   });

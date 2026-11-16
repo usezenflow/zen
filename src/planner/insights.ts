@@ -20,6 +20,7 @@ export interface Insights {
 }
 
 export const EARLY = 3;
+export const PROMOTE = 5;
 
 const COLD = prepare(coldArms());
 const U0 = Math.sqrt(COLD.inv[0][0]); // uncertainty of an arm with no evidence
@@ -46,17 +47,26 @@ export function insights(m: Model, now: number): Insights {
   const recent = (at?: number) => at !== undefined && now - at <= 14 * DAY;
   const done = m.doneHours.filter((d) => recent(d.at)).map((d) => d.hour);
   const dragged = Object.values(m.placed).filter((x) => x.moved && recent(x.at)).map((x) => hourOf(x.start));
-  const out: Insights = { hours, pairs: [], slip: [], byKind: [], guesses: [], seen: done.length + m.hist.filter((x) => x.r < 0 && recent(x.at)).length };
+  const out: Insights = { hours, pairs: [], slip: [], byKind: [], guesses: [], seen: done.length + m.hist.filter((x) => x.r < 0 && !x.miss && recent(x.at)).length };
   const weekly: { text: string; sure: number }[] = [];
   const good = [...done, ...dragged].map(Math.floor);
+  let top = 0;
   if (out.seen >= EARLY && good.length >= 2) {
-    let top = 0;
-    for (let f = 6; f <= 22; f++) { const n = good.filter((h) => h === f || h === f + 1).length; if (n > top) { top = n; out.early = { from: f, to: f + 2, n: out.seen }; } }
+    for (let f = 6; f <= 22; f++) { const n = good.filter((h) => h === f || h === f + 1).length; if (n > top) { top = n; out.early = { from: f, to: f + 2, n }; } }
     if (top < 2) out.early = undefined; // scattered: no two in one stretch yet
   }
+  // Counted evidence is the fast path: PROMOTE ticks or drags in one stretch, holding most of your work, are the golden range, sure grows with each one.
+  // The bandit's own golden needs dozens of rewards per hour; it only wins once it is surer than the count.
+  const counted = out.early && top >= PROMOTE && top / good.length >= 0.4 ? clamp(top / (top + PROMOTE)) : 0;
   const say = () => {
-    if (out.golden || !out.early) return;
-    out.guesses.push({ text: `Bạn hay làm việc lúc ${out.early.from}h-${out.early.to}h`, sure: 0.3 });
+    if (counted && counted >= (out.golden?.sure ?? 0)) {
+      const { from, to } = out.early!, text = `Giờ vàng ${from}h-${to}h`;
+      out.guesses = out.guesses.filter((g) => !g.text.startsWith("Giờ vàng"));
+      out.guesses.push({ text, sure: counted });
+      out.golden = { from, to, sure: counted };
+      if (counted >= 0.5 && !out.weekly?.match(/^Bạn \S+ hợp nhất lúc \d+h$/)) out.weekly = `Bạn làm việc hợp nhất lúc ${from}h-${to}h`; // a per-kind line stays; the old range does not
+    } else if (!out.golden && out.early) out.guesses.push({ text: `Bạn hay làm việc lúc ${out.early.from}h-${out.early.to}h`, sure: 0.3 });
+    if (out.golden) out.early = undefined;
     out.guesses.sort((a, b) => b.sure - a.sure);
   };
   if (!learned) { say(); return out; }
@@ -112,8 +122,7 @@ export function insights(m: Model, now: number): Insights {
   }
   out.guesses = out.guesses.filter((g) => g.sure > 0);
   out.guesses.sort((a, b) => b.sure - a.sure);
-  if (out.golden) out.early = undefined;
-  say();
   out.weekly = weekly.filter((w) => w.sure >= 0.5).sort((a, b) => b.sure - a.sure)[0]?.text;
+  say();
   return out;
 }

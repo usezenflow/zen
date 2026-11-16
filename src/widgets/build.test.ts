@@ -89,7 +89,7 @@ it("keeps the medium head to one figure however packed the day", () => {
 it("tops the medium list up with next-up from later days, the day in the time column", () => {
   // 14:25 on the 16th: one row left today (c; b is ticked but still listed), then tomorrow's class and the 27th's exam.
   const w = widgetData(tasks, at(14, 25), art);
-  expect(w.more.map((r) => [r.id, r.time])).toEqual([["e", "Mai 7:00"], ["x", "27/11"]]);
+  expect(w.more.map((r) => [r.id, r.time])).toEqual([["e", "Mai 7:00"]]); // b and c fill two of the three rows
   // Tomorrow showing on the right: next-up starts after it, this week's day short ("T6 08:00").
   const fri = widgetData([...tasks, task("f", "Họp nhóm", at(8, 0, 20), at(9, 0, 20))], at(20), art);
   expect(fri.more.map((r) => [r.id, r.time])).toEqual([["f", "T6 8:00"], ["x", "27/11"]]);
@@ -105,4 +105,33 @@ it("gives each iOS widget only its fields, an entry only where they change", () 
   expect(next.every((e, i) => i === 0 || JSON.stringify(e.props) !== JSON.stringify(next[i - 1].props))).toBe(true);
   expect(next.some((e) => e.date.getTime() === at(14, 25))).toBe(true);
   expect(slim(tl, USES.ZenToday).length).toBeLessThanOrEqual(tl.length);
+});
+
+it("a day of daily series sends three rows, today's first then next-up, and stays small", () => {
+  const many: Task[] = [];
+  for (let s = 0; s < 8; s++) for (let d = 0; d < 60; d++) many.push(task(`s${s}d${d}`, `Đọc sách ${s}`, at(7 + 2 * s, 0, 16 + d), at(7 + 2 * s, 30, 16 + d)));
+  const w = widgetData(many, at(8, 3), art);
+  expect([w.rows.length, w.ahead.length, w.more.length]).toEqual([3, 0, 0]);
+  const late = widgetData(many, at(20, 40), art); // 21:00 is next, 21:00 is the last today: no rows, tomorrow's three
+  expect([late.rows.length, late.ahead.length, late.more.length]).toEqual([0, 3, 0]);
+  const tl = instants(many, at(8, 3)).map((t) => ({ date: new Date(t), props: widgetData(many, t, art) }));
+  expect(JSON.stringify(slim(tl, USES.ZenToday)).length).toBeLessThan(250_000);
+});
+
+it("every widgets.html state still fills three slots (rows, then next-up, then the layout's try-saying lines)", () => {
+  const slots = (w: ReturnType<typeof widgetData>) => [...(w.rows.length ? w.rows : w.ahead), ...w.more].slice(0, 3).map((r) => r.id);
+  const lab = (d: number) => task("lab", "Nộp Lab 3", at(22, 0, d), at(22, 30, d));
+  const t1 = task("t1", "Ôn Giải tích", at(15, 0, 17), at(16, 0, 17));
+  const cs = task("cs", "Cấu trúc dữ liệu", at(7, 0, 17), at(9, 0, 17), { fixed: "lecture" });
+  const now = at(14, 20), a = task("a", "Ôn Giải tích", at(14, 30), at(15));
+  // Today, a few left: one row today, the two free slots take later days.
+  expect(slots(widgetData([a, task("b", "Báo cáo nhóm", at(16), at(17)), cs, lab(18)], now, art))).toEqual(["b", "cs", "lab"]);
+  // Today, last one: next keeps the left, tomorrow's three fill the right.
+  expect(slots(widgetData([a, cs, t1, lab(17), lab(19)], now, art))).toEqual(["cs", "t1", "lab"]);
+  // Little ahead: tomorrow has one, nothing after: one row, the layout adds two try lines.
+  expect(slots(widgetData([a, t1], now, art))).toEqual(["t1"]);
+  // Today, free / all done: nothing left today, tomorrow on the right.
+  expect(slots(widgetData([cs, t1], now, art))).toEqual(["cs", "t1"]);
+  // Nothing ahead at all: no rows, the layout shows its three try lines.
+  expect(slots(widgetData([], now, art))).toEqual([]);
 });

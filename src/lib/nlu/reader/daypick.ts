@@ -393,9 +393,16 @@ export function joinFragments(
   const isFragment = (c: Clause) => {
     if (c.label || c.hint || hasTaskWord(c.text)) return false;
     if (cal?.length && dayPickOf(c.text, cal)) return true;
+    if (!FROM_START.test(fold(c.text).text.trim())) return false;
+    // a start phrase is a fragment alone: "từ mai đi khám" keeps its task words and stays a task
+    const ms = findMentions(c.text);
+    const bare = ms.reduce(
+      (s, m) => s.slice(0, m.start) + " ".repeat(m.end - m.start) + s.slice(m.end),
+      c.text,
+    );
     return (
-      FROM_START.test(fold(c.text).text.trim()) &&
-      findMentions(c.text).some((m) => m.kind === "date" || m.kind === "time")
+      ms.some((m) => m.kind === "date" || m.kind === "time") &&
+      !fold(bare).text.trim().replace(FROM_START, "").trim()
     );
   };
   const out: Clause[] = [];

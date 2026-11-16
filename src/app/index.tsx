@@ -22,18 +22,18 @@ import { Hold, type Aside, type HoldState } from "@/components/hold";
 import type { Item } from "@/components/menu";
 import { Month } from "@/components/month";
 import { Brief, Live, NowCard, Steps, Story, Weekly, type Card } from "@/components/nowcard";
-import { RowMenu, menuTop } from "@/components/rowmenu";
+import { RowMenu, menuTop, sittingItems } from "@/components/rowmenu";
 import { fadeIn, fadeOut, glide, popIn, settle, Tap, EASE } from "@/components/tap";
 import { Sweep, useSweep } from "@/components/sweep";
 import { Toast } from "@/components/toast";
 import { Swipe, Week } from "@/components/week";
-import { apply, retime, makeRoom, moveMine, pickNow, addRule, pin, putBack, removeRule, removeScope, scopeIds, swipeDone, swipeLater, take, type Result } from "@/lib/apply";
+import { apply, retime, makeRoom, moveMine, pickNow, addRule, addSitting, dropSitting, loadClassMult, needMore, pin, putBack, removeRule, removeScope, scopeIds, swipeDone, swipeLater, take, type Result } from "@/lib/apply";
 import { briefMoves, loadMoves, loadWarn, seeMoves } from "@/lib/moves";
 import { reasonText, stepText, topReason } from "@/lib/reasons";
 import { holidays } from "@/lib/holidays";
 import { askMic, listenLive, micReset, type Heard } from "@/lib/ears";
 import { t } from "@/lib/i18n";
-import { marksOf, readErrors, readFull, readNotes } from "@/lib/nlu/adapt";
+import { marksOf, readErrors, readFull, readNotes, sizedSub } from "@/lib/nlu/adapt";
 import { think } from "@/lib/nlu/commands";
 import { affinityOf, calendarOf, committedRows, vocab } from "@/lib/nlu/context";
 import { personalPrior } from "@/lib/nlu/reader/assemble";
@@ -344,7 +344,7 @@ export default function Home() {
       const nowD = new Date();
       // What the reader cannot know from the words: the timetable, what this user usually saves per title, and the marks.
       const old = JSON.parse((await store.kvGet("nlu.committed").catch(() => null)) ?? "[]");
-      const extra = { calendar: calendarOf(all, nowD.getTime()), affinity: affinityOf((await getMarks().catch(() => null))?.marks ?? []), prior: personalPrior(old), alternatives };
+      const extra = { calendar: calendarOf(all, nowD.getTime()), affinity: affinityOf((await getMarks().catch(() => null))?.marks ?? []), prior: personalPrior(old), classMult: await loadClassMult().catch(() => ({})), alternatives };
       const source = via === "voice" ? "voice" : via === "photo" || via === "scan" ? "ocr" : via === "pdf" ? "paste" : "typed"; // ocr and paste: the reader reads a notice's lines and tables as such
       const actions = think(text, nowD, source, extra);
       // dev only: what the recognizer wrote and what was read from it, so a wrong day can be traced to its transcript
@@ -360,15 +360,19 @@ export default function Home() {
       // Show where the new work landed: the day of its earliest placed piece, not today.
       const made = (await store.allTasks()).filter((x) => x.createdAt === now && x.source === "user" && !x.deletedAt && x.start !== undefined);
       const firstAt = Math.min(...made.map((x) => x.start!));
+      // A deadline past the 30-day horizon is kept as the due date; the sittings land inside the horizon. Said once, for the furthest one.
+      const far = Math.max(0, ...(await store.allTasks()).filter((x) => x.createdAt === now && x.source === "user" && !x.deletedAt && x.deadline !== undefined && x.deadline > addDays(now, 30)).map((x) => x.deadline!));
+      const farSub = far ? t("farDue", { date: dayLabel(far).slice(4) }) : undefined; // dayLabel: "T6, 21/11" → "21/11"
       const playing = (r.steps ?? []).some((st) => st.id); // the shuffle picks the day itself
       if (!playing && titles.length && Number.isFinite(firstAt)) setSel(startOfDay(firstAt));
-      if (titles.length > 1) { // bulk: count, first two names, one Undo for all, no alt
-        const k = titles.length - 2;
-        say(t("addedN", { n: titles.length }), r, { sub: [titles.slice(0, 2).join(", ") + (k > 0 ? ` +${k}` : ""), r.sub, notes.sub].filter(Boolean).join(" · ") });
+      // The sized sub (exam, shared end, span or due with sittings) names what the sizer did; else the time of the first piece.
+      const sized = sizedSub(actions.filter((a) => a.op === "create" && a.title), now);
+      if (titles.length > 1) { // bulk: count, the shared end if all share one, one Undo for all, no alt
+        say(t("addedN", { n: titles.length }), r, { sub: [sized, r.sub, notes.sub, farSub].filter(Boolean).join(" · ") || undefined });
       } else if (titles.length === 1) {
         // The reader's own ask ("3 giờ": 15:00 or 03:00) takes the chip; else the planner's other slot.
         const alt = notes.alt && { alt: { label: notes.alt.label, run: async () => { await r.undo(); await run(notes.alt!.text, via); } } };
-        say(titles[0], r, { sub: [Number.isFinite(firstAt) ? when(firstAt, now) : undefined, r.sub, notes.sub].filter(Boolean).join(" · ") || undefined, ...(alt ?? (await otherSlot(made, now))) });
+        say(t("added", { title: titles[0] }), r, { sub: [sized ?? (Number.isFinite(firstAt) ? when(firstAt, now) : undefined), r.sub, notes.sub, farSub].filter(Boolean).join(" · ") || undefined, ...(alt ?? (await otherSlot(made, now))) });
       } else say(r.toast, r);
       setPhoto(undefined);
       setPdf(undefined);
@@ -530,7 +534,12 @@ export default function Home() {
     if (from !== undefined && !x.fixed) out.push({ label: t("itemPutBack", { when: when(from, now) }), icon: "undo", onPress: async () => done(await putBack(x.id, from)) });
     if (alt !== undefined && !x.fixed) out.push({ label: t("itemAlt", { when: when(alt, now) }), icon: "clock", onPress: async () => done(await apply([{ op: "edit", target: x.id, when: new Date(alt).toISOString() }])) });
     if (!x.fixed && !x.doneAt && (from !== undefined || alt !== undefined || maps.reason[x.id] || x.pinned)) out.push({ label: t(x.pinned ? "itemUnpin" : "itemPin"), icon: x.pinned ? "pinOff" : "pin", onPress: async () => done(await pin(x.id, !x.pinned)) });
-    return [...out, ...seriesItems(x)];
+    // A sitting or split task: one more sitting, or one less; "more" also teaches the class multiplier the parent's length was short.
+    const sits = sittingItems(x, tasks, {
+      more: async (p) => { const r = await addSitting(p.id); say(r.toast, r); refresh(); await needMore(p); },
+      less: async (p) => done(await dropSitting(p.id)),
+    });
+    return [...out, ...sits, ...seriesItems(x)];
   };
   const rowActs = {
     // Edits show at once and persist behind: the list takes the new value now, and the refresh after the save confirms it.

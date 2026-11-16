@@ -748,7 +748,7 @@ const RULES: Rule[] = [
   ["date", /(?<![a-z])(?:chu nhat|cn)(?![a-z])/g, () => ({ k: "dow", dow: 0 })],
   [
     "date",
-    /(?<![a-z])(?:(?:noi\s+)?trong\s+(?:hom\s+)?nay|trong\s+ngay(?!\s+(?:mai|\d))|hom nay|ngay nay|(?<!\d\s*(?:h\d{0,2}|gio|g\d{0,2}|[:.]\d{2})\s*(?:\d{1,2}\s*)?)(?:sang|trua|chieu|toi|dem)\s+nay)(?![a-z])/g,
+    /(?<![a-z])(?:(?:noi\s+)?trong\s+(?:hom\s+)?nay|trong\s+ngay(?!\s+(?:mai|\d))|hom nay|ngay nay|(?<!\d\s*(?:h\d{0,2}|gio|g\d{0,2}|[:.]\d{2})\s*(?:\d{1,2}\s*)?)(?:sang\s+som|sang|trua|chieu|toi|dem)\s+nay)(?![a-z])/g,
     () => ({ k: "rel", off: 0 }),
   ],
   // "3h chiều nay": the clock takes its part, the day is "nay"
@@ -878,6 +878,23 @@ const RULES: Rule[] = [
     "date",
     /(?<![a-z])quy\s+([1-4])(?![a-z\d])/g,
     (m) => ({ k: "span", key: `quy_${m[1]}` }),
+  ],
+  // "năm nay", "trong năm nay": today to the year's end; "hết năm" the same; "quý này": today to the quarter's end
+  [
+    "date",
+    /(?<![a-z])(?:trong\s+)?nam\s+nay(?![a-z])|(?<![a-z])het\s+nam(?:\s+nay)?(?![a-z])/g,
+    () => ({ k: "span", key: "nam_nay" }),
+  ],
+  [
+    "date",
+    /(?<![a-z])quy\s+nay(?![a-z])/g,
+    () => ({ k: "span", key: "quy_nay" }),
+  ],
+  // "học kỳ này", "hết học kỳ", "hk này": today to the term's last day (see `spanOf`); "kỳ này" and "hk này" alone too
+  [
+    "date",
+    /(?<![a-z])(?:(?:trong\s+)?(?:hoc\s+)?(?:ky|ki|hk)\s+nay|het\s+(?:hoc\s+)?(?:ky|ki|hk)(?:\s+nay)?)(?![a-z])/g,
+    () => ({ k: "span", key: "hoc_ky_nay" }),
   ],
   [
     "date",
@@ -1232,23 +1249,31 @@ export function correctionOf(raw: string): Correction | undefined {
   let e = f.map[(last.index ?? 0) + last[0].length - 1] + 1;
   while (s > 0 && /[\s,;]/.test(raw[s - 1])) s--;
   while (e < raw.length && /[\s,;]/.test(raw[e])) e++;
-  const found = findMentions(raw).filter(
-    (x) => x.kind === "date" || x.kind === "time",
+  // the slots a cue can replace: a day, a clock, a length, a part of day ("sáng", "chiều" alone)
+  const found = findMentions(raw).filter((x) =>
+    ["date", "time", "dur", "period"].includes(x.kind),
   );
-  const post = found.filter((x) => x.start >= e);
+  const parts = [...f.text.matchAll(/(?<![a-z])(sang|trua|chieu|dem)(?![a-z])/g)].map(
+    (m) => ({ kind: "part", start: f.map[m.index ?? 0], end: f.map[(m.index ?? 0) + m[0].length - 1] + 1 }),
+  );
+  const slots = [...found, ...parts];
+  const post = slots.filter((x) => x.start >= e);
   if (!post.length) return undefined;
-  const postDate = post.some((x) => x.kind === "date");
-  const postTime = post.some((x) => x.kind === "time");
-  const dropped = found.filter(
-    (x) =>
-      x.end <= s &&
-      ((x.kind === "date" && postDate) || (x.kind === "time" && postTime)),
-  );
+  const postKinds = new Set(post.map((x) => x.kind));
+  const dropped = slots.filter((x) => x.end <= s && postKinds.has(x.kind));
   let text = raw.slice(0, s) + " ".repeat(e - s) + raw.slice(e);
   for (const x of dropped)
     text =
       text.slice(0, x.start) + " ".repeat(x.end - x.start) + text.slice(x.end);
-  const inherit = dropped.find((x) => x.v.k === "time" && x.v.part)?.v;
+  // a role word right before the cue would set a role for the day after it: "lsm code sau, à không mai" is after mai
+  const lead = postKinds.has("date")
+    ? /(?<![a-z])(?:sau|truoc|den|tu)[\s,;]*$/.exec(f.text.slice(0, last.index ?? 0))
+    : null;
+  if (lead) {
+    const at = f.map[lead.index];
+    text = text.slice(0, at) + " ".repeat(s - at) + text.slice(s);
+  }
+  const inherit = found.find((x) => dropped.includes(x) && x.v.k === "time" && x.v.part)?.v;
   return {
     text,
     cut: e,

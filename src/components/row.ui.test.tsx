@@ -45,17 +45,40 @@ describe("subOf", () => {
     expect(subOf(task({ forId: "ex" }), "plan", NOW)).toBeUndefined();
     expect(subOf(sibs[2], "plan", NOW, [...sibs, { ...sibs[0], id: "gone", deletedAt: NOW }])).toMatch(/^Buổi 3\/3/); // deleted ones do not count
   });
-  it("a deadline the same day reads its clock, another day reads when()", () => {
-    expect(subOf(task({ deadline: at(23, 59) }), "plan", NOW)).toBe(t("due", { time: "23:59" }));
-    const later = at(23, 59) + 2 * DAY;
+  it("a day-end due shows its day with no clock; a said clock still shows", () => {
+    const nov23 = new Date(2026, 10, 23, 23, 59).getTime();
+    expect(subOf(task({ deadline: nov23 }), "plan", NOW)).toBe("Hạn T2 23/11");
+    expect(subOf(task({ deadline: new Date(2026, 10, 24).getTime() }), "plan", NOW)).toBe("Hạn T2 23/11"); // exact midnight after it
+    expect(subOf(task({ deadline: at(23, 59) }), "plan", NOW)).toBe("Hạn hôm nay");
+    expect(subOf(task({ deadline: at(17) }), "plan", NOW)).toBe("Hạn 17:00"); // same day, its clock
+    expect(subOf(task({ deadline: new Date(2026, 10, 20, 14).getTime() }), "plan", NOW)).toBe("Hạn T6 14:00"); // another day in the week: day and clock
+    const later = at(14) + 2 * DAY;
     expect(subOf(task({ deadline: later }), "plan", NOW)).toBe(t("due", { time: when(later, NOW) }));
+  });
+  it("any sitting of a split task shows its place, then its due", () => {
+    const dl = new Date(2026, 10, 23, 23, 59).getTime();
+    const sits = [1, 2, 3].map((k) => task({ id: `s${k}`, parentId: "split", start: at(8 + k), deadline: dl }));
+    expect(subOf(sits[1], "plan", NOW, sits)).toBe("Buổi 2/3 · Hạn T2 23/11");
+    expect(subOf(sits[1], "plan", NOW, [sits[1]])).toBe("Hạn T2 23/11"); // one sitting: no place
+    expect(subOf(sits[2], "plan", NOW, [...sits, { ...sits[0], id: "gone", deletedAt: NOW }])).toBe("Buổi 3/3 · Hạn T2 23/11");
+  });
+  it("a repeat with no part of the day shows its cadence and end", () => {
+    expect(subOf(task({ rrule: "FREQ=DAILY;UNTIL=20261231T235959" }), "plan", NOW)).toBe("Mỗi ngày · đến 31/12");
+    expect(subOf(task({ rrule: "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;UNTIL=20261231T235959" }), "plan", NOW)).toBe("5 buổi/tuần · đến 31/12");
+    expect(subOf(task({ rrule: "FREQ=WEEKLY;BYDAY=MO,WE,FR" }), "plan", NOW)).toBe("3 buổi/tuần");
+    expect(subOf(task({ rrule: "FREQ=WEEKLY" }), "plan", NOW)).toBe("Mỗi tuần");
+    expect(subOf(task({ rrule: "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO" }), "plan", NOW)).toBeUndefined(); // no cadence here: the row's old sub
+  });
+  it("a repeat with a part of the day keeps its part", () => {
+    const occ = task({ rrule: "FREQ=WEEKLY;BYDAY=MO,WE,FR;UNTIL=20261231T235959", tods: [[300, 660]], deadline: new Date(2026, 10, 18).getTime() });
+    expect(subOf(occ, "plan", NOW)).toBe("Buổi sáng");
   });
   it("lectures and exams show only the room", () => {
     expect(subOf(lecture({ deadline: at(23) }), "lecture", NOW)).toBe("A27.101");
     expect(subOf(task({ location: "A27.201" }), "exam", NOW)).toBe("A27.201");
   });
   it("an assignment shows its course then the due", () => {
-    expect(subOf(task({ course: "Trí tuệ nhân tạo", deadline: at(23, 59) }), "assignment", NOW)).toBe(`Trí tuệ nhân tạo, ${t("due", { time: "23:59" })}`);
+    expect(subOf(task({ course: "Trí tuệ nhân tạo", deadline: at(23, 59) }), "assignment", NOW)).toBe(`Trí tuệ nhân tạo, Hạn hôm nay`);
   });
   it("falls back to the place, then the note's first line", () => {
     expect(subOf(task({ location: "Thư viện", note: "a\nb" }), "plan", NOW)).toBe("Thư viện");
@@ -293,6 +316,6 @@ it("a repeat's row shows its part of the day, not the day's end as a due", () =>
   const base = { id: "r", title: "Tập thể dục", kind: "exercise", source: "user", effort: 60, createdAt: day, rrule: "FREQ=DAILY", start: day + 8 * 3600_000, deadline: next } as const;
   expect(subOf({ ...base, tods: [[300, 660]] }, "plan", day)).toBe("Buổi sáng");
   expect(subOf({ ...base, tods: [[300, 660], [1080, 1320]] }, "plan", day)).toBe("Buổi sáng hoặc tối");
-  expect(subOf({ ...base }, "plan", day)).toBeFalsy();
+  expect(subOf({ ...base }, "plan", day)).toBe("Mỗi ngày"); // no part said: its cadence
   expect(subOf({ ...base, deadline: day + 17 * 3600_000 }, "plan", day)).toBe("Hạn 17:00");
 });

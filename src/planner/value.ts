@@ -10,6 +10,7 @@ export interface Piece {
   prior?: number; // current start
   slip: number;
   missed?: number; // old start of a task that ended unfinished: replanned, told so
+  over?: boolean; // due today and too long for what is left before 22:00: may run on to midnight
   lock?: boolean; // its current start is still good, so it stays: nothing moves without a cause
   soon?: boolean; // missed or "later": without a deadline, aim within 2 days, not a week
 }

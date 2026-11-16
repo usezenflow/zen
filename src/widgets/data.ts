@@ -46,13 +46,13 @@ export interface WidgetData {
   summary: string; // "5 việc, 1 tiết học"
   count: string; // one figure for the medium head: "5 việc", "3 tiết học" on a classes-only day
   next?: WNext; // undefined = nothing left today: "Xong hết hôm nay"
-  rows: WRow[]; // today after `next`, start order, at most 6
+  rows: WRow[]; // today after `next`, start order, at most 3
   doneLabel: string; // "Xong (2)", "" when none
   tomorrow: string; // the next day with anything, within a week: "Mai: Cấu trúc dữ liệu 07:00", "T6: …" this week, "T6 27/11: …" past it; "" when none
   // Medium with nothing left today: the next day that has anything, within a week.
-  ahead: WRow[]; // its first three, start order
+  ahead: WRow[]; // its first three, start order; [] while today still has rows
   aheadHead: string; // "Mai", "T4" this week, "T4 2/12" past it; "" when nothing is ahead at all
-  more: WRow[]; // next-up after the day the medium list shows, to fill it to three rows; time is "Mai 07:00", "T4 22:00", "27/11"
+  more: WRow[]; // next-up after the day the medium list shows, only enough to fill it to three rows; time is "Mai 07:00", "T4 22:00", "27/11"
   aheadCount: string; // the same one figure: "2 việc"
   doneCount: string; // "5 việc xong", "" when none: all done; else a free day
   dayName: string; // "T7 14", the free day's ink card

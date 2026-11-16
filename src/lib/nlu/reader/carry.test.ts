@@ -26,7 +26,9 @@ describe("leading day carries to later clauses", () => {
       fold(it.title).text.includes("doc code zf"),
     );
     expect(second).toBeDefined();
-    expect(second?.deadline).toBeUndefined();
+    // the implied due of its class is inferred; the day of 'mai' is not carried to it
+    expect(second?.deadline === undefined || second.inferred.includes("deadline")).toBe(true);
+    expect(second?.deadline?.startsWith("2026-11-13")).toBe(false);
     expect(second?.notBefore?.startsWith("2026-11-12")).toBe(true);
   });
 });

@@ -26,8 +26,9 @@ const copyArt = () =>
   (art ??= (async () => {
     const out = {} as WidgetData["art"];
     for (const [type, shapes] of Object.entries(ART) as [ArtType, { square: number; wide: number }][]) {
-      const pair = {} as { square: string; wide: string };
-      for (const shape of ["square", "wide"] as const) {
+      // No layout draws `wide`; its path rode in every timeline entry, about a third of a busy day's timeline.
+      const pair = { square: "", wide: "" };
+      for (const shape of ["square"] as const) {
         const dest = new File(W!.widgetsDirectory, `${type}-${shape}.png`);
         if (!dest.exists) {
           const a = await Asset.fromModule(shapes[shape]).downloadAsync();

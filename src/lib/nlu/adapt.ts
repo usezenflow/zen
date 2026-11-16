@@ -2,6 +2,7 @@ import type { Action, Fixed, Kind } from "../types";
 import { kindOf as kindOfTitle } from "./kind";
 import { read, readBest } from "./reader/reader";
 import { t, type Key } from "../i18n";
+import { day } from "../when";
 import type { ReadOpts } from "./reader/reader";
 import type { ReaderItem, ReaderItemType, ReaderResult, ReaderSource, ReaderWC, ReaderWindow } from "./shared";
 
@@ -67,7 +68,15 @@ export function itemAction(it: ReaderItem): Action {
   const win = !!one && !!a.notAfter;
   if (it.deadline && !win) a.deadline = iso(it.deadline);
   // A guessed size uses coursework norms ("demo" is 6 h); spoken, unsized, it is one sitting of at most 2 h. Said minutes stand.
-  if (it.durationMinutes) a.effortMinutes = it.inferred?.includes("durationMinutes") ? Math.min(it.durationMinutes, GUESS_CAP) : it.durationMinutes;
+  // A class-sized length keeps its size; any other guessed one is capped.
+  if (it.durationMinutes) {
+    const guessed = it.inferred?.includes("durationMinutes");
+    a.effortMinutes = guessed && !it.sized ? Math.min(it.durationMinutes, GUESS_CAP) : it.durationMinutes;
+    if (guessed) a.effortGuessed = true;
+    if (guessed && it.cls) { a.cls = it.cls; if (it.guessMin) a.guessMin = it.guessMin; }
+  }
+  if (it.sittingMinutes) a.maxSitting = it.sittingMinutes;
+  if (it.anchor) a.anchor = it.anchor.at;
   if (a.fixed && c && (!it.durationMinutes || it.inferred?.includes("durationMinutes")) && mins(c.to) > mins(c.from)) a.effortMinutes = mins(c.to) - mins(c.from);
   if (it.rrule) a.repeat = it.rrule;
   if (it.notBefore && (!win || it.rrule)) a.notBefore = iso(it.notBefore);
@@ -91,7 +100,7 @@ export function itemAction(it: ReaderItem): Action {
 
 /** What the app knows that the reader cannot: the user's timetable, habits per title, marks, and typos they refused. */
 /** `alternatives` are other transcripts of the same voice take; the best-read one wins. */
-export type ReadExtra = Partial<Pick<ReadOpts, "calendar" | "prior" | "affinity" | "rejected" | "hint">> & { alternatives?: string[] };
+export type ReadExtra = Partial<Pick<ReadOpts, "calendar" | "prior" | "affinity" | "rejected" | "hint" | "classMult">> & { alternatives?: string[] };
 
 /** The last few reader crashes (message only, never the user's text), for a bug report. */
 export const readErrors: string[] = [];
@@ -138,6 +147,32 @@ export const readActions = (text: string, now: Date, source: ReaderSource = "typ
   readFull(text, now, source, extra).items.map(itemAction);
 
 const FLAGS = ["weekday_mismatch", "date_past", "menu"];
+
+/** "23/11" from "YYYY-MM-DD…" or "YYYYMMDD", no padding. */
+const dmOf = (s: string) => { const m = /^(\d{4})-?(\d\d)-?(\d\d)/.exec(s); return m ? `${+m[3]}/${+m[2]}` : s; };
+
+/**
+ * The capture toast's sub for the tasks a line made, when the sizer named them: one task before its exam ("Trước buổi thi 4/12");
+ * several sharing a repeat's end ("đến 31/12"), a span ("23 - 29/11") or a due with their sittings ("4 buổi · Hạn T2 23/11").
+ */
+export function sizedSub(acts: Action[], now: number): string | undefined {
+  if (acts.length === 1) return acts[0].anchor ? t("beforeExam", { d: dmOf(acts[0].anchor) }) : undefined;
+  const until = acts.map((a) => /UNTIL=(\d{8})/.exec(a.repeat ?? "")?.[1]);
+  if (until[0] && until.every((u) => u === until[0])) return t("untilDate", { d: dmOf(until[0]) });
+  // a span: every task has a start and an end of its own and no repeat, and they are the same two days
+  const from = acts.map((a) => (a.notBefore && a.deadline && !a.repeat ? a.notBefore.slice(0, 10) : undefined));
+  const to = acts.map((a) => (a.notBefore && a.deadline && !a.repeat ? a.deadline.slice(0, 10) : undefined));
+  if (from[0] && from.every((x) => x === from[0]) && to.every((x) => x === to[0])) {
+    const same = from[0].slice(0, 7) === to[0]!.slice(0, 7);
+    return `${same ? +from[0].slice(8) : dmOf(from[0])} - ${dmOf(to[0]!)}`;
+  }
+  const due = acts.map((a) => a.deadline);
+  if (acts.every((a) => a.maxSitting) && due[0] && due.every((d) => d === due[0])) {
+    const k = acts.reduce((n, a) => n + Math.ceil((a.effortMinutes ?? 0) / a.maxSitting!), 0);
+    return [t("sittingCount", { n: k }), t("due", { time: day(new Date(due[0]).getTime(), now) })].join(" · ");
+  }
+  return undefined;
+}
 
 /**
  * What to tell the user about a read, beyond the tasks: a chip for the first guessed reading ("3 giờ" is 15:00 or 03:00)

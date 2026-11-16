@@ -70,15 +70,25 @@ const words = (s: string) => fold(s).text.split(/[^a-z]+/);
 /** Whether a text names a task verb: the words that make a clause a task, not a time or a note. */
 export const hasTaskWord = (s: string) =>
   words(s).some((w) => TASK_WORDS.has(w));
+/** Words of a side with its date, clock and place spans blanked. */
+const bareWords = (s: string): number => {
+  let t = s;
+  for (const m of findMentions(s).reverse())
+    t = t.slice(0, m.start) + " ".repeat(m.end - m.start) + t.slice(m.end);
+  // words of two or more letters: a code like "A2.101" is no word
+  return (fold(t).text.match(/[a-z]{2,}/g) ?? []).length;
+};
 const hasFixed = (s: string) => words(s).some((w) => FIXED_WORDS.has(w));
 const hasClock = (s: string) =>
   findMentions(s).some((m) => m.kind === "date" || m.kind === "time");
 
 /** The parts of one side, in time order, or undefined when the side is not a task. */
-function pieces(s: string): string[] | undefined {
+function pieces(s: string, bareOk = false): string[] | undefined {
   const sub = chainOf(s);
   if (sub) return sub;
-  if (!hasTaskWord(s) || hasFixed(s)) return undefined;
+  // a bare title of 2+ words is a side of its own when both sides are bare: "b-tree code rồi lsm code"; its date words do not count
+  const bare = bareOk && bareWords(s) >= 2;
+  if ((!hasTaskWord(s) && !bare) || hasFixed(s)) return undefined;
   const list = s
     .split(LIST_SEP)
     .map((x) => x.trim())
@@ -107,6 +117,8 @@ function chainOf(raw: string): string[] | undefined {
   let w1: [number, number];
   let w2: [number, number];
   let forward: boolean;
+  // only the "rồi" link joins two bare titles; "sau khi" makes one task of its two sides
+  let roiLink = false;
   const pre = PRE.exec(t);
   const fm = FWD_MID.exec(t);
   const bm = BWD_MID.exec(t);
@@ -119,6 +131,9 @@ function chainOf(raw: string): string[] | undefined {
     w1 = [0, fm[1].length];
     w2 = [t.length - fm[2].length, t.length];
     forward = true;
+    // checked on the raw text: "rời" (apart) folds to "roi" too
+    const mid = text.slice(f.map[fm[1].length] ?? 0, f.map[t.length - fm[2].length] ?? text.length);
+    roiLink = /\s(?:rồi|roi|xong rồi|xong roi)[,;]?\s/i.test(mid);
   } else if (bm) {
     w1 = [0, bm[1].length];
     w2 = [t.length - bm[2].length, t.length];
@@ -129,8 +144,9 @@ function chainOf(raw: string): string[] | undefined {
   const second = side(w2[0], w2[1]);
   // both sides with their own clock keep the clocks; the order is not an edge
   if (hasClock(first) && hasClock(second)) return undefined;
-  const p1 = pieces(first);
-  const p2 = pieces(second);
+  const bareOk = roiLink && !hasTaskWord(first) && !hasTaskWord(second);
+  const p1 = pieces(first, bareOk);
+  const p2 = pieces(second, bareOk);
   if (!p1 || !p2) return undefined;
   return forward ? [...p1, ...p2] : [...p2, ...p1];
 }
@@ -138,6 +154,8 @@ function chainOf(raw: string): string[] | undefined {
 const DANGLING_FWD =
   /\s(?:roi|xong roi|sau do|tiep theo|xong thi|then|after that|afterwards|next)$/;
 const DANGLING_BWD = /^(?:but |nhung )?(?:before that|truoc do)\b/;
+
+const CUE_START = new RegExp(`^(?:${CORRECTION.source})`);
 
 /**
  * Joins a clause that ends with a forward connector to the clause after it ("học toán rồi, làm bài tập"),
@@ -156,6 +174,15 @@ export function joinConnectors(clauses: Clause[]): Clause[] {
         DANGLING_BWD.test(fold(c.text).text.trim()));
     const text = joinable ? `${prev.text.trim()} ${c.text.trim()}` : "";
     if (joinable && chainOf(text)) out[out.length - 1] = { ...prev, text };
+    // a correction clause corrects the clause before it: "lsm code sau, à không mai" is one clause
+    else if (
+      !!prev &&
+      prev.section === c.section &&
+      !prev.label &&
+      !c.label &&
+      CUE_START.test(fold(c.text).text.trim())
+    )
+      out[out.length - 1] = { ...prev, text: `${prev.text.trim()}, ${c.text.trim()}` };
     else out.push(c);
   }
   return out;
@@ -168,9 +195,11 @@ export function splitOrdered(c: Clause): {
 } {
   const chain = chainOf(c.text);
   if (!chain) return { parts: [c], edges: [] };
+  // a side that is a bare title of up to 3 words is a task of its own, "b-tree code rồi lsm code"
   const parts = chain.map((text) => ({
     ...c,
     text,
+    piece: !hasTaskWord(text) && text.trim().split(/\s+/).length <= 3,
     start: c.start + Math.max(0, c.text.indexOf(text)),
   }));
   const edges = parts.slice(1).map((_, k): [number, number] => [k, k + 1]);

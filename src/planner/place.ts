@@ -40,10 +40,13 @@ export function cells(p: Piece, now: number): number[] {
   if (p.lock) return [p.prior!];
   const t = p.task;
   const lo = ceil(Math.max(now, t.notBefore ?? now));
-  let hi = t.deadline === undefined ? now + (p.soon ? 2 : 7) * DAY : Math.min(t.deadline + 3 * DAY, now + 120 * DAY);
+  // The planning horizon is 30 days: a piece that starts past it is not tried at all (no solver work). A portal/LMS deadline (source dlu) and an exam's prep (forId, due at the synced exam) are anchored outside, so they keep their reach.
+  const cap = t.source === "dlu" || t.forId !== undefined ? Infinity : now + 30 * DAY;
+  if (lo >= cap) return [];
+  let hi = t.deadline === undefined ? now + (p.soon ? 2 : 7) * DAY : Math.min(t.deadline + 3 * DAY, cap);
   // a piece already placed further out (by hand, or a week ago) that must move stays near its day, not dragged into this week
-  if (t.deadline === undefined && p.prior !== undefined) hi = Math.max(hi, dayStart(p.prior) + 2 * DAY);
-  if (hi <= lo) hi = lo + 3 * DAY;
+  if (t.deadline === undefined && p.prior !== undefined) hi = Math.min(Math.max(hi, dayStart(p.prior) + 2 * DAY), cap);
+  if (hi <= lo) hi = Math.min(lo + 3 * DAY, cap);
   // a repeat's occurrence stays on its own day: the next day has its own
   if (t.rrule && t.deadline !== undefined) hi = Math.min(hi, t.deadline);
   // The whole task ends by notAfter; a window already gone is dropped, so the task takes the next free slot, not a forced one at `now`.
@@ -61,12 +64,19 @@ export function awake(p: Piece, c: number, day = dayStart(c)): boolean {
   const tods = p.task.tods;
   if (tods?.length && !tods.some(([a, b]) => m >= a && m + p.effort <= b)) return false;
   if (nb !== undefined && nb !== dayStart(nb) && c === ceil(nb)) return m + p.effort <= 24 * 60;
-  return m >= WAKE_FROM && m + p.effort <= WAKE_TO;
+  return m >= WAKE_FROM && m + p.effort <= (p.over ? 24 * 60 : WAKE_TO);
 }
 
 type Mv = [number, number][]; // piece index -> new start (-1 = unplaced)
 
 export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
+  // Pieces with no cell (past the horizon) are left out of the search: they stay unplaced (-1), so the solver's cost follows the 30 days, not the 120.
+  const open = pieces.filter((p) => cells(p, env.now).length > 0);
+  if (open.length < pieces.length) {
+    const r = solve(open, env, seed);
+    for (const p of pieces) if (!r.starts.has(p.id)) r.starts.set(p.id, -1);
+    return r;
+  }
   const t0 = Date.now(), { now } = env, n = pieces.length;
   const cs = pieces.map((p) => cells(p, now));
   // dayStart is slow (Date): once per day of each piece's cells, which ascend

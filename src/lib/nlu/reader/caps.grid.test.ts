@@ -120,7 +120,8 @@ describe("caps: lengths", () => {
     it(`${text} is ${min} minutes`, () => {
       const x = one(text);
       expect(x.durationMinutes).toBe(min);
-      expect(x.deadline).toBeUndefined();
+      // a class's implied due is listed as inferred; the length never sets it
+      expect(x.deadline === undefined || x.inferred.includes("deadline")).toBe(true);
     });
   for (const text of ["học 0 phút", "học 0 tiết"])
     it(`${text}: no length, the words stay`, () => expect(one(text).title).toMatch(/ 0 /));

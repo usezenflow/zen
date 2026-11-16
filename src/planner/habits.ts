@@ -1,6 +1,7 @@
 import type { Kind, Task } from "../lib/types";
 import { DAY, hourOf, type Nb } from "./features";
 import type { Model } from "./model";
+import { r30 } from "../lib/nlu/size";
 
 const KIND_EFFORT: Record<Kind, number> = { study: 60, exercise: 60, chores: 30, social: 90, other: 30 };
 const HALF = 21 * DAY;
@@ -21,15 +22,18 @@ export function peakHour(m: Model, now: number): number {
   return h.length ? median(h) : 15;
 }
 
+// A said length stands. A guessed one gives way to the median of 2+ alike tasks the user finished (half hours); with fewer it stands.
 export function effort(t: Task, m: Model): number {
-  if (t.effort > 0) return t.effort;
+  const guessed = !!t.effortGuessed && t.effort > 0;
+  if (t.effort > 0 && !guessed) return t.effort;
   if (t.vec) {
     const near = m.efforts
       .map((e) => ({ c: cosine(t.vec!, e.vec), m: e.minutes }))
       .filter((e) => e.c > SIM).sort((a, b) => b.c - a.c).slice(0, 5);
-    if (near.length) return median(near.map((n) => n.m));
+    if (guessed && near.length >= 2) return r30(median(near.map((n) => n.m)));
+    if (!guessed && near.length) return median(near.map((n) => n.m));
   }
-  return KIND_EFFORT[t.kind];
+  return guessed ? t.effort : KIND_EFFORT[t.kind];
 }
 
 // Share of placements of this kind the user pushed later.

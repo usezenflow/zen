@@ -113,6 +113,11 @@ it("a kept-free rule window is a striped block labelled with the rule, in time o
   expect(today.map((b) => b.props.accessibilityLabel)).toEqual([undefined, "Tối để trống"]); // 07:00 lecture, then 19:00 window
 });
 
+it("a kept rule in an otherwise empty week is still drawn, not the dashed empty week", async () => {
+  await show({ tasks: [], rules: [rule({ days: [2] })] });
+  expect(all(root(), (x) => x.props.accessibilityLabel === "Tối để trống")).toHaveLength(1);
+});
+
 it("kind-only and overnight rules draw no window", async () => {
   await show({ tasks: [task()], rules: [rule({ kinds: ["exercise"] }), rule({ id: "r2", from: 22 * 60, to: 2 * 60 })] });
   expect(all(root(), (x) => typeof x.props.accessibilityLabel === "string" && x.props.accessibilityLabel.startsWith("Tối"))).toHaveLength(0);

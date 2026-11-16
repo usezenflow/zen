@@ -11,7 +11,7 @@ import { glide, Tap, settle, EASE } from "@/components/tap";
 import { hits, type Query } from "@/lib/find";
 import { t } from "@/lib/i18n";
 import { reasonText } from "@/lib/reasons";
-import { when } from "@/lib/when";
+import { day, when } from "@/lib/when";
 import { useTheme, font, space, ff, motion } from "@/lib/theme";
 import type { Task } from "@/lib/types";
 import { typeOf } from "@/planner";
@@ -19,23 +19,42 @@ import { typeOf } from "@/planner";
 // Where a part of the day opens (adapt.ts FROM; the older bounds too, for tasks made before them) -> its name.
 const PART_AT: Record<number, string> = { 300: "sáng", 660: "trưa", 720: "chiều", 780: "chiều", 1020: "tối", 1080: "tối", 1320: "đêm" };
 
+// A day's end (exactly midnight after it, or 23:59) is its day: the ms that stands for that day, else undefined.
+const dayEnd = (ms: number) => { const d = new Date(ms); return ms === startOfDay(ms) ? ms - 1 : d.getHours() === 23 && d.getMinutes() === 59 ? ms : undefined; };
+// "Hạn T2 23/11" at a day's end, no clock; a clock on the start's own day is hhmm; else when().
+const dueOf = ({ deadline, start }: Task, now: number) => {
+  if (deadline === undefined) return undefined;
+  const end = dayEnd(deadline);
+  return t("due", { time: end !== undefined ? day(end, now).replace(t("today"), t("today").toLowerCase()) /* "Hạn hôm nay" */ : start !== undefined && startOfDay(start) === startOfDay(deadline) ? hhmm(deadline) : when(deadline, now) });
+};
+// "Mỗi ngày", "5 buổi/tuần", "Mỗi tuần", then "đến 31/12" from UNTIL. Other rules (every 2 weeks, monthly) have no cadence here.
+const cadence = (rrule: string) => {
+  const p: Record<string, string | undefined> = Object.fromEntries(rrule.split(";").map((kv) => kv.split("=")));
+  const days = p.BYDAY?.split(",").filter(Boolean).length ?? 0;
+  if (!["DAILY", "WEEKLY"].includes(p.FREQ ?? "") || (Number(p.INTERVAL) || 1) !== 1) return undefined;
+  const base = days ? t("repeatPerWeek", { n: days }) : p.FREQ === "DAILY" ? t("repeatEveryDay") : t("repeatEveryWeek");
+  const u = /^(\d{4})(\d\d)(\d\d)/.exec(p.UNTIL ?? "");
+  return u ? `${base} · ${t("untilDate", { d: `${+u[3]}/${+u[2]}` })}` : base;
+};
+
 // Lectures and exams: room. Assignments: course. Anything with a deadline: "Hạn 23:59" (when() if not the same day).
 // An exam prep: "Buổi 1/4 · Mẫu thiết kế", its place among its sittings (from `all`, by time) and the subject; the due is the exam's own row.
+// Any other sitting of a split task: "Buổi 2/3 · Hạn T2 23/11".
 export function subOf(task: Task, type: string, now: number, all: Task[] = []) {
-  if (task.forId) {
-    const sibs = all.filter((x) => x.parentId !== undefined && x.parentId === task.parentId && !x.deletedAt).sort((a, b) => (a.start ?? Infinity) - (b.start ?? Infinity));
-    return [sibs.length > 1 ? reasonText({ key: "pace", w: 1, vars: { k: sibs.findIndex((x) => x.id === task.id) + 1, n: sibs.length } }) : undefined, task.course].filter(Boolean).join(" · ") || undefined;
-  }
-  // A repeat's occurrence ends at midnight of its own day: that is no due, its part of the day is ("Buổi sáng"). A said due ("trước 17h") still shows.
-  if (task.rrule && task.deadline !== undefined && task.deadline === startOfDay(task.deadline)) {
+  const sibs = task.parentId === undefined ? [] : all.filter((x) => x.parentId === task.parentId && !x.deletedAt).sort((a, b) => (a.start ?? Infinity) - (b.start ?? Infinity));
+  const pace = sibs.length > 1 ? reasonText({ key: "pace", w: 1, vars: { k: sibs.findIndex((x) => x.id === task.id) + 1, n: sibs.length } }) : undefined;
+  if (task.forId) return [pace, task.course].filter(Boolean).join(" · ") || undefined;
+  if (pace) return [pace, dueOf(task, now)].filter(Boolean).join(" · ");
+  // A repeat's occurrence ends at its day's end: that is no due. Its part of the day ("Buổi sáng") or its cadence shows. A said due ("trước 17h") still shows.
+  if (task.rrule && (task.deadline === undefined || dayEnd(task.deadline) !== undefined)) {
     const part = [...new Set((task.tods ?? []).map(([a]) => PART_AT[a]).filter(Boolean))].join(" hoặc ");
-    return (type === "lecture" || type === "exam" ? task.location : undefined) ?? (part ? t("gotPart", { p: part }) : task.location);
+    if (type === "lecture" || type === "exam") return task.location ?? (part ? t("gotPart", { p: part }) : undefined);
+    if (part) return t("gotPart", { p: part });
+    const cad = cadence(task.rrule);
+    if (cad) return cad;
   }
-  const due = task.deadline !== undefined
-    ? t("due", { time: task.start !== undefined && startOfDay(task.start) === startOfDay(task.deadline) ? hhmm(task.deadline) : when(task.deadline, now) })
-    : undefined;
   if (type === "lecture" || type === "exam") return task.location;
-  return [type === "assignment" ? task.course : undefined, due].filter(Boolean).join(", ") || task.location || task.note?.split("\n")[0];
+  return [type === "assignment" ? task.course : undefined, dueOf(task, now)].filter(Boolean).join(", ") || task.location || task.note?.split("\n")[0];
 }
 
 const SWIPE = 96;

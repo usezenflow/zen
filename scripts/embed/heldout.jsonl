@@ -1,0 +1,246 @@
+{"text": "viết endpoint lấy danh sách khách hàng", "cls": "code"}
+{"text": "implement pagination cho bảng orders", "cls": "code"}
+{"text": "setup kubernetes namespace cho staging", "cls": "code"}
+{"text": "code form đăng ký bằng React", "cls": "code"}
+{"text": "dựng grafana dashboard cho service", "cls": "code"}
+{"text": "viết cron job xóa log cũ", "cls": "code"}
+{"text": "làm webhook nhận sự kiện từ Stripe", "cls": "code"}
+{"text": "sửa lỗi app bị thoát khi xoay màn hình", "cls": "fix"}
+{"text": "tìm bug làm mất dữ liệu khi sync", "cls": "fix"}
+{"text": "khắc phục lỗi timeout ở payment", "cls": "fix"}
+{"text": "lỗi font bị vỡ trên Android sửa giúp", "cls": "fix"}
+{"text": "fix race condition trong worker", "cls": "fix"}
+{"text": "sửa lỗi đăng xuất ngẫu nhiên", "cls": "fix"}
+{"text": "review code phần realtime chat", "cls": "review_code"}
+{"text": "duyệt PR thêm đăng nhập bằng Google", "cls": "review_code"}
+{"text": "xem code của Tuấn trước khi merge", "cls": "review_code"}
+{"text": "review pull request migration bảng users", "cls": "review_code"}
+{"text": "review MR refactor store", "cls": "review_code"}
+{"text": "review code module báo cáo", "cls": "review_code"}
+{"text": "viết tài liệu hướng dẫn sử dụng cho khách", "cls": "write_doc"}
+{"text": "soạn báo cáo tổng kết dự án Q2", "cls": "write_doc"}
+{"text": "viết proposal cho chương trình mới", "cls": "write_doc"}
+{"text": "viết hướng dẫn deploy cho team ops", "cls": "write_doc"}
+{"text": "viết báo cáo phân tích đối thủ", "cls": "write_doc"}
+{"text": "viết document mô tả API v2", "cls": "write_doc"}
+{"text": "viết bài luận về đô thị hóa", "cls": "essay"}
+{"text": "tiểu luận so sánh hai trường phái kinh tế", "cls": "essay"}
+{"text": "viết essay về mạng xã hội và giới trẻ", "cls": "essay"}
+{"text": "tiểu luận văn học Việt Nam hiện đại", "cls": "essay"}
+{"text": "hoàn thành bài luận 1500 từ", "cls": "essay"}
+{"text": "viết bài tiểu luận về năng lượng tái tạo", "cls": "essay"}
+{"text": "làm slides báo cáo thực tập", "cls": "slides"}
+{"text": "chuẩn bị deck cho buổi giới thiệu sản phẩm", "cls": "slides"}
+{"text": "làm bài thuyết trình về lịch sử kinh tế", "cls": "slides"}
+{"text": "slide cho buổi bảo vệ đề án", "cls": "slides"}
+{"text": "làm powerpoint tổng kết tuần", "cls": "slides"}
+{"text": "thiết kế slide kế hoạch marketing quý 1", "cls": "slides"}
+{"text": "viết chương 4 luận văn thạc sĩ", "cls": "thesis"}
+{"text": "hoàn thành bản nháp khóa luận", "cls": "thesis"}
+{"text": "sửa khóa luận theo nhận xét của hội đồng", "cls": "thesis"}
+{"text": "viết phần mở đầu của đồ án tốt nghiệp", "cls": "thesis"}
+{"text": "viết kết quả thực nghiệm cho KLTN", "cls": "thesis"}
+{"text": "làm chương 3 DATN", "cls": "thesis"}
+{"text": "ôn thi học kỳ môn kinh tế vĩ mô", "cls": "exam_review"}
+{"text": "ôn tập đại cương hóa cho kỳ thi", "cls": "exam_review"}
+{"text": "ôn thi cuối kỳ xác suất thống kê", "cls": "exam_review"}
+{"text": "học lại kiến thức sinh lý cho bài thi", "cls": "exam_review"}
+{"text": "ôn tập chương 1 đến 5 đại số", "cls": "exam_review"}
+{"text": "ôn thi giữa kỳ môn tâm lý", "cls": "exam_review"}
+{"text": "làm bài tập chương 4 hóa", "cls": "homework"}
+{"text": "làm bt toán trang 12 đến 15", "cls": "homework"}
+{"text": "làm bài về nhà môn kinh tế", "cls": "homework"}
+{"text": "làm bài tập tiếng Việt lớp 5", "cls": "homework"}
+{"text": "làm xong bài tập cấu trúc máy tính", "cls": "homework"}
+{"text": "bài tập về nhà vật lý 11", "cls": "homework"}
+{"text": "đọc chương 2 của sách Clean Code", "cls": "read"}
+{"text": "đọc 40 trang giáo trình marketing", "cls": "read"}
+{"text": "đọc tài liệu về OAuth 2", "cls": "read"}
+{"text": "đọc bài báo về LLM", "cls": "read"}
+{"text": "đọc sách Đắc nhân tâm 2 chương", "cls": "read"}
+{"text": "đọc báo cáo ngành bán lẻ", "cls": "read"}
+{"text": "luyện speaking IELTS cùng bạn", "cls": "language"}
+{"text": "học 15 từ tiếng Hàn mới", "cls": "language"}
+{"text": "làm bài nghe TOEIC part 3", "cls": "language"}
+{"text": "học tiếng Anh giao tiếp 20 phút", "cls": "language"}
+{"text": "ôn ngữ pháp tiếng Nhật N4", "cls": "language"}
+{"text": "luyện dịch tiếng Trung đoạn văn", "cls": "language"}
+{"text": "học đàn guitar bài mới", "cls": "skill"}
+{"text": "luyện vẽ phác thảo nhân vật", "cls": "skill"}
+{"text": "học nhảy salsa", "cls": "skill"}
+{"text": "tập đàn piano bài Chopin", "cls": "skill"}
+{"text": "học cắt may áo", "cls": "skill"}
+{"text": "tập gym đùi và mông", "cls": "workout_gym"}
+{"text": "đi gym ngực lưng", "cls": "workout_gym"}
+{"text": "tập tạ tay sau", "cls": "workout_gym"}
+{"text": "chest and triceps ở phòng tập", "cls": "workout_gym"}
+{"text": "gym 45 phút tối nay", "cls": "workout_gym"}
+{"text": "tập vai và bụng", "cls": "workout_gym"}
+{"text": "chạy 7km buổi sáng", "cls": "workout_run"}
+{"text": "chạy bộ quanh công viên 40 phút", "cls": "workout_run"}
+{"text": "chạy interval trên đường", "cls": "workout_run"}
+{"text": "chạy bộ 15km cuối tuần", "cls": "workout_run"}
+{"text": "run club sáng thứ 7", "cls": "workout_run"}
+{"text": "chạy 5km sau giờ làm", "cls": "workout_run"}
+{"text": "yoga buổi tối 25 phút", "cls": "workout_yoga"}
+{"text": "tập yoga để giảm đau lưng", "cls": "workout_yoga"}
+{"text": "lớp yoga cho người mới", "cls": "workout_yoga"}
+{"text": "yoga thở và giãn cơ", "cls": "workout_yoga"}
+{"text": "tập vinyasa flow sáng sớm", "cls": "workout_yoga"}
+{"text": "yoga 15 phút trước khi ngủ", "cls": "workout_yoga"}
+{"text": "bơi 800m ở hồ", "cls": "workout_swim"}
+{"text": "đi bơi buổi tối sau giờ làm", "cls": "workout_swim"}
+{"text": "bơi tự do 30 phút", "cls": "workout_swim"}
+{"text": "đi hồ bơi cùng con", "cls": "workout_swim"}
+{"text": "tập bơi bướm 20 vòng", "cls": "workout_swim"}
+{"text": "bơi sáng chủ nhật", "cls": "workout_swim"}
+{"text": "đọc sách 15 phút trước khi ngủ mỗi ngày", "cls": "habit_read"}
+{"text": "thói quen đọc sách mỗi sáng", "cls": "habit_read"}
+{"text": "đọc sách đều mỗi ngày 30 phút", "cls": "habit_read"}
+{"text": "đọc vài trang sách mỗi tối", "cls": "habit_read"}
+{"text": "đọc sách hằng ngày cho đầu óc", "cls": "habit_read"}
+{"text": "read every day 20 min", "cls": "habit_read"}
+{"text": "thiền 20 phút buổi sáng", "cls": "habit_meditate"}
+{"text": "thiền mỗi ngày trước khi làm việc", "cls": "habit_meditate"}
+{"text": "thiền để giảm căng thẳng", "cls": "habit_meditate"}
+{"text": "ngồi thiền 10 phút", "cls": "habit_meditate"}
+{"text": "luyện hít thở và thiền", "cls": "habit_meditate"}
+{"text": "thiền buổi tối 15 phút", "cls": "habit_meditate"}
+{"text": "viết nhật ký cảm ơn hằng ngày", "cls": "habit_journal"}
+{"text": "viết nhật ký trước khi đi ngủ", "cls": "habit_journal"}
+{"text": "viết vài dòng journal", "cls": "habit_journal"}
+{"text": "ghi nhật ký cảm xúc tối nay", "cls": "habit_journal"}
+{"text": "viết nhật ký ngày hôm nay", "cls": "habit_journal"}
+{"text": "journal mỗi sáng", "cls": "habit_journal"}
+{"text": "dọn dẹp phòng tắm", "cls": "clean"}
+{"text": "lau nhà bếp và rửa chén", "cls": "clean"}
+{"text": "dọn phòng khách cuối tuần", "cls": "clean"}
+{"text": "lau cửa kính ban công", "cls": "clean"}
+{"text": "dọn đồ chơi của con", "cls": "clean"}
+{"text": "vệ sinh bồn rửa", "cls": "clean"}
+{"text": "giặt chăn mền", "cls": "laundry"}
+{"text": "giặt đồ của cả tuần", "cls": "laundry"}
+{"text": "phơi quần áo trước khi mưa", "cls": "laundry"}
+{"text": "ủi áo cho cuộc họp", "cls": "laundry"}
+{"text": "giặt ga trải giường", "cls": "laundry"}
+{"text": "gấp đồ đã khô", "cls": "laundry"}
+{"text": "nấu canh bí đỏ", "cls": "cook"}
+{"text": "nấu cơm cho gia đình tối nay", "cls": "cook"}
+{"text": "nấu bánh xèo", "cls": "cook"}
+{"text": "làm món cá kho", "cls": "cook"}
+{"text": "nấu hủ tiếu", "cls": "cook"}
+{"text": "nấu nồi lẩu nấm", "cls": "cook"}
+{"text": "mua sách tặng bạn", "cls": "shop"}
+{"text": "đi chợ mua thịt cá", "cls": "shop"}
+{"text": "mua giày cho con", "cls": "shop"}
+{"text": "đặt đồ ăn trên Grab Mart", "cls": "shop"}
+{"text": "mua đồ dùng văn phòng", "cls": "shop"}
+{"text": "đi siêu thị mua đồ tắm", "cls": "shop"}
+{"text": "đóng tiền điện tháng 10", "cls": "bill"}
+{"text": "thanh toán tiền nước tháng này", "cls": "bill"}
+{"text": "trả hóa đơn internet", "cls": "bill"}
+{"text": "đóng tiền học thêm", "cls": "bill"}
+{"text": "thanh toán phí bảo hiểm sức khỏe", "cls": "bill"}
+{"text": "nộp phí gửi xe chung cư", "cls": "bill"}
+{"text": "lập ngân sách cho chuyến đi Đà Nẵng", "cls": "budget"}
+{"text": "tính chi tiêu cho tháng 12", "cls": "budget"}
+{"text": "làm bảng ngân sách sinh hoạt", "cls": "budget"}
+{"text": "lên kế hoạch chi tiêu quý 1", "cls": "budget"}
+{"text": "xem lại chi tiêu cuối năm", "cls": "budget"}
+{"text": "theo dõi tiền ăn uống tuần này", "cls": "budget"}
+{"text": "khai thuế thu nhập cá nhân 2025", "cls": "tax"}
+{"text": "quyết toán thuế TNCN cho công ty", "cls": "tax"}
+{"text": "nộp tờ khai thuế hàng quý", "cls": "tax"}
+{"text": "làm thuế thu nhập từ freelance", "cls": "tax"}
+{"text": "khai thuế cho thu nhập cho thuê", "cls": "tax"}
+{"text": "kê khai thuế môn bài", "cls": "tax"}
+{"text": "làm thủ tục gia hạn visa lao động", "cls": "paperwork"}
+{"text": "nộp hồ sơ xin cấp thẻ", "cls": "paperwork"}
+{"text": "làm căn cước cho con", "cls": "paperwork"}
+{"text": "xin giấy xác nhận cư trú", "cls": "paperwork"}
+{"text": "làm lại chứng minh thư", "cls": "paperwork"}
+{"text": "nộp hồ sơ xin học bổng", "cls": "paperwork"}
+{"text": "gọi điện cho bác sĩ hỏi lịch", "cls": "call"}
+{"text": "gọi cho khách xác nhận đơn", "cls": "call"}
+{"text": "call cho sếp báo tiến độ", "cls": "call"}
+{"text": "gọi lại cho anh Hùng", "cls": "call"}
+{"text": "gọi điện đặt bàn nhà hàng", "cls": "call"}
+{"text": "gọi hỏi shipper", "cls": "call"}
+{"text": "gửi email cho nhà tuyển dụng", "cls": "email"}
+{"text": "trả lời thư của khách về đơn hàng", "cls": "email"}
+{"text": "gửi mail báo giá cho đối tác", "cls": "email"}
+{"text": "viết email xin phỏng vấn", "cls": "email"}
+{"text": "gửi thư cảm ơn sau buổi họp", "cls": "email"}
+{"text": "reply email của HR", "cls": "email"}
+{"text": "họp với team marketing lúc 10 giờ", "cls": "meeting"}
+{"text": "họp sprint planning", "cls": "meeting"}
+{"text": "họp đánh giá dự án", "cls": "meeting"}
+{"text": "họp kế hoạch tháng", "cls": "meeting"}
+{"text": "sync với team backend", "cls": "meeting"}
+{"text": "họp với đối tác về hợp đồng", "cls": "meeting"}
+{"text": "đi khám mắt định kỳ", "cls": "appointment"}
+{"text": "hẹn khám da liễu", "cls": "appointment"}
+{"text": "đi cắt tóc sáng thứ 7", "cls": "appointment"}
+{"text": "gặp bác sĩ tim mạch", "cls": "appointment"}
+{"text": "đi nha khoa lấy cao răng", "cls": "appointment"}
+{"text": "hẹn spa chăm sóc da", "cls": "appointment"}
+{"text": "xem tivi buổi tối", "cls": "none"}
+{"text": "gặp anh Tú ở quán", "cls": "none"}
+{"text": "tối nay đi chơi với tụi nó", "cls": "none"}
+{"text": "đi lang thang phố cổ", "cls": "none"}
+{"text": "xem hoàng hôn", "cls": "none"}
+{"text": "nằm nghỉ một lát", "cls": "none"}
+{"text": "chơi cờ với ông", "cls": "none"}
+{"text": "ngồi cà phê với bạn", "cls": "none"}
+{"text": "hát karaoke", "cls": "none"}
+{"text": "đi biển cuối tuần", "cls": "none"}
+{"text": "đi du lịch Đà Lạt", "cls": "none"}
+{"text": "xem concert", "cls": "none"}
+{"text": "đi công viên", "cls": "none"}
+{"text": "ngắm trăng", "cls": "none"}
+{"text": "đi sinh nhật bạn", "cls": "none"}
+{"text": "trả lời tin nhắn", "cls": "none"}
+{"text": "nghĩ về kế hoạch", "cls": "none"}
+{"text": "suy nghĩ chút", "cls": "none"}
+{"text": "hôm nay buồn quá", "cls": "none"}
+{"text": "ừm để xem", "cls": "none"}
+{"text": "có ai không", "cls": "none"}
+{"text": "ok luôn", "cls": "none"}
+{"text": "chúc ngủ ngon", "cls": "none"}
+{"text": "cảm ơn bạn nhiều", "cls": "none"}
+{"text": "xin chào cả nhà", "cls": "none"}
+{"text": "mình đói bụng", "cls": "none"}
+{"text": "trời lạnh quá", "cls": "none"}
+{"text": "ngày mai đẹp trời", "cls": "none"}
+{"text": "môn học này khó quá", "cls": "none"}
+{"text": "cuộc sống thật đẹp", "cls": "none"}
+{"text": "pqwoeiruty", "cls": "none"}
+{"text": "hhhhhhhh", "cls": "none"}
+{"text": "wdwdwd", "cls": "none"}
+{"text": "ok ok ok", "cls": "none"}
+{"text": "123abc", "cls": "none"}
+{"text": "bla bla bla", "cls": "none"}
+{"text": "test test", "cls": "none"}
+{"text": "đại học Bách Khoa", "cls": "none"}
+{"text": "Hà Nội", "cls": "none"}
+{"text": "Đà Nẵng", "cls": "none"}
+{"text": "hồ Gươm", "cls": "none"}
+{"text": "tên tôi là Lan", "cls": "none"}
+{"text": "giáo trình", "cls": "none"}
+{"text": "bài giảng", "cls": "none"}
+{"text": "tài liệu", "cls": "none"}
+{"text": "sách hay", "cls": "none"}
+{"text": "bộ phim", "cls": "none"}
+{"text": "kỹ năng mềm", "cls": "none"}
+{"text": "công nghệ phần mềm", "cls": "none"}
+{"text": "tâm lý học đại cương", "cls": "none"}
+{"text": "kinh tế chính trị", "cls": "none"}
+{"text": "phương pháp nghiên cứu khoa học", "cls": "none"}
+{"text": "đi xem phim với bạn gái", "cls": "none"}
+{"text": "không biết nữa", "cls": "none"}
+{"text": "hẹn gặp sau nhé", "cls": "none"}
+{"text": "cuối tuần vui vẻ", "cls": "none"}
+{"text": "chờ xe buýt", "cls": "none"}
+{"text": "ngắm phố đêm", "cls": "none"}
+{"text": "đếm sao trên trời", "cls": "none"}
+{"text": "nghe radio buổi sáng", "cls": "none"}

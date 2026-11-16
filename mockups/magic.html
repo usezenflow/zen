@@ -90,6 +90,9 @@
 .pk.on { box-shadow: 0 0 0 1.5px var(--seal); }
 /* 1b: the brief on its way out, as the now-card flicks */
 .brief.out { transform: translateX(150px) rotate(4deg); opacity: .85; }
+/* Smart sizing: a folded series row is muted; a last sitting carries its in-place text button. */
+.r.more b { font-weight: 500; color: var(--muted); }
+.tbtn { margin-left: 8px; font-size: 14px; font-weight: 600; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
 </style>
 </head>
 <body>
@@ -271,13 +274,13 @@ const seen = `${head("Mình hiểu bạn", "Nhịp của bạn", "Đã thấy 2 
     <div class="hrs"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div></div>
   <div class="ins"><b>Thêm 1 lần nữa</b><small>Mỗi lần bạn xong hay dời một việc, mình hiểu bạn thêm.</small></div>`;
 
-// 13c. Nhịp after three: the hours where you actually finished or moved work, said as a guess until the model is sure.
-const early = `${head("Mình hiểu bạn", "Nhịp của bạn", "Có vẻ 20h-22h")}${tabs("Nhịp")}
+// 13c. Nhịp after three: the hours where you actually finished or moved work, said as a guess. Five or more there (and most of your work) and it is the golden range itself, "Giờ vàng 20h-22h" with Khá chắc, no waiting for the model.
+const earlyGuess = `${head("Mình hiểu bạn", "Nhịp của bạn", "Có vẻ 20h-22h")}${tabs("Nhịp")}
   <div class="art" style="margin-top:16px;padding:18px 20px">${art("plan", { w: 264, h: 170, seed: 5, cls: "bgart" })}
     <div class="lab" style="color:#fff;opacity:.85">Giờ vàng</div><div class="t" style="margin-top:6px">Có vẻ 20h-22h</div>
     <div class="strip" style="margin-top:14px">${[1, 1, 1, 1, 1, 1, 3, 5, 7, 9, 10, 8, 5, 5, 7, 9, 10, 8, 5, 4, 3, 2, 1, 1].map((h, i) => `<i class="${i >= 20 && i < 22 ? "pk" : ""}" style="height:${h * 10}%"></i>`).join("")}</div>
     <div class="hrs"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div></div>
-  <div class="ins"><b>Bạn hay làm việc lúc 20h-22h</b><small>Từ 4 lần bạn xong hay dời việc. Mình sẽ chắc dần.</small></div>
+  <div class="ins"><b>Bạn hay làm việc lúc 20h-22h</b><small>Mấy hôm nay bạn hay xong việc giờ này. Xong thêm 2 việc giờ này nữa là mình chắc.</small></div>
   <div class="lab" style="margin-top:22px">Mình đoán</div>
   <div class="set"><div class="tx">Bạn hay làm việc lúc 20h-22h<small>Đang đoán</small></div></div>`;
 
@@ -445,6 +448,34 @@ const prepRhythm = `${head("Mình hiểu bạn", "Nhịp của bạn", "8h-11h")
   <div class="ins" style="margin-top:20px"><b>Bạn ôn nhanh hơn mình nghĩ</b><small>Thường xong sớm 15%. Mình xếp ít thời gian hơn.</small><div class="viz"><span class="meterh" style="--v:85%"></span></div></div>
   <div class="ins"><b>Buổi dài bạn hay dời</b><small>4 trên 9 lần. Mình giữ mỗi buổi trong 1h.</small><div class="viz"><span class="meterh" style="--v:44%"></span></div></div>`;
 
+// 34-38. Smart sizing: no new screen. The capture toast names what was added; each task lands in the day, and its row's sub line carries
+// its sittings ("Buổi 1/2"), its repeat ("5 buổi/tuần") and its due or end ("Hạn T2 23/11", "đến 31/12"). An implied due at day end shows no clock.
+const smart = (tst, sub, d, n, lab, rows) => toast(tst, sub, [["Hoàn tác"]]) + `${head(d[0], d[1], n)}${tabs("Ngày")}
+  <div class="lab" style="margin-top:28px">${lab}</div>
+  <div class="list" style="margin-top:6px">${rows}</div>`;
+const smartGoals = smart("Đã thêm 3 việc", "đến 31/12", ["T2", "16/11"], "3 việc", "Hôm nay",
+  row("17:30", "Tập gym", "plan", "3 buổi/tuần · đến 31/12") + row("19:00", "Học tiếng anh", "plan", "5 buổi/tuần · đến 31/12") + row("21:00", "Đọc 10 cuốn sách", "plan", "Mỗi ngày · đến 31/12"));
+const smartCode = smart("Đã thêm 2 việc", "4 buổi · Hạn T2 23/11", ["T2", "16/11"], "2 việc", "Hôm nay",
+  row("14:00", "Code B-tree", "plan", "Buổi 1/2 · Hạn T2 23/11") + row("20:00", "Code LSM", "plan", "Buổi 1/2 · Hạn T2 23/11"));
+const smartExam = smart("Đã thêm Ôn giải tích", "Trước buổi thi 4/12", ["T2", "16/11"], "1 việc", "Hôm nay",
+  row("15:00", "Ôn giải tích", "plan", "Buổi 1/3 · Hạn T5 3/12"));
+const smartShort = smart("Đã thêm Đóng tiền điện", "Hôm nay 10:30", ["T2", "16/11"], "1 việc", "Hôm nay",
+  row("10:30", "Đóng tiền điện", "plan", "Hạn T2 30/11"));
+const smartWeek = smart("Đã thêm 3 việc", "23 - 29/11", ["T2", "23/11"], "2 việc", "T2, 23/11",
+  row("9:00", "Học toán", "plan", "Hạn CN 29/11") + row("14:00", "Viết báo cáo", "plan", "Buổi 1/3 · Hạn CN 29/11"));
+// A daily series is on every day up front. A day inside the 30-day plan has its time (15/12, day 30)...
+const daily = `${head("T3", "15/12", "1 việc")}${tabs("Ngày")}
+  <div class="lab" style="margin-top:28px">T3, 15/12</div>
+  <div class="list" style="margin-top:6px">${row("19:30", "Đọc 10 cuốn sách", "plan", "Mỗi ngày · đến 31/12")}</div>`;
+// A day past the plan: the series is on it, with no time yet.
+const farDay = `${head("T5", "17/12", "1 việc")}${tabs("Ngày")}
+  <div class="lab" style="margin-top:28px">Chưa xếp giờ</div>
+  <div class="list" style="margin-top:6px">${row("", "Đọc 10 cuốn sách", "plan", "Mỗi ngày · đến 31/12", "more")}</div>
+  <div class="got">Có giờ khi vào 30 ngày tới</div>`;
+// A far said deadline: the toast carries the span and the date.
+const farToast = toast("Lên lịch 30 ngày tới · hạn 15/3", "", [["Hoàn tác"]]) + `${head("T2", "16/11", "2 việc, 1 tiết học")}${tabs("Ngày")}
+  <div class="lab" style="margin-top:28px">Hôm nay</div>
+  <div class="list" style="margin-top:6px">${row("13:30", "Cơ sở dữ liệu", "lecture", "A2.104")}${row("20:00", "Đọc sách mỗi tối", "plan", "Buổi tối")}</div>`;
 mount([
   { tag: "1. Brief, while you were away", sub: "Only for changes made when you were not looking: the school added or moved a class or an exam, or changed a due date. One sentence: the trigger, the biggest move, its reason. Moved rows carry a vermilion dot and their old time; a row that left the day stays as a dashed ghost saying where it went. A change you caused yourself never raises the brief; you watched it happen. It is shown once: the first time you open the app after the change. Swipe it away (1b), or leave the app, and it is gone; the trail dots stay until you look.", html: chrome(brief) },
   { tag: "1b. Brief, swiped away", sub: "Swipe the brief sideways and it flicks off, as the now-card does; past a short distance it springs back. Gone for good: it never returns for those moves, and the trail dots stay until you look.", html: chrome(briefOut) },
@@ -469,7 +500,7 @@ mount([
   { tag: "12. Nhịp, scrolled", sub: "What you said is a hard rule; swipe it to forget. What it guessed shows how sure it is in three words. Guesses cannot be forgotten one by one.", html: chrome(mem) },
   { tag: "13. Nhịp, first days", sub: "Before Zen has seen enough it says so. The bars are its default guess, all dim; time passing alone never turns into a claim about you.", html: chrome(cold) },
   { tag: "13b. Nhịp, first ticks", sub: "From the first done or moved task it counts what it has seen and how many more it needs, so learning shows before it can claim anything.", html: chrome(seen) },
-  { tag: "13c. Nhịp, an early guess", sub: "After three, the two hours where you most often finished work or dragged it to, marked Đang đoán. Learned golden hours replace it once the model is sure.", html: chrome(early) },
+  { tag: "13c. Nhịp, an early guess", sub: "After three, the two hours where you most often finished work or dragged it to, marked Đang đoán. Learned golden hours replace it once the model is sure.", html: chrome(earlyGuess) },
   { tag: "14. Sunday", sub: "Sundays only, and only when the model is at least fairly sure of something: one sentence, with the week's done and moved counts. Tap through to Nhịp.", html: chrome(sunday) },
   { tag: "15. Missed, no nag", sub: "A block that passed undone turns vermilion in place. The next time you open the app it has moved to the next good time within two days, and the row says so. That hour counts a little against itself.", html: chrome(missed) },
   { tag: "16. Trying something", sub: "Once Zen knows you a little, it may try an hour it is unsure about, and the row says it is a try. Only a new task without a due date, at most one per re-plan.", html: chrome(explore) },
@@ -497,6 +528,14 @@ mount([
   { tag: "Remembered", sub: "The next prep of the same format starts from that choice: “Lần trước bạn chọn ôn ít hơn”.", html: chrome(remembered, { dock: null }) },
   { tag: "33. Nhịp, preps", sub: "Two cards, only with evidence. Pace: five or more sittings ticked inside their block; sizes follow it, 0.8× to 1.25×. Long sittings: of five or more 90-minute sittings placed, 40% or more pushed later; then sittings stay at 60 minutes.", html: chrome(prepRhythm) },
   { tag: "Nhịp, dark", sub: "Same at night.", dark: true, html: chrome(rhythm()) },
+  { tag: "34. Typed: a year of goals", sub: "Three goals in one line become three repeats with no repeat word said: gym 3 a week, English 5, the books daily at a rate that finishes by 31/12. The toast says how far they run; each row carries its cadence and end.", html: chrome(smartGoals, { dock: null }) },
+  { tag: "35. Typed: sittings and a deadline", sub: "One verb, two things: two tasks, each two sittings of 1h30p, due within a week. The row says which sitting it is and the due, with no clock for a day-end due.", html: chrome(smartCode, { dock: null }) },
+  { tag: "36. Typed: a deadline before an exam", sub: "The title names a course with a synced exam on 4/12 (Online): three 1h sittings, due the day before. The toast says why.", html: chrome(smartExam, { dock: null }) },
+  { tag: "37. Typed: one short task", sub: "A bill is one 30p task due at month end. Guessed lengths are half or whole hours.", html: chrome(smartShort, { dock: null }) },
+  { tag: "38. Typed: a week, no day", sub: "“tuần sau” reaches every task on the line: all three are planned inside 23 - 29/11, none pinned to Sunday. Shown on Monday 23/11; Đi khám lands later in that week.", html: chrome(smartWeek, { dock: null }) },
+  { tag: "39. A daily series, every day", sub: "A repeat is on every one of its days up front. 15/12 is inside the 30-day plan, so it has its time.", html: chrome(daily) },
+  { tag: "39b. A day past the plan", sub: "Past the plan (17/12): the day still has the task, muted under “Chưa xếp giờ”; it gets a time once that day is within 30 days.", html: chrome(farDay) },
+  { tag: "40. A far deadline, said", sub: "A deadline 30 days out is scheduled now: the toast names the span and the date.", html: chrome(farToast) },
 ]);
 </script>
 </body>

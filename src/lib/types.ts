@@ -23,6 +23,9 @@ export interface Task {
   forId?: string; // prep: the exam it prepares for
   format?: string; // exam format; names what its prep does
   maxSitting?: number; // longest sitting in minutes when split
+  effortGuessed?: boolean; // the length was guessed, not said
+  cls?: string; // the reader's frame class of a guessed length ("code"): its guesses are learned per class
+  guessMin?: number; // that guess before the class multiplier: a done task's real minutes are compared to it
   deadline?: number;
   notBefore?: number;
   notAfter?: number; // end of a said window ("tối thứ 5"): the planner keeps the whole task inside notBefore..notAfter
@@ -56,6 +59,11 @@ export interface Action {
   title?: string;
   when?: string; // ISO
   effortMinutes?: number;
+  effortGuessed?: boolean; // the length is a guess (inferred), not said
+  cls?: string; // the frame class of a guessed length
+  guessMin?: number; // the guess before the class multiplier
+  maxSitting?: number; // longest sitting in minutes: the task is split into sittings of at most this
+  anchor?: string; // "YYYY-MM-DD": an exam this prep is due the day before
   deadline?: string; // ISO
   repeat?: string; // rrule
   note?: string; // the task's note: create sets it, edit replaces it

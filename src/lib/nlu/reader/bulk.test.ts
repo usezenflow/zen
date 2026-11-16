@@ -46,6 +46,13 @@ describe("bulk paste: chat, OCR and PDF repairs", () => {
     ).toBe("đi chợ\ngiặt đồ\ndọn phòng chiều mai\nhọp team 3h chiều t4");
   });
 
+  it("keeps two typed bare titles on their own lines, and joins a line that ends in a link word", () => {
+    expect(repair("b-tree code\nlsm code", "typed").text).toBe("b-tree code\nlsm code");
+    expect(repair("học bài\ncho kỳ thi", "typed").text).toBe("học bài cho kỳ thi");
+    expect(repair("giặt đồ và\nmua sữa", "typed").text).toBe("giặt đồ và mua sữa");
+    expect(repair("b-tree code\nlsm code", "paste").text).toBe("b-tree code lsm code");
+  });
+
   it("keeps a greeting and a sign-off on their own lines", () => {
     expect(repair("Kính gửi các em,\nBuổi seminar", "paste").text).toBe(
       "Kính gửi các em,\nBuổi seminar",

@@ -1,6 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react-native";
 import { StyleSheet } from "react-native";
-import { MenuPanel, RowMenu, menuTop } from "./rowmenu";
+import { MenuPanel, RowMenu, menuTop, sittingItems } from "./rowmenu";
+import type { Task } from "@/lib/types";
+
 
 jest.mock("expo-blur", () => ({ BlurView: () => null }));
 
@@ -38,4 +40,40 @@ it("puts the menu under the row, or over it near the bottom, never on the row", 
   expect(nearBottom + 151).toBeLessThanOrEqual(640); // its whole height above the row's top
   expect(nearBottom).toBe(640 - 4 - 151);
   expect(menuTop(160, 100, 12, 844, 47, 34)).toBe(164); // no room either way: under, as before
+});
+
+// A sitting or split task offers "Cần thêm"; "Bớt" only with two or more open sittings; a plain or done task offers neither.
+describe("sitting items", () => {
+  const T = (o: Partial<Task>): Task => ({ id: "x", title: "Luyện đề", kind: "study", source: "user", effort: 60, createdAt: 0, ...o });
+  const on = { more: jest.fn(), less: jest.fn() };
+  const labels = (x: Task, ts: Task[]) => sittingItems(x, ts, on).map((i) => i.label);
+
+  it("a plain task has none", () => {
+    expect(labels(T({ id: "p" }), [T({ id: "p" })])).toEqual([]);
+  });
+  it("one open sitting: more only", () => {
+    const ts = [T({ id: "p" }), T({ id: "p#1", parentId: "p" })];
+    expect(labels(ts[1], ts)).toEqual(["Cần thêm một buổi"]);
+  });
+  it("two open sittings: more and less, and from the parent's row too", () => {
+    const ts = [T({ id: "p" }), T({ id: "p#1", parentId: "p" }), T({ id: "p#2", parentId: "p" })];
+    expect(labels(ts[2], ts)).toEqual(["Cần thêm một buổi", "Bớt một buổi"]);
+    expect(labels(ts[0], ts)).toEqual(["Cần thêm một buổi", "Bớt một buổi"]);
+  });
+  it("done sittings do not count toward less", () => {
+    const ts = [T({ id: "p" }), T({ id: "p#1", parentId: "p", doneAt: 1 }), T({ id: "p#2", parentId: "p" })];
+    expect(labels(ts[2], ts)).toEqual(["Cần thêm một buổi"]);
+  });
+  it("the items act on the parent", () => {
+    const ts = [T({ id: "p" }), T({ id: "p#1", parentId: "p" }), T({ id: "p#2", parentId: "p" })];
+    const more = jest.fn();
+    sittingItems(ts[1], ts, { more, less: jest.fn() })[0].onPress();
+    expect(more).toHaveBeenCalledWith(ts[0]);
+  });
+  it("renders as menu items", async () => {
+    const ts = [T({ id: "p" }), T({ id: "p#1", parentId: "p" }), T({ id: "p#2", parentId: "p" })];
+    await render(<MenuPanel items={sittingItems(ts[1], ts, on)} onPick={jest.fn()} />);
+    expect(screen.getAllByRole("menuitem")).toHaveLength(2);
+    expect(screen.getByText("Bớt một buổi")).toBeTruthy();
+  });
 });

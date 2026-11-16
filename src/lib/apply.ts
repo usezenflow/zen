@@ -2,6 +2,7 @@ import { titleVec } from "./nlu/vec";
 import { learn, outcome, plan, type Model, type Opts } from "../planner";
 import { dayGone } from "../planner/place";
 import { cosine, effort } from "../planner/habits";
+import { addClassLog, classLogsOf, classMults } from "./nlu/context";
 import { fill, t } from "./i18n";
 import { when as at12 } from "./when";
 import * as stats from "./stats";
@@ -51,7 +52,7 @@ const tod = (ms: number) => ms - dayStart(ms);
 const addDays = (d: number, k: number) => { const x = new Date(d); return new Date(x.getFullYear(), x.getMonth(), x.getDate() + k).getTime(); };
 
 type Occ = { notBefore?: number; deadline?: number };
-const MAX_OCC = 120; // a series is made as far ahead as a deadline may be (cells: 120 days)
+const MAX_OCC = 120; // a series is made as far ahead as a deadline may be (cells: 120 days); the planner places only the first 30
 
 /** Day starts a DAILY, WEEKLY-with-days, MONTHLY or YEARLY rule lands on from `d0`, and whether the list stops short of the rule's own end.
  *  COUNT is the total from `d0`, past days included; only days from today to `upTo` (default: the rule's first stretch) are listed. */
@@ -255,6 +256,7 @@ async function act(w: Work, a: Action) {
       const task: Task = {
         id: uid(), title, vec, kind: near?.k ?? a.kind ?? "other", source: "user", effort: a.effortMinutes ?? 0, createdAt: now,
         deadline: o.deadline, notBefore: o.notBefore, rrule: a.repeat, ...(seriesId ? { seriesId } : {}), ...(a.location ? { location: a.location } : {}), ...(a.note ? { note: a.note } : {}), ...(notAfter !== undefined ? { notAfter } : {}), ...(a.tods?.length ? { tods: a.tods } : {}),
+        ...(a.maxSitting ? { maxSitting: a.maxSitting } : {}), ...(a.effortGuessed ? { effortGuessed: true } : {}), ...(a.effortGuessed && a.cls ? { cls: a.cls, guessMin: a.guessMin } : {}),
       };
       if (fixed && o.notBefore !== undefined) { // an exact said time is a busy block, not a plan
         task.effort = effort(task, w.model);
@@ -287,7 +289,7 @@ async function act(w: Work, a: Action) {
       const edited = new Set(tk.userEdited);
       const next: Task = { ...tk };
       if (a.title) { next.title = a.title; edited.add("title"); w.toast = t("renamed", { title: a.title }); }
-      if (a.effortMinutes) { next.effort = a.effortMinutes; edited.add("effort"); }
+      if (a.effortMinutes) { next.effort = a.effortMinutes; edited.add("effort"); next.effortGuessed = undefined; } // said now, no longer a guess
       if (a.kind) { next.kind = a.kind as Kind; edited.add("kind"); }
       if (a.location !== undefined) { next.location = a.location || undefined; edited.add("location"); } // "" clears it
       if (a.deadline === "") { next.deadline = undefined; edited.add("deadline"); }
@@ -414,6 +416,12 @@ async function transactNow(now: number, mutate: (w: Work) => Promise<void> | voi
   if (o.dry) return { toast: "", changed: false, undo: async () => {}, ...extra }; // a preview: nothing written
   await store.putTasks(changed);
   for (const e of w.events) await store.putEvent(e);
+  // a guessed length (per frame class) against what the user finished: its multiplier learns from it
+  for (const e of w.events) {
+    const x = w.tasks.get(e.taskId);
+    if (e.type === "done" && x?.cls && x.effortGuessed && x.guessMin && x.start !== undefined && e.at >= x.start && e.at <= (x.end ?? x.start) + 30 * 60_000)
+      await learnClass(x.cls, Math.min(240, Math.max(15, (e.at - x.start) / 60_000)) / x.guessMin);
+  }
   if (w.model !== model0) await store.saveModel(w.model); // ~500 KB of JSON: not rewritten by a write that learned nothing (a held wheel value)
   if (diff) { await store.kvSet("plannedAt", String(now)); await recordMoves(w.moves); await saveWarn(diff.warn ?? []); }
 
@@ -562,6 +570,45 @@ export function ingest(upserts: Task[], deletes: string[], now = Date.now(), not
       return notices.length ? notices.map((n) => n.title).join(". ") : d?.displaced.length ? t("synced", { n: d.displaced.length }) : t("syncedNew");
     },
   });
+}
+
+const CLASS_KEY = "nlu.classMult";
+/** Adds one ratio (actual or needed minutes over the guess) to a frame class's multiplier logs. */
+async function learnClass(cls: string, ratio: number) {
+  await store.kvSet(CLASS_KEY, JSON.stringify(addClassLog(classLogsOf(await store.kvGet(CLASS_KEY)), cls, ratio)));
+}
+/** The learned multiplier per frame class, for the reader's sizer. */
+export const loadClassMult = async (): Promise<Record<string, number>> => classMults(classLogsOf(await store.kvGet(CLASS_KEY)));
+/** "Cần thêm một buổi": a guessed length the user needed one more sitting of, a ratio above the guess. */
+export async function needMore(x: Task) {
+  if (x.cls && x.effortGuessed && x.guessMin) await learnClass(x.cls, (x.guessMin + (x.maxSitting ?? 60)) / x.guessMin);
+}
+
+const sitIx = (c: Task) => Number(c.id.slice(c.id.lastIndexOf("#") + 1)) || 0;
+const openSits = (w: Work, parentId: string) => [...w.tasks.values()].filter((c) => c.parentId === parentId && !c.doneAt && !c.deletedAt).sort((a, b) => sitIx(a) - sitIx(b));
+/** "Cần thêm một buổi": one sitting more, the same length as the last open one, after it; the planner places it. */
+export function addSitting(parentId: string, now = Date.now()): Promise<Result> {
+  let added: string | undefined;
+  return transact(now, (w) => {
+    const open = openSits(w, parentId), last = open[open.length - 1];
+    if (!last) return;
+    const kids = [...w.tasks.values()].filter((c) => c.parentId === parentId);
+    added = `${parentId}#${Math.max(...kids.map(sitIx)) + 1}`; // past every id made, deleted ones too
+    w.tasks.set(added, { ...last, id: added, start: undefined, end: undefined, pinned: false, fixed: undefined, notBefore: undefined, userEdited: undefined, doneAt: undefined, deletedAt: undefined });
+    w.toast = t("sittingAdded", { title: last.title });
+  }, {
+    replan: true,
+    text: (d, w) => { const p = d?.placed.find((x) => x.id === added); if (p) w.sub = at12(p.start, now); return w.toast; },
+  });
+}
+/** "Bớt một buổi": the last open sitting goes; only with two or more open, so the split keeps one. */
+export function dropSitting(parentId: string, now = Date.now()): Promise<Result> {
+  return transact(now, async (w) => {
+    const open = openSits(w, parentId);
+    if (open.length < 2) return;
+    await act(w, { op: "delete", target: open[open.length - 1].id });
+    w.toast = t("sittingDropped", { title: open[0].title });
+  }, { replan: "waiting", text: (_, w) => w.toast });
 }
 
 /** Marks tasks placed over a day ago and still in place as kept. */

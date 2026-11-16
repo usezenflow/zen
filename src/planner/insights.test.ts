@@ -24,6 +24,20 @@ describe("insights", () => {
     for (const h of [7, 12, 18]) s.doneHours.push({ hour: h, at: at(h) });
     expect(insights(s, now).seen).toBe(3); expect(insights(s, now).early).toBeUndefined();
   });
+  it("names the golden range from five ticks in one stretch, and planner misses are not moves you made", () => {
+    const m = newModel(now), at = (d: number, h: number) => new Date(2026, 10, 15 - d, h, 20).getTime();
+    for (let d = 0; d < 5; d++) m.doneHours.push({ hour: 20.4 + (d % 2), at: at(d, 20) });
+    m.doneHours.push({ hour: 9.2, at: at(1, 9) });
+    for (let n = 0; n < 50; n++) m.hist.push({ vec: [], hour: 10, r: -1, at: at(0, 10), miss: true });
+    const i = insights(m, now);
+    expect(i.seen).toBe(6);
+    expect(i.golden).toEqual({ from: 20, to: 22, sure: 0.5 });
+    expect(i.early).toBeUndefined();
+    expect(i.guesses[0]).toEqual({ text: "Giờ vàng 20h-22h", sure: 0.5 });
+    expect(i.weekly).toBe("Bạn làm việc hợp nhất lúc 20h-22h");
+    for (let d = 5; d < 13; d++) m.doneHours.push({ hour: 21, at: at(d % 13, 21) });
+    expect(insights(m, now).golden!.sure).toBeGreaterThanOrEqual(0.7);
+  });
   it("says nothing when cold", () => {
     const i = insights(newModel(now), now);
     expect(i.golden).toBeUndefined();

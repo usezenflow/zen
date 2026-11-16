@@ -31,6 +31,8 @@ export type Exp = {
   noWindow?: boolean;
   /** The item has no deadline (a title-only task). */
   noDeadline?: boolean;
+  /** No deadline, or one the reader defaulted (listed inferred): a number in the title never sets it. */
+  deadlineInferred?: boolean;
   /** Field names the item must list as inferred. */
   inferred?: string[];
   rrule?: string;
@@ -127,6 +129,7 @@ export function matches(it: ReaderItem, e: Exp): boolean {
   if (e.flag && !it.flags.includes(e.flag)) return false;
   if (e.noWindow && it.windows?.length) return false;
   if (e.noDeadline && it.deadline) return false;
+  if (e.deadlineInferred && it.deadline && !it.inferred.includes("deadline")) return false;
   if (e.noLocation && it.location) return false;
   if (e.titleIs !== undefined && folded(it.title) !== e.titleIs) return false;
   if (

@@ -56,7 +56,7 @@ it("first ticks: how many it has seen and how many more it needs", async () => {
 it("an early guess titles the strip and lights its two hours", async () => {
   await render(<Rhythm i={{ ...empty, seen: 4, early: { from: 20, to: 22, n: 4 } }} rules={[]} onForget={jest.fn()} />);
   expect(screen.getByText(t("earlyTitle", { a: 20, b: 22 }))).toBeOnTheScreen();
-  expect(screen.getByText(t("earlySub", { n: 4 }))).toBeOnTheScreen();
+  expect(screen.getByText("Mấy hôm nay bạn hay xong việc giờ này. Xong thêm 1 việc giờ này nữa là mình chắc.")).toBeOnTheScreen(); // 4 in the stretch, 5 names it
   expect(opacities(t("earlyRange", { a: 20, b: 22 })).map((o, h) => (o === 1 ? h : -1)).filter((h) => h >= 0)).toEqual([20, 21]);
 });
 

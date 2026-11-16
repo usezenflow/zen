@@ -6,7 +6,7 @@ import { when } from "../lib/when";
 import { typeOf } from "../planner/policy";
 import type { ArtType, WidgetData, WidgetName, WRow } from "./data";
 
-const MIN = 60_000, DAY = 86_400_000;
+const MIN = 60_000, DAY = 86_400_000, ROWS = 3;
 const url = (id: string) => `zen:///task/${id}`;
 
 /** Widget props at time `now`; pure so a timeline can be built from future instants. */
@@ -35,7 +35,8 @@ export function widgetData(tasks: Task[], now: number, art: WidgetData["art"], t
     const type = typeOf(x) as ArtType;
     return { id: x.id, title: x.title, type, time: hhmm(x.start!), check: type === "plan" || type === "assignment", done: ticked.includes(x.id), url: url(x.id) };
   };
-  const rows = today.filter((x) => x.id !== nextToday?.id && x.end! > now).slice(0, 6).map(toRow);
+  // Every layout lists three rows at most; a day of daily series once sent twelve per entry and the timeline outgrew the widget (skeletons).
+  const rows = today.filter((x) => x.id !== nextToday?.id && x.end! > now).slice(0, ROWS).map(toRow);
   let aheadDay = 0, ahead: Task[] = [];
   for (let i = 1; i <= 7 && !ahead.length; i++) { aheadDay = addDays(day, i); ahead = onDay(tasks, aheadDay); }
   // A quiet week: reach to the first day past it that has anything, so the widget never shows a blank half.
@@ -44,7 +45,8 @@ export function widgetData(tasks: Task[], now: number, art: WidgetData["art"], t
   const tm = ahead[0];
   // Next-up to top the medium list up to three: what starts after the day it shows (today while rows remain, else the ahead day).
   const after = addDays(rows.length ? day : aheadDay || day, 1);
-  const more = sh.filter((x) => x.start! >= after).sort((a, b) => a.start! - b.start!).slice(0, 3)
+  const listed = rows.length || Math.min(ROWS, ahead.length); // the layout lists today's rows, else the ahead day's
+  const more = sh.filter((x) => x.start! >= after).sort((a, b) => a.start! - b.start!).slice(0, ROWS - listed)
     .map((x) => ({ ...toRow(x), time: upTag(x.start!, now) }));
   const doneN = tasks.filter((x) => x.doneAt && !x.deletedAt && x.start !== undefined && x.start >= day && x.start < addDays(day, 1)).length;
   const ex = tasks.filter((x) => typeOf(x) === "exam" && !x.doneAt && !x.deletedAt && x.start !== undefined && x.start > now).sort((a, b) => a.start! - b.start!)[0];
@@ -55,7 +57,7 @@ export function widgetData(tasks: Task[], now: number, art: WidgetData["art"], t
     count: brief(today), // medium "5 việc" next to large "5 việc, 1 tiết học"
     next, rows, doneLabel: doneN ? `Xong (${doneN})` : "",
     tomorrow: tm ? `${dayTag(tm.start!, now)}: ${tm.title} ${hhmm(tm.start!)}` : "",
-    ahead: ahead.slice(0, 3).map(toRow),
+    ahead: rows.length ? [] : ahead.slice(0, ROWS).map(toRow), // shown only once today is empty
     more,
     // The medium head fits ~21 characters: past this week the short date ("T4 2/12"), and one figure for the count.
     aheadHead: !ahead.length ? "" : aheadDay === addDays(day, 1) ? "Mai" : far ? dayTag(aheadDay, now) : weekday(aheadDay),
@@ -104,10 +106,10 @@ export function abbr(title: string): string {
 }
 
 /** Instants where the widgets change, through the end of tomorrow so an unopened app never leaves yesterday on screen:
- *  now, every 5 minutes for 6 hours, every 30 after, each start/end, and both midnights (about 170 entries). */
+ *  now, every 5 minutes for 6 hours, every 30 to midnight, hourly through tomorrow, each start/end, and both midnights (about 140 entries). */
 export function instants(tasks: Task[], now: number): number[] {
-  const near = now + 6 * 3600_000, end = addDays(startOfDay(now), 2), set = new Set<number>([now, addDays(startOfDay(now), 1), end]);
-  for (let x = Math.ceil(now / (5 * MIN)) * 5 * MIN; x < end; x += (x < near ? 5 : 30) * MIN) set.add(x);
+  const near = now + 6 * 3600_000, mid = addDays(startOfDay(now), 1), end = addDays(mid, 1), set = new Set<number>([now, mid, end]);
+  for (let x = Math.ceil(now / (5 * MIN)) * 5 * MIN; x < end; x += (x < near ? 5 : x < mid ? 30 : 60) * MIN) set.add(x);
   for (const k of tasks) for (const v of [k.start, k.end]) if (v !== undefined && v > now && v <= end) set.add(v);
   return [...set].sort((a, b) => a - b);
 }

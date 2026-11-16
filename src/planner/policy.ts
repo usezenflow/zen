@@ -3,7 +3,7 @@ import { DAY, HOUR, I_AFTER, I_ENERGY, I_SIM, KINDS, MIN, type FeatCtx, cdist, d
 import { effort, neighbors, peakHour, slipOf } from "./habits";
 import { ALPHA, D, LAMBDA, N0, type Primed, decayArms, prepare, primeBatch, ucb, ucbAt, update } from "./linucb";
 import { type Model, newModel } from "./model";
-import { type Busy, type End, type Util, SLOT, STEP, awake, cells, dayGone, fixedHours, gap, solve } from "./place";
+import { type Busy, type End, type Util, SLOT, STEP, WAKE_TO, awake, cells, dayGone, fixedHours, gap, solve } from "./place";
 import { day, dayLabel, when } from "../lib/when";
 import { split } from "./split";
 import { type Piece, bell, dur, lateH, moveCost, startValue } from "./value";
@@ -63,6 +63,7 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
   const splits: Diff["split"] = [];
   const mk = (task: Task, eff: number, k: number, n: number, prior?: number, missed?: number): Piece => ({
     id: task.id, task, effort: eff, k, n, slip: dueOf(task) === undefined ? 0 : slipOf(m, task.kind),
+    over: task.deadline !== undefined && !task.rrule && dayStart(task.deadline - 1) === dayStart(now) && Math.ceil(now / STEP) * STEP + eff * MIN > dayStart(now) + WAKE_TO * MIN,
     prior: prior !== undefined && prior >= now ? prior : undefined, missed, soon: missed !== undefined || opts.later === task.id || opts.later === task.parentId,
   });
   const lost = (t: Task) => (t.start !== undefined && t.end !== undefined && t.end <= now ? t.start : undefined);
@@ -134,7 +135,9 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
   interface Batch { lo: number; n: number; prim: Primed; masked: Uint8Array }
   const batches = new Map<string, Batch>();
   for (const p of pieces) {
-    const cs = cells(p, now), n = cs.length, c0 = ctx(p, []);
+    const cs = cells(p, now), n = cs.length;
+    if (!n) continue; // past the 30-day horizon: no cell to score, the solver leaves it unplaced
+    const c0 = ctx(p, []);
     const X = new Float64Array(n * D), arm = new Uint8Array(n), masked = new Uint8Array(n);
     let day = -Infinity, next = -Infinity; // dayStart once per day, not per cell (a Date each)
     for (let i = 0; i < n; i++) {
@@ -282,7 +285,7 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
       r.why.unshift({ key: "missed", w: 1, vars: { time: when(p.missed, now).split(" ").pop()! } }); r.why = r.why.slice(0, 4); missed.push(p);
       const old = m.placed[p.id]; // the hour it was placed on did not work out
       if (old) update(m.arms[old.arm], old.x, -0.4);
-      if (p.task.vec) { m.hist.push({ vec: Array.from(p.task.vec), hour: hourOf(old?.start ?? p.missed), r: -1, at: now }); m.hist = m.hist.slice(-300); }
+      if (p.task.vec) { m.hist.push({ vec: Array.from(p.task.vec), hour: hourOf(old?.start ?? p.missed), r: -1, at: now, miss: true }); m.hist = m.hist.slice(-300); }
     }
     const known = m.placed[p.id];
     if (!changed && known) { if (!p.lock) Object.assign(known, { why: r.why, alt, explore: r.explore }); continue; } // a held piece keeps the reasons it was placed for
@@ -309,7 +312,7 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
   };
 
   const byId = new Map(pieces.map((p) => [p.id, p]));
-  // What was read: this week, or as far as the plan reached ("đến 14/3" for a 120-day series)
+  // What was read: this week, or as far as the plan reached ("đến 14/3" for a 30-day horizon)
   const far = Math.max(now, ...diff.placed.map((pl) => pl.start)), mon = dayStart(now) - ((new Date(now).getDay() + 6) % 7) * DAY;
   const steps: Step[] = [{ key: "read", vars: { what: far < mon + 7 * DAY ? "tuần này" : `đến ${dayLabel(far).slice(4)}` } }];
   const row = (p: Piece) => (p.id.includes("#") ? p.task.parentId! : p.id);
@@ -342,10 +345,12 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
   // A deadline task with a piece past its deadline: how much is missing, and which other task could give way.
   const warn: Warn[] = [];
   const pid = (p: Piece) => p.task.parentId ?? p.task.id;
-  for (const id of new Set(pieces.filter((p) => at(p) < 0 || (p.task.deadline !== undefined && at(p) + dur(p) > p.task.deadline)).map(pid))) {
-    const mine = pieces.filter((p) => pid(p) === id), out = mine.some((p) => at(p) < 0);
+  // A piece past the 30-day horizon has no cell at all: it waits on its day, it is not short of time, so it never warns.
+  const reach = (p: Piece) => cells(p, now).length > 0;
+  for (const id of new Set(pieces.filter((p) => (at(p) < 0 && reach(p)) || (p.task.deadline !== undefined && at(p) + dur(p) > p.task.deadline)).map(pid))) {
+    const mine = pieces.filter((p) => pid(p) === id), out = mine.some((p) => at(p) < 0 && reach(p));
     // Unplaced with no due date: the end of the days it could have gone in.
-    const dl = mine[0].task.deadline ?? Math.max(...mine.map((p) => { const cs = cells(p, now); return cs[cs.length - 1] + dur(p); }));
+    const dl = mine[0].task.deadline ?? Math.max(...mine.map((p) => { const cs = cells(p, now); return cs.length ? cs[cs.length - 1] + dur(p) : now; }));
     const others = pieces.filter((p) => pid(p) !== id);
     let free = 0;
     for (let c = Math.ceil(now / SLOT) * SLOT; c + SLOT <= dl; c += SLOT) {

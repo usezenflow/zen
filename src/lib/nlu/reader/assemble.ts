@@ -8,6 +8,7 @@ import {
   WORKLOAD_CONFIGS,
   type WorkloadCategory,
 } from "../shared";
+import { termNow } from "../../dlu/season";
 import { fold } from "./fold";
 import {
   addDays,
@@ -34,7 +35,7 @@ import { holidayOf, isHolidayDate } from "./holidays";
 import { roleOf, withinDays } from "./roles";
 import { every, exceptSpans, ruleBase, thisWeekCount, weekSessions, withBounds } from "./rules";
 import type { CalDay } from "./daypick";
-import type { Clause } from "./segment";
+import { bareTitle, partLeads, type Clause } from "./segment";
 import {
   IN_PART,
   PART,
@@ -860,6 +861,7 @@ export function examPreps(
       type: "PLAN",
       title: w.title ? shorten(`${label}: ${w.title}`, MAX_TITLE) : label,
       note: null,
+      prep: true,
       deadline,
       durationMinutes: prepMinutes(
         WORKLOAD_CONFIGS[cat].baseMinutes,
@@ -943,6 +945,21 @@ export function spanOf(
         from: notPast(thisDay(21)),
         to: thisDay(daysInMonth(ref.y, ref.m)),
       };
+    case "nam_nay":
+      return { from: notPast(ref), to: { y: ref.y, m: 12, d: 31 } };
+    case "quy_nay": {
+      const qEnd = Math.ceil(ref.m / 3) * 3;
+      return {
+        from: notPast(ref),
+        to: { y: ref.y, m: qEnd, d: daysInMonth(ref.y, qEnd) },
+      };
+    }
+    case "hoc_ky_nay": {
+      // the term holding now: its end is the next term's start (exclusive), so the last day is the day before
+      const term = termNow(Date.UTC(ref.y, ref.m - 1, ref.d, ref.h ?? 0, ref.mi ?? 0) - 7 * 3_600_000);
+      const [y, m, d] = term.end.split("-").map(Number);
+      return { from: notPast(ref), to: addDays({ y, m, d }, -1) };
+    }
     case "cuoi_nam":
       return {
         from: notPast({ y: ref.y, m: 12, d: 21 }),
@@ -1228,8 +1245,70 @@ function clauseFallbacks(ctx: Ctx): {
 }
 
 /** One clause to items. A series ("sáng và tối", "t2, t4") is one item per instance, all with one planKey. */
+/**
+ * A correction names a slot of the comma piece before its cue ("lsm code sau, à không mai"): the clause splits before that
+ * piece, so the pieces before it keep their items. Null when no such slot is named.
+ */
+function correctionSplit(raw: string): [string, string] | undefined {
+  const f = fold(raw);
+  let last: RegExpExecArray | null = null;
+  for (const m of f.text.matchAll(CORRECTION)) last = m;
+  if (!last) return undefined;
+  const s = f.map[last.index ?? 0];
+  const e = f.map[(last.index ?? 0) + last[0].length - 1] + 1;
+  // the piece the cue corrects: the words between the comma before it and the cue
+  let p = s;
+  while (p > 0 && /[\s,;]/.test(raw[p - 1])) p--;
+  const q = Math.max(raw.lastIndexOf(",", p - 1), raw.lastIndexOf(";", p - 1));
+  if (q <= 0 || !raw.slice(0, q).trim() || !raw.slice(q + 1, p).trim()) return undefined;
+  // the cue must replace a slot: a day, a clock, a part, a length
+  const slotAfter =
+    findMentions(raw).some((m) => m.start >= e && ["date", "time", "dur", "period"].includes(m.kind)) ||
+    /^(sang|trua|chieu|dem)\b/.test(fold(raw.slice(e)).text.trimStart());
+  if (!slotAfter) return undefined;
+  return [raw.slice(0, q), raw.slice(q + 1)];
+}
+
 export function clauseItems(c0: Clause, ctx: Ctx): Out {
-  const c: Clause = { ...c0, text: normalizeWeekdays(c0.text) };
+  // a bare title on its own line or in a comma list is an item when the user typed or spoke it, not in pasted or OCR text
+  const typedOrSpoken = ctx.source === "typed" || ctx.source === "voice";
+  // a part of day that opens a task with no date or clock of its own moves after it: "tối dọn phòng" reads as "dọn phòng tối"
+  // a comma list moves its part per piece below, not for the whole list: "A, chiều B" keeps A
+  const moved = partLeads(c0.text) && !/[,;]\s/.test(c0.text)
+    ? (() => {
+        // "sáng sớm" is one part of the day: "sáng sớm dọn phòng" reads as "dọn phòng sáng sớm"
+        const ws = c0.text.trim().split(/\s+/);
+        const n = fold(ws.slice(0, 2).join(" ")).text === "sang som" ? 2 : 1;
+        return `${ws.slice(n).join(" ")} ${ws.slice(0, n).join(" ")}`;
+      })()
+    : c0.text;
+  const c: Clause = { ...c0, text: normalizeWeekdays(moved) };
+  // a list of short (3 words or fewer) bare titles with no clock is one item per title: "b-tree code, lsm code"; a sentence with a colon or long pieces is not
+  const bits = c.text.split(/\s*[,;]\s+/);
+  if (
+    bits.length > 1 &&
+    typedOrSpoken &&
+    !c.label &&
+    !ctx.prepCue &&
+    !c.text.includes(":") &&
+    bits.every((b) => bareTitle(b) && b.trim().split(/\s+/).length <= 3)
+  ) {
+    const out: Out = { items: [], dropped: [] };
+    for (const text of bits) {
+      const sub = clauseItems({ ...c, text, piece: true }, ctx);
+      out.items.push(...sub.items);
+      out.dropped.push(...sub.dropped);
+    }
+    return out;
+  }
+  const split = correctionSplit(c.text);
+  if (split) {
+    const a = clauseItems({ ...c, text: split[0] }, ctx);
+    // the piece before the correction keeps its words even when it names no task: "b-tree code, lsm code sau, à không mai"
+    if (!a.items.length && split[0].trim()) a.items.push(fallbackTask(split[0].trim()));
+    const b = clauseItems({ ...c, text: split[1] }, ctx);
+    return { items: [...a.items, ...b.items], dropped: [...a.dropped, ...b.dropped] };
+  }
   // clock ranges: OR is one item with the list, AND one item per range, a part range ("sáng - tối") one range
   const run = clockRun(c.text);
   if (run?.kind === "and") {
@@ -1361,7 +1440,10 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
     !all.some((m) => m.kind === "period" && m.v.k === "period") &&
     !all.some((m) => m.kind === "dur" && !(m.v.k === "dur" && m.v.days))
   )
-    return out;
+    // a comma piece of 2 or 3 words is a bare title of its own; its day comes from the line it sits in
+    return c.piece && (ctx.source === "typed" || ctx.source === "voice") && !c.label && !ctx.prepCue && [2, 3].includes(folded.trim().split(/\s+/).length)
+      ? { items: [fallbackTask(raw.trim())], dropped: [] }
+      : out;
 
   // S5 relevance: the first of "I/you" or a unit decides whose item it is
   const me = folded.search(ME);
@@ -2324,8 +2406,11 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
         stop[1] === 0 &&
         !(time && "part" in time && time.part === "sang");
       // a range keeps its start: its end is what has to be ahead ("9h đến 1h chiều" at 10:00 is under way today)
+      // "sáng sớm dọn phòng" said with no day is today's early morning, even after its 8:00 end
+      const earlyToday = !time && !at && partWords[0] === "sang som" && pieceDates.every((d) => d.v.k === "rel" && d.v.off === 0);
       const passed =
         !to &&
+        !earlyToday &&
         minutesOf({
           ...date,
           h: endsDay ? 23 : (stop?.[0] ?? 23),
@@ -2793,6 +2878,7 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
             type: "PLAN",
             title: remapInstitutionalTitle(title),
             note: it.note,
+            prep: true,
             deadline: it.startsAt,
             durationMinutes: prepMinutes(
               PRESENTATION_PREP_MINUTES,

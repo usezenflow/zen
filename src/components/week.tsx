@@ -87,7 +87,7 @@ export function Week({ tasks, hols, monday, selected, now, onSelect, onStep, rul
   const over: ReactNode[] = [];
   const today = startOfDay(now);
   // A whole empty week keeps its height as dashed slots, so the grid reads as room, not as missing.
-  const nil = short.every((_, i) => !hols.has(addDays(monday, i)) && !onDay(tasks, addDays(monday, i)).length);
+  const nil = short.every((_, i) => !hols.has(addDays(monday, i)) && !onDay(tasks, addDays(monday, i)).length && !keptOn(rules, addDays(monday, i)).length); // a kept rule alone still fills the week
   return (
     <Swipe onStep={onStep} stepKey={monday}>
       <View style={s.wk} onLayout={(e) => setGw(e.nativeEvent.layout.width)}>

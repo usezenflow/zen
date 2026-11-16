@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Task } from "../lib/types";
 import { HOUR } from "./features";
-import { type Env, solve } from "./place";
+import { cells, type Env, solve } from "./place";
 import type { Piece } from "./value";
 
 const now = new Date(2026, 10, 16, 8, 0).getTime();
@@ -10,6 +10,23 @@ const piece = (id: string, o: Partial<Task> = {}, effort = 60): Piece =>
   ({ id, task: { id, title: id, kind: "other", source: "user", effort, createdAt: now, ...o }, effort, k: 1, n: 1, slip: 0 });
 const env = (util: Env["util"], busy: Env["busy"] = []): Env => ({ busy, fixedEnds: [], now, util });
 const hourly = (p: Piece, s: number) => -Math.abs(new Date(s).getHours() - 10) * 0.1 + (p.id.length % 3) * 0.01;
+
+describe("cells", () => {
+  const D = 86_400_000;
+  it("a 90-day deadline is cut at the 30-day horizon", () => {
+    const cs = cells(piece("far", { deadline: now + 90 * D }), now);
+    expect(Math.max(...cs)).toBeLessThan(now + 30 * D);
+    expect(Math.max(...cs)).toBeGreaterThanOrEqual(now + 29 * D);
+  });
+  it("a portal (dlu) deadline keeps its own reach past 30 days", () => {
+    const cs = cells(piece("exam", { source: "dlu", deadline: now + 90 * D }), now);
+    expect(Math.max(...cs)).toBeGreaterThan(now + 60 * D);
+  });
+  it("an exam's prep (forId) keeps its reach to the exam too", () => {
+    const cs = cells(piece("prep", { forId: "dlu:portal:exam:9", deadline: now + 90 * D }), now);
+    expect(Math.max(...cs)).toBeGreaterThan(now + 60 * D);
+  });
+});
 
 describe("solve", () => {
   const ps = ["a", "bb", "ccc", "d", "ee"].map((id, i) => piece(id, { deadline: at(1 + i, 20) }));

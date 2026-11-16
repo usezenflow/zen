@@ -1,5 +1,38 @@
 # zen
 
+## 26.0.5
+
+### Patch Changes
+
+- Nhịp hiểu bạn nhanh hơn nhiều
+    - Xong 5 việc trong cùng một khoảng giờ là có "Giờ vàng 20h-22h", không còn phải đợi hàng chục lần
+    - Số lần không còn bị thổi lên hàng trăm: chỉ đếm việc bạn xong hay tự dời, không đếm khối mình tự xếp lại
+    - Lời nhắn rõ hơn: "Mấy hôm nay bạn hay xong việc giờ này. Xong thêm 2 việc giờ này nữa là mình chắc."
+- Tuần chỉ có lời dặn như "Tối thứ sáu để trống" vẫn hiện khối gạch chéo, không còn trống trơn
+- Widget không còn hiện khung xám khi có nhiều việc lặp mỗi ngày: chỉ gửi việc hôm nay và tối đa 3 việc sắp tới
+- Chỉ cần kể việc, mình tự đoán phần còn lại
+    - Mỗi loại việc có độ dài, số buổi và hạn riêng: "code b-tree và lsm" là 2 việc, mỗi việc 2 buổi 1h30p, hạn trong 1 tuần
+    - Học, làm, nhà cửa, tiền bạc, sức khỏe đều hiểu: "đóng tiền điện" 30p hạn cuối tháng, "dọn phòng" 1h hạn 3 ngày, "làm đồ án" nhiều buổi 2h
+    - Việc tập đều tự lặp lại: "tập gym" 3 buổi/tuần, "học tiếng anh" 5 buổi/tuần, "đọc sách" mỗi ngày
+    - "Ôn giải tích" có hạn trước buổi thi trên Online
+    - Độ dài đoán luôn tròn nửa giờ hay một giờ; độ dài bạn nói được giữ nguyên
+    - Hạn tự đoán không quá 2 tuần, cho khỏi dồn tới phút chót
+- Một câu nói nhiều việc thì mọi việc cùng nhận ngày, buổi
+    - "Tuần sau học toán, viết báo cáo, đi khám": cả 3 việc nằm trong 23 - 29/11, không còn dồn vào chủ nhật
+    - Hiểu thêm "trong năm nay", "quý này", "học kỳ này", "sáng mai A, B", và cả khi nói ngày ở cuối câu
+    - Việc tự nói ngày, buổi riêng vẫn giữ ngày, buổi đó
+- Không còn mất việc
+    - "b-tree code, lsm code sau, à không mai" giữ cả 2 việc
+    - "từ mai đi khám, dọn phòng" là 2 việc, không còn gộp làm một
+    - "học toán, sáng mai dọn phòng, gọi mẹ" giữ đủ 3 việc; chỉ "dọn phòng" là sáng mai
+    - Mỗi dòng một việc có ngày riêng ("mai học toán", xuống dòng, "thứ 6 đi khám") là 2 việc, đúng tên, đúng ngày
+- Gõ tiếng Anh, viết tắt không còn bị sửa nhầm: "b-tree", "os", "lsm", "api" giữ nguyên
+- Hiểu cả những việc lạ như "deploy kubernetes", "nộp thuế TNCN", kể cả khi gõ sai hay không dấu
+- Độ dài đoán ngày càng sát với bạn: làm xong vài việc giống nhau, lần sau mình đoán theo thời gian thật của bạn
+- Mỗi việc ghi rõ hơn: "Buổi 1/2 · Hạn T2 23/11", "5 buổi/tuần · đến 31/12"; hạn cuối ngày không còn kèm giờ ("Hạn hôm nay")
+- Nhấn giữ một buổi: "Cần thêm một buổi", "Bớt một buổi"
+- Xếp giờ trong 30 ngày tới; việc lặp vẫn hiện mọi ngày, ngày xa hơn ghi "Chưa xếp giờ"
+
 ## 26.0.4
 
 ### Patch Changes

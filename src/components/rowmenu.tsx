@@ -5,6 +5,20 @@ import Animated, { FadeOut, ZoomIn } from "react-native-reanimated";
 import { Tap, EASE } from "@/components/tap";
 import type { Item } from "@/components/menu";
 import { useTheme, font, ff } from "@/lib/theme";
+import { t } from "@/lib/i18n";
+import type { Task } from "@/lib/types";
+
+/** A sitting or a split task's items: one sitting more; one less only while two are open. Nothing for a plain task. */
+export function sittingItems(x: Task, tasks: Task[], on: { more: (parent: Task) => void; less: (parent: Task) => void }): Item[] {
+  if (x.doneAt || x.deletedAt) return [];
+  const parentId = x.parentId ?? x.id, open = tasks.filter((c) => c.parentId === parentId && !c.doneAt && !c.deletedAt);
+  if (!open.length) return [];
+  const parent = tasks.find((p) => p.id === parentId) ?? x;
+  return [
+    { label: t("itemMore"), icon: "clock", onPress: () => on.more(parent) },
+    ...(open.length > 1 ? [{ label: t("itemLess"), icon: "minus" as const, onPress: () => on.less(parent) }] : []),
+  ];
+}
 
 /**
  * ui.css .menu: frosted panel (blur 28px, saturate 1.6), rgba(250,250,248,.8) / dark rgba(44,44,46,.78),

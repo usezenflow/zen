@@ -42,6 +42,25 @@ export function prepMult(m: Pick<ParsedMarks, "marks" | "gpa4"> | null | undefin
   return (title) => { const c = courseMult(own, title); return c === 1 ? overall : c; };
 }
 
+/** Per frame class: the recent logs of its guesses, log(actual minutes / guess) or log((guess + a sitting) / guess) for "need more". */
+export type ClassLogs = Record<string, number[]>;
+const CLASS_KEEP = 20;
+/** The logs kept in the app's kv ("nlu.classMult"); a bad or missing value is no logs. */
+export const classLogsOf = (raw: string | null | undefined): ClassLogs => {
+  try { const v = JSON.parse(raw ?? "{}"); return v && typeof v === "object" ? v : {}; } catch { return {}; }
+};
+export const addClassLog = (logs: ClassLogs, cls: string, ratio: number): ClassLogs =>
+  ratio > 0 ? { ...logs, [cls]: [...(logs[cls] ?? []), Math.log(ratio)].slice(-CLASS_KEEP) } : logs;
+/** exp(mean log ratio), shrunk toward 1 by n/(n+3) in log space, clamped to 0.5..2; 1 with no samples. */
+export function classMult(logs: number[] = []): number {
+  const n = logs.length;
+  if (!n) return 1;
+  const mean = logs.reduce((a, b) => a + b, 0) / n;
+  return Math.min(2, Math.max(0.5, Math.exp((n / (n + 3)) * mean)));
+}
+export const classMults = (logs: ClassLogs): Record<string, number> =>
+  Object.fromEntries(Object.entries(logs).map(([cls, l]) => [cls, classMult(l)]));
+
 const KEEP = 300;
 /** Rows kept for `prior`: what each saved item looked like, newest first, capped. */
 export const committedRows = (items: ReaderItem[], old: Committed[] = []): Committed[] =>

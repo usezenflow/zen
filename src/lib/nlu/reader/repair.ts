@@ -1,8 +1,10 @@
 // S0 repair: decodes markup, cleans unicode and punctuation, dewraps PDF lines.
 // `map[i]` is the raw index of repaired char i, so every span found later maps back to the input.
 import { fold } from "./fold";
+import { findMentions } from "./mentions";
 import { isSyllable } from "./syllables";
 import { spokenEdits } from "./spoken";
+import { EN_WORDS } from "./en";
 import { TELEX_TERMS, untelex } from "./telex";
 import { gridEdits, isScheduleText } from "./table";
 import type { ReaderSource } from "../shared";
@@ -61,8 +63,36 @@ const GREETING_END = /^(?:kinh gui|than gui|chao|tran trong|than ai|cam on)\b/;
 const TABLE_ROW =
   /^(?:\d{1,3} [a-z]{2,4}\d{2,4}\b|thu [2-7] +\d{1,2}[:h]\d{2}|cn +\d{1,2}[:h]\d{2})/;
 
+/** A line that is only a title: 2-3 words, no day, time or place, and no link word at either end. */
+function bareTitle(line: string): boolean {
+  const f = fold(line).text.trim();
+  const n = f.split(/\s+/).length;
+  return (
+    n >= 2 && n <= 3 && !findMentions(line).length && !/[,;:.!?]$/.test(f) && !LINK_WORD.test(f) && !LINK_END.test(f)
+  );
+}
+/** A line that holds a date or clock mention. */
+function timedMention(line: string): boolean {
+  return findMentions(line).some((m) => m.kind === "date" || m.kind === "time");
+}
+
+/** A part of day that opens or closes a line: "sáng sớm b-tree code", "b-tree code chiều". */
+const PART_END_OR_START = /^(?:sang|trua|chieu|toi|dem)\s|\b(?:sang|trua|chieu|toi|dem|som)$/;
+
+/** A line that opens with a title: 2+ words before its first date or clock (or after one that opens it), and no link word. */
+function titleHead(line: string): boolean {
+  const m = findMentions(line).find((x) => x.kind === "date" || x.kind === "time");
+  // the words before the date or clock are a part of day or a lead word ("sáng mai", "lúc 8h tối"): the title comes after it
+  const lead = !!m && /^(?:(?:sang|trua|chieu|toi|dem|khuya|som|luc|vao)\s*)*$/.test(fold(line.slice(0, m.start)).text);
+  const head = m ? (lead ? line.slice(m.end) : line.slice(0, m.start)) : line;
+  const f = fold(head).text.trim();
+  return f.split(/\s+/).length >= 2 && !LINK_WORD.test(f) && !LINK_END.test(f) && !/[,;:.!?]$/.test(f);
+}
+const LINK_END = /(?:^|\s)(?:va|roi|cua|cho|de|voi)$/;
+const LINK_WORD = /^(?:va|roi|cua|cho|de|voi)\s/;
+
 /** A hard line break inside a sentence: the line before is unterminated and the next is not a marker or heading. */
-function joins(text: string, nl: number): boolean {
+function joins(text: string, nl: number, typed: boolean): boolean {
   const prevStart = text.lastIndexOf("\n", nl - 1) + 1;
   const prev = text.slice(prevStart, nl).trimEnd();
   const nextEnd = text.indexOf("\n", nl + 1);
@@ -78,8 +108,33 @@ function joins(text: string, nl: number): boolean {
     const wCount = prev.trim().split(/\s+/).length;
     return wCount <= 3 && prev.length <= 25;
   }
+  // typed: two bare titles on their own lines are two items, not one sentence ("b-tree code\nlsm code")
+  if (typed && bareTitle(prev) && bareTitle(next) && !CONNECTOR_END.test(prev)) return false;
+  // typed: a title line after a line that ends with its date or clock, or after a bare title, is the next item: "b-tree code mai" / "lsm code"
+  if (
+    typed &&
+    prev.length < 40 &&
+    next.length < 40 &&
+    !CONNECTOR_END.test(prev) &&
+    !prev.includes(":") &&
+    titleHead(next) &&
+    (timedMention(prev) || bareTitle(prev) || PART_END_OR_START.test(fold(prev).text))
+  )
+    return false;
   if (CONNECTOR_END.test(prev)) return true;
   if (SENTENCE_END.test(prev)) return false;
+  // two short task lines that each carry their own date or clock are a list: "b-tree code mai" / "lsm code mai", "mai học toán" / "thứ 6 đi khám"
+  const timed = (s: string) => findMentions(s).some((m) => m.kind === "date" || m.kind === "time");
+  if (
+    prev.length < 40 &&
+    next.length < 40 &&
+    !prev.includes(":") &&
+    !next.includes(":") &&
+    timed(prev) &&
+    timed(next) &&
+    !LINK_WORD.test(fold(next).text)
+  )
+    return false;
   if (allCaps(prev)) return false;
   if (
     prev.length < 20 &&
@@ -1262,7 +1317,8 @@ function decodeTypedForms(src: Repaired): Repaired {
     for (const m of toks) {
       const idx = m.index ?? 0;
       if (urlRanges.some(([s, e]) => idx >= s && idx < e)) continue;
-      const d = decodedWord(m[0]);
+      if (joined(line, idx, idx + m[0].length)) continue;
+      const d = decodedWord(m[0], accent);
       if (d) {
         const start = at + idx;
         out.push({ start, end: start + m[0].length, text: d });
@@ -1272,51 +1328,29 @@ function decodeTypedForms(src: Repaired): Repaired {
   });
 }
 
-/** English words that a telex or VNI reading would change: "meet" is not "mêt", "Teams" not "Teám". */
-const ENGLISH_KEEP = new Set([
-  "meet",
-  "teams",
-  "zoom",
-  "google",
-  "room",
-  "online",
-  "library",
-  "hall",
-  "lab",
-  "gym",
-  "office",
-  "course",
-  "submit",
-  "deadline",
-  "meeting",
-  "lecture",
-  "due",
-  "report",
-  "next",
-  "this",
-  "tomorrow",
-  "today",
-  "days",
-  "weeks",
-  "week",
-  "day",
-  "fri",
-  "sat",
-  "sun",
-  "tues",
-  "thurs",
-  "thur",
-]);
+/** A token inside a compound ("b-tree", "v1.2", "a/b", "snake_case") is never decoded. */
+function joined(line: string, start: number, end: number): boolean {
+  return /[-./_]/.test(line[start - 1] ?? "") || /[-./_]/.test(line[end] ?? "");
+}
 
-/** A token read as its Vietnamese form: a typed word that decodes to a syllable. Undefined when it stays as typed. */
-function decodedWord(w: string): string | undefined {
-  if (MENTION_TOKEN.test(w.toLowerCase())) return undefined;
-  if (ENGLISH_KEEP.has(w.toLowerCase()) || TELEX_TERMS.has(w.toLowerCase())) return undefined;
+/**
+ * A token read as its Vietnamese form: a typed word that decodes to a syllable. Undefined when it stays as typed.
+ * On a line that already has Vietnamese marks (`accent`) only a 3+ letter token with a clear Telex or VNI cue decodes.
+ */
+function decodedWord(w: string, accent: boolean): string | undefined {
+  const lw = w.toLowerCase();
+  if (MENTION_TOKEN.test(lw) || EN_WORDS.has(lw) || TELEX_TERMS.has(lw)) return undefined;
   const hasTyped =
     /aa|ee|oo|dd|d9|aw|ow|uw|[1-5]/i.test(w) ||
     (w.length >= 2 &&
       /[sfrxj]$/i.test(w) &&
-      !AMBIGUOUS_TYPED.has(w.toLowerCase()));
+      !AMBIGUOUS_TYPED.has(lw));
+  if (accent) {
+    const letters = (w.match(/\p{L}/gu) ?? []).length;
+    const vni = /\d/.test(w);
+    const cue = hasTyped || vni || /[aeo][sfrxj][iy]$/i.test(w);
+    if ((letters < 3 && !vni) || !cue) return undefined;
+  }
   if (w.length < 2 || !/\p{L}/u.test(w) || (isSyllable(w) && !hasTyped))
     return undefined;
   const d = decodeTyped(w);
@@ -1325,9 +1359,9 @@ function decodedWord(w: string): string | undefined {
 
 /** A table cell as the reader reads it after decoding, typo and OCR repair, so its header and shape match clean text. */
 export function decodeCell(cell: string): string {
-  const words = cell.replace(
-    /[\p{L}\d]+/gu,
-    (w) => decodedWord(w) ?? fixTypo(w),
+  const accent = /[À-ÿĀ-ſḀ-ỿ]/u.test(cell);
+  const words = cell.replace(/[\p{L}\d]+/gu, (w, off: number) =>
+    (!joined(cell, off, off + w.length) && decodedWord(w, accent)) || fixTypo(w),
   );
   // dates keep their spaced digits for joinDigits, so only clocks and rooms are fixed here
   const src = {
@@ -1576,6 +1610,8 @@ export function repair(raw: string, source: ReaderSource): Repaired {
     // only the words that change are edits: an untouched word keeps its own offsets
     const edits: Edit[] = [];
     for (const m of r.text.matchAll(/(?<![\p{L}\d])\p{L}{3,14}(?![\p{L}\d])/gu)) {
+      const at = m.index ?? 0;
+      if (EN_WORDS.has(m[0].toLowerCase()) || joined(r.text, at, at + m[0].length)) continue;
       const en = untelex(m[0]);
       if (en === undefined) continue;
       // a capital stays a capital
@@ -1647,7 +1683,7 @@ export function repair(raw: string, source: ReaderSource): Repaired {
   const text = r.text;
   // a schedule keeps its line breaks: one cell per line is what its columns are read from
   const keepLines = isScheduleText(text);
-  r = sub(r, /\n/g, (m) => (!keepLines && joins(text, m.index) ? " " : "\n"));
+  r = sub(r, /\n/g, (m) => (!keepLines && joins(text, m.index, source === "typed") ? " " : "\n"));
   // markup line starts, after the lines are joined: a heading, a bullet, and a list number before a date ("1. 20/11 nộp bài")
   r = sub(r, /^[ \t]*#{1,6}[ \t]+/gm, () => "");
   r = sub(r, /^[ \t]*[-*•][ \t]+(?=\S)/gm, () => "");

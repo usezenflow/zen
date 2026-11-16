@@ -123,7 +123,7 @@ export function classifyWorkload(text: string): WorkloadCategory {
 
   // 1. Thesis / Capstone
   if (
-    /khoa\s+luan|do\s+an\s+tot\s+nghiep|kltn|datn|bao\s+ve\s+tot\s+nghiep|capstone/i.test(
+    /khoa\s+luan|luan\s+van|do\s+an\s+tot\s+nghiep|kltn|datn|bao\s+ve\s+tot\s+nghiep|capstone/i.test(
       f,
     )
   ) {
@@ -132,7 +132,7 @@ export function classifyWorkload(text: string): WorkloadCategory {
 
   // 2. Final Exam
   if (
-    /thi\s+cuoi\s+ky|on\s+thi\s+hoc\s+ky|final\s+exam|ket\s+thuc\s+hoc\s+phan|thi\s+het\s+mon|\bck\b/i.test(
+    /thi\s+cuoi\s+k[yi]|on\s+thi\s+hoc\s+k[yi]|final\s+exam|ket\s+thuc\s+hoc\s+phan|thi\s+het\s+mon|\bck\b/i.test(
       f,
     )
   ) {
@@ -141,7 +141,7 @@ export function classifyWorkload(text: string): WorkloadCategory {
 
   // 3. Midterm / Class Test / Quiz
   if (
-    /thi\s+giua\s+ky|kiem\s+tra\s+giua\s+ky|kiem\s+tra|ktra|\bkt\b|bai\s+kiem\s+tra|midterm|\bgk\b/i.test(
+    /thi\s+giua\s+k[yi]|kiem\s+tra\s+giua\s+k[yi]|kiem\s+tra|ktra|\bkt\b|bai\s+kiem\s+tra|midterm|\bgk\b/i.test(
       f,
     )
   ) {
@@ -174,7 +174,7 @@ export function classifyWorkload(text: string): WorkloadCategory {
   }
 
   // 7. Lab
-  if (/thuc\s+hanh|\blab\b|thi\s+nghiem|coding\s+bai\s+tap|\bth\b/i.test(f)) {
+  if (/thuc\s+hanh|\blab\b|thi\s+nghiem|coding\s+bai\s+tap|\bth\b|\bbtvn\b|\bbt\b/i.test(f)) {
     return "LAB";
   }
 

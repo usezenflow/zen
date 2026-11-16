@@ -9,7 +9,8 @@ describe("reader: texts that must not become dated tasks", () => {
     const gated = held(n.phase);
     (gated ? it : it.skip)(n.text, () => {
       const res = read(n.text, { ref: { y: 2026, m: 11, d: 14, h: 9, mi: 0 }, source: n.source ?? "typed" });
-      const bad = res.items.filter((i) => i.deadline || i.startsAt || i.rrule || i.clocks?.length || i.type === "EXAM");
+      // a due is allowed only as the class default the reader lists as inferred: the number in the text never sets it
+      const bad = res.items.filter((i) => (i.deadline && !i.inferred.includes("deadline")) || i.startsAt || i.rrule || i.clocks?.length || i.type === "EXAM");
       expect(bad.map((i) => `${i.type} ${i.title} ${i.deadline ?? i.startsAt ?? i.rrule ?? ""}`)).toEqual([]);
     });
   }

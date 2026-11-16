@@ -204,7 +204,9 @@ describe("grid: \"tháng này\" is by the month's end, and a vowelless acronym i
     for (const v of ["postgres", "đọc sách", "học tiếng anh", "dọn nhà", "làm đồ án", "nộp bài tập"])
       for (const tail of ["trong tháng này", "tháng này", "hết tháng này"]) {
         const s = `${v} ${tail}`, a = acts(s)[0];
-        rows.push([s, [a?.deadline, a?.notBefore, a?.when, a?.fixed], ["2026-11-30T23:59:00", undefined, undefined, undefined]]);
+        // a practice (đọc sách, học tiếng anh) repeats until the month's end, with no due of its own
+        if (v === "đọc sách" || v === "học tiếng anh") rows.push([s, [a?.deadline, /UNTIL=20261130/.test(a?.repeat ?? "")], [undefined, true]]);
+        else rows.push([s, [a?.deadline, a?.notBefore, a?.when, a?.fixed], ["2026-11-30T23:59:00", undefined, undefined, undefined]]);
       }
     const r = items("đọc sách tối mỗi ngày tháng này")[0];
     rows.push(["đọc sách tối mỗi ngày tháng này", [r?.windows, r?.rrule?.startsWith("FREQ=DAILY")], [["NIGHT"], true]]);

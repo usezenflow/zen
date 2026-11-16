@@ -26,7 +26,7 @@ vi.mock("../planner", async (orig) => {
   } };
 });
 
-import { addRule, apply, ingest, liveEdit, pickNow, pin, putBack, removeRule, retime, scopeIds, swipeDone } from "./apply";
+import { addRule, addSitting, apply, dropSitting, ingest, liveEdit, loadClassMult, needMore, pickNow, pin, putBack, removeRule, retime, scopeIds, swipeDone } from "./apply";
 import { loadMoves } from "./moves";
 import { preps } from "../planner/prep";
 
@@ -276,6 +276,7 @@ it("a repeat puts each occurrence on its own day, with the said clock and due ti
   await apply([{ op: "create", title: "Đọc", repeat: "FREQ=DAILY", when: new Date(at(1, 20)).toISOString() }], NOW);
   const reads = live().filter((x: Task) => x.title === "Đọc").sort((a: Task, b: Task) => a.notBefore! - b.notBefore!);
   expect(reads).toHaveLength(120); // the whole 120 days, not a first week
+  expect(reads.at(-1).deadline).toBeGreaterThanOrEqual(at(120, 0)); // occurrences exist out to day 120; the planner places only the first 30
   expect(reads.slice(0, 7).map((x: Task) => x.notBefore)).toEqual(Array.from({ length: 7 }, (_, i) => at(1 + i, 20)));
   expect(reads.slice(0, 7).map((x: Task) => x.deadline)).toEqual(Array.from({ length: 7 }, (_, i) => at(2 + i, 0)));
   await apply([{ op: "create", title: "Yoga", repeat: "FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR,SA", deadline: new Date(at(0, 23, 59)).toISOString() }], NOW);
@@ -623,4 +624,52 @@ it("a part-of-day repeat skips a gone today, spans 120 days, and keeps each occu
     expect(m >= 300 && m + 60 <= 660).toBe(true);
   }
   expect(xs.filter((x: Task) => x.start !== undefined).length).toBeGreaterThanOrEqual(14);
+});
+
+describe("a guess learns per frame class", () => {
+  const code = (o: Partial<Task>) => ({ id: "c1", title: "Code x", kind: "study", source: "user", effort: 180, effortGuessed: true, cls: "code", guessMin: 180, start: NOW, end: NOW + 180 * 60_000, createdAt: NOW, ...o });
+
+  it("a guessed task done at half its guess lowers its class; a said one teaches nothing", async () => {
+    db.tasks.set("c1", code({}) as any);
+    await apply([{ op: "done", target: "c1" }], NOW + 90 * 60_000);
+    expect((await loadClassMult()).code).toBeCloseTo(Math.exp((1 / 4) * Math.log(0.5)), 10); // one sample: n/(n+3) = 1/4 of its log
+  });
+
+  it("needing one more sitting raises the class multiplier", async () => {
+    await needMore(code({ maxSitting: 90 }) as Task);
+    expect((await loadClassMult()).code).toBeGreaterThan(1);
+  });
+
+  it("a said length is not a class signal", async () => {
+    db.tasks.set("c2", code({ id: "c2", effortGuessed: undefined, guessMin: undefined }) as any);
+    await apply([{ op: "done", target: "c2" }], NOW + 90 * 60_000);
+    expect(await loadClassMult()).toEqual({});
+  });
+});
+
+describe("adding and dropping a sitting", () => {
+  it("drop gives n-1 open sittings, add gives n of the same length after the last", async () => {
+    await apply([{ op: "create", title: "Essay", kind: "study", effortMinutes: 300, deadline: "2026-11-20T23:00:00" }], NOW);
+    const pid = live().find((x: Task) => !x.parentId)!.id;
+    const open = () => live().filter((x: Task) => x.parentId === pid).sort((a: Task, b: Task) => Number(a.id.split("#")[1]) - Number(b.id.split("#")[1]));
+    const n = open().length, len = open()[n - 1].effort;
+    const dropped = await dropSitting(pid, NOW + 1000);
+    expect(open()).toHaveLength(n - 1);
+    expect(dropped.toast).toBe("Bớt một buổi Essay");
+    const added = await addSitting(pid, NOW + 2000);
+    expect(open()).toHaveLength(n);
+    const last = open()[n - 1];
+    expect(last.id).toBe(`${pid}#${n + 1}`);
+    expect(last.effort).toBe(len);
+    expect(added.toast).toBe("Thêm một buổi Essay");
+    expect(added.sub).toBeDefined();
+  });
+  it("drop does nothing with one open sitting", async () => {
+    await apply([{ op: "create", title: "Essay", kind: "study", effortMinutes: 60, deadline: "2026-11-20T23:00:00" }], NOW);
+    const pid = live().find((x: Task) => !x.parentId)!.id;
+    const kids = () => live().filter((x: Task) => x.parentId === pid);
+    const n = kids().length;
+    await dropSitting(pid, NOW + 1000);
+    expect(kids()).toHaveLength(n);
+  });
 });

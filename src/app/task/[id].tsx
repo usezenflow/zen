@@ -286,10 +286,10 @@ export default function Detail() {
           <View style={s.bar}>
             <Tap onPress={goBack} accessibilityLabel={t("back")} style={circle}><Icon name="back" size={20} color={th.ink} /></Tap>
             <View style={s.acts}>
-            {!!more().length && <View style={circle}><DropMenu sf="ellipsis" color={th.ink} size={20} icon={<Gly name="dots" size={20} color={th.ink} />} items={more()} /></View>}
+            {!!more().length && <View style={circle}><DropMenu color={th.ink} size={20} icon={<Gly name="dots" size={20} color={th.ink} />} items={more()} /></View>}
             {series ? (
               <View style={danger}>
-                <DropMenu sf="trash" color={th.seal} size={20} icon={<Gly name="trash" size={20} color={th.seal} />} items={[
+                <DropMenu color={th.seal} size={20} icon={<Gly name="trash" size={20} color={th.seal} />} items={[
                   { label: t("deleteThis"), icon: "minus", onPress: () => del("this") },
                   { label: t("deleteFollowing"), icon: "toEnd", onPress: () => del("following") },
                   { label: t("deleteAll"), icon: "trash", destructive: true, onPress: () => del("all") },

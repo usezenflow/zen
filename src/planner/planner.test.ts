@@ -39,6 +39,14 @@ describe("split and deadline", () => {
     expect(awake(pc({}), at(1, 21) + 30 * MIN)).toBe(false); // would end 22:30
   });
 
+  it("a 3 h task due tonight at 19:02 is one sitting that runs past 22:00, not two with one unplaced", () => {
+    const n = new Date(2026, 10, 16, 19, 2).getTime();
+    const { diff } = plan([task("zf", { effort: 180, deadline: at(0, 23) + 59 * MIN })], [], newModel(n), n);
+    expect(diff.split).toHaveLength(0);
+    expect(diff.unplaced ?? []).toHaveLength(0);
+    expect(diff.placed.map((p) => [p.start, p.end])).toEqual([[new Date(2026, 10, 16, 19, 15).getTime(), new Date(2026, 10, 16, 22, 15).getTime()]]);
+  });
+
   it("lands every sitting before the deadline in order", () => {
     const deadline = at(4, 18);
     const { diff } = plan([task("essay", { effort: 300, deadline })], [], newModel(now), now);
@@ -133,6 +141,16 @@ describe("understanding", () => {
     expect(a.placed[0].end - a.placed[0].start).toBe(120 * MIN);
     const b = plan([task("y", { effort: 0, kind: "chores" })], [], newModel(now), now).diff;
     expect(b.placed[0].end - b.placed[0].start).toBe(30 * MIN);
+  });
+
+  it("a guessed length gives way to 2+ alike done tasks, a said one stands", () => {
+    const m = newModel(now);
+    const v = new Float32Array(4).fill(0); v[1] = 1;
+    for (let i = 0; i < 3; i++) m.efforts.push({ vec: Array.from(v), minutes: 120, at: now });
+    const guessed = plan([task("x", { effort: 180, effortGuessed: true, vec: v })], [], m, now).diff;
+    expect(guessed.placed[0].end - guessed.placed[0].start).toBe(120 * MIN);
+    const said = plan([task("y", { effort: 45, vec: v })], [], m, now).diff;
+    expect(said.placed[0].end - said.placed[0].start).toBe(45 * MIN);
   });
 });
 
@@ -233,6 +251,22 @@ describe("first move, maxSitting, typeOf, alt", () => {
     expect(split(90, 30)).toEqual([30, 30, 30]);
     const { diff } = plan([task("p", { effort: 90, maxSitting: 45, deadline: at(4, 18) })], [], newModel(now), now);
     expect(diff.split[0].ids).toHaveLength(2);
+  });
+
+  it("a 120-day daily repeat: the planner places none past now+30d and leaves those occurrences without a time", () => {
+    const occ = Array.from({ length: 120 }, (_, d) => task(`r${d}`, { title: "Đọc", rrule: "FREQ=DAILY", effort: 90, notBefore: at(d, 7), deadline: at(d + 1, 0) }));
+    const { diff } = plan(occ, [], newModel(now), now);
+    expect(diff.placed.length).toBeGreaterThan(0);
+    for (const p of diff.placed) expect(p.start).toBeLessThan(now + 30 * DAY);
+    expect(diff.placed.some((p) => p.id === "r40")).toBe(false);
+  });
+
+  it("a deadline 90 days out is planned inside the 30-day horizon, the due date kept", () => {
+    const far = now + 90 * DAY;
+    const { diff } = plan([task("far", { deadline: far })], [], newModel(now), now);
+    const p = diff.placed.find((x) => x.id === "far")!;
+    expect(p.start).toBeGreaterThanOrEqual(now);
+    expect(p.end).toBeLessThanOrEqual(now + 30 * DAY);
   });
 
   it("a tight deadline gets fewer, longer sittings: one per whole day left, one under a day", () => {

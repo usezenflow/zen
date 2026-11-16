@@ -133,8 +133,9 @@ describe("prep length with course affinity", () => {
 
 describe("read", () => {
   it("sizes a typed activity from the reader", () => {
+    // the class sizes it: a run is 30 a session (the sizer wins over the activity default)
     const [it] = read("chạy bộ", { ref, source: "typed" }).items;
-    expect(it.durationMinutes).toBe(60);
+    expect(it.durationMinutes).toBe(30);
   });
 
   it("keeps a typed length over the activity", () => {

@@ -164,14 +164,36 @@ it("recur grid: repeats with a part of day, clock, start, end, place and length 
 
 // No repeat cue, no repeat: one row, one time. A guessed repeat fills months of the calendar.
 it("recur grid: a sentence with no repeat cue never repeats", () => {
+  // practice classes are not here: they repeat with no day said (next test), and a said day keeps them one task
   const said = [
-    "Giải code tối nay", "Giải code tối mai", "Đọc sách sáng thứ 2", "Họp nhóm sáng thứ 2", "Chạy bộ chiều chủ nhật 5h", "Nộp báo cáo thứ 6",
+    "Giải code tối nay", "Giải code tối mai", "Họp nhóm sáng thứ 2", "Nộp báo cáo thứ 6",
     "Giải code từ 1/12 đến 20/12", "Ôn thi từ thứ 2 đến thứ 6 tuần sau", "Nghỉ từ 15 đến 22/11", "Thứ 2 nào cũng được, họp nhóm", "Bài nào cũng khó, làm bài tập toán tối nay",
-    "Lúc nào cũng phải đọc sách trước thứ 6", "Giải code 2 tiếng tối nay", "Mai 9 giờ ôn Giải tích", "T6 nộp báo cáo nhóm", "Đến hết tháng 12 nộp đồ án", "Học tiếng Anh tới ngày 20/11",
+    "Giải code 2 tiếng tối nay", "Mai 9 giờ ôn Giải tích", "T6 nộp báo cáo nhóm", "Đến hết tháng 12 nộp đồ án",
     "Đi cà phê thứ 7 tuần sau", "Họp nhóm thứ 4 đến 20/12", "Giải code trong 3 ngày",
   ];
   const repeated = said.filter((s) => read(s, { ref: REF, source: "typed" }).items.map(itemAction).some((a) => a.repeat));
   expect(repeated).toEqual([]);
+});
+
+// Practice classes (language, skill, workouts, habits) repeat with no day said; a said day, clock or due keeps one task.
+it("recur grid: a practice repeats with no day said, and stays one task with a day, clock or due", () => {
+  const REPEAT: [string, string][] = [
+    ["Tập gym", "FREQ=WEEKLY;BYDAY=MO,WE,FR"], ["Học tiếng Anh", "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"], ["Đọc sách", "FREQ=DAILY"], ["Chạy bộ", "FREQ=WEEKLY;BYDAY=MO,WE,FR"], ["Đi bơi", "FREQ=WEEKLY;BYDAY=TU,FR"],
+  ];
+  const ONCE = ["Đọc sách sáng thứ 2", "Chạy bộ chiều chủ nhật 5h", "Đọc sách trước 15/11", "Học tiếng Anh hạn 10h sáng mốt", "Tập gym tối nay"];
+  const misses: string[] = [];
+  for (const [t, rule] of REPEAT) {
+    const all = read(t, { ref: REF, source: "typed" }).items.map(itemAction);
+    if (all.length !== 1 || all[0].repeat !== rule || all[0].deadline) misses.push(`repeat | ${t} | ${all.map((a) => `${a.repeat} ${a.deadline ?? ""}`).join(" ; ")}`);
+  }
+  // a range end ("tới ngày 20/11") repeats until that day; a deadline cue ("trước 15/11") keeps one task
+  const ranged = read("Học tiếng Anh tới ngày 20/11", { ref: REF, source: "typed" }).items.map(itemAction);
+  if (ranged.length !== 1 || ranged[0].repeat !== "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;UNTIL=20261120" || ranged[0].deadline) misses.push(`range | Học tiếng Anh tới ngày 20/11 | ${ranged.map((a) => `${a.repeat} ${a.deadline ?? ""}`).join(" ; ")}`);
+  for (const s of ONCE) {
+    const all = read(s, { ref: REF, source: "typed" }).items.map(itemAction);
+    if (all.length !== 1 || all[0].repeat) misses.push(`once | ${s} | ${all.map((a) => `${a.repeat ?? ""} ${a.deadline ?? ""}`).join(" ; ")}`);
+  }
+  expect(misses).toEqual([]);
 });
 
 // Several parts of the day with one repeat: one series per part, each kept in its own window.

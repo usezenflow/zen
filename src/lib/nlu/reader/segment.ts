@@ -2,6 +2,7 @@
 // Offsets are into the repaired text.
 import { fold } from "./fold";
 import { findMentions } from "./mentions";
+import { PART_WORD } from "./parts";
 
 export type LabelKind = "time" | "place" | "content";
 
@@ -19,6 +20,8 @@ export interface Clause {
   labelWord?: string;
   /** A timetable row, "Thứ 2 7:30-9:30 Toán rời rạc A2.101": a weekly class. */
   timetable?: boolean;
+  /** A piece of a comma list ("b-tree code, lsm code"): a bare title of 2+ words is an item of its own. */
+  piece?: boolean;
 }
 
 const TIMETABLE =
@@ -41,6 +44,59 @@ function plainShort(t: string): boolean {
 const MODIFIER_OPEN =
   // a clause with a subject or a date: "các bạn sẽ làm ..." completes the item before it
   /^(?:keo dai|ngay|thu|luc|vao|hom|tai|o|phong|dia diem|tap trung|co mat|den|toi|sang|chieu|trua|dem|a khong|a quen|khong phai|ma la|y la|sua lai|nham|cn|chu nhat|t[2-7]|cac ban|cac em|ban|em|minh|tui|thay|co|anh|chi)(?![a-z])/;
+
+const PART_ONLY = /^(?:sang|trua|chieu|toi|dem)$/;
+const DATE_WORD = /^(?:nay|mai|hom|qua|kia|ngay|thu|tuan|thang|nam|cuoi|sau|nua|khuya)(?![a-z])/;
+
+/** A part of day that opens a task: "tối dọn phòng" yes, "tối nay" and "tối 8h" no. */
+export function partLeads(text: string): boolean {
+  const t = text.trim();
+  // "sáng sớm" is one part of the day: its rest starts after both words
+  const words = t.split(/\s+/);
+  const rest = words.slice(fold(words.slice(0, 2).join(" ")).text === "sang som" ? 2 : 1).join(" ");
+  const fr = fold(rest).text;
+  return (
+    /^(?:sang|trua|chieu|toi|dem)\s/.test(fold(t).text) &&
+    rest !== "" &&
+    !/^\d/.test(fr) &&
+    !DATE_WORD.test(fr) &&
+    !findMentions(rest).some((m) => m.start === 0)
+  );
+}
+
+/** A date or clock, after at most part words, that is followed by a task: "sáng mai dọn phòng", "9h họp nhóm". "sáng mai" alone is no task. */
+/** A bare title with its time at the end of the piece: "lsm code 9h", "lsm code chiều". No figure, brackets or colon in it. */
+function titleThenTime(after: string): boolean {
+  const piece = after.split(/[,;]/)[0];
+  if (/[():]/.test(piece)) return false;
+  const m = findMentions(piece).find((x) => x.kind === "date" || x.kind === "time");
+  const f = fold(piece);
+  const pm = PART_WORD.exec(f.text);
+  const endsTimed = (!!m && piece.slice(m.end).trim() === "") || (!!pm && f.text.slice(pm.index + pm[0].length).trim() === "");
+  if (!endsTimed) return false;
+  const at = Math.min(m ? m.start : Infinity, pm ? f.map[pm.index] ?? Infinity : Infinity);
+  if (at === Infinity || at === 0) return false;
+  const head = fold(piece.slice(0, at)).text.trim().replace(/\s+(?:luc|vao)$/, "");
+  return head.split(/\s+/).length >= 2 && !MODIFIER_OPEN.test(head);
+}
+
+export function opensDatedTask(text: string): boolean {
+  const m = findMentions(text).find(
+    (x) => (x.kind === "date" || x.kind === "time") && /^(?:(?:sang|trua|chieu|toi|dem|khuya|som|luc|vao)\s+)*$/.test(fold(text.slice(0, x.start)).text),
+  );
+  return !!m && /^\p{L}/u.test(text.slice(m.end).trimStart());
+}
+
+/** A piece of a comma list that is a bare title: 2+ words, no clock or date, no modifier ("ở thư viện" is not one). */
+export function bareTitle(piece: string): boolean {
+  const t = piece.trim();
+  const f = fold(t).text;
+  return (
+    f.split(/\s+/).length >= 2 &&
+    !findMentions(t).length &&
+    (!MODIFIER_OPEN.test(f) || partLeads(t))
+  );
+}
 
 const HEADER_NUM = /^(\d{1,2})[.)]\s+(.+)$/;
 const BULLET = /^([-+*•▪●○]|\d+[.)](?=\s)|[a-z][.)](?=\s))\s*/;
@@ -121,12 +177,12 @@ function labelOf(word: string): LabelKind {
 
 /** Splits into clauses. A clause is one sentence, or one field line, under the section it sits in. */
 export function segment(text: string): Clause[] {
-  const lines: { text: string; start: number }[] = [];
+  const lines: { text: string; start: number; piece: boolean }[] = [];
   const rawLines = text.split("\n");
   let pos = 0;
   for (const rawLn of rawLines) {
     // a piece ends at `at` and the next one starts at `next`; a separator is dropped
-    const cuts: { at: number; next: number }[] = [];
+    const cuts: { at: number; next: number; comma?: boolean }[] = [];
     for (const sm of rawLn.matchAll(
       /(?<=[.:;!?]|\s-\s)\s+(?=\d{1,2}[.)]\s+[^\d])/g,
     )) {
@@ -147,24 +203,45 @@ export function segment(text: string): Clause[] {
       )
         continue;
       const after = rawLn.slice(i + 1).trimStart();
-      if (!/^\p{L}/u.test(after) || after.split(/\s+/).length < 2) continue;
-      if (!findMentions(rawLn.slice(0, i)).length) continue;
-      // a date, clock, place or correction after the comma completes the item before it
+      if (!(/^\p{L}/u.test(after) || opensDatedTask(after)) || after.split(/\s+/).length < 2) continue;
+      // a ";" after a title of 2+ words is a list of titles too: "b-tree code ; lsm code"
+      const listSemi = rawLn[i] === ";" && fold(rawLn.slice(0, i)).text.trim().split(/\s+/).length >= 2;
+      // a bare title before the comma ("học toán") is its own item when the piece after opens a task: "sáng mai dọn phòng"; a task that opens with a part ("sáng sớm dọn phòng") is one too
+      const before = rawLn.slice(0, i);
+      // "họp nhóm chín giờ, à quên, mười giờ sáng mai": the correction's comma keeps its item and its fix together
+      if (/\ba\d? (?:quen|khong)$/.test(fold(before).text.trim())) continue;
+      const tail = before.split(/[,;]\s*/).pop() ?? before;
+      // a bare title has no figure: "mục tiêu 8 trang, tuần này phải xong" is one task, its "tuần này" a due
+      const titleBefore = !findMentions(before).length && !/\d+\s*(?:trang|tieng|phut|gio|km|buoi|cau)\b/.test(fold(tail).text) && fold(tail).text.trim().split(/\s+/).length >= 2;
+      // "ôn bài sáng, trưa hoặc tối mai": a piece that ends in a part word keeps the list's part, so it takes no task
+      // "ôn bài sáng, trưa hoặc tối mai": a tail that ends in a part keeps the list's part, so only a bare title after it is a task
+      const tailPart = /\b(?:sang|trua|chieu|toi|dem|khuya|som)$/.test(fold(tail).text.trim());
+      const piece = after.split(/[,;]/)[0];
+      const taskLead = titleBefore && (tailPart
+        ? bareTitle(piece)
+        : partLeads(after) || opensDatedTask(after) || partLeads(tail) || titleThenTime(after));
+      if (!findMentions(rawLn.slice(0, i)).length && !listSemi && !taskLead) continue;
+      // a date, clock, place or correction after the comma completes the item before it; a part word that opens a task ("tối dọn phòng") is an item of its own
       const opener = fold(after).text;
+      const partTask = partLeads(after) || taskLead;
       if (
-        MODIFIER_OPEN.test(opener) ||
-        MODIFIER_OPEN.test(opener.replace(/\d/g, ""))
+        !partTask &&
+        (MODIFIER_OPEN.test(opener) || MODIFIER_OPEN.test(opener.replace(/\d/g, "")))
       )
         continue;
-      if (findMentions(after).some((m) => m.start === 0)) continue;
-      cuts.push({ at: i, next: i + 1 });
+      if (!partTask && findMentions(after).some((m) => m.start === 0)) continue;
+      // a piece of a labelled field ("Địa điểm: A, B") is the field's, not a title of its own
+      const labelled = fold(rawLn.slice(0, i)).text.search(INLINE_LABEL_RE) >= 0;
+      cuts.push({ at: i, next: i + 1, comma: !labelled && rawLn[i] !== "." && rawLn[i] !== "!" && rawLn[i] !== "?" });
     }
     cuts.sort((a, b) => a.at - b.at);
     const starts = [0, ...cuts.map((c) => c.next)];
     const ends = [...cuts.map((c) => c.at), rawLn.length];
     for (let i = 0; i < starts.length; i++) {
       const segText = rawLn.slice(starts[i], ends[i]);
-      lines.push({ text: segText, start: pos + starts[i] });
+      // a piece beside a comma cut is an item of its own when it is a bare title
+      const piece = !!(cuts[i]?.comma || (i > 0 && cuts[i - 1].comma));
+      lines.push({ text: segText, start: pos + starts[i], piece });
     }
     pos += rawLn.length + 1;
   }
@@ -184,12 +261,15 @@ export function segment(text: string): Clause[] {
     if (HEADER_NUM.test(l.text.trim()) && (near(i - 1) || near(i + 1)))
       listed.add(l);
   });
-  let run: object[] = [];
+  // a run whose lines are all bare titles is a list of titles, one per line: "b-tree code" / "lsm code"
+  const titleRun = new Set<object>();
+  let run: { text: string }[] = [];
   for (const l of [...lines, { text: "" }]) {
     const t = l.text.trim();
     if (t && plainShort(t)) run.push(l);
     else {
       if (run.length >= 2) for (const r of run) listed.add(r);
+      if (run.length >= 2 && run.every((r) => bareTitle(r.text))) for (const r of run) titleRun.add(r);
       run = [];
     }
   }
@@ -323,6 +403,8 @@ export function segment(text: string): Clause[] {
             label,
             labelWord,
             timetable: TIMETABLE.test(fold(body0).text),
+            // a run of short plain lines is a list of titles, one per line
+            piece: line.piece || titleRun.has(line),
           });
         }
         from = cut;
@@ -331,5 +413,36 @@ export function segment(text: string): Clause[] {
       }
     }
   }
-  return out;
+  return splitTrailing(out, text);
+}
+
+/**
+ * "học toán, viết báo cáo, đi khám tuần sau": a date that ends its line and is the only date of its clause
+ * takes the tasks before its comma as a clause of their own, so they can take its span.
+ */
+function splitTrailing(list: Clause[], text: string): Clause[] {
+  return list.flatMap((c) => {
+    const ms = findMentions(c.text);
+    const dates = ms.filter((m) => m.kind === "date");
+    // a part of day alone ("tối nay") is no clock: the trailing date may carry it
+    if (dates.length !== 1 || ms.some((m) => m.kind === "time" && !PART_ONLY.test(fold(c.text.slice(m.start, m.end)).text))) return [c];
+    const d = dates[0];
+    if (c.text.slice(d.end).trim() !== "") return [c];
+    // the date ends its piece when the line goes on after a comma: "b-tree code, lsm code mai, code api login"
+    const rest = text.slice(c.start + c.text.length).split("\n")[0].trim();
+    if (rest !== "" && !rest.startsWith(",")) return [c];
+    const cut = c.text.lastIndexOf(",", d.start);
+    // the tasks before the comma need words of their own: "ôn bài sáng, tối mai" and "nộp báo cáo, thứ sáu" stay one clause
+    if (cut <= 0 || c.text.slice(cut + 1, d.start).trim() === "") return [c];
+    // a part of day alone before the date is its modifier: "học toán, sáng mai" is one task
+    if (PART_ONLY.test(fold(c.text.slice(cut + 1, d.start).trim()).text)) return [c];
+    if (fold(c.text.slice(0, cut)).text.split(/\s+/).length < 2) return [c];
+    if (findMentions(c.text.slice(0, cut)).length) return [c];
+    // a part of day in the tasks before the comma is theirs: "ôn bài sáng, tối mai" keeps its part on "ôn bài"
+    if (/\b(sang|trua|chieu|toi|dem|morning|noon|afternoon|evening|night)\b/.test(fold(c.text.slice(0, cut)).text)) return [c];
+    return [
+      { ...c, text: c.text.slice(0, cut), piece: true },
+      { ...c, text: c.text.slice(cut + 1), start: c.start + cut + 1, piece: true },
+    ];
+  });
 }

@@ -7,6 +7,7 @@ import {
   type ReaderWC,
 } from "../shared";
 import { fold } from "./fold";
+import { PART, PART_ALIAS, PART_WORD } from "./parts";
 import { hintsOf } from "./hints";
 import {
   clauseItems,
@@ -18,15 +19,18 @@ import {
   type Ctx,
   type Prior,
   firstUrl,
+  resolveDate,
 } from "./assemble";
 import { applyDayPick, hidePick, joinFragments, type CalDay } from "./daypick";
 import { applyImplied } from "./implied";
 import { lengthMin, saidMin } from "./calendar";
 import { joinConnectors, linkOrder, splitOrdered } from "./order";
-import { findMentions, mentionsOf } from "./mentions";
+import { CORRECTION, findMentions, mentionsOf } from "./mentions";
 import { repair } from "./repair";
 import { repairsOf, repairWord } from "./repairs";
-import { segment, type Clause } from "./segment";
+import { bareTitle, segment, type Clause } from "./segment";
+import { findMentions as findDates } from "./mentions";
+import { sizeItems } from "./sizing";
 import { ocrSchedule } from "./table";
 /** Options of `read`. The controller maps `ReadRequest` onto it. */
 export interface ReadOpts {
@@ -42,6 +46,8 @@ export interface ReadOpts {
   affinity?: Map<string, number>;
   /** The user's classes and exams from today on; a timetable phrase picks days from them. */
   calendar?: CalDay[];
+  /** Per frame class, the multiplier of its guessed lengths, learned from what the user finished (context.ts classMults). */
+  classMult?: Record<string, number>;
 }
 
 /** Words of a hint that name the person, not the section they want: "Tui tham gia co vua" reads "co vua". */
@@ -75,6 +81,36 @@ function hintPhrase(hint: string): string {
 /** Words that tell the reader the text lists things to prepare: a class it names is already on the timetable. */
 function hasPrepCue(text: string): boolean {
   return /mang theo|nho mang|chuan bi/i.test(fold(text).text);
+}
+
+/** The piece starts a line of its own after one newline: a list line, not a paragraph break ("\n\n") or a wrapped sentence. */
+function singleBreak(text: string, at: number): boolean {
+  const before = text.slice(0, at);
+  return before === "" || (before.endsWith("\n") && !before.endsWith("\n\n"));
+}
+
+/** A bare title of a comma list that no rule reads ("sáng sớm b-tree code", "mai báo cáo web") is still its task, with its own day and part. */
+function pieceTask(text: string, ref: ReaderWC): ReaderItem | undefined {
+  const dm = findDates(text).find((m) => m.kind === "date");
+  const rest = dm ? `${text.slice(0, dm.start)} ${text.slice(dm.end)}` : text;
+  // "à không chiều" opens a correction or a filler, not a title
+  if (/^(?:a|o|u|um|uh)\b/.test(fold(text).text) || !bareTitle(rest)) return undefined;
+  // a short title (3 words, its part of day aside), not a sentence with a verb of its own
+  if (fold(rest).text.replace(/\b(?:sang|som|trua|chieu|toi|dem|khuya)\b/g, " ").trim().split(/\s+/).length > 3) return undefined;
+  const it = fallbackTask(text.trim());
+  const f = fold(text).text;
+  const pm = PART_WORD.exec(f);
+  const spec = pm ? PART[PART_ALIAS[pm[1]] ?? pm[1]] : undefined;
+  const day = dm ? resolveDate(dm, ref) : null;
+  if (day) {
+    const d = `${day.wc.y}-${String(day.wc.m).padStart(2, "0")}-${String(day.wc.d).padStart(2, "0")}`;
+    const end = spec ? `${String(spec.due[0]).padStart(2, "0")}:${String(spec.due[1]).padStart(2, "0")}` : "23:59";
+    it.notBefore = `${d} 00:00`;
+    it.deadline = `${d} ${end}`;
+    if (spec) it.windows = [spec.window];
+    it.inferred.push("notBefore", "deadline");
+  }
+  return it;
 }
 
 export function read(raw: string, opts: ReadOpts): ReaderResult {
@@ -192,24 +228,61 @@ export function read(raw: string, opts: ReadOpts): ReaderResult {
   const dropped: ReaderResult["dropped"] = [];
   const links: [ReaderItem, ReaderItem][] = [];
   // a phrase that sets a start or a day pick joins its task clause, even across a comma
-  // a leading day ("mai") holds for the later clauses of its line; a newline resets it
-  let carry: string | undefined;
+  // a leading date or span ("mai", "tuần sau", "năm nay") holds for the later clauses of its line; a newline resets it
+  type Span = { notBefore?: string; deadline?: string; windows?: ReaderItem["windows"] };
+  // the words that may stand before a lead date: "trước thứ 6 ...", "trong năm nay ...", "từ mai ...", "sáng mai ...", "tối nay ..."
+  const LEAD_CUE = /^(?:(?:truoc|tu|trong|het|cuoi|den|buoi|sang|trua|chieu|toi|dem|khuya|som)\s+)*$/;
+  // a clock before the lead date: "8h mai", "8h sáng mai"
+  const CLOCK_LEAD = /^\d{1,2}(?:\s*[h:.]\s*\d{0,2})?\s*(?:(?:sang|trua|chieu|toi|dem|khuya)\s+)?$/;
+  let carry: Span | undefined;
   let lineDay: string | undefined;
+  // the items of the line so far, and whether a clause of it said a date or a clock
+  let lineItems: ReaderItem[] = [];
+  let lineTimed = false;
   let prev: Clause | undefined;
   for (const c of joinFragments(joinConnectors(clauses), opts.calendar)) {
     const sameLine =
       !!prev && !rep.text.slice(prev.start, c.start).includes("\n");
-    if (!sameLine) carry = undefined;
+    if (!sameLine) {
+      carry = undefined;
+      lineItems = [];
+      lineTimed = false;
+    }
     const { parts, edges } = splitOrdered(c);
-    const per = parts.map((p) => {
+    const per = parts.map((p, k) => {
       const out = clauseItems(
         { ...p, text: hidePick(p.text, opts.calendar) },
         ctx,
       );
       dropped.push(...out.dropped);
+      // a bare title of a comma list that no rule reads ("sáng sớm b-tree code") is still its task
+      if (!out.items.length && (opts.source === "typed" || opts.source === "voice") && !p.label && fold(rep.text).text.search(CORRECTION) < 0 && !/^\s*(?:à|ờ|ừ|ừm|ơ)\b/i.test(parts[k + 1]?.text ?? "") && (p.piece || (rep.text.includes("\n") && singleBreak(rep.text, p.start))) && !/[:&]/.test(p.text) && fold(p.text).text.search(CORRECTION) < 0 && !/^(?:\d+[.)]|[-•*])(?:\s|$)/.test(rep.text.slice(rep.text.lastIndexOf("\n", p.start - 1) + 1, p.start).trim())) {
+        const fb = pieceTask(p.text, opts.ref);
+        if (fb) out.items.push(fb);
+      }
       return applyDayPick(p.text, out.items, opts.calendar);
     });
-    const dayOf = (it: ReaderItem) =>
+    // the end of the part a task names itself, from a part word that leads its clause: "tối" 22:00, "sáng sớm" 08:00 ("sau bữa trưa" is an anchor, no part)
+    const partDue = new Map<ReaderItem, string>();
+    parts.forEach((p, k) => {
+      const f = fold(p.text).text;
+      const m = PART_WORD.exec(f.trimStart());
+      // or a part that trails a task with no date of its own: "dọn phòng chiều" is this afternoon
+      // "sau bữa trưa" is an anchor, no part: the word after "sau" or "bữa" is not trailing
+      const trail = findMentions(p.text).some((x) => x.kind === "date" || x.kind === "time") ? null : PART_WORD.exec(f);
+      const anchored = !!trail && /(?:sau|bua|buoi)\s+$/.test(f.slice(0, trail.index));
+      const w = m?.index === 0 ? m[1] : anchored ? undefined : trail?.[1];
+      const spec = w ? PART[PART_ALIAS[w] ?? w] : undefined;
+      if (!spec) return;
+      const end = `${String(spec.due[0]).padStart(2, "0")}:${String(spec.due[1]).padStart(2, "0")}`;
+      // a task the reader gave no window ("sáng sớm lsm code") takes its part's window when the piece says no date or clock
+      const undated = !findMentions(p.text).some((x) => x.kind === "date" || x.kind === "time");
+      for (const it of per[k]) {
+        if (!it.windows?.length && undated && !it.startsAt && !it.rrule && (it.type === "PLAN" || it.type === "ASSIGNMENT")) it.windows = [spec.window];
+        if (it.windows?.length) partDue.set(it, end);
+      }
+    });
+    const dayOf =(it: ReaderItem) =>
       (it.deadline ?? it.startsAt ?? it.notBefore)?.slice(0, 10);
     const own = per.flat();
     const mentions = findMentions(c.text);
@@ -223,23 +296,85 @@ export function read(raw: string, opts: ReadOpts): ReaderResult {
           if (it.days?.length) it.days = [lineDay];
         }
     if (dated) lineDay = own.length ? dayOf(own[own.length - 1]) : undefined;
-    if (carry && sameLine && !mentions.some((m) => m.kind === "date"))
+    // a flexible task: no fixed clock and no repeat of its own
+    const flexible = (it: ReaderItem) =>
+      (it.type === "PLAN" || it.type === "ASSIGNMENT") &&
+      !it.startsAt &&
+      !it.rrule;
+    // the span replaces the default start of today a clause without a date gets
+    const apply = (s: Span, it: ReaderItem, partEnd?: string) => {
+      // a part the task names itself stays: "sáng mai A, tối B" gives B tomorrow evening, the lead's day with B's end
+      const ownEnd = partEnd ? ` ${partEnd}` : it.windows?.length ? it.deadline?.slice(10) : undefined;
+      const day = (s.notBefore ?? s.deadline)?.slice(0, 10);
+      it.notBefore = s.notBefore;
+      it.deadline = ownEnd && day ? day + ownEnd : s.deadline;
+      it.windows = it.windows?.length ? it.windows : s.windows;
+      if (s.notBefore) it.inferred.push("notBefore");
+      if (s.deadline) it.inferred.push("deadline");
+    };
+    const dates = mentions.filter((m) => m.kind === "date");
+    // "tháng này" is a span from today to the month's end; "hết tháng này" stays a deadline alone
+    if (
+      dates.length === 1 &&
+      (c.text.includes(",") ||
+        lineItems.length > 0 ||
+        rep.text.slice(c.start + c.text.length).split("\n")[0].trim() !== "") &&
+      /^thang\s+nay/.test(fold(c.text.slice(dates[0].start)).text)
+    ) {
+      const today = `${opts.ref.y}-${String(opts.ref.m).padStart(2, "0")}-${String(opts.ref.d ?? 0).padStart(2, "0")} 00:00`;
       for (const it of own)
-        if (
-          (it.type === "PLAN" || it.type === "ASSIGNMENT") &&
-          !it.deadline &&
-          !it.startsAt
-        ) {
-          it.deadline = `${carry} 23:59`;
-          it.notBefore = `${carry} 00:00`;
-          it.inferred.push("deadline");
-        }
+        if (flexible(it) && it.deadline && !it.notBefore) it.notBefore = today;
+    }
+    if (carry && sameLine && !dates.length) {
+      for (const it of own) if (flexible(it) && !it.startsAt) apply(carry, it, partDue.get(it));
+    } else if (!carry && !dates.length && !lineTimed) {
+      // no lead and no day: a part names today's part, as "tối nay" does, so "tối dọn phòng" is tonight
+      const todayStart = `${opts.ref.y}-${String(opts.ref.m).padStart(2, "0")}-${String(opts.ref.d ?? 0).padStart(2, "0")} 00:00`;
+      for (const it of own) {
+        const due = partDue.get(it);
+        if (due && flexible(it) && !it.startsAt && !it.deadline && (!it.notBefore || it.notBefore === todayStart))
+          apply({ notBefore: todayStart, deadline: `${todayStart.slice(0, 10)} ${due}` }, it, due);
+      }
+    }
+    // a lead date may follow a cue word: "trước thứ 6", "trong năm nay", "từ mai", "hết tháng này"
     const lead = c.text.length - c.text.trimStart().length;
-    if (mentions.some((m) => m.kind === "date"))
-      carry =
-        mentions[0].kind === "date" && mentions[0].start === lead && own[0]
-          ? dayOf(own[0])
-          : undefined;
+    const leadDate =
+      mentions[0]?.kind === "date" &&
+      LEAD_CUE.test(fold(c.text.slice(lead, mentions[0].start)).text);
+    if (dates.length) {
+      const src = own[0];
+      // "8h sáng mai A, B": B gets the day and the part, never A's clock; a part ends at its usual end
+      const clockLead =
+        !!src?.startsAt && (leadDate || CLOCK_LEAD.test(fold(c.text.slice(lead, dates[0].start)).text));
+      const pm = /\b(sang|trua|chieu|toi|dem|khuya)\b/.exec(fold(c.text.slice(0, dates[0].start)).text)?.[1];
+      const part = pm ? PART[pm] : undefined;
+      if (clockLead && src?.startsAt) {
+        const day = src.startsAt.slice(0, 10);
+        const due = part ? `${String(part.due[0]).padStart(2, "0")}:${String(part.due[1]).padStart(2, "0")}` : "23:59";
+        carry = { notBefore: `${day} 00:00`, deadline: `${day} ${due}`, windows: part ? [part.window] : undefined };
+      } else
+        carry =
+          // a date that follows an item of its line is that item's own: "học toán, sáng mai dọn phòng, gọi mẹ" gives it to "dọn phòng" only
+          leadDate && lineItems.length === 0 && src && (src.notBefore || src.deadline)
+            ? { notBefore: src.notBefore, deadline: src.deadline, windows: src.windows }
+            : undefined;
+    }
+    // a trailing date ends the line: "học toán, viết báo cáo tuần sau" gives its span to the items before it
+    // a corrected day is its own slot: "lsm code, b-tree code, à không mai" gives it to the corrected item only
+    const endsLine =
+      dates.length === 1 &&
+      fold(c.text).text.search(CORRECTION) < 0 &&
+      c.text.slice(dates[0].end).trim() === "" &&
+      rep.text.slice(c.start + c.text.length).split("\n")[0].trim() === "";
+    if (endsLine && !leadDate && !lineTimed) {
+      const src = [...own].reverse().find((it) => it.notBefore || it.deadline);
+      if (src)
+        for (const it of [...lineItems, ...own])
+          if (flexible(it) && !it.deadline) apply(src, it);
+    }
+    lineItems.push(...own);
+    if (mentions.some((m) => m.kind === "date" || m.kind === "time"))
+      lineTimed = true;
     prev = c;
     for (const its of per) items = items.concat(its);
     for (const [i, j] of edges) {
@@ -266,6 +401,9 @@ export function read(raw: string, opts: ReadOpts): ReaderResult {
       workloadMinutes(it.type, `${it.evidence} ${it.title}`) !== undefined,
     );
   for (const it of items) applyPrior(it, opts.prior);
+  // the class sizes what the words did not: length, sittings, due, repeat (a said one stays)
+  const sizeOpts = { ref: opts.ref, source: opts.source, calendar: opts.calendar, affinity: opts.affinity, classMult: opts.classMult };
+  items = sizeItems(items, sizeOpts, new Set(links.flat()));
 
   // a said length keeps the 15 minute grid ("45p"); a guessed one rounds to 30, at least 30
   for (const it of items)
@@ -296,7 +434,7 @@ export function read(raw: string, opts: ReadOpts): ReaderResult {
       opts.ref,
       workloadMinutes(fb.type, fb.evidence) !== undefined,
     );
-    items = applyDayPick(raw, [fb], opts.calendar);
+    items = sizeItems(applyDayPick(raw, [fb], opts.calendar), { ref: opts.ref, source: opts.source, calendar: opts.calendar, affinity: opts.affinity, classMult: opts.classMult }, new Set());
   }
 
   // a bare deadline label is no title: name the task by the list due with it

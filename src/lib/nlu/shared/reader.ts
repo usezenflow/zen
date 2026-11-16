@@ -58,6 +58,18 @@ export interface ReaderItem {
   days?: string[];
   /** Absent for a free task: placement picks the length. */
   durationMinutes?: number;
+  /** Longest sitting of a split task, from its class ("code": 90). */
+  sittingMinutes?: number;
+  /** The length came from the task's class, not from the words: no 2 h cap. */
+  sized?: boolean;
+  /** The frame class the length was sized by ("code"). */
+  cls?: string;
+  /** The guessed length before the class multiplier, minutes (a flexible, non-practice item). */
+  guessMin?: number;
+  /** An exam prep is due the day before this exam: "YYYY-MM-DD" of the exam. */
+  anchor?: { kind: "exam"; at: string };
+  /** An exam's prep the reader made (its length is the workload of its category): the sizer leaves it. */
+  prep?: boolean;
   location?: string;
   reminderMinutes?: number[];
   rrule?: string;

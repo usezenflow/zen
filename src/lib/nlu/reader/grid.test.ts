@@ -212,7 +212,8 @@ function miss(c: Case): string | undefined {
   else if (w.k === "due") { if (a.deadline !== w.at) return fail("time"); }
   else if (w.k === "day") { if (a.when?.slice(0, 10) !== w.day || a.notAfter?.slice(0, 10) !== w.day) return fail("time"); }
   else if (w.k === "part") { const hm = a.when?.slice(11, 16) ?? ""; if (a.when?.slice(0, 10) !== w.day || hm < w.from || hm > w.to || !a.notAfter || a.notAfter.slice(0, 10) !== w.day || a.notAfter.slice(11, 16) > w.to) return fail("time"); }
-  else if (w.k === "span") { if (a.notBefore?.slice(0, 10) !== w.from || a.deadline?.slice(0, 10) !== w.to) return fail("time"); }
+  // a practice over a span of two weeks or more ("Học tiếng Anh tháng sau") is a habit through it: the span's end is its UNTIL
+  else if (w.k === "span") { const habit = a.repeat?.endsWith(`UNTIL=${w.to.replace(/-/g, "")}`) && dayN(w.to) - dayN(w.from) >= 13; if (a.notBefore?.slice(0, 10) !== w.from || (a.deadline?.slice(0, 10) !== w.to && !habit)) return fail("time"); }
   else if (w.k === "from") { if ((a.notBefore ?? a.when) !== w.at) return fail("time"); }
   if (c.place !== undefined && fold(a.location ?? "") !== fold(c.place)) return fail("place");
   if (c.repeat !== undefined && a.repeat !== c.repeat) return fail("repeat");
@@ -220,6 +221,7 @@ function miss(c: Case): string | undefined {
 }
 
 const ALL = cases();
+const dayN = (d: string) => Date.parse(d) / 86_400_000;
 const full = process.env.GRID === "full" || !!process.env.GRID_OUT;
 const AREAS = [...new Set(ALL.map((c) => c.area))];
 for (const area of AREAS)
