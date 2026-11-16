@@ -57,7 +57,8 @@ export function itemAction(it: ReaderItem): Action {
   const w = it.windows?.[0] as ReaderWindow | undefined;
   // "mai từ 5h chiều": a said start of the day's window opens it, where the default would plan the morning
   const from = one && it.notBefore!.slice(11, 16) !== "00:00" ? it.notBefore!.slice(11, 16) : undefined;
-  const at = it.startsAt ? iso(it.startsAt) : day && `${day}T${it.clocks?.[0]?.from ?? (w && START[w]) ?? from ?? "09:00"}:00`;
+  // A flexible task's said part opens where the part does ("tối nay": 18:00, not 20:00), so three evening tasks have the whole evening.
+  const at = it.startsAt ? iso(it.startsAt) : day && `${day}T${it.clocks?.[0]?.from ?? (w && (fixed ? START[w] : FROM[w])) ?? from ?? "09:00"}:00`;
   if (at) a.when = at;
   if (fixed && at) a.fixed = fixed;
   // "sáng hoặc tối mai": the day's window runs to the last part's end; `tods` keeps the task inside one of the parts

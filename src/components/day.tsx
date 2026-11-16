@@ -9,7 +9,7 @@ import { scheduleOnRN } from "react-native-worklets";
 import { Icon, Logo } from "@/components/art";
 import { addDays, carried, hhmm, keptOn, keptSpan, live, mondayOf, onDay, parents, shown, startOfDay, type Hols } from "@/components/cal";
 import type { Item } from "@/components/menu";
-import { Row, subOf } from "@/components/row";
+import { type Drag, Row, subOf } from "@/components/row";
 import { repeatText } from "@/components/detail-html";
 import { found, parse, PART_VI, type Query } from "@/lib/find";
 import { fadeIn, fadeOut, glide, Tap, settle, EASE } from "@/components/tap";
@@ -163,6 +163,7 @@ export function Chevron({ open, color, size = 14, down }: { open: boolean; color
 
 export type RowActions = {
   onToggle: (x: Task) => void; onTitle: (x: Task, title: string) => void; onTime: (x: Task, at: Date) => void; onOpen: (x: Task) => void; itemsFor: (x: Task) => Item[]; onHold: (x: Task, bottom: number, top: number) => void; lifted?: string; onSwipeDelete: (x: Task, bottom?: number, top?: number) => void;
+  drag?: Drag; // week and month: hold a row and move it onto another day
 };
 
 // The list under the card / week / month: rows, overlap cards, the collapsed Done group.
@@ -299,8 +300,11 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
   const kept = hols.has(day) ? [] : keptOn(rules, day);
   const keptBefore = (i: number) => kept.filter((r) => day + r.from * 60_000 <= (rows[i]?.x.start ?? Infinity) && (i === 0 || day + r.from * 60_000 > rows[i - 1].x.start!));
   const ps = parents(tasks);
-  // A repeat's occurrence past the 30-day plan has no time yet: it stays on its own day, muted, with its length.
-  const unplaced = day >= addDays(startOfDay(now), 30) ? tasks.filter((x) => live(x) && x.start === undefined && !x.fixed && x.deadline !== undefined && !ps.has(x.id) && startOfDay(x.deadline - 1) === day) : [];
+  // Work with no time yet is never hidden: past the 30-day plan it waits on its own day; inside it (no free slot) it sits on its due or
+  // window day, today once that day is gone (a repeat's gone day stays missed). Muted, with its length; a tap on the time picks one.
+  const today = startOfDay(now), far = day >= addDays(today, 30);
+  const homeOf = (x: Task) => { const a = x.deadline ?? x.notAfter, d = a === undefined ? today : startOfDay(a - 1); return d >= today ? d : x.rrule ? undefined : today; };
+  const unplaced = tasks.filter((x) => live(x) && x.start === undefined && !x.fixed && !ps.has(x.id) && homeOf(x) === day);
   const done =tasks.filter((x) => x.doneAt && !x.deletedAt && !pop.has(x.id) && x.start !== undefined && x.start >= day && x.start < end && !ps.has(x.id));
   const title = hols.get(day);
   const hol: Task | undefined = title === undefined ? undefined : { id: `hol${day}`, title, kind: "other", source: "user", fixed: "busy", effort: 0, start: day, end: day + 86400_000, createdAt: 0 };
@@ -322,7 +326,7 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
   const sitDay = later.length ? startOfDay(Math.min(...later.map((x) => x.start!))) : undefined;
   const sits = sitDay === undefined ? [] : later.filter((x) => startOfDay(x.start!) === sitDay).sort((a, b) => a.start! - b.start!);
   // a row under the lifted one drops its separator: the line would cut across the raised card
-  const row = (x: Task, i: number, d = false, g?: Move, prev?: Task) => <Row key={x.id} task={x} now={now} tm={carried(x, day, t("allDay"), t("toWord"))} first={i === 0 || prev?.id === act.lifted} done={d || !live(x)} trail={g ? undefined : trail[x.id]} sub={g ? t("ghostTo", { when: when(g.to, now) }) : x.forId ? subOf(x, "plan", now, tasks) : reason[x.id]} ghost={!!g} lifted={act.lifted === x.id} onHold={g || !act.itemsFor(x).length ? undefined : (b, t) => act.onHold(x, b, t)} onDelete={g ? undefined : () => act.onSwipeDelete(x)} onSeries={(b, t) => act.onSwipeDelete(x, b, t)} onToggle={() => act.onToggle(x)} onTitle={(v) => act.onTitle(x, v)} onTime={(a) => act.onTime(x, a)} onOpen={() => act.onOpen(x)} />;
+  const row = (x: Task, i: number, d = false, g?: Move, prev?: Task) => <Row key={x.id} task={x} now={now} tm={carried(x, day, t("allDay"), t("toWord"))} first={i === 0 || prev?.id === act.lifted} done={d || !live(x)} trail={g ? undefined : trail[x.id]} sub={g ? t("ghostTo", { when: when(g.to, now) }) : x.forId ? subOf(x, "plan", now, tasks) : reason[x.id]} ghost={!!g} lifted={act.lifted === x.id} onHold={g || !act.itemsFor(x).length ? undefined : (b, t) => act.onHold(x, b, t)} onDelete={g ? undefined : () => act.onSwipeDelete(x)} onSeries={(b, t) => act.onSwipeDelete(x, b, t)} onToggle={() => act.onToggle(x)} onTitle={(v) => act.onTitle(x, v)} onTime={(a) => act.onTime(x, a)} onOpen={() => act.onOpen(x)} drag={g ? undefined : act.drag} />;
   const rowAt = ({ x, g }: (typeof rows)[number], i: number) => (
           // Wrapper outside the row's HoldMenu: inserts, moves to Done, undo and re-sorts glide instead of jumping. A moved row arrives with a lift.
           <Animated.View key={g ? `g${x.id}` : x.id} entering={trail[x.id] && !g ? FadeInUp.duration(220).easing(EASE) : fadeIn} exiting={fadeOut} layout={glide}>
@@ -379,11 +383,11 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
       </View>
       {!!unplaced.length && (
         <View style={{ marginTop: 28 }}>
-          <Text style={[s.lab, { color: th.muted }]}>{t("unplaced")}</Text>
+          <Text style={[s.lab, { color: th.muted }]}>{t(far ? "unplaced" : "noRoom")}</Text>
           <View style={{ marginTop: 6 }}>{unplaced.map((x) => (
             <Row key={`u${x.id}`} task={x} now={now} sub={x.rrule ? undefined : mins(x.effort)} /* a repeat says its cadence, as on its planned days */ onToggle={() => act.onToggle(x)} onTitle={(v) => act.onTitle(x, v)} onTime={(a) => act.onTime(x, a)} onOpen={() => act.onOpen(x)} onDelete={() => act.onSwipeDelete(x)} onSeries={(b, c) => act.onSwipeDelete(x, b, c)} onHold={act.itemsFor(x).length ? (b, c) => act.onHold(x, b, c) : undefined} />
           ))}</View>
-          <Text style={[s.got, { color: th.muted, marginTop: 6 }]}>{t("unplacedNote")}</Text>
+          {far && <Text style={[s.got, { color: th.muted, marginTop: 6 }]}>{t("unplacedNote")}</Text>}
         </View>
       )}
       {isEmpty && (

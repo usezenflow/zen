@@ -26,9 +26,18 @@ describe("Day: a repeat past the 30-day plan", () => {
     expect(screen.getByText("Có giờ khi vào 30 ngày tới")).toBeTruthy();
   });
 
-  it("does not show that row for a day inside the 30-day plan", async () => {
+  it("inside the 30-day plan an occurrence with no slot shows as 'Chưa có giờ trống', with no 30-day note", async () => {
     const day5 = TODAY + 5 * DAY;
     await draw(day5, [occurrence(day5)]);
     expect(screen.queryByText("Chưa xếp giờ")).toBeNull();
+    expect(screen.getByText("Chưa có giờ trống")).toBeTruthy();
+    expect(screen.queryByText("Có giờ khi vào 30 ngày tới")).toBeNull();
+  });
+
+  it("a task with no slot is never hidden: a past window shows today, a gone repeat day does not", async () => {
+    const lost = task({ title: "Tập gym", start: undefined, end: undefined, notAfter: TODAY - DAY + 23 * HOUR });
+    await draw(TODAY, [lost, occurrence(TODAY - 2 * DAY)]);
+    expect(screen.getByText("Tập gym")).toBeTruthy();
+    expect(screen.queryByText("Đọc 10 cuốn sách")).toBeNull();
   });
 });

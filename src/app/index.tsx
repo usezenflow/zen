@@ -16,6 +16,7 @@ import { Icon, Logo } from "@/components/art";
 import { Rhythm, rhythmHead } from "@/components/rhythm";
 import { addDays, live, mondayOf, monthLabel, onDay, parents, short, startOfDay, weekday, type Hols } from "@/components/cal";
 import { Day, DayPull, First } from "@/components/day";
+import { useDragDay } from "@/components/dragday";
 import { Search, type Origin } from "@/components/search";
 import { PdfView, PhotoMenu, PhotoView, TypeBar, Veil } from "@/components/capture";
 import { Hold, type Aside, type HoldState } from "@/components/hold";
@@ -51,7 +52,8 @@ import { insights, suggest, typeOf, type Insights } from "@/planner";
 type View_ = "day" | "week" | "month" | "rhythm"; // rhythm sits apart on the right of the tabs, outside the swipe cycle
 const VIEWS: View_[] = ["day", "week", "month"];
 // A row says only what Zen learned or was told; "the day is free" on every row is noise, so that stays on the detail screen.
-const ROW = new Set(["hour", "after", "similar", "kind", "energy", "weekend", "said", "pace", "rule", "pinned"]);
+const FIT = new Set(["packed", "fit", "over"]); // what came of what was asked, said in the add toast too
+const ROW = new Set(["hour", "after", "similar", "kind", "energy", "weekend", "said", "pace", "rule", "pinned", "chose", "packed", "fit", "over"]);
 type ToastState = { text: string; sub?: string; error?: boolean; action?: { label?: string; run: () => void }; alt?: { label: string; run: () => void; plain?: boolean } };
 
 const longDate = (ms: number) => { const d = new Date(ms); return `${d.getDate()}/${d.getMonth() + 1}`; };
@@ -118,7 +120,10 @@ export default function Home() {
     setOver(await pendingOverlaps(now));
     // Moves and the model load once per refresh; rows get plain maps.
     const [model, mv, wn] = await Promise.all([store.loadModel(now), loadMoves(), loadWarn()]);
-    const unseen = mv.filter((m) => !m.seen && all.some((x) => x.id === m.id && !x.deletedAt));
+    // A notice is stale once its task sits somewhere else (moved again since, by hand or by another replan): it goes, never to come back.
+    const stale = mv.filter((m, i) => !m.seen && (mv.slice(i + 1).some((n) => n.id === m.id) || all.some((x) => x.id === m.id && x.start !== m.to)));
+    if (stale.length) void seeMoves(stale.map((m) => m.id).filter((id) => !mv.some((n) => n.id === id && !stale.includes(n))));
+    const unseen = mv.filter((m) => !m.seen && !stale.includes(m) && all.some((x) => x.id === m.id && !x.deletedAt));
     const trail: Record<string, string> = {}, froms: Record<string, number> = {}, reason: Record<string, string> = {}, alts: Record<string, number> = {};
     for (const m of unseen) { froms[m.id] = m.from; trail[m.id] = m.why?.[0]?.key === "missed" ? reasonText(m.why[0]) : t("trailFrom", { when: when(m.from, now) }); }
     for (const x of all) {
@@ -132,7 +137,7 @@ export default function Home() {
         why = left.length > 1 ? { ...why, vars: { k: left.findIndex((c) => c.id === x.id) + 1, n: left.length } } : undefined;
       }
       // Assignments keep the due-date sub unless the reason says more than "do it early".
-      if (why && !x.fixed && !trail[x.id] && (typeOf(x) !== "assignment" || ["pace", "explore", "rule", "pinned"].includes(why.key))) reason[x.id] = reasonText(why);
+      if (why && !x.fixed && !trail[x.id] && (typeOf(x) !== "assignment" || ["pace", "explore", "rule", "pinned", "chose", "packed", "fit", "over"].includes(why.key))) reason[x.id] = reasonText(why);
     }
     const ins = insights(model, now), wkAgo = now - 7 * 86400_000, w = new Date(now).getDay() === 0 ? ins.weekly : undefined;
     setMind({ i: ins, rules: model.rules ?? [] });
@@ -360,6 +365,11 @@ export default function Home() {
       // Show where the new work landed: the day of its earliest placed piece, not today.
       const made = (await store.allTasks()).filter((x) => x.createdAt === now && x.source === "user" && !x.deletedAt && x.start !== undefined);
       const firstAt = Math.min(...made.map((x) => x.start!));
+      // Said but no free time anywhere it may go: say so, never "added" with a time it does not have.
+      const mine = (await store.allTasks()).filter((x) => x.createdAt === now && x.source === "user" && !x.deletedAt && !x.parentId);
+      const stuck = mine.filter((x) => !made.some((y) => y.id === x.id || y.parentId === x.id));
+      const stuckDay = stuck.length && !made.length ? startOfDay(Math.max(now, (stuck[0].deadline ?? stuck[0].notAfter ?? now + 1) - 1)) : undefined;
+      if (stuckDay !== undefined) setSel(stuckDay);
       // A deadline past the 30-day horizon is kept as the due date; the sittings land inside the horizon. Said once, for the furthest one.
       const far = Math.max(0, ...(await store.allTasks()).filter((x) => x.createdAt === now && x.source === "user" && !x.deletedAt && x.deadline !== undefined && x.deadline > addDays(now, 30)).map((x) => x.deadline!));
       const farSub = far ? t("farDue", { date: dayLabel(far).slice(4) }) : undefined; // dayLabel: "T6, 21/11" → "21/11"
@@ -368,11 +378,15 @@ export default function Home() {
       // The sized sub (exam, shared end, span or due with sittings) names what the sizer did; else the time of the first piece.
       const sized = sizedSub(actions.filter((a) => a.op === "create" && a.title), now);
       if (titles.length > 1) { // bulk: count, the shared end if all share one, one Undo for all, no alt
-        say(t("addedN", { n: titles.length }), r, { sub: [sized, r.sub, notes.sub, farSub].filter(Boolean).join(" · ") || undefined });
+        say(t("addedN", { n: titles.length }), r, { sub: [stuck.length ? t("noRoomN", { n: stuck.length }) : sized, r.sub, notes.sub, farSub].filter(Boolean).join(" · ") || undefined });
+      } else if (titles.length === 1 && stuck.length) {
+        say(t("added", { title: titles[0] }), r, { sub: [t("noRoom"), r.sub].filter(Boolean).join(" · "), alt: { label: t("pickTime"), run: async () => router.push(`/task/${stuck[0].id}`) } });
       } else if (titles.length === 1) {
         // The reader's own ask ("3 giờ": 15:00 or 03:00) takes the chip; else the planner's other slot.
         const alt = notes.alt && { alt: { label: notes.alt.label, run: async () => { await r.undo(); await run(notes.alt!.text, via); } } };
-        say(t("added", { title: titles[0] }), r, { sub: [sized ?? (Number.isFinite(firstAt) ? when(firstAt, now) : undefined), r.sub, notes.sub, farSub].filter(Boolean).join(" · ") || undefined, ...(alt ?? (await otherSlot(made, now))) });
+        // Not where or as long as it was asked: the reason says why at once ("Sáng mai kín, dời sang chiều mai").
+        const first = made.find((x) => x.start === firstAt), fitWhy = first && (await store.loadModel(now)).placed[first.id]?.why?.find((x) => FIT.has(x.key));
+        say(t("added", { title: titles[0] }), r, { sub: [sized ?? (Number.isFinite(firstAt) ? when(firstAt, now) : undefined), fitWhy && reasonText(fitWhy), r.sub, notes.sub, farSub].filter(Boolean).join(" · ") || undefined, ...(alt ?? (await otherSlot(made, now))) });
       } else say(r.toast, r);
       setPhoto(undefined);
       setPdf(undefined);
@@ -609,6 +623,15 @@ export default function Home() {
     return n ? t("nAllDone", { n }) : t("noTasks");
   };
   const sd = new Date(sel);
+  // Week and month: a row held and moved lands on the day it is let go over, at its own time of day; the list then shows that day.
+  const dropOn = (x: Task, d: number) => {
+    const start = d + (x.start! - startOfDay(x.start!)), len = (x.end ?? x.start! + x.effort * 60_000) - x.start!;
+    gen.current++;
+    setTasks((p) => p.map((y) => (y.id === x.id ? { ...y, start, end: start + len, pinned: true } : y)));
+    setSel(d);
+    apply([{ op: "edit", target: x.id, when: new Date(start).toISOString() }]).then((r) => { say(r.toast, r); refresh(); }, failed);
+  };
+  const dd = useDragDay(view === "week" || view === "month" ? view : undefined, sel, now, dropOn);
   const sun = addDays(mon, 6), sm = new Date(mon), em = new Date(sun);
   const head = view === "day"
     ? { hello: weekday(sel), h: longDate(sel), n: count(sel, addDays(sel, 1)) || dayDone(sel) }
@@ -620,17 +643,22 @@ export default function Home() {
   const stepWeek = (d: -1 | 1) => setSel(addDays(sel, 7 * d));
   const stepMonth = (d: -1 | 1) => setSel(new Date(sd.getFullYear(), sd.getMonth() + d, 1).getTime());
   const stepDay = (d: -1 | 1) => setSel(addDays(sel, d));
-  const share = { tasks, hols, now, pop, rules: mind?.rules ?? [], overlaps: over, onMove: async (o: Overlap) => { const r = await moveMine(o.mine.id); say(r.toast, r); refresh(); }, onKeep: async (o: Overlap) => { await keepBoth(o); refresh(); }, trail: maps.trail, reason: maps.reason, moves, onFix: async (w: Warn, f: Warn["fixes"][number]) => { const r = await makeRoom(f.id, w.deadline); say(r.toast, r); refresh(); }, ...rowActs };
+  const share = { tasks, hols, now, pop, rules: mind?.rules ?? [], overlaps: over, onMove: async (o: Overlap) => { const r = await moveMine(o.mine.id); say(r.toast, r); refresh(); }, onKeep: async (o: Overlap) => { await keepBoth(o); refresh(); }, trail: maps.trail, reason: maps.reason, moves, onFix: async (w: Warn, f: Warn["fixes"][number]) => { const r = await makeRoom(f.id, w.deadline); say(r.toast, r); refresh(); }, ...rowActs, drag: dd.drag };
   const isToday = sel === today0;
   const running = !!card && !card.gap && card.start! <= now && now < card.end!;
   const quiet = isToday && view === "day" && !running;
-  const said = moves.filter((m) => !m.self && !m.briefed); // the user's own moves keep the trail dot, not the brief
+  // The latest change only, the user's own knock-ons included: the toast fades, the card stays until seen. Older ones retire with it.
+  const fresh = moves.filter((m) => !m.briefed), last = Math.max(0, ...fresh.map((m) => m.at));
+  const said = fresh.filter((m) => m.at === last);
   const briefOn = quiet && said.length > 0; // the running card keeps priority
   const sunOn = quiet && !briefOn && !!wk;
-  useEffect(() => { if (briefOn) briefed.current = said.map((m) => m.id); }); // what this visit has shown: retired on leaving
+  useEffect(() => { if (briefOn) briefed.current = fresh.map((m) => m.id); }); // what this visit has shown: retired on leaving
+  // Seen, then left for another view or day: it goes, as on leaving the app.
+  const away = view !== "day" || !isToday;
+  useEffect(() => { if (away && briefed.current.length) { const ids = briefed.current; briefed.current = []; setStory(false); void briefMoves(ids).then(refresh); } }, [away]); // eslint-disable-line react-hooks/exhaustive-deps -- on leaving only
   const showStory = (briefOn && story) || !!mine; // the list becomes the story, in place
-  const dismissBrief = () => { const ids = said.map((m) => m.id); briefed.current = []; void briefMoves(ids).then(refresh); }; // magic 1b: swiped away for good
-  const closeStory = async () => { setStory(false); await seeMoves(said.map((m) => m.id)); refresh(); };
+  const dismissBrief = () => { const ids = fresh.map((m) => m.id); briefed.current = []; void briefMoves(ids).then(refresh); }; // magic 1b: swiped away for good
+  const closeStory = async () => { setStory(false); await seeMoves(said.map((m) => m.id)); await briefMoves(fresh.map((m) => m.id)); refresh(); };
   const busy = state !== "idle";
   const listing = busy && !shufOn && !!words; // the day stays under the veil until words are heard; while the plan plays out the list stays, the dock keeps thinking
   const firstRun = !tasks.length && view === "day" && !busy; // views.html "Day, first launch"
@@ -735,8 +763,8 @@ export default function Home() {
           {(view === "week" || view === "month") && (
             <Reanimated.View key={view} entering={fadeIn}>
               {view === "week"
-                ? <Week tasks={tasks} hols={hols} rules={mind?.rules ?? []} now={now} monday={mon} selected={sel} onSelect={setSel} onStep={stepWeek} />
-                : <Month tasks={tasks} hols={hols} now={now} selected={sel} onSelect={setSel} onStep={stepMonth} />}
+                ? <Week tasks={tasks} hols={hols} rules={mind?.rules ?? []} now={now} monday={dd.anchor} selected={sel} onSelect={setSel} onStep={stepWeek} gridRef={dd.gridRef} hover={dd.hover} />
+                : <Month tasks={tasks} hols={hols} now={now} selected={sel} anchor={dd.anchor} onSelect={setSel} onStep={stepMonth} gridRef={dd.gridRef} hover={dd.hover} />}
             </Reanimated.View>
           )}
           {firstRun || (nothingAhead && !briefOn && !sunOn) ? <First onSchool={() => router.push("/settings")} /> : !showStory && view !== "rhythm" && (
@@ -759,6 +787,7 @@ export default function Home() {
       {typing && <><Veil z={9} onPress={() => setTyping(false)} /><TypeBar onClose={() => setTyping(false)} onSend={(text) => { setTyping(false); void run(text, "type"); }} /></>}
       {lines.length > 0 && <Steps lines={lines} />}
       {finding && <Search origin={finding} tasks={tasks} now={now} acts={rowActs} onClose={() => setFinding(undefined)} />}
+      {dd.ghost}
       {menu && <RowMenu items={menu.items} top={menu.top} onClose={() => setMenu(undefined)} />}
       {toast && <Toast key={toastKey(toast)} onDismiss={() => setToasts((q) => q.slice(1))} error={toast.error} text={toast.text} sub={toast.sub} onAction={toast.action?.run} actionLabel={toast.action?.label} onAlt={toast.alt?.run} altLabel={toast.alt?.label} altPlain={toast.alt?.plain} />}
     </SafeAreaView>

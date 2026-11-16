@@ -144,7 +144,7 @@ describe("said times", () => {
     expect(a.deadline).toBeDefined();
   });
   it("keeps a part of the day or a day flexible inside its window", () => {
-    expect(one("tối thứ 5 học toán")).toMatchObject({ when: "2026-11-19T20:00:00", notAfter: "2026-11-19T22:00:00", kind: "study" });
+    expect(one("tối thứ 5 học toán")).toMatchObject({ when: "2026-11-19T18:00:00", notAfter: "2026-11-19T22:00:00", kind: "study" });
     expect(one("tối thứ 5 học toán").fixed).toBeUndefined();
     expect(one("thứ 5 học toán")).toMatchObject({ notAfter: "2026-11-19T23:59:00" });
   });

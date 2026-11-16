@@ -37,3 +37,18 @@ export const keptOn = (rules: Rule[], day: number) =>
   rules.filter((r) => !r.kinds.length && (!r.days.length || r.days.includes(new Date(day).getDay())) && r.to > r.from).sort((a, b) => a.from - b.from);
 const hm = (min: number) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, "0")}`;
 export const keptSpan = (r: Rule) => `${hm(r.from)} - ${hm(r.to)}`;
+
+/** The month grid a day sits in: its first Monday and how many week rows it takes. */
+export const monthGrid = (anchor: number) => {
+  const first = new Date(anchor); first.setDate(1);
+  const start = mondayOf(first.getTime());
+  const rows = Math.ceil(((first.getDay() + 6) % 7 + new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate()) / 7);
+  return { first: startOfDay(first.getTime()), start, rows };
+};
+export type Rect = { x: number; y: number; w: number; h: number };
+/** The day under a finger on a 7-column grid of `rows` weeks from `start` (window coordinates), or undefined off it. */
+export function dayAt(r: Rect, start: number, rows: number, x: number, y: number, slop = 24): number | undefined {
+  if (r.w <= 0 || x < r.x || x >= r.x + r.w || y < r.y - slop || y >= r.y + r.h + slop) return undefined;
+  const col = Math.min(6, Math.floor(((x - r.x) / r.w) * 7)), row = Math.max(0, Math.min(rows - 1, Math.floor(((y - r.y) / r.h) * rows)));
+  return addDays(start, row * 7 + col);
+}

@@ -41,14 +41,21 @@ export function Meta({ icon, text, tone, onPress }: { icon: Glyph; text: string;
 }
 
 /** A meta line opened for editing: icon, then the native pickers (children) in place. */
-export function EdLine({ icon, tone, children, ref }: { icon: Glyph; tone?: "red"; children: React.ReactNode; ref?: React.Ref<Box> }) {
+/** An open line: its glyph, or a word in the glyph's place ("đến" on the end line under the start). */
+export function EdLine({ icon, word, tone, children, ref }: { icon?: Glyph; word?: string; tone?: "red"; children: React.ReactNode; ref?: React.Ref<Box> }) {
   const th = useTheme();
-  return <View ref={ref} collapsable={false} style={s.ed}><View style={s.edIcon}><Gly name={icon} size={20} color={tone === "red" ? th.seal : th.ink} w={1.9} /></View>{children}</View>;
+  return (
+    <View ref={ref} collapsable={false} style={s.ed}>
+      <View style={s.edIcon}>{icon ? <Gly name={icon} size={20} color={tone === "red" ? th.seal : th.ink} w={1.9} /> : <Text style={[s.word, { color: th.muted }]}>{word}</Text>}</View>
+      {children}
+    </View>
+  );
 }
 
 const s = StyleSheet.create({
   ed: { flexDirection: "row", alignItems: "center", gap: 5 }, // one line: its chips shrink their text to fit rather than wrap
-  edIcon: { opacity: 0.85, marginRight: 4 }, // .meta svg opacity, .meta .ed svg margin-right
+  edIcon: { opacity: 0.85, marginRight: 4, minWidth: 20 }, // .meta svg opacity, .meta .ed svg margin-right
+  word: { width: 20, fontFamily: ff("500"), fontSize: font.label, textAlign: "center" }, // fits the glyph's 20px
   row: { flexDirection: "row", alignItems: "center", gap: 10 },
   t: { fontFamily: ff(), fontSize: font.meta, lineHeight: 22.4, flexShrink: 1 },
 });

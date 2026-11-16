@@ -3,9 +3,9 @@ import { DAY, HOUR, I_AFTER, I_ENERGY, I_SIM, KINDS, MIN, type FeatCtx, cdist, d
 import { effort, neighbors, peakHour, slipOf } from "./habits";
 import { ALPHA, D, LAMBDA, N0, type Primed, decayArms, prepare, primeBatch, ucb, ucbAt, update } from "./linucb";
 import { type Model, newModel } from "./model";
-import { type Busy, type End, type Util, SLOT, STEP, WAKE_TO, awake, cells, dayGone, fixedHours, gap, solve } from "./place";
+import { type Busy, type End, type Util, SLOT, STEP, WAKE_FROM, WAKE_TO, awake, cells, dayGone, fixedHours, gap, solve } from "./place";
 import { day, dayLabel, when } from "../lib/when";
-import { split } from "./split";
+import { minSitting, split } from "./split";
 import { type Piece, bell, dur, lateH, moveCost, startValue } from "./value";
 
 const LONG_SITTING = 180; // near a deadline sittings merge up to this; longer work still splits
@@ -61,13 +61,28 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
   const ix = (t: Task) => Number(t.id.slice(t.id.lastIndexOf("#") + 1)) || 0; // "p#10" after "p#9", not between 1 and 2
   const pieces: Piece[] = [];
   const splits: Diff["split"] = [];
+  // A said window's end ("trong hôm nay", notAfter) bounds the work as a due does; a repeat's window is per day, not an end.
+  const endOf = (t: Task) => t.deadline ?? (t.rrule ? undefined : t.notAfter);
   const mk = (task: Task, eff: number, k: number, n: number, prior?: number, missed?: number): Piece => ({
     id: task.id, task, effort: eff, k, n, slip: dueOf(task) === undefined ? 0 : slipOf(m, task.kind),
-    over: task.deadline !== undefined && !task.rrule && dayStart(task.deadline - 1) === dayStart(now) && Math.ceil(now / STEP) * STEP + eff * MIN > dayStart(now) + WAKE_TO * MIN,
     prior: prior !== undefined && prior >= now ? prior : undefined, missed, soon: missed !== undefined || opts.later === task.id || opts.later === task.parentId,
   });
+  // Longest free, awake stretch inside a window that lies within one day; undefined for anything wider.
+  const widest = (t: Task) => {
+    const e = endOf(t);
+    if (e === undefined || t.rrule || t.notBefore === undefined || dayStart(t.notBefore) !== dayStart(e - 1)) return undefined;
+    const d = dayStart(e - 1);
+    let s = Math.max(t.notBefore, d + WAKE_FROM * MIN, Math.ceil(now / STEP) * STEP), best = 0;
+    const end = d === dayStart(now) ? e : Math.min(e, d + WAKE_TO * MIN); // tonight's work may run on to midnight (`over` below)
+    for (const b of allBusy) {
+      if (b.end <= s) continue;
+      if (b.start >= end) break;
+      best = Math.max(best, b.start - s); s = Math.max(s, b.end);
+    }
+    return Math.max(best, end - s) / MIN;
+  };
   const lost = (t: Task) => (t.start !== undefined && t.end !== undefined && t.end <= now ? t.start : undefined);
-  for (const t of flex) {
+  for (let t of flex) {
     if (t.parentId) continue;
     if (dayGone(t, now)) continue; // a past day of a repeating task stays missed; the next day has its own
     const sibs = kids.get(t.id), old = ever.get(t.id);
@@ -84,20 +99,39 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
     let cap = t.maxSitting ?? 120;
     // A tight deadline gets fewer sittings, one per whole day left (under a day: one), not a full set crammed in.
     // Exam prep (maxSitting) shrinks its total a little with them (halfway to proportional); other work keeps its size, in sittings of at most 3 h.
-    const natural = Math.ceil(eff / cap), room = t.deadline === undefined ? natural : Math.max(1, Math.floor((t.deadline - now) / DAY));
-    if (natural > room && t.maxSitting !== undefined) { eff = round15((eff * (natural + room)) / (2 * natural)); cap = round15(eff / room); }
+    const natural = Math.ceil(eff / cap), room = endOf(t) === undefined ? natural : Math.max(1, Math.floor((endOf(t)! - now) / DAY));
+    // A guessed length gives way to a said due: "mai làm đồ án" is what fits by tomorrow (a long sitting a day), not 30 h that fit nowhere.
+    const guess = eff;
+    if (natural > room && t.effortGuessed) { eff = Math.min(eff, room * LONG_SITTING); cap = Math.max(cap, Math.min(round15(eff / room), LONG_SITTING)); }
+    else if (natural > room && t.maxSitting !== undefined) { eff = round15((eff * (natural + room)) / (2 * natural)); cap = Math.min(round15(eff / room), LONG_SITTING); }
     else if (natural > room) cap = Math.max(cap, Math.min(round15(eff / room), LONG_SITTING));
+    // What was asked bends to what is free, never past sense. A guessed length (no length said) shrinks to the longest free stretch of its
+    // window, not below what the work needs (an errand 15 min, deep work 1h30); a said length never shrinks. A window too packed for that
+    // runs on to the rest of its day, then to any day: the task always gets a time, and its reason says why it is not where it was asked.
+    const need = t.effortGuessed ? Math.min(eff, minSitting(t)) : Math.min(eff, cap);
+    const ask = t.notAfter !== undefined && t.deadline === undefined && !t.rrule ? { from: t.notBefore, to: t.notAfter } : undefined;
+    let gapMin = widest(t);
+    if (ask && gapMin !== undefined && gapMin < need) {
+      t = { ...t, notAfter: Math.max(ask.to, dayStart(ask.to - 1) + WAKE_TO * MIN), tods: undefined };
+      gapMin = widest(t);
+      if (gapMin !== undefined && gapMin < need) { t = { ...t, notAfter: undefined }; gapMin = undefined; }
+    }
+    if (t.effortGuessed && gapMin !== undefined && gapMin >= need && eff > gapMin) { eff = Math.floor(gapMin / 15) * 15; cap = eff; }
+    const fit: Partial<Piece> = { ...(ask && t.notAfter !== ask.to ? { ask } : {}), ...(eff < guess && t.effortGuessed ? { cut: guess } : {}) };
     if (eff > cap || old) {
       const sizes = split(eff, cap), from = old ? Math.max(...old.map(ix)) : 0, d = done.length;
       const ids = sizes.map((_, i) => `${t.id}#${from + i + 1}`);
-      sizes.forEach((s, i) => pieces.push(mk({ ...t, id: ids[i], parentId: t.id, effort: s, start: undefined, end: undefined }, s, d + i + 1, d + sizes.length, undefined, i ? undefined : lost(t))));
+      sizes.forEach((s, i) => pieces.push(Object.assign(mk({ ...t, id: ids[i], parentId: t.id, effort: s, start: undefined, end: undefined }, s, d + i + 1, d + sizes.length, undefined, i ? undefined : lost(t)), fit)));
       splits.push({ parentId: t.id, ids });
-    } else pieces.push(mk(t, eff, 1, 1, t.start, lost(t)));
+    } else pieces.push(Object.assign(mk(t, eff, 1, 1, t.start, lost(t)), fit));
   }
   // Orphan sittings whose parent is gone or done.
   for (const t of flex) if (t.parentId && !flex.some((p) => p.id === t.parentId && !p.parentId) && !pieces.some((p) => p.id === t.id)) {
     pieces.push(mk(t, round15(t.effort), 1, 1, t.start, lost(t)));
   }
+  // Work due today that, all together, is longer than what is left before 22:00 may run on to midnight ("hôm nay A, B, C" at 19:45).
+  const tonight = pieces.filter((p) => { const e = endOf(p.task); return e !== undefined && !p.task.rrule && dayStart(e - 1) === dayStart(now); });
+  if (Math.ceil(now / STEP) * STEP + tonight.reduce((n, p) => n + p.effort, 0) * MIN > dayStart(now) + WAKE_TO * MIN) for (const p of tonight) p.over = true;
 
   const peak = peakHour(m, now);
   const nbs = new Map(pieces.map((p) => [p.id, neighbors(p.task, m, now)]));
@@ -222,7 +256,25 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
   const GROUPS: [ReasonKey, number, number][] = [["hour", 0, 1], ["weekend", 1, 2], ["busy", 2, 3], ["deadline", 3, 4], ["kind", 4, 9], ["after", 9, 14], ["energy", 14, 15], ["similar", 15, 16]];
   const dot = (th: ArrayLike<number>, x: number[], k0 = 0, k1 = D) => { let v = 0; for (let k = k0; k < k1; k++) v += th[k] * x[k]; return v; };
   // No learned reason yet: say what is true from the task itself (its due, its length), never "I do not know you".
-  const guessOf = (p: Piece): Reason => dueOf(p.task) !== undefined ? { key: "deadline", w: 1, vars: { due: when(dueOf(p.task)!, now) } } : { key: "guess", w: 1, vars: { m: p.effort } };
+  // Facts a reason can name: how far ahead of the due, what it follows, which part of which day. The words stay loose (reasons.ts).
+  const dueVars = (p: Piece, s: number) => { const d = dueOf(p.task); return d === undefined ? undefined : { due: when(d, now), left: Math.round((d - s - dur(p)) / MIN) }; };
+  const partOf = (s: number) => {
+    const h = hourOf(s), dd = Math.round((dayStart(s) - dayStart(now)) / DAY);
+    const part = h < 11 ? "Sáng" : h < 13 ? "Trưa" : h < 18 ? "Chiều" : "Tối";
+    return `${part} ${dd === 0 ? "nay" : dd === 1 ? "mai" : day(s, now)}`;
+  };
+  // The window said, in words: a part of a day ("Sáng mai"), or the whole day ("Hôm nay") when it spans more than one part.
+  const wasOf = (a: { from?: number; to: number }) => {
+    if (a.from !== undefined && a.to - a.from <= 8 * HOUR) return partOf(a.from);
+    const dd = Math.round((dayStart(a.to - 1) - dayStart(now)) / DAY);
+    return dd === 0 ? "Hôm nay" : dd === 1 ? "Ngày mai" : day(a.to - 1, now);
+  };
+  const afterOf = (p: Piece, s: number) => allBusy.find((b) => b.title && b.end <= s && b.end > s - 30 * MIN)?.title
+    ?? pieces.find((q) => q !== p && at(q) >= 0 && at(q) + dur(q) <= s && at(q) + dur(q) > s - 30 * MIN && q.task.title !== p.task.title)?.task.title;
+  const guessOf = (p: Piece, s: number): Reason => dueVars(p, s) ? { key: "deadline", w: 1, vars: dueVars(p, s) } : { key: "guess", w: 1, vars: { m: p.effort, part: partOf(s), ...(afterOf(p, s) ? { after: afterOf(p, s)! } : {}) } };
+  // How often you finished work (or work like this) near this hour lately: the count behind "Mấy lần gần đây…".
+  const doneNear = (s: number) => m.doneHours.filter((d) => now - d.at <= 14 * DAY && cdist(d.hour, hourOf(s)) <= 1).length;
+  const likeNear = (p: Piece, s: number) => (nbs.get(p.id) ?? []).filter((n) => n.r > 0 && cdist(n.hour, hourOf(s)) <= 1).length;
   const whyOf = (p: Piece, s: number, c: number): { why: Reason[]; explore: boolean } => {
     const xs = xz(p, s, ends), xc = xz(p, c, ends), as = Math.floor(hourOf(s)), ac = Math.floor(hourOf(c));
     const ths = prep.theta[as], thc = prep.theta[ac], a = alphaOf(p);
@@ -234,16 +286,16 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
       if (!known) break;
       const w = dot(ths, xs, k0, k1) - dot(thc, xc, k0, k1);
       const ai = xs.slice(I_AFTER, I_AFTER + 5).indexOf(1), aj = ai >= 0 ? ai : xc.slice(I_AFTER, I_AFTER + 5).indexOf(1);
-      put(key, w, key === "deadline" ? { due: p.task.deadline === undefined ? "" : when(p.task.deadline, now) }
+      put(key, w, key === "deadline" ? dueVars(p, s) ?? { due: "" }
         : key === "kind" ? { kind: p.task.kind } : key === "after" ? { prev: KINDS[aj] ?? "" }
-        : key === "similar" ? { hour: Math.round(hourOf(s)) } : undefined);
+        : key === "similar" ? { hour: Math.round(hourOf(s)), n: likeNear(p, s) } : key === "hour" ? { hour: Math.floor(hourOf(s)), n: doneNear(s) } : undefined);
     }
     const meanS = dot(ths, xs), meanC = dot(thc, xc);
     const bonus = a ? ucb(prep, as, xs, a) - meanS - (ucb(prep, ac, xc, a) - meanC) : 0;
     const explore = bonus > 0 && meanS < meanC;
     if (explore) put("explore", bonus);
     if (p.n > 1) put("pace", bell(p, now, s) - bell(p, now, c), { k: p.k, n: p.n });
-    put("late", 100 * (lateH(p, c) - lateH(p, s)));
+    put("late", 100 * (lateH(p, c) - lateH(p, s)), dueVars(p, s));
     const stab = moveCost(p, c, now) - moveCost(p, s, now);
     if (stab > 0) put("stable", stab); // no wording for "moving cost us"
     const Ls = loadH(p, s);
@@ -264,7 +316,7 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
       if (r.w < 0 && neg++) continue;
       out.push(r);
     }
-    return { why: out.some((r) => r.w > 0) ? out : [guessOf(p)], explore };
+    return { why: out.some((r) => r.w > 0) ? out : [guessOf(p, s)], explore };
   };
 
   const diff: Diff = { placed: [], displaced: [], split: splits };
@@ -276,11 +328,19 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
     const changed = p.prior !== s, known0 = m.placed[p.id];
     // a repeat placed before its day bound stopped counting as a due drops the "Hạn 0:00" reason it was kept for
     if (known0?.why && dueOf(p.task) === undefined) known0.why = known0.why.filter((r) => r.key !== "deadline");
-    if (!changed && known0 && p.lock) continue; // held, and placed before: it keeps the reasons it was placed for, nothing to recompute
+    // held where it was placed: it keeps the reasons it was placed for. Moved by hand since, those reasons were for another time: say them anew.
+    if (!changed && known0 && p.lock && known0.start === s) continue;
     const alt = altOf(p, s);
     const c = changed && p.prior !== undefined ? p.prior : alt;
-    const r = c === undefined ? { why: [guessOf(p)], explore: false } : whyOf(p, s, c);
-    if (p.task.notAfter !== undefined) r.why = [{ key: "said", w: 1 } as Reason, ...r.why].slice(0, 4);
+    const r = c === undefined ? { why: [guessOf(p, s)], explore: false } : whyOf(p, s, c);
+    // What came of what was asked leads: the window was packed, the length was shrunk, the day ran late. Else, inside the window said.
+    const fits: Reason[] = [];
+    if (p.ask && (s + dur(p) > p.ask.to || (p.ask.from !== undefined && s < p.ask.from))) fits.push({ key: "packed", w: 1, vars: { was: wasOf(p.ask), to: partOf(s).replace(/^./, (c) => c.toLowerCase()) } });
+    if (p.cut !== undefined) fits.push({ key: "fit", w: 1, vars: { len: p.effort, part: partOf(s), ...(dueOf(p.task) !== undefined ? { due: when(dueOf(p.task)!, now) } : {}) } });
+    if (p.over && s + dur(p) > dayStart(s) + WAKE_TO * MIN) fits.push({ key: "over", w: 1 });
+    if (!fits.length && p.task.notAfter !== undefined) fits.push({ key: "said", w: 1 });
+    r.why = [...fits, ...r.why].slice(0, 4);
+    if (p.task.userEdited?.includes("start") && p.task.start === s) r.why = [{ key: "chose", w: 1 } as Reason, ...r.why.filter((x) => x.key !== "stable")].slice(0, 4);
     if (p.missed !== undefined) {
       r.why.unshift({ key: "missed", w: 1, vars: { time: when(p.missed, now).split(" ").pop()! } }); r.why = r.why.slice(0, 4); missed.push(p);
       const old = m.placed[p.id]; // the hour it was placed on did not work out
@@ -288,7 +348,8 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
       if (p.task.vec) { m.hist.push({ vec: Array.from(p.task.vec), hour: hourOf(old?.start ?? p.missed), r: -1, at: now, miss: true }); m.hist = m.hist.slice(-300); }
     }
     const known = m.placed[p.id];
-    if (!changed && known) { if (!p.lock) Object.assign(known, { why: r.why, alt, explore: r.explore }); continue; } // a held piece keeps the reasons it was placed for
+    // a held piece keeps the reasons it was placed for; one moved by hand learns its new hour, so a tick credits the hour it really ran
+    if (!changed && known) { if (!p.lock || known.start !== s) Object.assign(known, { why: r.why, alt, explore: r.explore, start: s, arm: Math.floor(hourOf(s)), x: xz(p, s, ends) }); continue; }
     const x = xz(p, s, ends), arm = Math.floor(hourOf(s)), from = p.missed ?? p.prior ?? (opts.later === p.id ? p.task.start : undefined);
     diff.placed.push({ id: p.id, start: s, end: s + dur(p), policy: "linucb", arm, x, alt, why: r.why, explore: r.explore, ...(from !== undefined && from !== s ? { from } : {}) });
     m.placed[p.id] = { arm, x, start: s, policy: "linucb", at: now, why: r.why, alt, explore: r.explore };
@@ -470,17 +531,18 @@ export function suggest(tasks: Task[], busy: Busy[], model: Model, now: number):
   if (!g) return undefined;
   const room = (g.end - g.start) / MIN;
   const peak = peakHour(model, now);
-  let best: { task: Task; v: number } | undefined;
+  let best: { task: Task; v: number; e: number } | undefined;
   for (const t of tasks) {
     if (t.doneAt || t.deletedAt || t.fixed || t.parentId || (t.notBefore ?? 0) > g.start) continue;
-    const e = round15(effort(t, model));
+    let e = round15(effort(t, model));
+    if (e > room && t.effortGuessed && minSitting(t) <= room) e = Math.floor(room / 15) * 15; // no length said: what the gap holds, if worth a sitting
     if (e > room) continue;
     const nb = neighbors(t, model, now);
     const x = features(t, g.start, { fixedH: () => 0, peak, nb, ends: [] });
     const v = e / room + 0.5 * x[I_ENERGY] + 0.5 * x[I_SIM] + x[3];
-    if (!best || v > best.v) best = { task: t, v };
+    if (!best || v > best.v) best = { task: t, v, e };
   }
-  return best && { task: best.task, start: g.start, end: g.start + round15(effort(best.task, model)) * MIN };
+  return best && { task: best.task, start: g.start, end: g.start + best.e * MIN };
 }
 
 export { newModel };

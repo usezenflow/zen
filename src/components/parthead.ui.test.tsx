@@ -28,7 +28,7 @@ it("refresh fetches the part, shows it running, then when it came, and lands onc
   await fireEvent.press(screen.getByLabelText(t("refresh")));
   await waitFor(() => expect(onLand).toHaveBeenCalledTimes(1), W);
   expect(calls).toEqual(expect.arrayContaining(["GET /api/student/getstudyprogram", "GET /api/student/marks"]));
-  expect(screen.getByText(new RegExp(`^${prefix(t("updatedWhen"))}${t("today")}`))).toBeTruthy();
+  expect(screen.getByText(new RegExp(`^${prefix(t("updatedWhen"))}${t("today").toLowerCase()}`))).toBeTruthy();
   expect(onLand).toHaveBeenCalledTimes(1);
 });
 

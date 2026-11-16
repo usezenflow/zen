@@ -8,6 +8,7 @@ import { scheduleOnRN } from "react-native-worklets";
 import { TypeArt } from "@/components/art";
 import { addDays, holLines, keptOn, onDay, short, startOfDay, type Hols } from "@/components/cal";
 import { Tap, glide, settle } from "@/components/tap";
+import type { Box } from "@/components/outside";
 import { useTheme, ff, motion } from "@/lib/theme";
 import type { Rule, Task } from "@/lib/types";
 import { typeOf } from "@/planner";
@@ -34,8 +35,13 @@ const tick = () => void Haptics.selectionAsync().catch(() => {});
  * The grid tracks the finger, slides out, and the new page springs in from the far side once `stepKey` changes (as DayPull).
  */
 export function Swipe({ onStep, stepKey, children }: { onStep: (d: -1 | 1) => void; stepKey: number; children: ReactNode }) {
-  const tx = useSharedValue(0), w = useSharedValue(1);
-  useEffect(() => { tx.set(settle(0)); }, [stepKey, tx]);
+  const tx = useSharedValue(0), w = useSharedValue(1), was = useRef(stepKey);
+  useEffect(() => {
+    // Stepped from outside (a drag held at the edge, "Hôm nay"): the new page slides in from the side it lies on, as a swipe's does.
+    if (Math.abs(tx.get()) < 1 && was.current !== stepKey) tx.set(Math.sign(stepKey - was.current) * w.get() * 0.35);
+    was.current = stepKey;
+    tx.set(settle(0));
+  }, [stepKey, tx, w]);
   // Through a ref: a new onStep each parent render would rebuild the pan's config and rebind it mid-drag.
   const stepRef = useRef(onStep);
   useEffect(() => { stepRef.current = onStep; });
@@ -80,7 +86,11 @@ function fit(hs: number[]) {
   return { hs: list.map((h) => Math.max(MINH, Math.floor(h * sc))), more };
 }
 
-export function Week({ tasks, hols, monday, selected, now, onSelect, onStep, rules = [] }: { tasks: Task[]; hols: Hols; monday: number; selected: number; now: number; onSelect: (day: number) => void; onStep: (d: -1 | 1) => void; rules?: Rule[] }) {
+export function Week({ tasks, hols, monday, selected, now, onSelect, onStep, rules = [], gridRef, hover }: {
+  tasks: Task[]; hols: Hols; monday: number; selected: number; now: number; onSelect: (day: number) => void; onStep: (d: -1 | 1) => void; rules?: Rule[];
+  /** gridRef: the seven columns, measured for a drop; hover: the day under a dragged row */
+  gridRef?: React.Ref<Box>; hover?: number;
+}) {
   const th = useTheme();
   const [gw, setGw] = useState(0);
   const cw = (gw - 6 * GRID) / 7;
@@ -90,7 +100,7 @@ export function Week({ tasks, hols, monday, selected, now, onSelect, onStep, rul
   const nil = short.every((_, i) => !hols.has(addDays(monday, i)) && !onDay(tasks, addDays(monday, i)).length && !keptOn(rules, addDays(monday, i)).length); // a kept rule alone still fills the week
   return (
     <Swipe onStep={onStep} stepKey={monday}>
-      <View style={s.wk} onLayout={(e) => setGw(e.nativeEvent.layout.width)}>
+      <View ref={gridRef} collapsable={false} style={s.wk} onLayout={(e) => setGw(e.nativeEvent.layout.width)}>
         {short.map((d, i) => {
           const day = addDays(monday, i);
           const hol = hols.get(day);
@@ -118,9 +128,9 @@ export function Week({ tasks, hols, monday, selected, now, onSelect, onStep, rul
           }
           return (
             <Tap key={day} style={s.c} scale={0.97} onPress={() => onSelect(day)}>
-              <View style={[s.d, { borderColor: day === selected && !on ? th.ink : th.line }, on && { backgroundColor: th.ink, borderColor: th.ink }]}>
-                <Text style={[s.dl, { color: on ? th.bg : th.muted }]}>{d}</Text>
-                <Text style={[s.dn, { color: on ? th.bg : th.ink }]}>{new Date(day).getDate()}</Text>
+              <View style={[s.d, { borderColor: day === selected && !on ? th.ink : th.line }, on && { backgroundColor: th.ink, borderColor: th.ink }, day === hover && { backgroundColor: th.seal, borderColor: th.seal, transform: [{ scale: 1.08 }] }]}>
+                <Text style={[s.dl, { color: on || day === hover ? th.bg : th.muted }]}>{d}</Text>
+                <Text style={[s.dn, { color: on || day === hover ? th.bg : th.ink }]}>{new Date(day).getDate()}</Text>
               </View>
               {nil ? <View style={[s.nil, { borderColor: th.line }]} /> : hol ? (
                 <View style={[s.hb, { borderColor: th.line }]}>

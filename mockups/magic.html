@@ -153,13 +153,13 @@ const said = toast("Đi gym", "T4 18:00", [["Hoàn tác"]]) + `${head("T4", "18/
 // 6. The reason lives in the row's sub line, when Zen has one. Otherwise the line is empty.
 const reasons = `${head("T2", "16/11", "5 việc, 1 tiết học")}${tabs("Ngày")}
   <div class="lab" style="margin-top:28px">Hôm nay</div>
-  <div class="list" style="margin-top:6px">${row("9:00", "Ôn Giải tích", "plan", "Giờ bạn tập trung nhất")}${row("11:30", "Cơ sở dữ liệu", "lecture", "A2.104")}${row("13:30", "Gym", "plan", "Sau giờ học, như mọi khi")}${row("16:00", "Báo cáo nhóm", "assignment", "Lập trình Web · Hạn T3 23:59")}${row("19:30", "Học tiếng Anh", "plan", "Đúng buổi bạn nói")}${row("21:00", "Giặt đồ", "plan")}</div>`;
+  <div class="list" style="margin-top:6px">${row("9:00", "Ôn Giải tích", "plan", "Giờ bạn tập trung nhất")}${row("11:30", "Cơ sở dữ liệu", "lecture", "A2.104")}${row("13:30", "Gym", "plan", "Sau giờ học, như mọi khi")}${row("16:00", "Báo cáo nhóm", "assignment", "Lập trình Web · Hạn T3 23:59")}${row("19:30", "Học tiếng Anh", "plan", "Đúng buổi bạn nói")}${row("21:00", "Giặt đồ", "plan", "Sáng nay kín, dời sang tối nay")}</div>`;
 
 // 7. Detail: why this time, in sentences with weight bars, and the one other good time.
 const why = `${dtop}
   <div style="display:flex;align-items:center;gap:10px;margin-top:22px">${swatch("plan")}<span class="sub" style="margin:0">Việc của bạn</span></div>
   <div class="h" style="margin-top:14px">Luyện đề</div>
-  <div class="meta">${ml("clock", "Làm lúc T2 9:00 - 10:00")}${ml("book", `Thi Giải tích 2 ${ic(I.right, 16)}`, "lk")}</div>
+  <div class="meta">${ml("clock", "Làm T2 9:00 - 10:00")}${ml("book", `Thi Giải tích 2 ${ic(I.right, 16)}`, "lk")}</div>
   <div class="why"><div class="lab">Vì sao lúc này</div>
     ${wy("Giờ này bạn hay làm xong việc", 82)}${wy("Việc giống thế này bạn hay làm xong lúc 9h", 60)}${wy("Buổi 5/10, rải đều tới hạn", 38)}${wy("Hơi sát Cơ sở dữ liệu", 18, 1)}</div>
   <div class="lab" style="margin-top:20px">Cũng hợp</div>
@@ -192,12 +192,12 @@ const pullIn = toast("Xong. Tốt lắm.", "Đọc sách có giờ: T3 16:00", [
 const pv = (t) => `<div style="margin:6px 0 0 30px;font-size:15px;font-weight:500;color:var(--muted)">${t}</div>`;
 const chips = (on) => `<div class="ed">${ic(I.clock, 20, 1.9)}<span class="pk">T3 17/11</span><span class="pk ${on ? "on" : ""}">15:00</span><em>đến</em><span class="pk">T3 17/11</span><span class="pk">16:00</span></div>`;
 const setPreview = youSet(chips(1) + pv("Sẽ dời Ôn Giải tích sang 16:30"), "");
-const setStory = youSet(ml("clock", "Làm lúc T3 15:00 - 16:00"), `
+const setStory = youSet(ml("clock", "Làm T3 15:00 - 16:00"), `
   ${storyOf()}`);
-const setLost = youSet(ml("clock", "Làm lúc T3 15:00 - 16:00"), `
+const setLost = youSet(ml("clock", "Làm T3 15:00 - 16:00"), `
   <div style="margin-top:18px;font-size:15px;font-weight:400;line-height:21px;color:var(--seal)">Đọc sách chưa có giờ trống</div>
   ${storyOf(false)}`);
-const setClash = youSet(ml("clock", "Làm lúc T3 13:30 - 14:30"), `
+const setClash = youSet(ml("clock", "Làm T3 13:30 - 14:30"), `
   <div class="warn" style="margin-top:22px"><b>Trùng giờ</b><small>Cơ sở dữ liệu cũng lúc này.</small>
     <div class="pills" style="margin-top:12px"><span class="pl sm on">Dời việc mình</span><span class="pl sm">Giữ cả hai</span></div></div>`);
 
@@ -205,7 +205,7 @@ const setClash = youSet(ml("clock", "Làm lúc T3 13:30 - 14:30"), `
 const whyCold = `${dtop}
   <div style="display:flex;align-items:center;gap:10px;margin-top:22px">${swatch("plan")}<span class="sub" style="margin:0">Việc của bạn</span></div>
   <div class="h" style="margin-top:14px">Giặt đồ</div>
-  <div class="meta">${ml("clock", "Làm lúc T2 17:00 - 17:30")}</div>
+  <div class="meta">${ml("clock", "Làm T2 17:00 - 17:30")}</div>
   <div class="why"><div class="lab">Vì sao lúc này</div>
     ${wy("Khoảng trống vừa 30p, không đụng lịch của bạn", 100)}</div>
   <div class="lab" style="margin-top:20px">Cũng hợp</div>
@@ -332,7 +332,7 @@ const sizeWhy = (h = "12h, 10 buổi") => `<div class="why"><div class="lab">Vì
   ${wy("Thi tự luận: khoảng 9h cho môn 3 TC", 100)}${wy("Môn 4 TC, nhiều bài hơn", 41)}${wy("Điểm trung bình 2.4, mình cho thêm thời gian", 14)}${wy("Bạn hay xong sớm hơn dự kiến", 15, 1)}</div>`;
 const prepDetail = (h) => `${dtop}${mine}
   <div class="h" style="margin-top:14px">Luyện đề</div>
-  <div class="meta">${ml("clock", `Làm lúc ${when("2026-11-18", "19:00")} - 20:00`)}${ml("book", `${GTX} ${ic(I.right, 16)}`, "lk")}</div>
+  <div class="meta">${ml("clock", `Làm ${when("2026-11-18", "19:00")} - 20:00`)}${ml("book", `${GTX} ${ic(I.right, 16)}`, "lk")}</div>
   ${sizeWhy(h)}
   <div class="lab" style="margin-top:20px">Các buổi</div><div class="sits">${SITS}</div>${lessMore}`;
 
@@ -349,7 +349,7 @@ const prepWeek = `${head("Tuần này", "16 - 22/11", "12 việc, 6 tiết học
   <div class="list" style="margin-top:6px">${row("9:00", "Luyện đề", "plan", `Buổi 7/10 · ${GT}`)}${row("15:00", "Làm câu hỏi trắc nghiệm", "plan", "Buổi 3/6 · Xác suất")}</div>`;
 const whyLen = `${dtop}${mine}
   <div class="h" style="margin-top:14px">Luyện đề</div>
-  <div class="meta">${ml("clock", `Làm lúc ${when("2026-11-21", "9:00")} - 10:30`)}${ml("book", `${GTX} ${ic(I.right, 16)}`, "lk")}</div>
+  <div class="meta">${ml("clock", `Làm ${when("2026-11-21", "9:00")} - 10:30`)}${ml("book", `${GTX} ${ic(I.right, 16)}`, "lk")}</div>
   <div class="why"><div class="lab">Vì sao lúc này</div>
     ${wy("Hôm đó ít lịch, buổi này dài 90p", 70)}${wy("Buổi 7/10, rải đều tới hạn", 45)}${wy("Cuối tuần bạn hay có thời gian cho việc này", 30)}</div>`;
 
@@ -358,7 +358,7 @@ const XS6 = [si(when("2026-11-17"), "Đọc lại bài", "60p", "me"), si(when("
   si(when("2026-11-22"), "Làm câu hỏi trắc nghiệm", "60p"), si(when("2026-11-25"), "Làm câu hỏi trắc nghiệm", "60p"), si(when("2026-11-27"), "Ôn nhanh", "60p")].join("");
 const xsTop = (h, t = "Đọc lại bài") => `${dtop}${mine}
   <div class="h" style="margin-top:14px">${t}</div>
-  <div class="meta">${ml("clock", `Làm lúc ${when("2026-11-17", "19:00")} - 20:00`)}${ml("book", `${XS} ${ic(I.right, 16)}`, "lk")}</div>`;
+  <div class="meta">${ml("clock", `Làm ${when("2026-11-17", "19:00")} - 20:00`)}${ml("book", `${XS} ${ic(I.right, 16)}`, "lk")}</div>`;
 const askCold = (open = -1) => `${xsTop()}
   <div class="why"><div class="lab">Vì sao 7h, 6 buổi</div>${wy("Thi trắc nghiệm: khoảng 7h cho môn 3 TC", 100)}</div>
   ${ask(["Mấy chương?", "Được dùng tài liệu?"], open, ["3 chương", "5 chương", "8 chương", "Số khác, gõ vào ghi chú"])}
@@ -379,7 +379,7 @@ const typedLeft = toast("Ôn Xác suất: 12h, 10 buổi", "Thêm 4 buổi, 2 bu
 // 23. Less, too: an open-book note takes time away; sittings are removed from the far end, the near ones stay.
 const fewer = `${dtop}${mine}
   <div class="h" style="margin-top:14px">Luyện đề</div>
-  <div class="meta">${ml("clock", `Làm lúc ${when("2026-11-18", "19:00")} - 20:00`)}${ml("book", `${GTX} ${ic(I.right, 16)}`, "lk")}</div>
+  <div class="meta">${ml("clock", `Làm ${when("2026-11-18", "19:00")} - 20:00`)}${ml("book", `${GTX} ${ic(I.right, 16)}`, "lk")}</div>
   <div class="why"><div class="lab">Vì sao 9h, 8 buổi</div>${wy("Ôn 6 chương: khoảng 8h", 100)}${wy("Môn 4 TC, nhiều bài hơn", 41)}${wy("Đề mở, cần ít thời gian hơn", 30, 1)}${wy("Bạn hay xong sớm hơn dự kiến", 15, 1)}</div>
   ${note("chỉ thi 6 chương đầu, đề mở")}<div class="got">Hiểu: 6 chương, đề mở</div>
   <div class="lab" style="margin-top:20px">Các buổi</div><div class="sits">${[
@@ -398,7 +398,7 @@ const examNote = `${dtop}
 const lmsDetail = (body, why, extra = "") => `${dtop}
   <div style="display:flex;align-items:center;gap:10px;margin-top:22px">${swatch("assignment")}<span class="sub" style="margin:0">Từ LMS</span></div>
   <div class="h" style="margin-top:14px">Báo cáo nhóm: Quản lý sinh viên</div>
-  <div class="meta">${ml("hourglass", `Hạn ${when("2026-11-27", "23:59")}`, "red")}${ml("clock", `Làm lúc ${when("2026-11-19", "14:00")} - 15:30`)}${ml("book", "Lập trình Web")}</div>
+  <div class="meta">${ml("hourglass", `Hạn ${when("2026-11-27", "23:59")}`, "red")}${ml("clock", `Làm ${when("2026-11-19", "14:00")} - 15:30`)}${ml("book", "Lập trình Web")}</div>
   <div class="lms"><div class="lab">Nội dung</div><p>${body}</p></div>${why}${extra}`;
 const lmsRead = lmsDetail("Báo cáo 10–15 trang, làm theo nhóm 4 người. Nộp file .pdf lên LMS.",
   `<div class="why"><div class="lab">Vì sao 3h, 2 buổi</div>${wy("Đề yêu cầu 10–15 trang: khoảng 6h", 100)}${wy("Làm nhóm 4 người, phần của bạn ít hơn", 100, 1)}</div>`, lessMore);
@@ -408,7 +408,7 @@ const lmsAsk = lmsDetail("Nộp báo cáo đồ án lên LMS trước hạn.",
 // 26. Exam week, 27. Urgent, 28. Thesis.
 const season = `${dtop}${mine}
   <div class="h" style="margin-top:14px">Đọc lại bài</div>
-  <div class="meta">${ml("clock", `Làm lúc ${when("2026-11-19", "14:00")} - 15:30`)}${ml("book", `Thi Kinh tế vĩ mô ${ic(I.right, 16)}`, "lk")}</div>
+  <div class="meta">${ml("clock", `Làm ${when("2026-11-19", "14:00")} - 15:30`)}${ml("book", `Thi Kinh tế vĩ mô ${ic(I.right, 16)}`, "lk")}</div>
   <div class="why"><div class="lab">Vì sao 8h, 7 buổi</div>
     ${wy("Thi tự luận: khoảng 9h cho môn 3 TC", 100)}${wy("Tuần thi có 4 môn, bắt đầu sớm hơn", 30)}${wy("Môn này bạn từng được 8.5", 41, 1)}${wy("Thi lại, ôn kỹ hơn", 38)}</div>
   <div class="lab" style="margin-top:20px">T5, 19/11</div>
@@ -420,7 +420,7 @@ const urgent = `${head("T3", "17/11", "4 việc, 1 tiết học")}${tabs("Ngày"
     ${wy("Thi tự luận: khoảng 9h cho môn 3 TC", 100)}${wy("Còn 2 ngày: 2 buổi mỗi ngày, tập trung luyện đề", 60)}</div>`;
 const thesis = `${dtop}${mine}
   <div class="h" style="margin-top:14px">Viết chương</div>
-  <div class="meta">${ml("clock", `Làm lúc ${when("2026-11-20", "14:00")} - 15:30`)}${ml("book", `Bảo vệ khoá luận tốt nghiệp ${ic(I.right, 16)}`, "lk")}</div>
+  <div class="meta">${ml("clock", `Làm ${when("2026-11-20", "14:00")} - 15:30`)}${ml("book", `Bảo vệ khoá luận tốt nghiệp ${ic(I.right, 16)}`, "lk")}</div>
   <div class="why"><div class="lab">Vì sao 30h, 20 buổi</div>${wy("Khoá luận: khoảng 30h", 100)}${wy("Có bảo vệ: thêm buổi tập nói", 20)}</div>
   <div class="lab" style="margin-top:20px">Các buổi</div><div class="sits">${[
     si("T6 13/11", "Đọc tài liệu", "90p", "done"), si("CN 15/11", "Đọc tài liệu", "90p", "done"), si(when("2026-11-17"), "Đọc tài liệu", "60p"),
@@ -442,7 +442,7 @@ const needDone = toast("Thêm một buổi Luyện đề", "T6 14:00", [["Hoàn 
 const less = toast("Ôn ít hơn: 9h, 8 buổi", GTX, [["Hoàn tác"]]) + prepDetail("9h, 8 buổi");
 const remembered = `${dtop}${mine}
   <div class="h" style="margin-top:14px">Đọc lại bài</div>
-  <div class="meta">${ml("clock", `Làm lúc ${when("2026-11-30", "19:00")} - 20:00`)}${ml("book", `Thi Đại số tuyến tính ${ic(I.right, 16)}`, "lk")}</div>
+  <div class="meta">${ml("clock", `Làm ${when("2026-11-30", "19:00")} - 20:00`)}${ml("book", `Thi Đại số tuyến tính ${ic(I.right, 16)}`, "lk")}</div>
   <div class="why"><div class="lab">Vì sao 7h, 6 buổi</div>${wy("Thi tự luận: khoảng 9h cho môn 3 TC", 100)}${wy("Lần trước bạn chọn ôn ít hơn", 41, 1)}</div>`;
 const prepRhythm = `${head("Mình hiểu bạn", "Nhịp của bạn", "8h-11h")}${tabs("Nhịp")}
   <div class="ins" style="margin-top:20px"><b>Bạn ôn nhanh hơn mình nghĩ</b><small>Thường xong sớm 15%. Mình xếp ít thời gian hơn.</small><div class="viz"><span class="meterh" style="--v:85%"></span></div></div>

@@ -165,11 +165,11 @@ const dt = (type, from, title, meta, note, lms = "", top = dtop) => `${top}
 const lmsBody = `<div class="lms"><div class="lab">Nội dung</div><p>Xây dựng trang quản lý sinh viên.</p><ul><li>Có trang danh sách và thêm mới</li><li>Nộp file .zip lên LMS</li></ul></div>`;
 const noteLms = "Hỏi Lan về phần kiểm tra.";
 const detail = dt("assignment", "Từ LMS", "Bài tập lớn: Quản lý sinh viên",
-  ml("hourglass", `Hạn ${when("2026-11-23", "23:59")}`, "red") + ml("clock", `Làm lúc ${when("2026-11-20", "14:00")} - 15:00`) + ml("book", "Lập trình Web") + ml("link", `Mở trên LMS ${ic(I.right, 16)}`, "lk"), noteLms, lmsBody);
+  ml("hourglass", `Hạn ${when("2026-11-23", "23:59")}`, "red") + ml("clock", `Làm ${when("2026-11-20", "14:00")} - 15:00`) + ml("book", "Lập trình Web") + ml("link", `Mở trên LMS ${ic(I.right, 16)}`, "lk"), noteLms, lmsBody);
 // Split into sittings: the time line is the next open sitting's (tap to change it); "Các buổi" lists them all as prep.html does.
 const si = (d, p, m, cls = "") => `<div class="si ${cls}"><span class="d">${d}</span><span class="p">${p}</span><span class="m">${m}</span></div>`;
 const detailSplit = dt("assignment", "Từ LMS", "Bài tập lớn: Quản lý sinh viên",
-  ml("hourglass", `Hạn ${when("2026-11-23", "23:59")}`, "red") + ml("clock", `Làm lúc ${when("2026-11-19", "14:00")} - 15:00`) + ml("book", "Lập trình Web") + ml("link", `Mở trên LMS ${ic(I.right, 16)}`, "lk"), noteLms,
+  ml("hourglass", `Hạn ${when("2026-11-23", "23:59")}`, "red") + ml("clock", `Làm ${when("2026-11-19", "14:00")} - 15:00`) + ml("book", "Lập trình Web") + ml("link", `Mở trên LMS ${ic(I.right, 16)}`, "lk"), noteLms,
   `<div class="lab" style="margin-top:20px">Các buổi</div><div class="sits">${[si("T3 17/11", "Bài tập lớn: Quản lý sinh viên", "60p", "done"), si(when("2026-11-19"), "Bài tập lớn: Quản lý sinh viên", "60p", "me"), si(when("2026-11-21"), "Bài tập lớn: Quản lý sinh viên", "60p")].join("")}</div>` + lmsBody);
 // No free, awake slot before it is due: the time line says so in vermilion and opens the time chips to pick one.
 const detailNoSlot = dt("plan", mine("Học"), "Ôn lý thuyết, luyện đề",
@@ -178,19 +178,20 @@ const detailLec = (m = "") => dt("lecture", "Từ Online", "Cấu trúc dữ li�
   ml("clock", `${when("2026-11-18", "7:00")} - 9:30`) + ml("pin", "A2.301") + ml("person", "GV Nguyễn Văn A"), '<span class="note ph">Thêm ghi chú</span>') + m;
 const detailExam = dt("exam", "Từ Online", "Thi Giải tích 2", ml("clock", when("2026-11-27", "8:00")) + ml("pin", "A2.301"), '<span class="note ph">Thêm ghi chú</span>');
 const detailPrep = dt("plan", mine("Học"), "Ôn lý thuyết, luyện đề",
-  ml("clock", `Làm lúc ${when("2026-11-19", "8:00")} - 9:00`) + ml("book", `Giải tích 2 ${ic(I.right, 16)}`, "lk"), "Làm lại bài tập chương 3.", "", dtop2);
-const detailRep = (m = "") => dt("plan", mine("Việc khác"), "Đọc sách mỗi tối",
+  ml("clock", `Làm ${when("2026-11-19", "8:00")} - 9:00`) + ml("book", `Giải tích 2 ${ic(I.right, 16)}`, "lk"), "Làm lại bài tập chương 3.", "", dtop2);
+const detailRep = (m = "") => dt("plan", mine("Khác"), "Đọc sách mỗi tối",
   ml("clock", "20:00 - 20:30") + ml("repeat", "Mỗi ngày"), "Đọc chương đang dở.", "", dtop2) + m;
 const PH = '<span class="note ph">Thêm ghi chú</span>';
-const detailPlain = dt("plan", mine("Việc nhà"), "Mua pin cho chuột", ml("clock", `Làm lúc ${when("2026-11-17", "17:00")} - 17:30`), PH, "", dtop2);
+const detailPlain = dt("plan", mine("Việc nhà"), "Mua pin cho chuột", ml("clock", `Làm ${when("2026-11-17", "17:00")} - 17:30`), PH, "", dtop2);
 // Editing in place. Each state is the same screen with one line open.
 const edLine = (k, inner, cls = "") => `<div class="ed ${cls}">${ic(I[k], 20, 1.9)}${inner}</div>`;
 // The day chip drops the system calendar: November 2026 starts on a Sunday; Mon-first grid like iOS in Vietnamese.
 // The end day's calendar greys out days before the start day: an end can't come first.
 const calCard = (pos, sel, today, from = 0) => `${pos ? '<div class="mscrim"></div>' : ""}<div class="menu cal" style="${pos}">${pre(["Hôm nay", "Ngày mai", "Tuần sau"])}<div class="mh"><span>Tháng 11 2026</span><i>‹ ›</i></div><div class="gr">${["T2", "T3", "T4", "T5", "T6", "T7", "CN"].map((d) => `<b>${d}</b>`).join("")}${Array.from({ length: 42 }, (_, i) => { const n = i - 5; return n < 1 ? `<span class="x">${26 + i}</span>` : n > 30 ? `<span class="x">${n - 30}</span>` : `<span class="${n === sel ? "on" : n < from ? "x" : n === today ? "td" : ""}">${n}</span>`; }).join("")}</div></div>`;
-// Start day and time, đến, end day and time, on one line. on: which chip is ringed (0-3).
+// Start day and time; under it đến, end day and time. on: which chip is ringed (0-3).
 // drop: the open chip's dropdown, attached to it (the start day's from its left edge, the rest from their right edge).
-const span = (d1, t1, d2, t2, on = -1, drop = "") => edLine("clock", `${pk(d1, on === 0, on === 0 ? drop : "", "l")}${pk(t1, on === 1, on === 1 ? drop : "")}<em>đến</em>${pk(d2, on === 2, on === 2 ? drop : "")}${pk(t2, on === 3, on === 3 ? drop : "")}`, "span");
+// The end sits on its own line under the start, "đến" in the glyph's place, apart from it: the range reads top to bottom.
+const span = (d1, t1, d2, t2, on = -1, drop = "") => `<div style="display:flex;flex-direction:column;gap:12px">${edLine("clock", `${pk(d1, on === 0, on === 0 ? drop : "", "l")}${pk(t1, on === 1, on === 1 ? drop : "")}`, "span")}<div class="ed span"><em style="width:20px;text-align:center;font-style:normal;opacity:.6;font-size:12px">đến</em>${pk(d2, on === 2, on === 2 ? drop : "", "l")}${pk(t2, on === 3, on === 3 ? drop : "")}</div></div>`;
 const detailDate = dt("plan", mine("Việc nhà"), "Mua pin cho chuột", span("T3 17/11", "17:00", "T3 17/11", "17:30", 0, calCard("", 17, 16)), PH, "", dtop2) + '<div class="mscrim"></div>';
 const detailTime = dt("plan", mine("Việc nhà"), "Mua pin cho chuột", span("T3 17/11", "17:00", "T3 17/11", "17:30", 1, dialCard(17, 0)), PH, "", dtop2) + '<div class="mscrim"></div>';
 // Past midnight: the end dial turned to 0:00, before the start, so the end day moved to the next day by itself.
@@ -206,15 +207,15 @@ const rowTime = `${head("T2", "16/11", "5 việc, 1 tiết học")}${tabs("Ngày
 const MORE = [["Đặt hạn", "hourglass"], ["Thêm địa điểm", "pin"], ["Để zen xếp lại", "sync"]];
 const detailMore = detailPlain + menu(MORE, 96, 62);
 const detailDue = dt("plan", mine("Việc nhà"), "Mua pin cho chuột",
-  edLine("hourglass", `${pk("T6 20/11")}${pk("23:59", 1, dialCard(23, 59, ["45", "59", ""], DPRE))}<span class="clr">Bỏ hạn</span>`, "red") + ml("clock", `Làm lúc ${when("2026-11-17", "17:00")} - 17:30`), PH, "", dtop2) + '<div class="mscrim"></div>'; // a due at 23 also offers :59, the usual "before midnight"
+  edLine("hourglass", `${pk("T6 20/11")}${pk("23:59", 1, dialCard(23, 59, ["45", "59", ""], DPRE))}<span class="clr">Bỏ hạn</span>`, "red") + ml("clock", `Làm ${when("2026-11-17", "17:00")} - 17:30`), PH, "", dtop2) + '<div class="mscrim"></div>'; // a due at 23 also offers :59, the usual "before midnight"
 const detailPlace = dt("plan", mine("Việc nhà"), "Mua pin cho chuột",
-  ml("clock", `Làm lúc ${when("2026-11-17", "17:00")} - 17:30`) + `<div class="ed">${ic(I.pin, 20, 1.9)}<span class="caret">Siêu thị Go</span></div>`, PH, "", dtop2) + '<div class="kb"></div>';
+  ml("clock", `Làm ${when("2026-11-17", "17:00")} - 17:30`) + `<div class="ed">${ic(I.pin, 20, 1.9)}<span class="caret">Siêu thị Go</span></div>`, PH, "", dtop2) + '<div class="kb"></div>';
 // A place that is a link opens it; "Sửa địa điểm" in the dots menu types it again.
 const detailLink = dt("plan", mine("Học"), "Nộp Báo cáo toàn văn và 3 mục khác",
   ml("hourglass", `Hạn ${when("2026-11-16", "23:00")}`, "red") + ml("link", `drive.google.com ${ic(I.right, 16)}`, "lk"),
   "<p>các nhóm c hướng dẫn, tạo thư mục (Nhom_TenTatDeTai) - Hạn nộp: trước 23:00 ngày 16/11/2026, các nhóm tự hoàn thiện các nội dung để nộp:</p><p>1. Báo cáo toàn văn</p><p>2. Bài báo khoa học</p><p>3. Source code + video demo sản phẩm.</p><p>4. Hướng dẫn triển khai + sử dụng phần mềm</p><p>Link nộp: https://drive.google.com/drive/folders/12mF…</p>", "", dtop2);
-const KINDS = [["Học", "study"], ["Tập thể dục", "exercise"], ["Việc nhà", "chores"], ["Gặp gỡ", "social"], ["Việc khác", "other"]];
-const detailKind = dt("plan", mine("Việc khác"), "Ôn từ vựng", ml("clock", `Làm lúc ${when("2026-11-17", "20:00")} - 20:30`), PH, "", dtop2) + menu(KINDS, 172, 84);
+const KINDS = [["Học", "study"], ["Tập thể dục", "exercise"], ["Việc nhà", "chores"], ["Gặp gỡ", "social"], ["Khác", "other"]];
+const detailKind = dt("plan", mine("Khác"), "Ôn từ vựng", ml("clock", `Làm ${when("2026-11-17", "20:00")} - 20:30`), PH, "", dtop2) + menu(KINDS, 172, 84);
 const detailBusy = dt("busy", "Việc của bạn · Giờ cố định", "Đi gym", ml("clock", `${when("2026-11-18", "18:00")} - 19:00`) + ml("repeat", "Mỗi tuần vào T4"), PH, "", dtop2);
 const detailLmsTime = dt("assignment", "Từ LMS", "Bài tập lớn: Quản lý sinh viên",
   ml("hourglass", `Hạn ${when("2026-11-23", "23:59")}`, "red") + edLine("clock", `${pk("T6 20/11", 1)}${pk("14:00")}<em>đến</em>${pk("15:30")}`) + ml("book", "Lập trình Web") + ml("link", `Mở trên LMS ${ic(I.right, 16)}`, "lk"), noteLms, lmsBody);
@@ -244,6 +245,12 @@ const WP = W.map((c, i) => (i === 1 ? ["T3", 17, [["lecture", 46], ...PK(7)]] : 
 const wkList = `<div class="lab" style="margin-top:28px">T3, 17/11</div>
   <div class="list" style="margin-top:6px">${row("8:00", "Ôn thi", "plan", "", "Buổi 2/2 · Xác suất")}${row("13:30", "Thi Xác suất", "exam", "", "Trắc nghiệm, B1.201")}</div>`;
 const week = `${head("Tuần này", "16 - 22/11", "14 việc, 1 bài thi")}${tabs("Tuần")}${wk(W)}${wkList}`;
+// Hold a row and move: a chip with its title rides above the finger, the day under it turns vermilion, the row stays faint in place.
+// Resting at the screen's left or right edge pages to the previous or next week (never back past this one). Let go: same time, that day.
+const weekDrag = `${head("Tuần này", "16 - 22/11", "14 việc, 1 bài thi")}${tabs("Tuần")}${wk(W).replace('<span class="d ">T6<i>20</i>', '<span class="d " style="background:var(--seal);border-color:var(--seal);color:var(--bg);transform:scale(1.08)">T6<i style="color:var(--bg)">20</i>')}
+  <div class="lab" style="margin-top:28px">T3, 17/11</div>
+  <div class="list" style="margin-top:6px"><div style="opacity:.45">${row("8:00", "Ôn thi", "plan", "", "Buổi 2/2 · Xác suất")}</div>${row("13:30", "Thi Xác suất", "exam", "", "Trắc nghiệm, B1.201")}</div>
+  <div style="position:absolute;left:236px;top:268px;height:40px;padding:0 16px;border-radius:99px;background:var(--ink);color:var(--bg);display:flex;align-items:center;font:700 15px/1 inherit;box-shadow:0 14px 30px -10px rgba(0,0,0,.45)">Ôn thi</div>`;
 const weekPacked = `${head("Tuần này", "16 - 22/11", "31 việc, 1 bài thi")}${tabs("Tuần")}${wk(WP)}${wkList}`;
 const pick = (d) => [[], ["plan"], ["lecture", "plan"], ["lecture", "plan", "assignment"], ["exam"], ["plan", "plan"], []][d % 7];
 const month = `${head("Năm 2026", "Tháng 11", "42 việc, 3 bài thi", 1)}${tabs("Tháng")}
@@ -422,6 +429,7 @@ mount([
   { tag: "Search, a series", sub: "A repeat is one row, not one per week: its next time, with the repeat line from its detail. Lectures of one course and the sittings of a split assignment collapse the same way. Tap opens that occurrence.", html: chrome(sv(foundRep), { dock: null }) },
   { tag: "Search, nothing found", sub: "No match: the same small inline note as an empty day, in place of rows.", html: chrome(sv(foundNone), { dock: null }) },
   { tag: "Week", sub: "Today in an ink pill. Fixed-height columns. Swipe sideways for the previous or next week; tap a day to see it below.", html: chrome(week) },
+  { tag: "Week, drag to another day", sub: "Hold a row and move it: a chip with its title rides above the finger and the day under it turns vermilion. Rest at the left or right edge to page to the previous or next week (month view the same, by month). Let go on a day: the task moves there at the same time of day, the list shows that day, and the toast has Undo. Let go anywhere else, or on a past day: nothing moves. Hold without moving still opens the hold menu.", html: chrome(weekDrag) },
   { tag: "Week, empty", sub: "Columns keep their height as dashed slots, so the grid reads as room, not as missing. A short inline note, then what's left of this week.", html: chrome(weekFree) },
   { tag: "Week, packed", sub: "Columns never grow. T3 compresses proportionally; T5 has too many for even the minimum height, so it shows what fits and a +n chip.", html: chrome(weekPacked) },
   { tag: "Month", sub: "Today in black, selected outlined, up to three dots. Swipe sideways for the previous or next month.", dark: true, html: chrome(month) },

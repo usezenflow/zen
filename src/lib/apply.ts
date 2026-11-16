@@ -227,6 +227,23 @@ function targets(w: Work, id?: string, whole = false): Task[] {
 }
 
 
+// A name, place or note changed on one of a series (a repeat, a timetable section, sittings) reaches every other one when they all
+// still had the same value: one that was renamed on its own keeps its own, and so does the field.
+function seriesWide(w: Work, a: Action, own: Task[]): [Task, Action][] {
+  const me = a.target ? w.tasks.get(a.target) : undefined;
+  if (!me || (a.title === undefined && a.location === undefined && a.note === undefined)) return [];
+  const ids = new Set(scopeIds([...w.tasks.values()], me.id, "all"));
+  if (me.parentId) ids.add(me.parentId);
+  const kin = [...ids].map((id) => w.tasks.get(id)!).filter((x) => x && !x.deletedAt && !own.includes(x));
+  if (!kin.length) return [];
+  const same = (f: (x: Task) => unknown) => [...own, ...kin].every((x) => f(x) === f(me));
+  const b: Action = { op: "edit", target: a.target };
+  if (a.title && same((x) => x.title)) b.title = a.title;
+  if (a.location !== undefined && same((x) => x.location ?? "")) b.location = a.location;
+  if (a.note !== undefined && same((x) => x.note ?? "")) b.note = a.note;
+  return b.title !== undefined || b.location !== undefined || b.note !== undefined ? kin.map((x) => [x, b]) : [];
+}
+
 function pushRule(w: Work, r: Omit<Rule, "id" | "at">) {
   w.model = { ...w.model, rules: [...(w.model.rules ?? []), { ...r, id: uid(), at: w.now }] };
   w.toast = t("ruleKept", { text: r.text });
@@ -267,8 +284,10 @@ async function act(w: Work, a: Action) {
     w.toast = t("added", { title });
     return;
   }
-  const all = targets(w, a.target, a.op === "edit" && a.when === undefined && a.deadline === undefined && !a.effortMinutes), lead = [...all].sort((x, y) => (x.start ?? Infinity) - (y.start ?? Infinity))[0];
-  for (const tk of all) {
+  const whole = a.op === "edit" && a.when === undefined && a.deadline === undefined && !a.effortMinutes;
+  const all = targets(w, a.target, whole), lead = [...all].sort((x, y) => (x.start ?? Infinity) - (y.start ?? Infinity))[0];
+  for (const [tk, b] of [...all.map((x): [Task, Action] => [x, a]), ...(whole ? seriesWide(w, a, all) : [])]) {
+    a = b; // the rest of a series takes only the fields it shared (seriesWide)
     if (a.op === "done") {
       const next = { ...tk, doneAt: now };
       w.tasks.set(tk.id, next);

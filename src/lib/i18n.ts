@@ -200,6 +200,9 @@ const S = {
   farDue: "Lên lịch 30 ngày tới · hạn {date}",
   unplaced: "Chưa xếp giờ",
   unplacedNote: "Có giờ khi vào 30 ngày tới",
+  noRoom: "Chưa có giờ trống",
+  noRoomN: "{n} việc chưa có giờ trống",
+  pickTime: "Chọn giờ",
   orWhen: "hoặc {when}",
   removed: "Đã xoá {title}",
   removedAll: "Đã xoá tất cả {title}",
@@ -235,12 +238,13 @@ const S = {
   lmsContent: "Nội dung",
   openLms: "Mở trên LMS",
   dueAt: "Hạn {t}",
-  planAt: "Làm lúc {t}",
+  planAt: "Làm {t}",
   noSlot: "Chưa có giờ trống · Chọn giờ",
   sittings: "Các buổi",
   youKind: "Việc của bạn · {k}",
   fixedTime: "Giờ cố định",
   toWord: "-",
+  endWord: "đến",
   clearDue: "Bỏ hạn",
   setDue: "Đặt hạn",
   addPlace: "Thêm địa điểm",
@@ -377,4 +381,5 @@ export type Key = keyof typeof S;
 
 export const t = (k: Key, v: Record<string, string | number> = {}) => fill(S[k], v);
 
-export const fill = (s: string, v: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? ""));
+// "Hôm nay"/"Ngày mai" open a line capitalised; inside a sentence they are plain words ("Hạn hôm nay 23:59", not "Hạn Hôm nay").
+export const fill = (s: string, v: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k, i: number) => { const x = String(v[k] ?? ""); return i > 0 && /^(Hôm nay|Ngày mai|Sáng|Trưa|Chiều|Tối)(\s|$)/.test(x) ? x[0].toLowerCase() + x.slice(1) : x; });

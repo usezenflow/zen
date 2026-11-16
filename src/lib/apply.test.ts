@@ -179,14 +179,14 @@ it("topUp keeps a daily series 120 days ahead without duplicating days", async (
   expect(live().filter((x: Task) => x.title === "Read")).toHaveLength(n);
 });
 
-it("a rename on one occurrence keeps it in the series", async () => {
+it("a rename on one occurrence renames the series it shared a name with, and keeps it one series", async () => {
   await apply([{ op: "create", title: "Read", kind: "study", repeat: "FREQ=DAILY" }], NOW);
   const xs = live().filter((x: Task) => x.title === "Read"), n = xs.length;
   await apply([{ op: "edit", target: xs[1].id, title: "Read ch. 4" }], NOW);
-  await topUp(NOW + 6 * DAYMS); // no copies of the renamed one as a series of its own
+  await topUp(NOW + 6 * DAYMS); // no copies as a series of its own
   const all = live().filter((x: Task) => x.seriesId === xs[0].seriesId);
   expect(new Set(all.map((x: Task) => x.deadline)).size).toBe(all.length);
-  expect(all.filter((x: Task) => x.title === "Read ch. 4")).toHaveLength(1);
+  expect(all.every((x: Task) => x.title === "Read ch. 4")).toBe(true);
   expect(all.length).toBeGreaterThanOrEqual(n);
 });
 
@@ -672,4 +672,16 @@ describe("adding and dropping a sitting", () => {
     await dropSitting(pid, NOW + 1000);
     expect(kids()).toHaveLength(n);
   });
+});
+
+it("a name, place or note set on one of a repeat reaches every one that still shared it; one renamed alone keeps its own", async () => {
+  await apply([{ op: "create", title: "Gym", kind: "exercise", repeat: "FREQ=WEEKLY;COUNT=3", location: "Phòng A" }], NOW);
+  const [a, b, c] = live().sort((x, y) => x.start! - y.start!);
+  await apply([{ op: "edit", target: a.id, title: "Gym tay", location: "Phòng B", note: "mang nước" }], NOW + 1);
+  expect(live().map((x) => [x.title, x.location, x.note])).toEqual(Array(3).fill(["Gym tay", "Phòng B", "mang nước"]));
+  const by = (id: string) => db.tasks.get(id) as Task;
+  db.tasks.set(a.id, { ...by(a.id), title: "Chạy" }); // one already named apart (an older build, or synced)
+  await apply([{ op: "edit", target: b.id, title: "Gym lưng", location: "Phòng C" }], NOW + 5);
+  expect([by(a.id).title, by(b.id).title, by(c.id).title]).toEqual(["Chạy", "Gym lưng", "Gym tay"]);
+  expect([by(a.id).location, by(b.id).location, by(c.id).location]).toEqual(["Phòng C", "Phòng C", "Phòng C"]);
 });

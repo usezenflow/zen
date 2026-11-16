@@ -13,6 +13,8 @@ export interface Piece {
   over?: boolean; // due today and too long for what is left before 22:00: may run on to midnight
   lock?: boolean; // its current start is still good, so it stays: nothing moves without a cause
   soon?: boolean; // missed or "later": without a deadline, aim within 2 days, not a week
+  ask?: { from?: number; to: number }; // the window said, when it was too packed and the task ran on past it
+  cut?: number; // the guessed length, when it was shrunk to fit what is free
 }
 
 export const dur = (p: Piece) => p.effort * MIN;

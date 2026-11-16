@@ -47,6 +47,57 @@ describe("split and deadline", () => {
     expect(diff.placed.map((p) => [p.start, p.end])).toEqual([[new Date(2026, 10, 16, 19, 15).getTime(), new Date(2026, 10, 16, 22, 15).getTime()]]);
   });
 
+  it("a 3 h task said for today (a window to 23:59, no due) at 19:45 is one sitting past 22:00, nothing unplaced", () => {
+    const n = new Date(2026, 10, 16, 19, 45).getTime();
+    const { diff } = plan([task("zf", { effort: 180, notBefore: at(0, 9), notAfter: at(0, 23) + 59 * MIN })], [], newModel(n), n);
+    expect(diff.split).toHaveLength(0);
+    expect(diff.unplaced ?? []).toHaveLength(0);
+    expect(diff.warn).toBeUndefined();
+    expect(diff.placed.map((p) => [p.start, p.end])).toEqual([[n, n + 3 * HOUR]]);
+  });
+
+  describe("a window too packed for what was asked: the task still gets a time, and says why", () => {
+    const n = at(0, 20);
+    const morning = (o: Partial<Task>) => task("zf", { effort: 180, maxSitting: 90, notBefore: at(1, 5), notAfter: at(1, 11), tods: [[300, 660]], ...o });
+    const run = (o: Partial<Task>, busy: { start: number; end: number }[]) => {
+      const { diff, model } = plan([morning(o)], busy, newModel(n), n);
+      expect(diff.unplaced ?? []).toHaveLength(0);
+      const p = diff.placed[0];
+      return { start: p.start, len: (p.end - p.start) / MIN, why: reasonText(model.placed[p.id].why![0]), long: reasonText(model.placed[p.id].why![0], true) };
+    };
+    const guessed = { effortGuessed: true, cls: "code", kind: "study" as Kind };
+    it("room in the window: the guess takes what is free there", () => {
+      const r = run(guessed, [{ start: at(1, 7) + 30 * MIN, end: at(1, 9) }]);
+      expect([r.start, r.len]).toEqual([at(1, 9), 120]);
+      expect(r.why).toBe("Sáng mai trống 2 tiếng");
+      expect(r.long).toBe("Bạn chưa nói làm bao lâu, sáng mai trống chừng 2 tiếng nên làm trước chừng đó");
+    });
+    it("only a crumb free: study never shrinks under 1h30, it runs on later that day", () => {
+      const r = run(guessed, [{ start: at(1, 7) + 30 * MIN, end: at(1, 11) }]);
+      expect(dayStart(r.start)).toBe(at(1, 0));
+      expect(r.start).toBeGreaterThanOrEqual(at(1, 11));
+      expect(r.len).toBeGreaterThanOrEqual(90);
+      expect(r.why).toMatch(/^Sáng mai kín, dời sang (trưa|chiều|tối) mai$/);
+    });
+    it("an errand takes even 15 min of the window", () => {
+      const r = run({ effort: 60, effortGuessed: true, cls: "call", kind: "other" }, [{ start: at(1, 7) + 15 * MIN, end: at(1, 11) }]);
+      expect([r.start, r.len]).toEqual([at(1, 7), 15]);
+    });
+    it("a said length never shrinks: it keeps 3 h, later that day", () => {
+      const r = run({ maxSitting: undefined }, [{ start: at(1, 7), end: at(1, 11) }]);
+      expect(r.len).toBe(180);
+      expect(r.why).toMatch(/^Sáng mai kín, dời sang/);
+    });
+    it("the whole day packed: another day", () => {
+      const r = run(guessed, [{ start: at(1, 7), end: at(1, 22) }]);
+      expect(dayStart(r.start)).toBeGreaterThan(at(1, 0));
+      expect(r.why).toMatch(/^Sáng mai kín, dời sang/);
+    });
+    it("all of it fits: said, as before", () => {
+      expect(run(guessed, []).why).toBe("Đúng buổi bạn nói");
+    });
+  });
+
   it("lands every sitting before the deadline in order", () => {
     const deadline = at(4, 18);
     const { diff } = plan([task("essay", { effort: 300, deadline })], [], newModel(now), now);
@@ -56,6 +107,28 @@ describe("split and deadline", () => {
     for (const p of ps) expect(p.end).toBeLessThanOrEqual(deadline);
     expect(ps[0].start).toBeLessThan(ps[1].start);
     expect(ps[1].start).toBeLessThan(ps[2].start);
+  });
+});
+
+describe("reasons follow the time", () => {
+  it("a task moved by hand says 'Giờ bạn chọn', not the reasons of its old slot", () => {
+    const p0 = plan([task("r", { deadline: at(3, 23) })], [], newModel(now), now), s0 = p0.diff.placed[0];
+    const mine = at(1, 15);
+    const p1 = plan([task("r", { deadline: at(3, 23), start: mine, end: mine + HOUR, userEdited: ["start"] })], [], p0.model, now + MIN);
+    expect(s0.start).not.toBe(mine);
+    expect(p1.model.placed.r.start).toBe(mine);
+    expect(p1.model.placed.r.why?.[0].key).toBe("chose");
+    expect(reasonText(p1.model.placed.r.why![0], true)).toBe("Bạn chọn giờ này, mình giữ nguyên");
+  });
+  it("says facts in loose words, and old stored reasons still read", () => {
+    expect(reasonText({ key: "deadline", w: 1, vars: { due: "T6 23:59", left: 3 * 1440 + 20 } })).toBe("Còn 3 ngày tới hạn, làm dần");
+    expect(reasonText({ key: "deadline", w: 1, vars: { due: "hôm nay 23:59", left: 40 } }, true)).toBe("Hạn hôm nay 23:59, giờ này là vừa kịp");
+    expect(reasonText({ key: "deadline", w: 1, vars: { due: "T6 23:59" } })).toBe("Hạn T6 23:59, làm sớm");
+    expect(reasonText({ key: "guess", w: 1, vars: { m: 60, part: "Tối nay", after: "Giải tích 2" } })).toBe("Rảnh sau Giải tích 2");
+    expect(reasonText({ key: "guess", w: 1, vars: { m: 60, part: "Tối nay" } }, true)).toBe("Tối nay còn trống, vừa đủ cho việc này");
+    expect(reasonText({ key: "hour", w: 1, vars: { hour: 20, n: 3 } }, true)).toBe("Mấy lần gần đây bạn xong việc quanh 20h");
+    expect(reasonText({ key: "hour", w: 1, vars: { hour: 20, n: 1 } }, true)).toBe("Giờ này bạn hay làm xong việc");
+    expect(reasonText({ key: "kind", w: 1, vars: { kind: "chores" } })).toBe("Hợp việc nhà");
   });
 });
 

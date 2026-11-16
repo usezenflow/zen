@@ -28,6 +28,7 @@ import { day, dayLabel, endAt, startDay, when } from "@/lib/when";
 type Scope = "this" | "following" | "all";
 const KINDS = Object.keys(KIND_VI) as Kind[];
 const cap = (x: string) => x[0].toUpperCase() + x.slice(1);
+const kindLabel = (k: Kind) => (k === "other" ? "Khác" : cap(KIND_VI[k])); // "Việc của bạn · Khác", not "· Việc khác"
 const host = (u: string) => u.replace(/^https?:\/\/(www\.)?/i, "").split(/[/?#]/)[0];
 
 export default function Detail() {
@@ -229,15 +230,19 @@ export default function Detail() {
   if (ed === "time" && canTime) {
     const i = lines.findIndex((x) => (x as { key: string }).key === "t"), e = new Date(dr.s + dr.m * 60000);
     const row = (
-      <EdLine key="t" ref={edBox} icon="clock">
-        <DateChip value={dr.s} onChange={(d) => setTime(dayOf(dr.s, d), dr.m)} />
-        <TimeChip value={dr.s} onChange={(d) => setTime(clock(dr.s, d), dr.m)} />
-        <Text style={{ fontFamily: ff("500"), fontSize: font.meta, color: th.muted }}>{t("toWord")}</Text>
-        {/* views.html "Detail, over several days": the end day; days before the start are greyed out */}
-        <DateChip value={e.getTime()} min={startDay(dr.s)} side="right" onChange={(d) => setEnd(dayOf(e.getTime(), d))} />
-        {/* an end is at least 15 minutes after its start */}
-        <TimeChip value={e.getTime()} min={dr.s + 15 * 60_000} onChange={(d) => setEnd(endAt(dr.s, dr.s + dr.m * 60_000, d))} />
-      </EdLine>
+      // views.html "Detail, set time": the start, and under it the end, so the range reads top to bottom; one box for tap-outside
+      <View key="t" ref={edBox} collapsable={false} style={s.span}>
+        <EdLine icon="clock">
+          <DateChip value={dr.s} onChange={(d) => setTime(dayOf(dr.s, d), dr.m)} />
+          <TimeChip value={dr.s} onChange={(d) => setTime(clock(dr.s, d), dr.m)} />
+        </EdLine>
+        <EdLine word={t("endWord")}>
+          {/* views.html "Detail, over several days": the end day; days before the start are greyed out */}
+          <DateChip value={e.getTime()} min={startDay(dr.s)} onChange={(d) => setEnd(dayOf(e.getTime(), d))} />
+          {/* an end is at least 15 minutes after its start */}
+          <TimeChip value={e.getTime()} min={dr.s + 15 * 60_000} onChange={(d) => setEnd(endAt(dr.s, dr.s + dr.m * 60_000, d))} />
+        </EdLine>
+      </View>
     );
     if (i >= 0) lines[i] = row; else lines.push(row);
     // magic.html 7c: what the time being turned to would do; nothing when it touches nothing
@@ -303,8 +308,8 @@ export default function Detail() {
           <View style={s.who}>
             <View style={s.sw}><TypeArt type={type} w={40} h={40} seed={7} /></View>
             {mine && !task.fixed ? (
-              <DropMenu chevron label={t("youKind", { k: cap(KIND_VI[task.kind]) })} color={th.muted} size={font.md} icon={<View style={s.kd}><Text style={[s.sub, { color: th.muted }]}>{t("youKind", { k: cap(KIND_VI[task.kind]) })}</Text><Icon name="down" size={14} color={th.muted} /></View>}
-                items={KINDS.map((k) => ({ label: cap(KIND_VI[k]), icon: k, onPress: () => void apply([{ op: "edit", target: task.id, kind: k }]).then(load) }))} />
+              <DropMenu chevron label={t("youKind", { k: kindLabel(task.kind) })} color={th.muted} size={font.md} icon={<View style={s.kd}><Text style={[s.sub, { color: th.muted }]}>{t("youKind", { k: kindLabel(task.kind) })}</Text><Icon name="down" size={14} color={th.muted} /></View>}
+                items={KINDS.map((k) => ({ label: kindLabel(k), icon: k, onPress: () => void apply([{ op: "edit", target: task.id, kind: k }]).then(load) }))} />
             ) : (
               <Text style={[s.sub, { color: th.muted }]}>{task.source === "dlu" && !task.forId ? (task.fixed ? t("fromCampus") : t("fromLms")) : mine && task.fixed === "busy" ? t("youKind", { k: t("fixedTime") }) : t("fromYou")}</Text>
             )}
@@ -394,6 +399,7 @@ const s = StyleSheet.create({
   sub: { fontFamily: ff(), fontSize: font.md },
   h: { marginTop: 14, fontSize: font.h, lineHeight: 36, fontFamily: ff("600"), letterSpacing: -0.75, padding: 0 },
   meta: { marginTop: 16, gap: 10 },
+  span: { gap: 12 }, // the end line sits apart from the start, not crammed under it
   kd: { flexDirection: "row", alignItems: "center", gap: 4 },
   lms: { marginTop: 18, paddingVertical: 14, paddingHorizontal: 16, borderWidth: 1, borderRadius: 16 },
   lab: { fontSize: font.label, fontFamily: ff("500") },

@@ -105,7 +105,9 @@ export type ReasonKey =
   | "hour" | "after" | "similar" | "energy" | "weekend" | "busy" | "kind" // linucb features
   | "deadline" | "pace" | "load" | "gap" | "stable" | "late" // solver terms (value.ts, place.ts dayCost)
   | "explore" | "rule" | "missed" | "pinned"
+  | "chose" // the user set this time by hand: zen keeps it
   | "said" // placed inside the window the user said
+  | "packed" | "fit" | "over" // what came of what was asked: the window was full, the guessed length shrunk, the day ran past 22:00
   | "guess"; // nothing learned yet speaks for this time: an honest default
 export interface Reason { key: ReasonKey; w: number; vars?: Record<string, string | number> }
 

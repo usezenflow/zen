@@ -1,5 +1,28 @@
 # zen
 
+## 26.0.6
+
+### Patch Changes
+
+- Việc nào cũng có giờ, và nói rõ vì sao
+    - "Đọc code trong sáng mai" mà sáng kín lịch: làm vừa khoảng trống còn lại, hoặc dời sang chiều, sang ngày khác, không còn biến mất
+    - Bạn không nói làm bao lâu thì mình co lại cho vừa chỗ trống, nhưng không vô lý: việc vặt tối thiểu 15p, tập 30p, học sâu 1h30p; độ dài bạn nói thì giữ nguyên
+    - Lý do theo đúng kết quả: "Sáng mai kín, dời sang chiều mai", "Sáng mai trống 2 tiếng", "Hôm nay dồn, làm muộn chút"; hiện ngay trong thông báo khi thêm việc
+    - Thật sự không còn giờ trống: báo "Chưa có giờ trống" kèm nút "Chọn giờ", không còn báo đã xếp; việc vẫn hiện trong danh sách
+    - "Trong hôm nay 3 tiếng" lúc 19h45 xếp liền một buổi, không còn báo không đủ giờ
+    - Nhiều việc tối nay cùng lúc vẫn đủ chỗ: "tối nay" bắt đầu từ 18h
+- Lý do luôn theo giờ hiện tại
+    - Tự dời một việc thì lý do đổi thành "Bạn chọn giờ này, mình giữ nguyên", không còn nói về giờ cũ
+    - Lý do cụ thể hơn, không còn câu chung chung: "Còn 3 ngày tới hạn, làm dần", "Rảnh sau Giải tích 2", "Mấy lần gần đây bạn xong việc quanh 20h"
+    - Lời lẽ tự nhiên: "Làm hôm nay 20:00", "Hợp việc nhà", "Việc của bạn · Khác"
+- Bảng tin trên trang chủ gọn và đúng hơn
+    - Sau khi bạn đổi gì đó làm dời việc khác, bảng tin hiện thay đổi mới nhất, không chỉ thoáng qua trong thông báo
+    - Đã xem rồi chuyển sang tuần, tháng hay ngày khác thì tự ẩn
+    - Việc đã bị dời thêm lần nữa thì tin cũ tự mất, chỉ còn tin mới
+- Sửa tên, địa điểm, ghi chú một việc lặp thì sửa luôn cả chuỗi, nếu trước đó các buổi giống nhau
+- Chi tiết việc hiện giờ kết thúc ở dòng riêng dưới giờ bắt đầu ("đến ..."), sửa được
+- Tuần và tháng: giữ một việc rồi kéo sang ngày khác; kéo sát mép trái, phải để sang tuần, tháng trước, sau
+
 ## 26.0.5
 
 ### Patch Changes

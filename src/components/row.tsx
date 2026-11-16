@@ -3,7 +3,7 @@ import { TimeDial, type Anchor } from "./dial";
 import { useEffect, useRef, useState, type ComponentRef } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
-import Animated, { Extrapolation, interpolate, interpolateColor, useAnimatedStyle, useSharedValue, withSequence, withTiming, ZoomIn } from "react-native-reanimated";
+import Animated, { Extrapolation, interpolate, interpolateColor, useAnimatedStyle, useSharedValue, withSequence, withTiming, ZoomIn, type SharedValue } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { Icon, TypeArt } from "@/components/art";
 import { hhmm, startOfDay } from "@/components/cal";
@@ -67,12 +67,16 @@ const marked = (title: string, q: Query) => {
   return [...out, title.slice(at)];
 };
 
-export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost, tm, hl, lifted, onHold, onDelete, onSeries, onToggle, onTitle, onTime, onOpen }: {
+/** Hold a row and move: it travels to another day of the week or month grid. x, y: the finger in window coordinates, set on the UI thread
+ *  for the floating chip; begin, move and end run on JS (end with NaN: let go off any day, or cancelled). */
+export type Drag = { x: SharedValue<number>; y: SharedValue<number>; begin: (task: Task) => void; move: (x: number, y: number) => void; end: (x: number, y: number) => void };
+
+export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost, tm, hl, lifted, onHold, onDelete, onSeries, onToggle, onTitle, onTime, onOpen, drag }: {
   task: Task; now: number; first?: boolean; done?: boolean; allDay?: boolean; sub?: string; trail?: string; ghost?: boolean; tm?: string; hl?: Query; // hl: a search query, its matches tinted
   /** Long-press: the row lifts (.lift) and the caller drops its menu under the row, or over it when there is no room below. */
   lifted?: boolean; onHold?: (bottom: number, top: number) => void;
   onDelete?: () => void; onSeries?: (bottom: number, top: number) => void; // swipe right: plain task deletes, series asks where the menu goes
-  onToggle: () => void; onTitle: (title: string) => void; onTime: (at: Date) => void; onOpen: () => void;
+  onToggle: () => void; onTitle: (title: string) => void; onTime: (at: Date) => void; onOpen: () => void; drag?: Drag;
 }) {
   const th = useTheme();
   const [editing, setEditing] = useState(false);
@@ -142,6 +146,39 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     holdBox.current?.measureInWindow((_x, y, _w, h) => onHold(y + h, y));
   };
+  // Drag: the pan wakes after the same 350 ms hold. Let go without moving: the hold menu, as before. Moved past 8 px: a drag.
+  const canDrag = !!drag && canTime && !editing && !picking;
+  const live2 = useRef({ drag, hold, task });
+  useEffect(() => { live2.current = { drag, hold, task }; });
+  const moved = useSharedValue(false), held = useSharedValue(0);
+  const dBegin = () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}); live2.current.drag?.begin(live2.current.task); };
+  const dMove = (x: number, y: number) => live2.current.drag?.move(x, y);
+  const dEnd = (x: number, y: number) => live2.current.drag?.end(x, y);
+  const dHold = () => live2.current.hold();
+  const dx = drag?.x, dy = drag?.y;
+  const pan = usePanGesture({
+    enabled: canDrag,
+    activateAfterLongPress: 350,
+    onActivate: () => { "worklet"; held.set(withTiming(1, { duration: 120 })); },
+    onUpdate: (e) => {
+      "worklet";
+      if (!moved.get() && Math.hypot(e.translationX, e.translationY) > 8) { moved.set(true); scheduleOnRN(dBegin); }
+      if (!moved.get()) return;
+      dx?.set(e.absoluteX); dy?.set(e.absoluteY);
+      scheduleOnRN(dMove, e.absoluteX, e.absoluteY);
+    },
+    onDeactivate: (e) => {
+      "worklet";
+      if (moved.get()) { moved.set(false); scheduleOnRN(dEnd, e.canceled ? NaN : e.absoluteX, e.canceled ? NaN : e.absoluteY); } else if (!e.canceled) scheduleOnRN(dHold);
+    },
+    onFinalize: () => {
+      "worklet";
+      held.set(withTiming(0, { duration: 160 }));
+      if (moved.get()) { moved.set(false); scheduleOnRN(dEnd, NaN, NaN); } // cancelled mid-drag: nothing moves
+    },
+  });
+  const heldSt = useAnimatedStyle(() => ({ opacity: 1 - 0.55 * held.get() })); // the row stays as a faint place-holder while its chip travels
+  const longPress = onHold && !picking && !canDrag ? hold : undefined; // with a drag the pan owns the hold
   const ring = task.source === "dlu" && type === "lecture"; // campus lecture: glow ring (pull.html)
   const subEl = !!(trail || sub) && (
     <View style={s.sl}>
@@ -150,7 +187,7 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
     </View>
   );
   const body = (
-    <Tap variant="row" onPress={picking ? undefined : onOpen} onLongPress={onHold && !picking ? hold : undefined} delayLongPress={350} style={[s.r, ghost && { opacity: 0.45 }]}>
+    <Tap variant="row" onPress={picking ? undefined : onOpen} onLongPress={longPress} delayLongPress={350} style={[s.r, ghost && { opacity: 0.45 }]}>
       {ghost ? (
         <View style={[s.ck, { borderColor: th.line, borderStyle: "dashed" }]} />
       ) : check ? (
@@ -182,7 +219,7 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
         ) : (
           // One tap on the text opens the details (after a beat, in case it is a double); two focus the title.
           // The title is its own responder, so it repeats the row's long-press or a hold on the text never reaches the row.
-          <Pressable onPress={tapText} onLongPress={onHold && !picking ? hold : undefined} delayLongPress={350} hitSlop={{ top: 6, bottom: 6 }} accessibilityLabel={task.title}>
+          <Pressable onPress={tapText} onLongPress={longPress} delayLongPress={350} hitSlop={{ top: 6, bottom: 6 }} accessibilityLabel={task.title}>
             <Text numberOfLines={1} style={[s.title, { color: done ? th.muted : th.ink }, done && { textDecorationLine: "line-through" }, ghost && { fontFamily: ff("500") }]}>{hl ? marked(task.title, hl) : task.title}</Text>
             {subEl}
           </Pressable>
@@ -199,11 +236,13 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
     </Tap>
   );
   return (
-    <View ref={holdBox} collapsable={false}>
-      <SwipeDelete enabled={!!onDelete && !allDay} onDelete={() => onDelete?.()} onSpring={series ? (bottom, top) => onSeries?.(bottom, top) : undefined} style={liftSt}>
-        {body}
-      </SwipeDelete>
-    </View>
+    <GestureDetector gesture={pan}>
+      <Animated.View ref={holdBox} collapsable={false} style={heldSt}>
+        <SwipeDelete enabled={!!onDelete && !allDay} onDelete={() => onDelete?.()} onSpring={series ? (bottom, top) => onSeries?.(bottom, top) : undefined} style={liftSt}>
+          {body}
+        </SwipeDelete>
+      </Animated.View>
+    </GestureDetector>
   );
 }
 
