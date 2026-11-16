@@ -21,7 +21,7 @@ import {
 } from "./assemble";
 import { applyDayPick, hidePick, joinFragments, type CalDay } from "./daypick";
 import { applyImplied } from "./implied";
-import { lengthMin } from "./calendar";
+import { lengthMin, saidMin } from "./calendar";
 import { joinConnectors, linkOrder, splitOrdered } from "./order";
 import { findMentions, mentionsOf } from "./mentions";
 import { repair } from "./repair";
@@ -267,10 +267,10 @@ export function read(raw: string, opts: ReadOpts): ReaderResult {
     );
   for (const it of items) applyPrior(it, opts.prior);
 
-  // a length rounds to the 30 minute grid, at least 30, whatever was typed
+  // a said length keeps the 15 minute grid ("45p"); a guessed one rounds to 30, at least 30
   for (const it of items)
     if (it.durationMinutes !== undefined)
-      it.durationMinutes = lengthMin(it.durationMinutes);
+      it.durationMinutes = it.inferred.includes("durationMinutes") ? lengthMin(it.durationMinutes) : saidMin(it.durationMinutes);
 
   // S7: one item per type, title, time and place
   const seen = new Set<string>();

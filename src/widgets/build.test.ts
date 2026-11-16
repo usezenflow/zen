@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import type { Task } from "../lib/types";
-import { abbr, instants, widgetData } from "./build";
+import { USES, abbr, instants, slim, widgetData } from "./build";
 
 const at = (h: number, m = 0, d = 16) => new Date(2026, 10, d, h, m).getTime();
 const task = (id: string, title: string, s: number, e: number, x: Partial<Task> = {}): Task =>
@@ -93,4 +93,16 @@ it("tops the medium list up with next-up from later days, the day in the time co
   // Tomorrow showing on the right: next-up starts after it, this week's day short ("T6 08:00").
   const fri = widgetData([...tasks, task("f", "Họp nhóm", at(8, 0, 20), at(9, 0, 20))], at(20), art);
   expect(fri.more.map((r) => [r.id, r.time])).toEqual([["f", "T6 8:00"], ["x", "27/11"]]);
+});
+
+it("gives each iOS widget only its fields, an entry only where they change", () => {
+  const tl = instants(tasks, at(14, 22)).map((t) => ({ date: new Date(t), props: widgetData(tasks, t, art) }));
+  expect(slim(tl, USES.ZenTalk)).toHaveLength(1);
+  expect(slim(tl, USES.ZenScan)).toHaveLength(1);
+  const next = slim(tl, USES.ZenNext);
+  expect(Object.keys(next[0].props).sort()).toEqual([...USES.ZenNext].sort());
+  // every change survives: each kept entry differs from the one before, and the countdown at 14:25 is still there
+  expect(next.every((e, i) => i === 0 || JSON.stringify(e.props) !== JSON.stringify(next[i - 1].props))).toBe(true);
+  expect(next.some((e) => e.date.getTime() === at(14, 25))).toBe(true);
+  expect(slim(tl, USES.ZenToday).length).toBeLessThanOrEqual(tl.length);
 });

@@ -595,6 +595,8 @@ function typoFix(w: string): string | undefined {
     if (TYPO.has(fold(collapsed).text) || isSyllable(collapsed))
       return collapsed;
   }
+  // a short word with no vowel is an acronym ("lsm", "sql"), not "làm" with a slipped key
+  if (w.length <= 3 && !/[aeiouy]/i.test(fold(w).text)) return undefined;
   return VARIANTS.get(fold(w).text) ?? SWAP_FIX.get(fold(w).text);
 }
 

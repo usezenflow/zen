@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Kind, Task } from "../lib/types";
-import { DAY, HOUR, MIN, dayStart, features, hourOf } from "./features";
+import { DAY, HOUR, MIN, dayStart, dueOf, features, hourOf } from "./features";
 import { coldArms, prepare, primeBatch, ucb, ucbAt, update } from "./linucb";
 import { reasonText, stepText } from "../lib/reasons";
 import { learn, newModel, outcome, plan, suggest, typeOf } from "./index";
@@ -48,6 +48,23 @@ describe("split and deadline", () => {
     for (const p of ps) expect(p.end).toBeLessThanOrEqual(deadline);
     expect(ps[0].start).toBeLessThan(ps[1].start);
     expect(ps[1].start).toBeLessThan(ps[2].start);
+  });
+});
+
+describe("a repeat's day bound is no due", () => {
+  it("a daily occurrence ending at midnight is a plan with no deadline reason; a said due stays", () => {
+    const day = task("lc", { rrule: "FREQ=DAILY", deadline: at(1, 0), notBefore: now, tods: [[1080, 1320]] });
+    expect(dueOf(day)).toBeUndefined();
+    expect(typeOf(day)).toBe("plan");
+    expect(dueOf({ ...day, deadline: at(0, 17) })).toBe(at(0, 17)); // "mỗi ngày trước 17h"
+    expect(dueOf({ ...day, rrule: undefined })).toBe(at(1, 0)); // a one-off due at midnight is a due
+    const { diff } = plan([day], [], newModel(now), now);
+    expect(diff.placed[0].why?.some((r) => r.key === "deadline")).toBe(false);
+    // placed before this fix: the kept "Hạn 0:00" reason is dropped on the next plan
+    const p0 = plan([day], [], newModel(now), now), s0 = p0.diff.placed[0];
+    p0.model.placed[s0.id].why = [{ key: "deadline", w: 1, vars: { due: "0:00" } }, ...(p0.model.placed[s0.id].why ?? [])];
+    const p1 = plan([{ ...day, start: s0.start, end: s0.end }], [], p0.model, now + MIN);
+    expect(p1.model.placed[s0.id].why?.some((r) => r.key === "deadline")).toBe(false);
   });
 });
 

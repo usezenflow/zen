@@ -27,6 +27,8 @@ export const round15 = (min: number) => Math.floor((min + 7.5) / 15) * 15;
 
 /** A length on the 30 minute grid, never under 30. */
 export const lengthMin = (min: number) => Math.max(30, round30(min));
+/** A said length on the planner's 15 minute grid, never under 15: "45p" stays 45. */
+export const saidMin = (min: number) => Math.max(15, round15(min));
 
 /** "YYYY-MM-DD HH:mm" for a date and a time. */
 export const stamp = (w: ReaderWC, h: number, mi: number) =>

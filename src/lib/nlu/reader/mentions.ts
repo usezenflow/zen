@@ -1,7 +1,7 @@
 import { MAX_TASK_MINUTES } from "../shared";
 // S2 mentions: dates, times, durations, places and courses, plus masks that win every overlap.
 // Matches run on folded text (lowercase, no diacritics) and map back to raw offsets.
-import { lengthMin } from "./calendar";
+import { saidMin } from "./calendar";
 import { fold } from "./fold";
 import { HOLIDAY_RE } from "./holidays";
 
@@ -475,7 +475,7 @@ const RULES: Rule[] = [
     /(?<![a-z\d])(\d{1,2}(?:[.,]\d)?)\s+hours?(?![a-z])/g,
     (m) => {
       const min = Math.round(+m[1].replace(",", ".") * 60);
-      return min ? { k: "dur", min: Math.min(MAX_TASK_MINUTES, lengthMin(min)) } : null;
+      return min ? { k: "dur", min: Math.min(MAX_TASK_MINUTES, saidMin(min)) } : null;
     },
   ],
   [
@@ -490,7 +490,7 @@ const RULES: Rule[] = [
     /(?<![\d.,:a-z])(?<!(?:luc|vao|tu|den|toi|truoc|sau|han|hen|bat dau|khoang)\s+)(\d{1,2})\s*(?:tieng|h)\s*(\d{1,2})\s*(?:phut|p)(?![a-z])(?!\s*(?:sang|trua|chieu|toi|dem|khuya)(?![a-z]))/g,
     (m) => {
       const min = +m[1] * 60 + +m[2];
-      return min ? { k: "dur", min: Math.min(MAX_TASK_MINUTES, lengthMin(min)) } : null;
+      return min ? { k: "dur", min: Math.min(MAX_TASK_MINUTES, saidMin(min)) } : null;
     },
   ],
   // "3 ngày" is a span of days, read as a busy block only with a travel or rest word (see assemble)
@@ -1098,7 +1098,7 @@ const RULES: Rule[] = [
       if (!raw) return null;
       return {
         k: "dur",
-        min: Math.min(MAX_TASK_MINUTES, lengthMin(raw)),
+        min: Math.min(MAX_TASK_MINUTES, saidMin(raw)),
       };
     },
   ],

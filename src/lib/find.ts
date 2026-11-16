@@ -1,4 +1,5 @@
 import { addDays, mondayOf, startOfDay } from "../components/cal";
+import { dueOf } from "../planner/features";
 import { typeOf } from "../planner/policy";
 import { resolveDate, spanOf } from "./nlu/reader/assemble";
 import { fold } from "./nlu/reader/fold";
@@ -216,7 +217,7 @@ export function suggest(tasks: Task[], now: number): Suggestion[] {
     return { q: ws.length > 4 && n(acr) === n(full) ? acr : full, name };
   }).sort((a, b) => n(b.q) - n(a.q)).slice(0, 2);
   const exam = first(open.filter((x) => x.fixed === "exam"), (x) => x.start!);
-  const dueAt = first(open.filter((x) => x.deadline !== undefined && x.deadline >= now), (x) => x.deadline!)?.deadline;
+  const dueAt = first(open.filter((x) => (dueOf(x) ?? -1) >= now), (x) => x.deadline!)?.deadline;
   const room = first(open.filter((x) => (x.fixed === "lecture" || x.fixed === "exam") && x.location), (x) => x.start!)?.location;
   const cands: Suggestion[] = [
     ...courses.map((c) => (c.q === c.name.toLowerCase() ? { q: c.q } : c)),

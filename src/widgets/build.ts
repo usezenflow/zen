@@ -4,7 +4,7 @@ import { t } from "../lib/i18n";
 import type { Task } from "../lib/types";
 import { when } from "../lib/when";
 import { typeOf } from "../planner/policy";
-import type { ArtType, WidgetData, WRow } from "./data";
+import type { ArtType, WidgetData, WidgetName, WRow } from "./data";
 
 const MIN = 60_000, DAY = 86_400_000;
 const url = (id: string) => `zen:///task/${id}`;
@@ -110,4 +110,25 @@ export function instants(tasks: Task[], now: number): number[] {
   for (let x = Math.ceil(now / (5 * MIN)) * 5 * MIN; x < end; x += (x < near ? 5 : 30) * MIN) set.add(x);
   for (const k of tasks) for (const v of [k.start, k.end]) if (v !== undefined && v > now && v <= end) set.add(v);
   return [...set].sort((a, b) => a - b);
+}
+
+// The fields each iOS layout reads. Six full copies of a ~140-entry timeline came near the 4 MB app-group defaults limit and the
+// widget extension's memory cap; past either the widget shows only its placeholder skeleton.
+export const USES: Record<WidgetName, (keyof WidgetData)[]> = {
+  ZenTalk: ["listen"],
+  ZenScan: [],
+  ZenExam: ["art", "exam", "home", "short"],
+  ZenLock: ["exam", "home", "next", "short", "tomorrow"],
+  ZenNext: ["art", "home", "next", "short", "tomorrow"],
+  ZenToday: ["ahead", "aheadCount", "aheadHead", "art", "count", "dayName", "doneCount", "exam", "home", "listen", "more", "next", "rows", "ticked"],
+};
+/** A widget's own timeline: only its fields, and an entry only where they change (Talk and Scan keep one). */
+export function slim(tl: { date: Date; props: WidgetData }[], keys: (keyof WidgetData)[]) {
+  let last = "";
+  return tl.flatMap(({ date, props }) => {
+    const p = Object.fromEntries(keys.map((k) => [k, props[k]])), s = JSON.stringify(p);
+    if (s === last) return [];
+    last = s;
+    return [{ date, props: p as unknown as WidgetData }];
+  });
 }

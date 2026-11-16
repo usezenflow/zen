@@ -1,5 +1,5 @@
 import type { Diff, Placement, Reason, ReasonKey, Step, Task, TaskEvent, TaskType, Warn } from "../lib/types";
-import { DAY, HOUR, I_AFTER, I_ENERGY, I_SIM, KINDS, MIN, type FeatCtx, cdist, dayStart, features, hourOf } from "./features";
+import { DAY, HOUR, I_AFTER, I_ENERGY, I_SIM, KINDS, MIN, type FeatCtx, cdist, dayStart, dueOf, features, hourOf } from "./features";
 import { effort, neighbors, peakHour, slipOf } from "./habits";
 import { ALPHA, D, LAMBDA, N0, type Primed, decayArms, prepare, primeBatch, ucb, ucbAt, update } from "./linucb";
 import { type Model, newModel } from "./model";
@@ -18,7 +18,7 @@ const SURE = 3; // outcomes an hour must remember before a reason may name it
 type Titled = Busy & { title?: string };
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 // One colour per task everywhere (rows, week, month, detail): a prep is the user's plan even though it has a due time.
-export const typeOf = (t: Task): TaskType => t.fixed ?? (t.deadline !== undefined && !t.forId ? "assignment" : "plan");
+export const typeOf = (t: Task): TaskType => t.fixed ?? (dueOf(t) !== undefined && !t.forId ? "assignment" : "plan");
 const round15 = (m: number) => Math.max(15, Math.ceil(m / 15) * 15);
 
 function decay(m: Model, now: number) {
@@ -62,7 +62,7 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
   const pieces: Piece[] = [];
   const splits: Diff["split"] = [];
   const mk = (task: Task, eff: number, k: number, n: number, prior?: number, missed?: number): Piece => ({
-    id: task.id, task, effort: eff, k, n, slip: task.deadline === undefined ? 0 : slipOf(m, task.kind),
+    id: task.id, task, effort: eff, k, n, slip: dueOf(task) === undefined ? 0 : slipOf(m, task.kind),
     prior: prior !== undefined && prior >= now ? prior : undefined, missed, soon: missed !== undefined || opts.later === task.id || opts.later === task.parentId,
   });
   const lost = (t: Task) => (t.start !== undefined && t.end !== undefined && t.end <= now ? t.start : undefined);
@@ -126,7 +126,7 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
     p.lock = true; held.push({ start: s, end: e });
   }
   // Exploring: not while the model is cold, and only the first new piece without a deadline per plan.
-  const explorer = m.hist.length + m.doneHours.length >= 5 ? pieces.find((p) => p.task.deadline === undefined && p.prior === undefined) : undefined;
+  const explorer = m.hist.length + m.doneHours.length >= 5 ? pieces.find((p) => dueOf(p.task) === undefined && p.prior === undefined) : undefined;
   const alphaOf = (p: Piece) => (p === explorer ? ALPHA : 0);
 
   // Task x Cell x Feature, built once: every feature but "after" is fixed per (piece, cell). "After" depends on
@@ -219,7 +219,7 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
   const GROUPS: [ReasonKey, number, number][] = [["hour", 0, 1], ["weekend", 1, 2], ["busy", 2, 3], ["deadline", 3, 4], ["kind", 4, 9], ["after", 9, 14], ["energy", 14, 15], ["similar", 15, 16]];
   const dot = (th: ArrayLike<number>, x: number[], k0 = 0, k1 = D) => { let v = 0; for (let k = k0; k < k1; k++) v += th[k] * x[k]; return v; };
   // No learned reason yet: say what is true from the task itself (its due, its length), never "I do not know you".
-  const guessOf = (p: Piece): Reason => p.task.deadline !== undefined ? { key: "deadline", w: 1, vars: { due: when(p.task.deadline, now) } } : { key: "guess", w: 1, vars: { m: p.effort } };
+  const guessOf = (p: Piece): Reason => dueOf(p.task) !== undefined ? { key: "deadline", w: 1, vars: { due: when(dueOf(p.task)!, now) } } : { key: "guess", w: 1, vars: { m: p.effort } };
   const whyOf = (p: Piece, s: number, c: number): { why: Reason[]; explore: boolean } => {
     const xs = xz(p, s, ends), xc = xz(p, c, ends), as = Math.floor(hourOf(s)), ac = Math.floor(hourOf(c));
     const ths = prep.theta[as], thc = prep.theta[ac], a = alphaOf(p);
@@ -271,6 +271,8 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
     const s = at(p);
     if (s < 0) { (diff.unplaced ??= []).push({ id: p.id, effort: p.effort }); continue; } // no free, awake slot at all: warned below
     const changed = p.prior !== s, known0 = m.placed[p.id];
+    // a repeat placed before its day bound stopped counting as a due drops the "Hạn 0:00" reason it was kept for
+    if (known0?.why && dueOf(p.task) === undefined) known0.why = known0.why.filter((r) => r.key !== "deadline");
     if (!changed && known0 && p.lock) continue; // held, and placed before: it keeps the reasons it was placed for, nothing to recompute
     const alt = altOf(p, s);
     const c = changed && p.prior !== undefined ? p.prior : alt;
@@ -287,7 +289,7 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
     const x = xz(p, s, ends), arm = Math.floor(hourOf(s)), from = p.missed ?? p.prior ?? (opts.later === p.id ? p.task.start : undefined);
     diff.placed.push({ id: p.id, start: s, end: s + dur(p), policy: "linucb", arm, x, alt, why: r.why, explore: r.explore, ...(from !== undefined && from !== s ? { from } : {}) });
     m.placed[p.id] = { arm, x, start: s, policy: "linucb", at: now, why: r.why, alt, explore: r.explore };
-    if (p.prior === undefined && p.task.deadline !== undefined) m.slip[p.task.kind].placed += 1;
+    if (p.prior === undefined && dueOf(p.task) !== undefined) m.slip[p.task.kind].placed += 1;
     if (from !== undefined && from !== s) diff.displaced.push({ id: p.id, from, to: s });
     if (changed) {
       const th = prep.theta[arm];

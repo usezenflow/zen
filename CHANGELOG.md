@@ -5,6 +5,16 @@
 ### Patch Changes
 
 - Sửa ghi chú trong chi tiết việc rồi đóng bàn phím: nút ba chấm không còn tụt khỏi vòng tròn, loại việc không còn đè lên tên việc
+- Việc lặp lại không còn mang hạn cuối ngày
+    - "Giải leetcode mỗi tối" không còn ghi "Hạn 0:00, xếp sớm cho khỏi dồn vào phút chót"; việc vẫn nằm trong ngày của nó
+    - Hạn bạn nói ("mỗi ngày trước 17h") vẫn giữ; nhắc việc không còn kèm "Hạn 0:00"
+- Hiểu lời nói đúng hơn
+    - Độ dài bạn nói được giữ theo bước 15 phút: "45p" là 45 phút, không còn thành 1 tiếng; không nói thì vẫn đoán theo 30 phút
+    - "7:20 - 9:10" là 7:15 - 9:15, không còn hụt 15 phút cuối
+    - "Đọc sách tháng này", "trong tháng này" là làm trước hết tháng, không còn dồn vào ngày cuối tháng
+    - Chữ viết tắt như "lsm", "sql" giữ nguyên, không còn bị sửa thành "làm"
+- Mở app lần đầu trong ngày không còn nhảy sang một ngày xa (như 15/3); vẫn ở hôm nay
+- Widget không còn chỉ hiện khung xám: dữ liệu gửi cho widget nhẹ đi khoảng 4 lần
 
 ## 26.0.3
 

@@ -1794,7 +1794,8 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
         (core !== "" || gap.match(RANGE_BOUND))
       ) {
         if (t1.v.k === "time" && t2.v.k === "time") {
-          let diff = t2.v.h * 60 + t2.v.mi - (t1.v.h * 60 + t1.v.mi);
+          // both ends on the 15 minute grid the start snaps to: "7:20 - 9:10" is 7:15 - 9:15
+          let diff = round15(t2.v.h * 60 + t2.v.mi) - round15(t1.v.h * 60 + t1.v.mi);
           if (diff < 0) diff += 1440;
           // a bare end clock read as PM that runs past 12 hours is the AM reading: "23h-1h" is 2 hours
           if (diff > 720 && t2.v.part === "toi") diff -= 720;
@@ -2022,7 +2023,8 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
       : multi && datedPieces.length <= 1
         ? `${shared} ${datelessWords}`
         : fpiece + shared + (pieceExplicit ? ` ${strayText}` : "");
-    const due = DUE.test(fpiece) || DUE.test(cueText);
+    // "tháng này" is by the month's end, never on its last day ("đọc sách tháng này" is not a plan for 30/11)
+    const due = DUE.test(fpiece) || DUE.test(cueText) || (!recur && sorted.some((d) => d.v.k === "month_end"));
     const isPresentation =
       /\b(bao cao|bao ve|thuyet trinh|pitching|seminar|hoi dong)\b/i.test(
         fpiece,

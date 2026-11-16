@@ -174,7 +174,7 @@ export default function Home() {
     if (route.startsWith("day:")) { setView("day"); setSel(startOfDay(Number(route.slice(4)))); } else router.push(route as "/marks");
   }, []);
   // Plan done: the list returns in its old state, then one task at a time moves to its new place under a step line; the rest lands at once.
-  const shuffle = useCallback(async (r?: Result, old = tasksRef.current) => {
+  const shuffle = useCallback(async (r?: Result, old = tasksRef.current, jump = true) => {
     const id = (st: Step) => st.id;
     const steps = (r?.steps ?? []).slice(0, 4);
     if (shuf.current || !old.length || !steps.some(id)) return refresh();
@@ -185,7 +185,7 @@ export default function Home() {
     const rows = (st?: Step) => (st?.ids ?? [st?.id]).flatMap(one); // a series line lands every occurrence at once
     const firstAt = Math.min(...rows(steps.find((st) => id(st) && !old.some((o) => o.id === id(st)))).flatMap((x) => x.start ?? []));
     setTasks(old);
-    if (Number.isFinite(firstAt)) setSel(startOfDay(firstAt));
+    if (jump && Number.isFinite(firstAt)) setSel(startOfDay(firstAt));
     setShufOn(true);
     setState("thinking");
     try {
@@ -210,7 +210,8 @@ export default function Home() {
   const landed = useCallback((r?: Result & { notices?: Notice[] }) => {
     if (r?.notices?.length) setToasts((q) => [...q, ...r.notices!.map((n): ToastState => ({ text: n.title, sub: n.sub, action: n.route ? { label: t("view"), run: () => go(n.route!) } : undefined }))]);
     else if (r) say(r.toast, r);
-    if (r) void shuffle(r); // nothing landed: focus already refreshed, resume refreshes itself
+    // a result nobody asked for (a sync, a series topped up 120 days out) keeps the day in view
+    if (r) void shuffle(r, undefined, false); // nothing landed: focus already refreshed, resume refreshes itself
   }, [say, go, shuffle]);
 
   useFocusEffect(useCallback(() => {

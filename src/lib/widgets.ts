@@ -2,8 +2,8 @@ import { Asset } from "expo-asset";
 import { File } from "expo-file-system";
 import { requireOptionalNativeModule } from "expo";
 import { Platform } from "react-native";
-import { DONE, type ArtType, type WidgetData } from "@/widgets/data";
-import { instants, widgetData } from "@/widgets/build";
+import { DONE, type ArtType, type WidgetData, type WidgetName } from "@/widgets/data";
+import { USES, instants, slim, widgetData } from "@/widgets/build";
 import { swipeDone } from "./apply";
 import { allTasks } from "./store";
 
@@ -74,8 +74,8 @@ async function push() {
   const now = Date.now();
   const at = instants(tasks, now);
   if (Platform.OS === "ios") { // iOS redraws on its own clock from a timeline
-    const tl = at.map((t) => ({ date: new Date(t), props: widgetData(tasks, t, a) })); // the same for every widget: built once
-    for (const w of Object.values(widgets)) w.updateTimeline(tl);
+    const tl = at.map((t) => ({ date: new Date(t), props: widgetData(tasks, t, a) })); // built once
+    for (const [name, w] of Object.entries(widgets) as [WidgetName, NonNullable<(typeof widgets)[WidgetName]>][]) w.updateTimeline(slim(tl, USES[name]));
     return;
   }
   // Android shows one snapshot: it carries the timeline, the layout picks the entry due now and the patched provider redraws at the next.

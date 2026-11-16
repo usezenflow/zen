@@ -1,5 +1,5 @@
 import type { Task } from "../lib/types";
-import { DAY, HOUR, MIN } from "./features";
+import { DAY, HOUR, MIN, dueOf } from "./features";
 
 export interface Piece {
   id: string;
@@ -18,9 +18,10 @@ export const dur = (p: Piece) => p.effort * MIN;
 
 export function bell(p: Piece, now: number, start: number): number {
   const t = p.task;
-  if (t.deadline === undefined) return 0;
+  const due = dueOf(t);
+  if (due === undefined) return 0; // a repeat's day bound pulls nowhere: place.ts keeps it inside the day
   const lo = Math.max(t.createdAt, t.notBefore ?? t.createdAt); // not `now`: the curve must not drift between replans
-  const hi = t.deadline - dur(p);
+  const hi = due - dur(p);
   if (hi <= lo) return 1;
   const pos = Math.min(1, Math.max(0, (start - lo) / (hi - lo)));
   const centre = hi - lo < DAY ? 0 : Math.max(0, p.k / (p.n + 1) - 0.3 * p.slip); // under a day: aim at the start

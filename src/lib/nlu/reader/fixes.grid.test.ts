@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { itemAction } from "../adapt";
 import type { ReaderWC } from "../shared";
-import { lengthMin } from "./calendar";
+import { saidMin } from "./calendar";
 import { read } from "./reader";
 
 type WC = Required<Pick<ReaderWC, "y" | "m" | "d">> & { h: number; mi: number };
@@ -152,7 +152,7 @@ describe("grid: lengths in hours and minutes", () => {
     for (let h = 1; h <= 3; h++) for (const m of [10, 15, 20, 30, 45]) {
       for (const f of [`${h}h${m}p`, `${h}h ${m}p`, `${h} tiếng ${m} phút`, `${h}h${m} phút`]) {
         const a = acts(`học ${f}`)[0];
-        rows.push([`học ${f}`, [a?.effortMinutes, a?.fixed], [lengthMin(h * 60 + m), undefined]]);
+        rows.push([`học ${f}`, [a?.effortMinutes, a?.fixed], [saidMin(h * 60 + m), undefined]]);
       }
       // a said clock: fixed at the quarter-hour
       const q = Math.round(m / 15) * 15;
@@ -194,6 +194,21 @@ describe("grid: titles keep their own words", () => {
       for (const s of [`${t} ${when}`, `${when} ${t}`].map((x) => x.trim())) rows.push([s, items(s)[0]?.title, t]);
     // a repeat word before a part and a weekday still repeats, and leaves the title
     for (const s of ["học tiếng anh mỗi tối thứ 2 4 6 lúc 8h", "học tiếng anh hàng tối", "học tiếng anh mỗi tối 1 tiếng"]) rows.push([s, [items(s)[0]?.title, !!items(s)[0]?.rrule], ["Học tiếng anh", true]]);
+    check(rows);
+  });
+});
+
+describe("grid: \"tháng này\" is by the month's end, and a vowelless acronym is kept", () => {
+  it("every title and month phrase: due 30/11, never pinned to it; a repeat keeps its part", () => {
+    const rows: [string, unknown, unknown][] = [];
+    for (const v of ["postgres", "đọc sách", "học tiếng anh", "dọn nhà", "làm đồ án", "nộp bài tập"])
+      for (const tail of ["trong tháng này", "tháng này", "hết tháng này"]) {
+        const s = `${v} ${tail}`, a = acts(s)[0];
+        rows.push([s, [a?.deadline, a?.notBefore, a?.when, a?.fixed], ["2026-11-30T23:59:00", undefined, undefined, undefined]]);
+      }
+    const r = items("đọc sách tối mỗi ngày tháng này")[0];
+    rows.push(["đọc sách tối mỗi ngày tháng này", [r?.windows, r?.rrule?.startsWith("FREQ=DAILY")], [["NIGHT"], true]]);
+    for (const w of ["lsm", "sql", "css", "dns"]) rows.push([`học ${w} trong tuần này`, items(`học ${w} trong tuần này`)[0]?.title, `Học ${w}`]);
     check(rows);
   });
 });

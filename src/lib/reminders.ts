@@ -5,6 +5,7 @@ import { t } from "./i18n";
 import type { Task } from "./types";
 import { allTasks } from "./store";
 import { when } from "./when";
+import { dueOf } from "../planner/features";
 
 const LEAD = 10 * 60_000;
 const MAX = 40; // iOS keeps at most 64 pending notifications; leave room for others
@@ -17,7 +18,7 @@ export function upcoming(tasks: Task[], now: number): { id: string; at: number; 
     .filter((x) => !x.doneAt && !x.deletedAt && (x.fixed !== "busy" || x.source === "user") && x.start !== undefined && x.start - LEAD > now)
     .sort((a, b) => a.start! - b.start!)
     .slice(0, MAX)
-    .map((x) => ({ id: x.id, at: x.start! - LEAD, title: x.title, body: t("remindSub", { time: hm(x.start!), room: x.deadline !== undefined ? ` · ${t("due", { time: when(x.deadline, x.start!) })}` : x.location ? ` · ${x.location}` : "" }) }));
+    .map((x) => ({ id: x.id, at: x.start! - LEAD, title: x.title, body: t("remindSub", { time: hm(x.start!), room: dueOf(x) !== undefined ? ` · ${t("due", { time: when(dueOf(x)!, x.start!) })}` : x.location ? ` · ${x.location}` : "" }) }));
 }
 
 /** Asks once for permission; Android 13 shows no prompt until a channel exists. */

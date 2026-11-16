@@ -139,7 +139,7 @@ describe("read", () => {
 
   it("keeps a typed length over the activity", () => {
     const [it] = read("chạy bộ 20 phút", { ref, source: "typed" }).items;
-    expect(it.durationMinutes).toBe(30);
+    expect(it.durationMinutes).toBe(15); // said: the 15 minute grid
   });
 });
 
