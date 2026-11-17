@@ -18,6 +18,15 @@
 
 ### Patch Changes
 
+- Thẻ trên cùng gọn và đúng hơn
+    - Việc đang làm ghi "Đang làm"; việc tiếp theo hôm nay ghi "Tiếp theo", có nút "Làm luôn" để dời đúng buổi đó về bây giờ
+    - Bỏ thẻ "...p trống, hợp làm ...": không còn gợi ý việc ngày khác, chạm dấu xong không còn làm kẹt buổi ở mấy hôm sau
+    - Bỏ thẻ lớn "Sáng nay"; việc bị dời chỉ hiện ở một dòng nhỏ dưới thanh chọn, giống nhau ở ngày, tuần và tháng
+- Dòng "Xếp lại 2 việc" có hai hàng: số việc, rồi việc dời nhiều nhất ("**Gym** sang T4 7:00") ở hàng dưới
+- Tên việc in đậm khi nằm giữa câu: "**Đọc sách** chưa có giờ trống", "Đã dời **Gym** sang 15:00"...
+- "Các buổi": thêm hay bỏ một buổi là chia lại các buổi còn lại cho đều; bỏ đúng buổi bạn chạm
+- Độ dài tự đoán: việc nhỏ 15p, còn lại tròn nửa giờ hay một giờ, kể cả khi co cho vừa chỗ trống; không còn 45p, 1h15p, 1h45p
+- Buổi ôn thi đã có được chia lại theo cách mới ngay lần đầu mở app sau khi cập nhật; buổi đã xong, đang làm hay bạn tự đặt giờ thì giữ nguyên
 - "và" tách việc: "học toán và đọc sách trong tháng này" là 2 việc, cùng hạn 30/11
     - Mỗi bên có động từ riêng mới tách; "gặp Lan và Minh", "mua sữa và trứng" vẫn là một việc
     - Ngày, buổi nói ở đầu hay cuối câu dùng chung cho mọi việc; nói riêng cho việc nào thì giữ cho việc đó
@@ -29,7 +38,6 @@
     - Ôn thi học theo nhịp của bạn: làm lâu hơn dự tính thì lần sau dài hơn
     - Mỗi ngày một buổi; ngày kín lịch học thì không xếp, tuần dày lịch thì ít buổi mà dài hơn (tới 2h) vào ngày rảnh
     - Buổi ôn cuối xong trước 22h hôm trước, không còn xếp vào sáng ngày thi
-- Độ dài tự đoán luôn tròn nửa giờ hay một giờ, kể cả khi co cho vừa chỗ trống; không còn 1h15p, 1h45p
 - Lịch bớt xáo trộn
     - Việc trong 24 giờ tới đứng yên, trừ khi giờ đó không còn dùng được; xong sớm không kéo việc ngày mai sang hôm nay
     - Mỗi lần xếp lại dời tối đa 5 việc không có lý do
