@@ -28,7 +28,8 @@ vi.mock("../planner", async (orig) => {
 
 import { addRule, addSitting, apply, dropSitting, ingest, lastMore, liveEdit, loadClassMult, needMore, pickNow, pin, putBack, removeRule, retime, scopeIds, stillMore, swipeDone } from "./apply";
 import { loadMoves } from "./moves";
-import { preps } from "../planner/prep";
+import { preps } from "../planner/prep";import { plain } from "./i18n";
+
 
 const NOW = new Date("2026-11-13T10:00:00").getTime();
 const live = () => [...db.tasks.values()].filter((x: Task) => !x.deletedAt);
@@ -47,7 +48,7 @@ it("one line becomes several placed tasks, one undo removes all", async () => {
   expect(tasks.filter((x) => x.parentId).length).toBeGreaterThan(1); // essay split into sittings
   expect(tasks.filter((x) => !x.parentId && x.title === "Gym").every((x) => x.start !== undefined)).toBe(true);
   expect(r.toast).toMatch(/^Xếp xong \d+ việc$/); // counts tasks, not sittings
-  expect(r.sub).toMatch(/^Essay chia \d+ buổi$/); // the most-split task names its sittings
+  expect(plain(r.sub!)).toMatch(/^Essay chia \d+ buổi$/); // the most-split task names its sittings
   await r.undo();
   expect(db.tasks.size).toBe(0);
   expect(db.events.size).toBe(0);
@@ -279,7 +280,7 @@ it("a move's cause is the new class over its old slot", async () => {
   await ingest([lec], [], NOW + 1000);
   const m = (await loadMoves()).find((x) => x.id === read.id)!;
   expect(m.from).toBe(s0);
-  expect(m.cause).toMatch(/^Vì trường thêm Tiết bù /);
+  expect(plain(m.cause!)).toMatch(/^Vì trường thêm Tiết bù /);
 });
 
 it("a repeat with no said clock keeps no 09:00 start: its occurrences open at the day's start", async () => {
@@ -441,18 +442,18 @@ describe("said times, edits, replans, causes", () => {
     const read = mine("Read")[0], s0 = read.start!;
     const lec = (start: number): Task => ({ id: "lec", title: "Tiết bù", kind: "study", source: "dlu", fixed: "lecture", effort: 90, start, end: start + 90 * 60_000, createdAt: NOW });
     await ingest([lec(s0 - 1800_000)], [], NOW + 1000);
-    expect((await loadMoves()).find((x) => x.id === read.id)!.cause).toMatch(/^Vì trường thêm Tiết bù /);
+    expect(plain((await loadMoves()).find((x) => x.id === read.id)!.cause!)).toMatch(/^Vì trường thêm Tiết bù /);
     const at1 = db.tasks.get(read.id).start!;
     await ingest([lec(at1 - 1800_000)], [], NOW + 2000);
     const m2 = (await loadMoves()).filter((x) => x.id === read.id).at(-1)!;
     expect(m2.from).toBe(at1);
-    expect(m2.cause).toMatch(/^Vì trường dời Tiết bù sang /);
+    expect(plain(m2.cause!)).toMatch(/^Vì trường dời Tiết bù sang /);
     // a due-date change by the user (an LMS upsert would look the same to the transaction)
     await apply([{ op: "create", title: "Essay", kind: "study", effortMinutes: 60, deadline: iso(clock(9, 12)) }], NOW + 3000);
     const es = mine("Essay")[0];
     await apply([{ op: "edit", target: es.id, deadline: iso(es.start! - H1) }], NOW + 4000); // due before its slot: the slot is no longer good
     const m3 = (await loadMoves()).filter((x) => x.id === es.id).at(-1)!;
-    expect(m3.cause).toMatch(/^Vì hạn Essay đổi sang /);
+    expect(plain(m3.cause!)).toMatch(/^Vì hạn Essay đổi sang /);
   });
 
   it("self marks the user's own moves, not ingest, replan or top-up ones", async () => {
@@ -675,14 +676,29 @@ describe("adding and dropping a sitting", () => {
     const n = open().length, len = open()[n - 1].effort;
     const dropped = await dropSitting(pid, NOW + 1000);
     expect(open()).toHaveLength(n - 1);
-    expect(dropped.toast).toBe("Bớt một buổi Essay");
+    expect(plain(dropped.toast)).toBe("Bớt một buổi Essay");
     const added = await addSitting(pid, NOW + 2000);
     expect(open()).toHaveLength(n);
     const last = open()[n - 1];
     expect(last.id).toBe(`${pid}#${n + 1}`);
     expect(last.effort).toBe(len);
-    expect(added.toast).toBe("Thêm một buổi Essay");
+    expect(plain(added.toast)).toBe("Thêm một buổi Essay");
     expect(added.sub).toBeDefined();
+  });
+  it("dropping a chosen sitting or adding one spreads the open ones again: one a day, never two bunched", async () => {
+    await apply([{ op: "create", title: "Essay", kind: "study", effortMinutes: 300, deadline: "2026-11-20T23:00:00" }], NOW);
+    const pid = live().find((x: Task) => !x.parentId)!.id;
+    const open = () => live().filter((x: Task) => x.parentId === pid && !x.doneAt);
+    // squeeze every sitting onto the first day, as a stale plan could leave them
+    open().forEach((c: Task, i: number) => db.tasks.set(c.id, { ...c, start: NOW + (2 + i) * 3600_000, end: NOW + (2 + i) * 3600_000 + c.effort * 60_000 }));
+    const mid = open()[1];
+    const r = await dropSitting(pid, NOW + 1000, mid.id);
+    expect(db.tasks.get(mid.id).deletedAt).toBeDefined(); // the tapped one goes, not the last
+    const days = (xs: Task[]) => new Set(xs.map((x) => new Date(x.start!).toDateString())).size;
+    expect(days(open())).toBe(open().length);
+    expect(plain(r.sub ?? "")).toMatch(/^Chia lại \d+ buổi cho đều$/);
+    await addSitting(pid, NOW + 2000);
+    expect(days(open())).toBe(open().length);
   });
   it("drop does nothing with one open sitting", async () => {
     await apply([{ op: "create", title: "Essay", kind: "study", effortMinutes: 60, deadline: "2026-11-20T23:00:00" }], NOW);
@@ -720,7 +736,7 @@ describe("Còn nữa on a guessed split task's last sitting", () => {
     const added = kids().find((x: Task) => x.id === "p#2")!;
     expect(added.effort).toBe(60);
     expect(added.doneAt).toBeUndefined();
-    expect(r.toast).toBe("Thêm một buổi Code x");
+    expect(plain(r.toast)).toBe("Thêm một buổi Code x");
     expect((await loadClassMult()).code).toBeGreaterThan(1);
     await r.undo();
     expect(kids()).toHaveLength(1);
@@ -737,7 +753,7 @@ describe("Còn nữa on a guessed split task's last sitting", () => {
     expect(kids().find((x: Task) => x.id === "w#1")!.doneAt).toBe(NOW - 2 * H);
     expect(kids().find((x: Task) => x.id === "w#2")!).toMatchObject({ effort: 60, doneAt: undefined });
     expect(db.tasks.get("w").doneAt).toBeUndefined(); // the parent is the container now
-    expect(r.toast).toBe("Thêm một buổi Viết báo cáo");
+    expect(plain(r.toast)).toBe("Thêm một buổi Viết báo cáo");
     expect((await loadClassMult()).write).toBeGreaterThan(1);
     await r.undo();
     expect(kids()).toHaveLength(0);

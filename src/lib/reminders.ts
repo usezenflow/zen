@@ -1,7 +1,7 @@
 import * as Notifications from "expo-notifications";
 import { AndroidImportance } from "expo-notifications";
 import { Platform } from "react-native";
-import { t } from "./i18n";
+import { plain, t } from "./i18n";
 import type { Task } from "./types";
 import { allTasks } from "./store";
 import { when } from "./when";
@@ -47,7 +47,7 @@ export async function push(stale: () => boolean = () => false) {
     if (stale()) return;
     await Notifications.scheduleNotificationAsync({
       identifier: PREFIX + r.id,
-      content: { title: r.title, body: r.body },
+      content: { title: plain(r.title), body: plain(r.body) }, // bold marks never reach the OS
       trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: r.at, ...(Platform.OS === "android" ? { channelId: "default" } : {}) },
     });
   }

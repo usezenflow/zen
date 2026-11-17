@@ -1,3 +1,4 @@
+import { bolded } from "@/components/bold";
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -11,7 +12,7 @@ import { EdLine, Gly, Meta } from "@/components/detail-meta";
 import { useTapOutside, type Box } from "@/components/outside";
 import { DropMenu } from "@/components/menu";
 import { RichText } from "@/components/richtext";
-import { addSitting, apply, lastMore, moveMine, preview, removeScope, stillMore, toAction, type LiveEdit, type Result } from "@/lib/apply";
+import { addSitting, apply, dropSitting, lastMore, moveMine, preview, removeScope, stillMore, toAction, type LiveEdit, type Result } from "@/lib/apply";
 import { Story } from "@/components/nowcard";
 import { seeMoves } from "@/lib/moves";
 import { keepBoth } from "@/lib/overlap";
@@ -249,7 +250,7 @@ export default function Detail() {
     // magic.html 7c: what the time being turned to would do; nothing when it touches nothing
     const c = pv?.clashes?.[0], ms = (pv?.moves ?? []).filter((x) => x.id !== tt?.id);
     const say = c ? t("previewClash", { title: c.fixed.title }) : ms.length > 1 ? t("previewMoves", { n: ms.length }) : ms[0] && t("previewMove", { title: ms[0].title, when: at(ms[0].to) });
-    if (say) lines.splice((i >= 0 ? i : lines.length - 1) + 1, 0, <Text key="pv" accessibilityLiveRegion="polite" style={[s.pv, { color: th.muted }]}>{say}</Text>);
+    if (say) lines.splice((i >= 0 ? i : lines.length - 1) + 1, 0, <Text key="pv" accessibilityLiveRegion="polite" style={[s.pv, { color: th.muted }]}>{bolded(say, { color: th.ink })}</Text>);
   }
   // a link place opens on tap; the dots menu edits it
   if (link && ed !== "place") lines.push(<Meta key="l" icon="link" tone="link" text={host(link)} onPress={() => void Linking.openURL(link).catch(() => {})} />);
@@ -272,7 +273,7 @@ export default function Detail() {
   const addMore = async () => { if (!still) return; setAdded(await stillMore(still)); void load(); };
   // "−" and "+ Thêm buổi" in the list: the result stays here with its Undo, as "Còn nữa". "−" only with two or more open: the last open one
   // going would leave no open sitting, and the planner would split the task again.
-  const dropOne = async (id: string) => { setAdded(await removeScope(id, "this")); void load(); };
+  const dropOne = async (id: string) => { setAdded(await dropSitting(task.parentId ?? task.id, undefined, id)); void load(); };
   const addOne = async () => { setAdded(await addSitting(task.parentId ?? task.id)); void load(); };
   const undoMore = async () => { const r = added; setAdded(undefined); await r?.undo(); void load(); };
   const why =!task.fixed ? grounded(plc?.why, { task, start: task.start ?? 0, rules }).flatMap((r) => (r.key !== "pace" ? [r] : open.length > 1 ? [{ ...r, vars: { k: open.findIndex((k) => k.id === task.id) + 1, n: open.length } }] : [])).slice(0, 4) : undefined;
@@ -338,7 +339,7 @@ export default function Detail() {
                     </View>
                   </View>
                 ))}
-                {told.r.lost?.map((x) => <Text key={x.id} style={[s.wb, { color: th.seal, marginTop: 12 }]}>{t("lostSlot", { title: x.title })}</Text>)}
+                {told.r.lost?.map((x) => <Text key={x.id} style={[s.wb, { color: th.seal, marginTop: 12 }]}>{bolded(t("lostSlot", { title: x.title }))}</Text>)}
                 {toldMoves.length > 0 && <Story moves={toldMoves} now={now} onClose={seen} onUndo={undoTold} />}
               </View>
           )}

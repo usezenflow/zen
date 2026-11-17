@@ -637,6 +637,17 @@ const sitIx = (c: Task) => Number(c.id.slice(c.id.lastIndexOf("#") + 1)) || 0;
 const sitsOf = (w: Work, parentId: string) => [...w.tasks.values()].filter((c) => c.parentId === parentId && !c.deletedAt).sort((a, b) => sitIx(a) - sitIx(b));
 const openSits = (w: Work, parentId: string) => sitsOf(w, parentId).filter((c) => !c.doneAt);
 /** "Cần thêm một buổi" / "Còn nữa": one sitting more, the same length as the last open one (the last one, once all are done), after it; the planner places it. */
+/** After a sitting is added or dropped, the open ones are placed again from scratch, so they spread evenly up to the due
+ * (one a day, sized by free time). A running one, one pinned or set by hand, and a done one stay. Returns how many were freed. */
+function respread(w: Work, parentId: string, now: number): number {
+  let n = 0;
+  for (const c of openSits(w, parentId)) {
+    if (c.pinned || c.userEdited?.includes("start") || (c.start !== undefined && c.end !== undefined && c.start <= now && now < c.end)) continue;
+    w.tasks.set(c.id, { ...c, start: undefined, end: undefined }); n++;
+  }
+  return n;
+}
+
 export function addSitting(parentId: string, now = Date.now()): Promise<Result> {
   let added: string | undefined;
   return transact(now, (w) => {
@@ -652,9 +663,11 @@ export function addSitting(parentId: string, now = Date.now()): Promise<Result> 
     added = `${parentId}#${Math.max(...kids.map(sitIx)) + 1}`; // past every id made, deleted ones too
     w.tasks.set(added, { ...last, id: added, start: undefined, end: undefined, pinned: false, fixed: undefined, notBefore: undefined, userEdited: undefined, doneAt: undefined, deletedAt: undefined });
     w.toast = t("sittingAdded", { title: last.title });
+    const n = respread(w, parentId, now);
+    if (n > 1) w.sub = t("respread", { n });
   }, {
     replan: true,
-    text: (d, w) => { const p = d?.placed.find((x) => x.id === added); if (p) w.sub = at12(p.start, now); return w.toast; },
+    text: (d, w) => { const p = d?.placed.find((x) => x.id === added); if (p && !w.sub) w.sub = at12(p.start, now); return w.toast; },
   });
 }
 /** "Còn nữa" shows on a guessed task's last sitting (by time; the task itself when it is unsplit) once it is done or running now; never for a said length. */
@@ -671,13 +684,16 @@ export async function stillMore(last: Task, now = Date.now()): Promise<Result> {
   return r;
 }
 /** "Bớt một buổi": the last open sitting goes; only with two or more open, so the split keeps one. */
-export function dropSitting(parentId: string, now = Date.now()): Promise<Result> {
+/** Drops one open sitting (`id`, else the last) and spreads the rest again; never the last open one, which would leave none. */
+export function dropSitting(parentId: string, now = Date.now(), id?: string): Promise<Result> {
   return transact(now, async (w) => {
     const open = openSits(w, parentId);
     if (open.length < 2) return;
-    await act(w, { op: "delete", target: open[open.length - 1].id });
+    await act(w, { op: "delete", target: (open.find((c) => c.id === id) ?? open[open.length - 1]).id });
     w.toast = t("sittingDropped", { title: open[0].title });
-  }, { replan: "pull", text: (_, w) => w.toast });
+    const n = respread(w, parentId, now);
+    if (n > 1) w.sub = t("respread", { n });
+  }, { replan: true, text: (_, w) => w.toast });
 }
 
 /** Marks tasks placed over a day ago and still in place as kept. */

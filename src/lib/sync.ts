@@ -4,11 +4,11 @@ import { checkLogin, clearCreds, fetchExams, fetchFees, fetchLms, fetchMarks, fe
 import { stopBackgroundSync } from "./dlu/background";
 import { CampusLoginError, type Fetched, type Source } from "./dlu/client";
 import { examMonth, feeMonth, marksOpen, resolveTerm, termMondays, vnMidnight } from "./dlu/season";
-import { t } from "./i18n";
+import { plain, t } from "./i18n";
 import { digestNotices, marksNotice, type Digest } from "./dlu/materialize";
 import { pushWidgetsNow } from "./widgets";
 import { ingest, keepSweep, loadClassMult, loadGone, replan, topUp, waiting, type Result } from "./apply";
-import type { Notice } from "./types";
+import type { Notice, Task } from "./types";
 import type { ParsedMarks } from "./dlu/parse/student";
 import * as queue from "./queue";
 import * as stats from "./stats";
@@ -26,7 +26,7 @@ const STATS_URL = process.env.EXPO_PUBLIC_STATS_URL ?? "https://zen-sink.alphaze
 export type Synced = Result & { notices: Notice[] };
 
 const notify = (n: Notice) =>
-  Notifications.scheduleNotificationAsync({ content: { title: n.title, ...(n.sub ? { body: n.sub } : {}), ...(n.route ? { data: { route: n.route } } : {}) }, trigger: null }).catch(() => {});
+  Notifications.scheduleNotificationAsync({ content: { title: plain(n.title), ...(n.sub ? { body: plain(n.sub) } : {}), ...(n.route ? { data: { route: n.route } } : {}) }, trigger: null }).catch(() => {});
 
 /** Marks last fetched, or null before the first fetch. */
 export async function getMarks(): Promise<ParsedMarks | null> {
@@ -252,10 +252,27 @@ export async function connect(typed: Creds): Promise<{ portal: Check; lms: Check
 }
 
 /** Preps follow the exams already stored and need no campus: made, resized or renamed without a fetch, so a new prep rule reaches old exams at once. */
+/** Bumped when prep sizing or spreading changes: the first launch after it splits every prep still ahead again. */
+const PREP_REV = "2"; // 26.0.9: sized by exam stakes, one sitting a day, done by the evening before
+/** Open sittings of preps still ahead, for the planner to split again. A prep with a sitting running, pinned or set by hand is left
+ * whole: the planner splits again only when no open sitting is left, so dropping only some would lose their minutes. */
+export const stalePrepSits = (tasks: Task[], now: number): string[] => {
+  const kept = (c: Task) => c.pinned || c.userEdited?.includes("start") || (c.start !== undefined && c.end !== undefined && c.start <= now && now < c.end);
+  return tasks.filter((t) => t.id.startsWith("prep:") && !t.parentId && !t.doneAt && !t.deletedAt && (t.deadline ?? 0) > now).flatMap((p) => {
+    const open = tasks.filter((c) => c.parentId === p.id && !c.doneAt && !c.deletedAt);
+    return open.some(kept) ? [] : open.map((c) => c.id);
+  });
+};
+
 async function backfill(now: number): Promise<Result | undefined> {
   const none: Fetched = Object.assign([], { failed: ["portal", "lms"] as Source[] }); // both "failed": no stored campus item is touched
-  const { upserts, deletes } = materialize(none, await store.allTasks(), now, prepMult(await getMarks()), await loadGone(), await loadClassMult().catch(() => ({})));
-  return upserts.length || deletes.length ? ingest(upserts, deletes, now) : undefined;
+  const all = await store.allTasks();
+  const { upserts, deletes } = materialize(none, all, now, prepMult(await getMarks()), await loadGone(), await loadClassMult().catch(() => ({})));
+  const rev = (await store.kvGet("prepRev")) !== PREP_REV;
+  if (rev) deletes.push(...stalePrepSits(all, now).filter((id) => !deletes.includes(id))); // the planner splits what is left again, with new ids
+  const r = upserts.length || deletes.length ? await ingest(upserts, deletes, now) : undefined;
+  if (rev) await store.kvSet("prepRev", PREP_REV);
+  return r;
 }
 
 let foreground: Promise<Synced | undefined> | undefined;

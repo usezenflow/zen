@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as Notifications from "expo-notifications";
 import { CampusLoginError, CampusSlowError } from "./dlu/client";
-import { ask, drain, loginError } from "./sync";
+import { ask, drain, loginError, stalePrepSits } from "./sync";
+import type { Task } from "./types";
 
 // The campus fetches and the device are faked: the test is about what a refused or slow login says.
 const fake = vi.hoisted(() => ({ kv: new Map<string, string>(), jobs: [] as { key: string; kind: string; auto?: boolean }[], exams: vi.fn(), lms: vi.fn() }));
@@ -70,5 +71,25 @@ describe("a refused password", () => {
     await runPart("ex");
     expect(notices()).toEqual([]);
     expect(await loginError()).toBeNull();
+  });
+});
+
+describe("stalePrepSits: the one-time split again of preps made by the old sizing", () => {
+  const NOW = Date.UTC(2026, 10, 17, 2), H = 3_600_000;
+  const t = (id: string, o: Partial<Task> = {}): Task => ({ id, title: "Ôn thi", kind: "study", source: "user", effort: 60, createdAt: 0, ...o });
+  const prep = (id: string, o: Partial<Task> = {}) => t(id, { forId: "e", deadline: NOW + 5 * 24 * H, ...o });
+  it("takes every open sitting of a prep still ahead, keeps done ones and other tasks", () => {
+    const ts = [prep("prep:a"), t("prep:a#1", { parentId: "prep:a", doneAt: NOW - H }), t("prep:a#2", { parentId: "prep:a", start: NOW + 2 * H, end: NOW + 3 * H }), t("prep:a#3", { parentId: "prep:a" }), t("x#1", { parentId: "x" })];
+    expect(stalePrepSits(ts, NOW)).toEqual(["prep:a#2", "prep:a#3"]);
+  });
+  it("leaves a prep whole when one sitting is running, pinned or set by hand, and a past or done prep alone", () => {
+    const ts = [
+      prep("prep:r"), t("prep:r#1", { parentId: "prep:r", start: NOW - H, end: NOW + H }), t("prep:r#2", { parentId: "prep:r" }),
+      prep("prep:p"), t("prep:p#1", { parentId: "prep:p", pinned: true }), t("prep:p#2", { parentId: "prep:p" }),
+      prep("prep:u"), t("prep:u#1", { parentId: "prep:u", userEdited: ["start"] }),
+      prep("prep:old", { deadline: NOW - H }), t("prep:old#1", { parentId: "prep:old" }),
+      prep("prep:d", { doneAt: NOW - H }), t("prep:d#1", { parentId: "prep:d" }),
+    ];
+    expect(stalePrepSits(ts, NOW)).toEqual([]);
   });
 });

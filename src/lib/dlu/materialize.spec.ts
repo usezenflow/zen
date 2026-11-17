@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Task } from "../types";
 import type { Fetched } from "./client";
-import { digestNotices, marksNotice, materialize } from "./materialize";
+import { digestNotices, marksNotice, materialize } from "./materialize";import { plain as plainText } from "../i18n";
+
 
 const NOW = Date.UTC(2026, 8, 1);
 const H = 3_600_000;
@@ -127,7 +128,7 @@ describe("materialize", () => {
     expect(old).toMatchObject({ location: "A1" });
     const r = materialize([{ ...lecture(), location: "B2" }] as Fetched, [old], NOW);
     expect(r.upserts[0].location).toBe("B2");
-    expect(digestNotices(r.digest, NOW)).toEqual([{ title: "Đổi phòng: Môn mẫu", sub: "Sang B2", route: `/task/${old.id}` }]);
+    expect(digestNotices(r.digest, NOW).map((n) => ({ ...n, title: plainText(n.title) }))).toEqual([{ title: "Đổi phòng: Môn mẫu", sub: "Sang B2", route: `/task/${old.id}` }]);
     expect(materialize([{ ...lecture(), location: "B2" }] as Fetched, [{ ...old, userEdited: ["location"] }], NOW).upserts).toEqual([]); // the user's room stays
   });
 
@@ -159,8 +160,8 @@ describe("materialize", () => {
     const { digest } = materialize([exam, assign()] as Fetched, [], NOW);
     expect([digest.exams.length, digest.assignments.length]).toEqual([1, 1]);
     const [ne, na] = digestNotices(digest, NOW);
-    expect(ne).toMatchObject({ title: "Thêm lịch thi: Môn mẫu", route: `/task/${digest.exams[0].id}` });
-    expect(na).toMatchObject({ title: "Bài tập mới: Bài tập", sub: expect.stringMatching(/^Hạn T/) });
+    expect({ ...ne, title: plainText(ne.title) }).toMatchObject({ title: "Thêm lịch thi: Môn mẫu", route: `/task/${digest.exams[0].id}` });
+    expect({ ...na, title: plainText(na.title) }).toMatchObject({ title: "Bài tập mới: Bài tập", sub: expect.stringMatching(/^Hạn T/) });
   });
 
   it("groups three or more item changes into one notice", () => {
@@ -269,14 +270,14 @@ describe("changes that now get a notice", () => {
   it("says an exam whose time moved, not one that stayed", () => {
     const old = stored(exam());
     const { digest } = materialize([exam(NOW + 6 * D)] as Fetched, [old], NOW);
-    expect(digestNotices(digest, NOW)).toEqual([{ title: "Lịch thi đổi: Môn mẫu", sub: expect.any(String), route: `/task/${old.id}` }]);
+    expect(digestNotices(digest, NOW).map((n) => ({ ...n, title: plainText(n.title) }))).toEqual([{ title: "Lịch thi đổi: Môn mẫu", sub: expect.any(String), route: `/task/${old.id}` }]);
     expect(materialize([exam()] as Fetched, [old], NOW).digest.moved).toEqual([]);
   });
 
   it("says an open assignment whose due date changed, and not a done one", () => {
     const old = stored(assign());
     const { digest } = materialize([assign({ scheduledStartTime: new Date(NOW + 4 * D) })] as Fetched, [old], NOW);
-    expect(digestNotices(digest, NOW)).toEqual([{ title: "Hạn đổi: Bài tập", sub: expect.stringMatching(/^Hạn /), route: `/task/${old.id}` }]);
+    expect(digestNotices(digest, NOW).map((n) => ({ ...n, title: plainText(n.title) }))).toEqual([{ title: "Hạn đổi: Bài tập", sub: expect.stringMatching(/^Hạn /), route: `/task/${old.id}` }]);
     const done = materialize([assign({ scheduledStartTime: new Date(NOW + 4 * D), submitted: true })] as Fetched, [{ ...old, doneAt: NOW - H }], NOW);
     expect(done.digest.due).toEqual([]);
   });
@@ -286,14 +287,14 @@ describe("changes that now get a notice", () => {
     const tasks = materialize(term() as Fetched, [], NOW).upserts;
     const extra = lecture("portal:lecture:S1:2026-09-20:1", NOW + 10 * D);
     const { digest } = materialize([...term(), extra] as Fetched, tasks, NOW);
-    expect(digestNotices(digest, NOW)).toEqual([{ title: "Buổi học bù: Môn mẫu", sub: expect.any(String), route: expect.stringMatching(/^\/task\//) }]);
+    expect(digestNotices(digest, NOW).map((n) => ({ ...n, title: plainText(n.title) }))).toEqual([{ title: "Buổi học bù: Môn mẫu", sub: expect.any(String), route: expect.stringMatching(/^\/task\//) }]);
   });
 
   it("says a future upstream item the campus took back, and not a past one", () => {
     const gone = stored(lecture());
     const { digest, deletes } = materialize([] as unknown as Fetched, [gone], NOW);
     expect(deletes).toEqual([gone.id]);
-    expect(digestNotices(digest, NOW)).toEqual([{ title: "Đã huỷ: Môn mẫu", sub: expect.any(String) }]);
+    expect(digestNotices(digest, NOW).map((n) => ({ ...n, title: plainText(n.title) }))).toEqual([{ title: "Đã huỷ: Môn mẫu", sub: expect.any(String) }]);
     const past = stored(lecture("portal:lecture:S1:2026-08-01:1", NOW - D));
     expect(materialize([] as unknown as Fetched, [past], NOW).digest.cancelled).toEqual([]);
   });
