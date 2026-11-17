@@ -1,5 +1,36 @@
 # zen
 
+## 26.0.9
+
+### Patch Changes
+
+- "và" tách việc: "học toán và đọc sách trong tháng này" là 2 việc, cùng hạn 30/11
+    - Mỗi bên có động từ riêng mới tách; "gặp Lan và Minh", "mua sữa và trứng" vẫn là một việc
+    - Ngày, buổi nói ở đầu hay cuối câu dùng chung cho mọi việc; nói riêng cho việc nào thì giữ cho việc đó
+    - Tên không còn mất chữ: "Gặp Lan và Minh" giữ "Minh", "rửa xe chiều nay" giữ "xe"
+- Chia buổi hợp lý hơn
+    - Báo cáo, thuyết trình, kế hoạch, nội dung, thiết kế, nghiên cứu tự chia khoảng 3 buổi, không còn 1-2 buổi
+    - Hiểu thêm: ứng tuyển, viết CV, chuyển nhà, lên kế hoạch du lịch, tổ chức sinh nhật, đám cưới, dọn tủ, tìm hiểu đầu tư, hồ sơ vay, bảo hiểm
+    - Ôn thi theo loại bài thi: kiểm tra 2 buổi, giữa kỳ 6 buổi, cuối kỳ 10 buổi; thêm theo số tín chỉ, thi lại dài hơn
+    - Ôn thi học theo nhịp của bạn: làm lâu hơn dự tính thì lần sau dài hơn
+    - Mỗi ngày một buổi; ngày kín lịch học thì không xếp, tuần dày lịch thì ít buổi mà dài hơn (tới 2h) vào ngày rảnh
+    - Buổi ôn cuối xong trước 22h hôm trước, không còn xếp vào sáng ngày thi
+- Độ dài tự đoán luôn tròn nửa giờ hay một giờ, kể cả khi co cho vừa chỗ trống; không còn 1h15p, 1h45p
+- Lịch bớt xáo trộn
+    - Việc trong 24 giờ tới đứng yên, trừ khi giờ đó không còn dùng được; xong sớm không kéo việc ngày mai sang hôm nay
+    - Mỗi lần xếp lại dời tối đa 5 việc không có lý do
+    - Việc không có hạn được xếp trong cả tuần, không còn dồn vào 2 ngày tới
+- Việc chưa có giờ tự vào chỗ trống ngay khi có, kể cả khi xoá một việc đã qua hay mở lại app
+- Thấy được zen đã dời gì
+    - "Xếp lại 3 việc · Xem" hiện ở cả ngày và tuần, còn đó tới khi bạn mở hay vuốt ẩn, không mất khi chuyển màn hình
+    - Việc bị dời có chấm đỏ trong tuần
+- Hết việc trong ngày không còn giục làm tiếp
+    - "Ngày mai" và "Mai 8:00, ..." chỉ hiện sau 20h và khi đã hết việc trong ngày
+    - Ngày đã qua hiện "Xong hết rồi", không còn "Hôm nay xong rồi"
+    - "...p trống, hợp làm ..." chỉ gợi ý việc của hôm nay
+- "Các buổi": thêm buổi bằng nút "Thêm buổi" lớn, bỏ một buổi bằng dấu x bên cạnh; cột ngày hẹp lại cho tên dài hơn
+- Nút, ô chọn dễ chạm hơn: mọi nút nhỏ đều nhận chạm trong vùng 48pt; nút, viên chọn, mũi tên lịch và ô ngày to hơn
+
 ## 26.0.8
 
 ### Patch Changes
