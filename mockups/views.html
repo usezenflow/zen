@@ -15,11 +15,25 @@
 .say + .say { margin-top: 8px; }
 .say svg { flex-shrink: 0; color: var(--ink); }
 .say b { color: var(--ink); font-weight: 600; }
+/* Moves zen made that you have not looked at: one pill under the header in every view, kept until tapped or swiped. */
+.mvp { margin-top: 14px; height: 48px; padding: 0 6px 0 16px; border-radius: 99px; background: var(--chip); display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; }
+.mvp .dt { width: 8px; height: 8px; border-radius: 99px; background: var(--seal); flex: none; }
+.mvp .sp { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mvp .sp small { color: var(--muted); font-weight: 500; }
+.mvp .x { height: 36px; padding: 0 12px; border-radius: 99px; background: var(--ink); color: var(--bg); display: flex; align-items: center; font-size: 14px; }
+/* A moved block in a week column: the same vermilion dot as the row trail, on its top right corner. */
+.wk .b.mv { position: relative; }
+.wk .b.mv::after { content: ""; position: absolute; top: 3px; right: 3px; width: 7px; height: 7px; border-radius: 99px; background: var(--seal); box-shadow: 0 0 0 2px var(--bg); }
+/* Các buổi: a minus on each open sitting, and one add row at the end. */
+.si .x { flex: none; width: 40px; height: 48px; display: grid; place-items: center; color: var(--muted); }
+.si.add { margin-top: 10px; height: 48px; border-radius: 99px; border: 1px solid var(--line); justify-content: center; align-items: center; color: var(--ink); font-weight: 600; }
+.si.add .d { width: auto; color: var(--ink); }
+.si.add .p { flex: none; }
 .wk .nil { height: 150px; border-radius: 10px; border: 1px dashed var(--line); }
 .inl { margin-top: 10px; padding: 14px 16px; border-radius: 22px; background: var(--chip); display: flex; align-items: center; gap: 12px; }
 .inl b { display: block; font-size: 16px; font-weight: 600; }
 .fold { height: 48px; border-radius: 16px; border: 1px solid var(--line); display: flex; align-items: center; padding: 0 16px; font-size: 15px; font-weight: 500; color: var(--muted); }
-.go { position: absolute; right: 0; bottom: 0; height: 30px; padding: 0 12px; border-radius: 99px; border: 1px solid var(--line); display: flex; align-items: center; font-size: 14px; font-weight: 600; }
+.go { position: absolute; right: 0; bottom: 0; height: 36px; padding: 0 12px; border-radius: 99px; border: 1px solid var(--line); display: flex; align-items: center; font-size: 14px; font-weight: 600; }
 .inl small { display: block; margin-top: 2px; font-size: 14px; color: var(--muted); font-weight: 500; }
 /* System notification banner (iOS style), drawn by the OS, not by Zen: only the words are ours. */
 .nt { position: absolute; top: 46px; left: 10px; right: 10px; z-index: 30; display: flex; gap: 10px; padding: 12px 14px; border-radius: 22px; background: rgba(245,245,245,.86); backdrop-filter: blur(20px); color: #111; box-shadow: 0 16px 34px -18px rgba(0,0,0,.45); }
@@ -55,8 +69,8 @@
 .kd { display: inline-flex; align-items: center; gap: 4px; }
 /* Các buổi (as prep.html): day, step, length; done ones struck, the next one bold. */
 .sits { margin-top: 6px; }
-.si { display: flex; align-items: baseline; gap: 10px; padding: 7px 0; font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; }
-.si .d { width: 92px; flex: none; color: var(--muted); }
+.si { display: flex; align-items: center; gap: 8px; padding: 7px 0; font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.si .d { width: 74px; flex: none; color: var(--muted); }
 .si .p { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .si .m { color: var(--muted); }
 .si.done .p, .si.done .d { text-decoration: line-through; text-decoration-color: var(--muted); color: var(--muted); }
@@ -168,10 +182,12 @@ const noteLms = "Hỏi Lan về phần kiểm tra.";
 const detail = dt("assignment", "Từ LMS", "Bài tập lớn: Quản lý sinh viên",
   ml("hourglass", `Hạn ${when("2026-11-23", "23:59")}`, "red") + ml("clock", `Làm ${when("2026-11-20", "14:00")} - 15:00`) + ml("book", "Lập trình Web") + ml("link", `Mở trên LMS ${ic(I.right, 16)}`, "lk"), noteLms, lmsBody);
 // Split into sittings: the time line is the next open sitting's (tap to change it); "Các buổi" lists them all as prep.html does.
-const si = (d, p, m, cls = "") => `<div class="si ${cls}"><span class="d">${d}</span><span class="p">${p}</span><span class="m">${m}</span></div>`;
+const si = (d, p, m, cls = "") => `<div class="si ${cls}"><span class="d">${d}</span><span class="p">${p}</span><span class="m">${m}</span>${cls === "done" ? '<span class="x" style="visibility:hidden"></span>' : `<span class="x" aria-label="Bỏ buổi này">${ic(I.x, 20, 2)}</span>`}</div>`;
+// The last row of Các buổi: one more sitting of the same length after the last (addSitting), with Hoàn tác in the toast.
+const siAdd = `<div class="si add"><span class="d">${ic(I.plus, 20, 2.2)}</span><span class="p">Thêm buổi</span></div>`; // a whole-width 48px button, never a bare "+"
 const detailSplit = dt("assignment", "Từ LMS", "Bài tập lớn: Quản lý sinh viên",
   ml("hourglass", `Hạn ${when("2026-11-23", "23:59")}`, "red") + ml("clock", `Làm ${when("2026-11-19", "14:00")} - 15:00`) + ml("book", "Lập trình Web") + ml("link", `Mở trên LMS ${ic(I.right, 16)}`, "lk"), noteLms,
-  `<div class="lab" style="margin-top:20px">Các buổi</div><div class="sits">${[si("T3 17/11", "Bài tập lớn: Quản lý sinh viên", "60p", "done"), si(when("2026-11-19"), "Bài tập lớn: Quản lý sinh viên", "60p", "me"), si(when("2026-11-21"), "Bài tập lớn: Quản lý sinh viên", "60p")].join("")}</div>` + lmsBody);
+  `<div class="lab" style="margin-top:20px">Các buổi</div><div class="sits">${[si("T3 17/11", "Bài tập lớn: Quản lý sinh viên", "60p", "done"), si(when("2026-11-19"), "Bài tập lớn: Quản lý sinh viên", "60p", "me"), si(when("2026-11-21"), "Bài tập lớn: Quản lý sinh viên", "60p")].join("")}${siAdd}</div>` + lmsBody);
 // No free, awake slot before it is due: the time line says so in vermilion and opens the time chips to pick one.
 const detailNoSlot = dt("plan", mine("Học"), "Ôn lý thuyết, luyện đề",
   ml("hourglass", `Hạn ${when("2026-11-17", "7:00")}`, "red") + ml("clock", `Chưa có giờ trống · <b>Chọn giờ</b>`, "red") + ml("book", `Giải tích 2 ${ic(I.right, 16)}`, "lk"), "Làm lại bài tập chương 3.", "", dtop2);
@@ -179,7 +195,8 @@ const detailLec = (m = "") => dt("lecture", "Từ Online", "Cấu trúc dữ li�
   ml("clock", `${when("2026-11-18", "7:00")} - 9:30`) + ml("pin", "A2.301") + ml("person", "GV Nguyễn Văn A"), '<span class="note ph">Thêm ghi chú</span>') + m;
 const detailExam = dt("exam", "Từ Online", "Thi Giải tích 2", ml("clock", when("2026-11-27", "8:00")) + ml("pin", "A2.301"), '<span class="note ph">Thêm ghi chú</span>');
 const detailPrep = dt("plan", mine("Học"), "Ôn lý thuyết, luyện đề",
-  ml("clock", `Làm ${when("2026-11-19", "8:00")} - 9:00`) + ml("book", `Giải tích 2 ${ic(I.right, 16)}`, "lk"), "Làm lại bài tập chương 3.", "", dtop2);
+  ml("clock", `Làm ${when("2026-11-19", "8:00")} - 9:00`) + ml("book", `Giải tích 2 ${ic(I.right, 16)}`, "lk"), "Làm lại bài tập chương 3.",
+  `<div class="lab" style="margin-top:20px">Các buổi</div><div class="sits">${[si("T3 17/11", "Ôn lý thuyết, luyện đề", "60p", "done"), si(when("2026-11-19"), "Ôn lý thuyết, luyện đề", "60p", "me"), si(when("2026-11-21"), "Ôn lý thuyết, luyện đề", "60p"), si(when("2026-11-23"), "Ôn lý thuyết, luyện đề", "60p"), si(when("2026-11-25"), "Ôn lý thuyết, luyện đề", "60p"), si(when("2026-11-26"), "Ôn lý thuyết, luyện đề", "60p")].join("")}${siAdd}</div>`, dtop2);
 const detailRep = (m = "") => dt("plan", mine("Khác"), "Đọc sách mỗi tối",
   ml("clock", "20:00 - 20:30") + ml("repeat", "Mỗi ngày"), "Đọc chương đang dở.", "", dtop2) + m;
 const PH = '<span class="note ph">Thêm ghi chú</span>';
@@ -253,6 +270,13 @@ const weekDrag = `${head("Tuần này", "16 - 22/11", "14 việc, 1 bài thi")}$
   <div class="lab" style="margin-top:28px">T3, 17/11</div>
   <div class="list" style="margin-top:6px"><div style="opacity:.45">${row("8:00", "Ôn thi", "plan", "", "Buổi 2/2 · Xác suất")}</div>${row("13:30", "Thi Xác suất", "exam", "", "Trắc nghiệm, B1.201")}</div>
   <div style="position:absolute;left:236px;top:268px;height:40px;padding:0 16px;border-radius:99px;background:var(--ink);color:var(--bg);display:flex;align-items:center;font:700 15px/1 inherit;box-shadow:0 14px 30px -10px rgba(0,0,0,.45)">Ôn thi</div>`;
+// Moves you have not looked at: one pill under the header, in week and day view alike, until tapped or swiped; moved blocks carry the dot.
+const mvp = (n) => `<div class="mvp"><span class="dt"></span><span class="sp">Xếp lại ${n} việc <small>· Ôn Giải tích sang T5 9:00</small></span><span class="x">Xem</span></div>`;
+const weekMoved = `${head("Tuần này", "16 - 22/11", "14 việc, 1 bài thi")}${tabs("Tuần")}${mvp(2)}${wk(W).split('<div class="c">').map((c, i) => (i === 4 || i === 6 ? c.replace('<span class="b"', '<span class="b mv"') : c)).join('<div class="c">')}${wkList}`;
+const dayMoved = `${head("T2", "16/11", "5 việc, 1 tiết học")}${tabs("Ngày")}
+  ${next("plan", "Ôn Giải tích", "10p", "đến 14:30", "35%")}${mvp(2)}
+  <div class="lab" style="margin-top:22px">Sau đó</div>
+  <div class="list" style="margin-top:6px">${row("16:00", "Báo cáo nhóm", "assignment", "", "Hạn 23:59")}${row("17:30|19:00", "Cơ sở dữ liệu", "lecture", "", "A2.104")}${row("19:00", "Ăn tối với Minh", "busy")}</div>`;
 const weekPacked = `${head("Tuần này", "16 - 22/11", "31 việc, 1 bài thi")}${tabs("Tuần")}${wk(WP)}${wkList}`;
 const pick = (d) => [[], ["plan"], ["lecture", "plan"], ["lecture", "plan", "assignment"], ["exam"], ["plan", "plan"], []][d % 7];
 const month = `${head("Năm 2026", "Tháng 11", "42 việc, 3 bài thi", 1)}${tabs("Tháng")}
@@ -287,8 +311,12 @@ const dayFree = `${head("T7", "21/11", "Không có việc")}${tabs("Ngày")}
   <div class="list" style="margin-top:6px">${row("7:00", "Cấu trúc dữ liệu", "lecture", "", `${when("2026-11-23")}, A2.301`)}${row("23:59", "Viết luận Triết", "assignment", "", `${when("2026-11-23")}, Hạn 23:59`)}${row("8:00", "Thi Giải tích 2", "exam", "", `${when("2026-11-27")}, A2.301`)}</div>`;
 const dayDone = `${head("T2", "16/11", "5 việc, xong hết")}${tabs("Ngày")}
   ${rest("Hôm nay", "Xong hết rồi", "5 việc, 1 tiết học. Phần còn lại của ngày là của bạn.", "color")}
+  <div class="lab" style="margin-top:28px">Xong (5) ${ic(I.down, 14)}</div>`;
+// After 20:00 and past the day's last block: the day is over, so tomorrow may show.
+const dayNight = `${head("T2", "16/11", "5 việc, xong hết")}${tabs("Ngày")}
+  ${rest("Hôm nay", "Hôm nay xong rồi", "Mai 8:00, Ôn thi", "color")}
   <div class="lab" style="margin-top:28px">Ngày mai</div>
-  <div class="list" style="margin-top:6px">${row("8:00", "Ôn thi", "plan", "", "Buổi 2/2 · Xác suất")}${row("13:30", "Thi Xác suất", "exam", "", "B1.201")}</div>
+  <div class="list" style="margin-top:6px">${row("8:00", "Ôn thi", "plan", "", "Buổi 2/6 · Xác suất")}${row("13:30", "Thi Xác suất", "exam", "", "B1.201")}</div>
   <div class="lab" style="margin-top:20px">Xong (5) ${ic(I.down, 14)}</div>`;
 const dayFirst = `${head("Chào bạn", "T2, 16/11", "Chưa có gì")}${tabs("Ngày")}
   ${rest("Bắt đầu", "Giữ nút và kể tuần này", "Nói như nhắn cho bạn. zen tự xếp giờ.", "line", 168)}
@@ -376,7 +404,9 @@ const dayFold = `${head("T3", "17/11", "14 việc")}${tabs("Ngày")}
 mount([
   { tag: "Day", sub: "Next up is the art card; its meter fills continuously as the block runs, not in steps. Its circle marks it done. Below, the rest of today.", html: chrome(day("")) },
   { tag: "Day, empty", sub: "No blank screen. The rest card takes the art card's slot, with the leaf in outline. Below it, what's coming in the next days, so the screen is still useful.", html: chrome(dayFree) },
-  { tag: "Day, all done", sub: "Everything ticked. The leaf fills in, done rows collapse, and tomorrow moves up to take the space.", html: chrome(dayDone) },
+  { tag: "Day, all done", sub: "Everything ticked before the evening. The leaf fills in and done rows collapse. Nothing from tomorrow and no gap card: the rest of the day is yours.", html: chrome(dayDone) },
+  { tag: "Day, all done, night", sub: "From 20:00, once the day's last block has ended, the day is over: the rest card names tomorrow's first task and tomorrow's rows show under it.", html: chrome(dayNight) },
+  { tag: "Day, moved", sub: "Zen moved things you have not looked at, here while a block is running: the pill sits under the now card instead of taking its place. It names how many and the biggest move. Xem opens the story in place (Brief, opened) with Undo; a swipe hides it. It stays across views and app launches until then.", html: chrome(dayMoved) },
   { tag: "Day, first launch", sub: "Nothing anywhere yet. The space teaches instead: three lines you could say, dashed like they're waiting to be filled, and the school link below.", html: chrome(dayFirst) },
   { tag: "Day, listening", sub: "Hold the button: the day stays behind the glow until the first word is heard, then the words take the screen. Words appear live as you speak: settled words in ink, the word still being heard faded; each new word fades in rising 4px. Below, five bars after LiveKit's visualizer follow your voice, the middle one tallest.", html: chrome(`<div class="words">Mai nhắc mình nộp báo cáo<em> nhóm</em></div>${VIZ("speak")}`, { dock: "live" }) },
   { tag: "Day, listening, a pause", sub: "Between words the bars settle back to five dots and the middle one breathes, so a quiet moment still reads as listening. The words stay.", html: chrome(`<div class="words">Mai nhắc mình nộp báo cáo nhóm</div>${VIZ("silent")}`, { dock: "live" }) },
@@ -398,7 +428,7 @@ mount([
   { tag: "Detail, no free time", sub: "When nothing before the due fits (classes, sleep hours and other work fill it), the task has no time. Its line says “Chưa có giờ trống” in vermilion; “Chọn giờ” opens the same time chips to set one by hand.", html: chrome(detailNoSlot, { dock: null }) },
   { tag: "Detail, lecture", sub: "Lectures lead with room and teacher; the note stays yours. No Lặp lại line: the timetable is just flexible busy time. Trash opens the dropdown (same section: this, this and later, all).", html: chrome(detailLec(menu(DEL)), { dock: null }) },
   { tag: "Detail, exam", sub: "Exam: time and room as meta, note below.", html: chrome(detailExam, { dock: null }) },
-  { tag: "Detail, exam prep", sub: "A prep task is titled by what to do for the exam format: Viết báo cáo, Viết tiểu luận, Ôn lý thuyết, luyện đề, Luyện thực hành, Luyện vấn đáp, else Ôn thi. The subject is not in the title: it is the link here (tappable, opens the exam), and the row's small line reads Buổi 1/4 · subject (which sitting, then the subject, never the due: the exam's own row has the time). Its length follows the student's marks, in half hours; sittings are at most an hour.", html: chrome(detailPrep, { dock: null }) },
+  { tag: "Detail, exam prep", sub: "A prep task is titled by what to do for the exam format: Viết báo cáo, Viết tiểu luận, Ôn lý thuyết, luyện đề, Luyện thực hành, Luyện vấn đáp, else Ôn thi. The subject is not in the title: it is the link here (tappable, opens the exam), and the row's small line reads Buổi 1/4 · subject (which sitting, then the subject, never the due: the exam's own row has the time). Its length follows the exam (quiz, midterm, final), credits, a retake, the marks and your pace, in half hours: sittings of up to an hour, one a day (a final: 10), longer on the few light days of a class-heavy week, the last one by the evening before. Các buổi lists them: − drops that sitting and its minutes (Hoàn tác beside it; not on the last open one, which would delete the task), + Thêm buổi adds one after the last.", html: chrome(detailPrep, { dock: null }) },
   { tag: "Detail, repeating", sub: "Only the user's own repeating task shows a repeat line. It has no end, so just Mỗi ngày. Trash opens the same three-option dropdown.", html: chrome(detailRep(menu(DEL)), { dock: null }) },
   { tag: "Detail, single task", sub: "Your own task. The tag names its kind; the time line is where Zen put it. Every line you can change is tappable, and the dots hold what the task does not have yet. Not a series: the trash deletes at once, no menu.", html: chrome(detailPlain, { dock: null }) },
   { tag: "Detail, change the time", sub: "Tap the time line: it becomes four chips in place on one line: the start day and time, đến, the end day and time. A time chip (ringed) drops zen's small dial over the page, hours and minutes in steps of 15, with 8:00, 14:00, 17:00 and 20:00 under the drums, two to a line, one tap each. On today the dial runs from now to midnight: hours gone are not on the drum, the current hour starts at the next quarter, and a preset already past is greyed out; the day chip drops zen's calendar; a day picked with its time already gone (today) moves the time to the next quarter hour. One is open at a time. Nothing is saved while the line is open: a muted line under the chips says what the time would move (magic 7c). Close the line and the time is saved and Zen re-plans once; what moved shows in place (magic 7d). Moving the end changes the length, and an end before the start runs past midnight. A time you set is kept; Zen plans the rest around it.", html: chrome(detailTime, { dock: null }) },
@@ -440,6 +470,7 @@ mount([
   { tag: "Search, a series", sub: "A repeat is one row, not one per week: its next time, with the repeat line from its detail. Lectures of one course and the sittings of a split assignment collapse the same way. Tap opens that occurrence.", html: chrome(sv(foundRep), { dock: null }) },
   { tag: "Search, nothing found", sub: "No match: the same small inline note as an empty day, in place of rows.", html: chrome(sv(foundNone), { dock: null }) },
   { tag: "Week", sub: "Today in an ink pill. Fixed-height columns. Swipe sideways for the previous or next week; tap a day to see it below.", html: chrome(week) },
+  { tag: "Week, moved", sub: "The same pill under the header. Each moved block carries the row trail's vermilion dot in its corner until the move is seen. Tapping the pill or a dotted block opens the story. At most 5 tasks move without a cause in one re-plan, and nothing in the next 24 hours moves unless its time stopped working.", html: chrome(weekMoved) },
   { tag: "Week, drag to another day", sub: "Hold a row and move it: a chip with its title rides above the finger and the day under it turns vermilion. Rest at the left or right edge to page to the previous or next week (month view the same, by month). Let go on a day: the task moves there at the same time of day, the list shows that day, and the toast has Undo. Let go anywhere else, or on a past day: nothing moves. Hold without moving still opens the hold menu.", html: chrome(weekDrag) },
   { tag: "Week, empty", sub: "Columns keep their height as dashed slots, so the grid reads as room, not as missing. A short inline note, then what's left of this week.", html: chrome(weekFree) },
   { tag: "Week, packed", sub: "Columns never grow. T3 compresses proportionally; T5 has too many for even the minimum height, so it shows what fits and a +n chip.", html: chrome(weekPacked) },

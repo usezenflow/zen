@@ -35,7 +35,7 @@ body { font-family: 'Be Vietnam Pro', system-ui, sans-serif; background: var(--p
 .pills { display: flex; gap: 8px; flex-wrap: wrap; }
 .pl { white-space: nowrap; height: 44px; padding: 0 20px; border-radius: 99px; border: 1px solid var(--line); display: grid; place-items: center; font-size: 15px; font-weight: 500; }
 .pl.on { background: var(--ink); color: var(--bg); border-color: var(--ink); font-weight: 700; }
-.pl.sm { height: 36px; padding: 0 16px; font-size: 15px; }
+.pl.sm { height: 40px; padding: 0 16px; font-size: 15px; }
 /* Heads-up pills carry task names, so each is a full-width block, one under the other; a title too long still ends in an ellipsis. */
 .pills.blk { flex-direction: column; flex-wrap: nowrap; }
 .pills.blk .pl { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; line-height: 34px; padding: 0 18px; }
@@ -99,7 +99,7 @@ body { font-family: 'Be Vietnam Pro', system-ui, sans-serif; background: var(--p
 .toast .tl .tx { flex: 1; }
 .ring { flex: none; width: 30px; height: 30px; }
 .toast .acts { display: flex; justify-content: flex-end; gap: 8px; }
-.toast .a { flex: none; height: 36px; padding: 0 13px; border-radius: 99px; display: grid; place-items: center; font-size: 15px; font-weight: 700; background: var(--bg); color: var(--ink); white-space: nowrap; }
+.toast .a { flex: none; height: 40px; padding: 0 13px; border-radius: 99px; display: grid; place-items: center; font-size: 15px; font-weight: 700; background: var(--bg); color: var(--ink); white-space: nowrap; }
 .toast .a.ol { background: none; color: var(--bg); border: 1px solid rgba(127,127,127,.5); }
 
 /* Week and month */

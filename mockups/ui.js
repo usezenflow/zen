@@ -102,6 +102,7 @@ const VIZ = (mode, lv = [0.4, 0.75, 1, 0.65, 0.35], lit = 2) => `<div class="vba
 // Menu-row icons (src/components/icons.tsx): each action its own, no two deletes share the bin; place is I.pin, the rest from I.
 const MI = {
   minus: '<circle cx="12" cy="12" r="8.5"/><path d="M8.5 12h7"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
   toEnd: '<path d="M4 12h12M12 7l5 5-5 5M20 5v14"/>',
   undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
   pushpin: '<path d="M9 4h6l-1 6 3 3H7l3-3-1-6Z"/><path d="M12 13v7"/>',
