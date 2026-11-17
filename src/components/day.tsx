@@ -174,7 +174,7 @@ const mins = (n: number) => {
   return h === 0 ? t("minsN", { n: Math.max(15, q) }) : m === 0 ? t("hoursN", { h }) : m === 30 ? t("hoursHalf", { h }) : t("hoursMins", { h, n: m });
 };
 
-// `trail`/`reason`: sub lines by task id, built once per refresh. `moves`: unseen, for ghosts. `warns`: today only.
+// `trail`: sub lines by task id, built once per refresh. `moves`: unseen, for ghosts. `warns`: today only.
 // "5 việc, 1 tiết học": the done day's count, as the header says it.
 const doneCount = (xs: Task[]) => {
   const l = xs.filter((x) => typeOf(x) === "lecture").length, a = xs.length - l;
@@ -284,9 +284,9 @@ export function Found({ tasks, q: raw, now, ...act }: RowActions & { tasks: Task
 const dmOf = (ms: number) => { const d = new Date(ms); return `${d.getDate()}/${d.getMonth() + 1}`; };
 
 // `empty`: what an empty day shows (views.html). rest: the art slot's card plus what's next; week: the whole week is empty; inl: a small note in place of rows.
-export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl", onMove, onKeep, trail, reason, moves, warns, onFix, rules = [], ...act }: RowActions & {
+export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl", onMove, onKeep, trail, moves, warns, onFix, rules = [], ...act }: RowActions & {
   tasks: Task[]; hols: Hols; day: number; now: number; pop: Set<string>; overlaps: Overlap[]; label?: string; empty?: "rest" | "inl" | "week"; onMove: (o: Overlap) => void; onKeep: (o: Overlap) => void; rules?: Rule[];
-  trail: Record<string, string>; reason: Record<string, string>; moves: Move[]; warns: Warn[]; onFix: (w: Warn, f: Warn["fixes"][number]) => void;
+  trail: Record<string, string>; moves: Move[]; warns: Warn[]; onFix: (w: Warn, f: Warn["fixes"][number]) => void;
 }) {
   const th = useTheme();
   const [open, setOpen] = useState(false);
@@ -334,7 +334,7 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
   const sitDay = later.length ? startOfDay(Math.min(...later.map((x) => x.start!))) : undefined;
   const sits = sitDay === undefined ? [] : later.filter((x) => startOfDay(x.start!) === sitDay).sort((a, b) => a.start! - b.start!);
   // a row under the lifted one drops its separator: the line would cut across the raised card
-  const row = (x: Task, i: number, d = false, g?: Move, prev?: Task, on = day) => <Row key={x.id} task={x} now={now} tm={carried(x, day, t("allDay"))} on={on} first={i === 0 || prev?.id === act.lifted} done={d || !live(x)} trail={g ? undefined : trail[x.id]} sub={g ? t("ghostTo", { when: when(g.to, now) }) : x.forId ? subOf(x, "plan", now, tasks) : reason[x.id]} ghost={!!g} lifted={act.lifted === x.id} onHold={g || !act.itemsFor(x).length ? undefined : (b, t) => act.onHold(x, b, t)} onDelete={g ? undefined : () => act.onSwipeDelete(x)} onSeries={(b, t) => act.onSwipeDelete(x, b, t)} onToggle={() => act.onToggle(x)} onTitle={(v) => act.onTitle(x, v)} onTime={(a) => act.onTime(x, a)} onEnd={act.onEnd && ((a) => act.onEnd!(x, a))} onOpen={() => act.onOpen(x)} drag={g ? undefined : act.drag} />;
+  const row = (x: Task, i: number, d = false, g?: Move, prev?: Task, on = day) => <Row key={x.id} task={x} now={now} tm={carried(x, day, t("allDay"))} on={on} first={i === 0 || prev?.id === act.lifted} done={d || !live(x)} trail={g ? undefined : trail[x.id]} sub={g ? t("ghostTo", { when: when(g.to, now) }) : x.forId ? subOf(x, "plan", now, tasks) : undefined} ghost={!!g} lifted={act.lifted === x.id} onHold={g || !act.itemsFor(x).length ? undefined : (b, t) => act.onHold(x, b, t)} onDelete={g ? undefined : () => act.onSwipeDelete(x)} onSeries={(b, t) => act.onSwipeDelete(x, b, t)} onToggle={() => act.onToggle(x)} onTitle={(v) => act.onTitle(x, v)} onTime={(a) => act.onTime(x, a)} onEnd={act.onEnd && ((a) => act.onEnd!(x, a))} onOpen={() => act.onOpen(x)} drag={g ? undefined : act.drag} />;
   const rowAt = ({ x, g }: (typeof rows)[number], i: number) => (
           // Wrapper outside the row's HoldMenu: inserts, moves to Done, undo and re-sorts glide instead of jumping. A moved row arrives with a lift.
           <Animated.View key={g ? `g${x.id}` : x.id} entering={trail[x.id] && !g ? FadeInUp.duration(220).easing(EASE) : fadeIn} exiting={fadeOut} layout={glide}>

@@ -4,7 +4,7 @@
 
 ### Patch Changes
 
-- Cảnh báo trùng giờ cũng hiện khi bạn kéo giờ bắt đầu về quá khứ nhưng việc vẫn chưa kết thúc
+- Kéo giờ bắt đầu về quá khứ khi việc vẫn chưa kết thúc: các việc linh hoạt bị đè, kể cả việc đang làm, được xếp lại
 
 ## 26.0.7
 

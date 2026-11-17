@@ -11,7 +11,7 @@ const occurrence = (day: number) => task({ title: "Đọc 10 cuốn sách", kind
 
 const draw = async (day: number, tasks: ReturnType<typeof task>[], now = NOW, empty?: "rest") => render(
   <GestureHandlerRootView>
-    <Day tasks={tasks} hols={new Map()} day={day} now={now} empty={empty} pop={new Set()} overlaps={[]} trail={{}} reason={{}} moves={[]} warns={[]} rules={[]}
+    <Day tasks={tasks} hols={new Map()} day={day} now={now} empty={empty} pop={new Set()} overlaps={[]} trail={{}} moves={[]} warns={[]} rules={[]}
       onFix={jest.fn()} onMove={jest.fn()} onKeep={jest.fn()} onToggle={jest.fn()} onTitle={jest.fn()} onTime={jest.fn()} onOpen={jest.fn()}
       itemsFor={() => []} onHold={jest.fn()} onSwipeDelete={jest.fn()} />
   </GestureHandlerRootView>,
