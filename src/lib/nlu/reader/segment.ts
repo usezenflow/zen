@@ -3,6 +3,7 @@
 import { fold } from "./fold";
 import { findMentions } from "./mentions";
 import { PART_WORD } from "./parts";
+import { andCuts } from "./order";
 
 export type LabelKind = "time" | "place" | "content";
 
@@ -234,6 +235,8 @@ export function segment(text: string): Clause[] {
       const labelled = fold(rawLn.slice(0, i)).text.search(INLINE_LABEL_RE) >= 0;
       cuts.push({ at: i, next: i + 1, comma: !labelled && rawLn[i] !== "." && rawLn[i] !== "!" && rawLn[i] !== "?" });
     }
+    // "học toán và đọc sách": an "và" join between tasks cuts like a comma
+    for (const j of andCuts(rawLn)) cuts.push({ at: j.at, next: j.end });
     cuts.sort((a, b) => a.at - b.at);
     const starts = [0, ...cuts.map((c) => c.next)];
     const ends = [...cuts.map((c) => c.at), rawLn.length];

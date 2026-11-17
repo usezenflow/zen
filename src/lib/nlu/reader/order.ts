@@ -7,6 +7,8 @@ import type { ReaderItem } from "../shared";
 const TASK_WORDS = new Set([
   "hoc",
   "lam",
+  "rua",
+  "sua",
   "nop",
   "doc",
   "viet",
@@ -186,6 +188,24 @@ export function joinConnectors(clauses: Clause[]): Clause[] {
     else out.push(c);
   }
   return out;
+}
+
+/**
+ * The "và" joins of a clause that cut it into one piece per task, when every side names its own task verb
+ * ("học toán và đọc sách"); a shared object stays whole ("gặp Lan và Minh"). `at`..`end` is the join word.
+ */
+export function andCuts(text: string): { at: number; end: number }[] {
+  // a correction's cue keeps its clause whole: chainOf cuts it
+  if (fold(text).text.search(CORRECTION) >= 0) return [];
+  const joins = [...text.matchAll(new RegExp(LIST_SEP.source, "gi"))]
+    .filter((m) => /\p{L}/u.test(m[0]))
+    .map((m) => {
+      const at = (m.index ?? 0) + m[0].search(/\S/);
+      return { at, end: at + m[0].trim().length };
+    });
+  if (!joins.length) return [];
+  const sides = text.split(new RegExp(LIST_SEP.source, "i"));
+  return sides.every((s) => hasTaskWord(s) && !hasFixed(s)) ? joins : [];
 }
 
 /** Cuts a clause at its order connectors. `edges` joins each part to the next: [k, k + 1]. */

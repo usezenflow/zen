@@ -166,7 +166,7 @@ const CUES = new Set([
   "khuya",
 ]);
 /** The raw spellings of a cue whose folded form other words share. */
-const CUE_SPELLING: Record<string, string[]> = { de: ["để", "de"], ban: ["bạn", "ban"], thu: ["thứ", "thu"], han: ["hạn", "han"] };
+const CUE_SPELLING: Record<string, string[]> = { de: ["để", "de"], ban: ["bạn", "ban"], thu: ["thứ", "thu"], han: ["hạn", "han"], minh: ["mình"] };
 /** Folded words that make "từ" part of a compound (từ vựng, từ điển), not a cue. */
 const TU_WORDS = new Set(["vung", "dien", "khoa"]);
 /** Folded word pairs whose cue word is part of a name. */
@@ -252,7 +252,7 @@ const TRUOC_NGAY =
 /** Cues that make a part of the day the deadline's clock before it. */
 const BEFORE_CUE = /\b(truoc|trc|cham nhat|muon nhat|tre nhat|kip)\b/;
 const PHRASE_CUE =
-  /\b(trong gio hanh chinh|ngoai gio hoc|dau tien (?=(?:moi |hang |cua )?thang)|cuoi cung (?=(?:moi |hang |cua )?thang)|cham nhat|muon nhat|tre nhat|kip|(?<!(?:kham|danh|nho|nieng|tram|lam|tay|chua|boc|nhuc|dau) )rang sang|sang som|buoi trua|giua trua|xe chieu|cuoi gio chieu|chieu toi|nua dem|trong (?:vong |khoang )?\d{1,3} ?(?:ngay|tuan|thang)|\d{1,3} (?:buoi|lan)|bat dau|keo dai|ket thuc(?=\s*:|\s+\d)|mat(?=\s+(?:khoang\s+|hon\s+|gan\s+|tam\s+)?\d)|tong cong|tong(?=\s+(?:khoang\s+|hon\s+|gan\s+|tam\s+)?\d)|in total|sau (?:bua|an) (?:trua|toi)|truoc khi ngu|sau khi thuc day|viec dau tien)\b/g;
+  /\b(trong gio hanh chinh|ngoai gio hoc|dau tien (?=(?:moi |hang |cua )?thang)|cuoi cung (?=(?:moi |hang |cua )?thang)|cham nhat|muon nhat|tre nhat|kip|(?<!(?:kham|danh|nho|nieng|tram|lam|tay|chua|boc|nhuc|dau) )rang sang|sang som|buoi trua|giua trua|(?<!(?:rua|lai|sua|dat|di) )xe chieu|cuoi gio chieu|chieu toi|nua dem|trong (?:vong |khoang )?\d{1,3} ?(?:ngay|tuan|thang)|\d{1,3} (?:buoi|lan)|bat dau|keo dai|ket thuc(?=\s*:|\s+\d)|mat(?=\s+(?:khoang\s+|hon\s+|gan\s+|tam\s+)?\d)|tong cong|tong(?=\s+(?:khoang\s+|hon\s+|gan\s+|tam\s+)?\d)|in total|sau (?:bua|an) (?:trua|toi)|truoc khi ngu|sau khi thuc day|viec dau tien)\b/g;
 /** Raw spans of the deadline cues and multi-word parts of the day in `text`: they are cues, not title words. */
 function phraseCueSpans(text: string): [number, number][] {
   // a list of parts ("sáng/tối", "sáng hoặc tối") is a cue too, separators included
