@@ -1,3 +1,4 @@
+import { bolded } from "@/components/bold";
 import { BlurView } from "expo-blur";
 import { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -6,7 +7,7 @@ import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
 import { scheduleOnRN } from "react-native-worklets";
 import { Fill } from "@/components/meter";
 import { fadeIn, settle, Tap, EASE } from "@/components/tap";
-import { Icon, Logo, TypeArt } from "@/components/art";
+import { Icon, TypeArt } from "@/components/art";
 import { hhmm } from "@/components/cal";
 import type { HoldState } from "@/components/hold";
 import { t } from "@/lib/i18n";
@@ -16,26 +17,26 @@ import { when } from "@/lib/when";
 import type { Move, Task } from "@/lib/types";
 import { typeOf } from "@/planner";
 
-export type Card = { task: Task; start?: number; end?: number; gap?: boolean };
+export type Card = { task: Task; start?: number; end?: number };
 
 // Art card with progress meter; the circle marks it done. Swipe is handled by the caller.
-export function NowCard({ card, onDone }: { card: Card; onDone: () => void }) {
+// views.html "Day, next up": a flexible block not started yet also offers Làm luôn (onStart: that sitting moves to now).
+export function NowCard({ card, onDone, onStart }: { card: Card; onDone: () => void; onStart?: () => void }) {
   const th = useTheme();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { // the meter fills continuously: a slow ticker is smooth enough for a 54px capsule
     const i = setInterval(() => setNow(Date.now()), 3000);
     return () => clearInterval(i);
   }, []);
-  const { task, start = 0, end = 0, gap } = card;
+  const { task, start = 0, end = 0 } = card;
   const going = start <= now && now < end;
   const p = going ? Math.max(0, Math.min(1, (now - start) / (end - start))) : 0;
   const mins = Math.max(1, Math.round((going ? end - now : end - start) / 60000));
-  const title = gap ? t("gap", { n: Math.round((end - start) / 60000), title: task.title }) : task.title;
   return (
     <View style={[s.art, { backgroundColor: th.chip }]}>
       <View style={StyleSheet.absoluteFill}><TypeArt type={typeOf(task)} w={264} h={220} seed={4} /></View>
-      <Text style={[s.lab, { color: th.onart }]}>{t("nextUp")}</Text>
-      <Text style={[s.t, { color: th.onart }]} numberOfLines={3}>{title}</Text>
+      <Text style={[s.lab, { color: th.onart }]}>{t(going ? "doingNow" : "nextUp")}</Text>
+      <Text style={[s.t, { color: th.onart }]} numberOfLines={3}>{task.title}</Text>
       <View style={s.foot}>
         <View style={s.meter}>
           <View style={s.cap}><Fill p={p} /></View>
@@ -44,7 +45,10 @@ export function NowCard({ card, onDone }: { card: Card; onDone: () => void }) {
             <Text style={[s.small, { color: th.onart }]}>{going ? t("until", { time: hhmm(end) }) : t("nMin", { n: mins })}</Text>
           </View>
         </View>
-        <Tap onPress={onDone} hitSlop={8} scale={0.88} testID="nowDone" style={[s.glass, s.solid]}><Glass /><Icon name="check" size={22} color="#0b0b0c" w={2.2} /></Tap>
+        <View style={s.acts2}>
+          {!going && !task.fixed && onStart && <Tap onPress={onStart} scale={0.94} accessibilityRole="button" accessibilityLabel={t("startNow")} style={[s.glass, s.start]}><Glass /><Text style={s.startT}>{t("startNow")}</Text></Tap>}
+          <Tap onPress={onDone} hitSlop={8} scale={0.88} testID="nowDone" accessibilityRole="button" accessibilityLabel={t("markDone")} style={[s.glass, s.solid]}><Glass /><Icon name="check" size={22} color="#0b0b0c" w={2.2} /></Tap>
+        </View>
       </View>
     </View>
   );
@@ -138,36 +142,6 @@ function useFlick(onDismiss?: () => void) {
   return { pan, flick };
 }
 
-// views.html magic 1: the art slot's replacement on a day something moved. Tap opens the story in place.
-export function Brief({ moves, now, onOpen, onDismiss }: { moves: Move[]; now: number; onOpen: () => void; onDismiss?: () => void }) {
-  const th = useTheme();
-  const { pan, flick } = useFlick(onDismiss);
-  if (!moves.length) return null; // nothing moved: no brief (headMove() needs one)
-  const m = headMove(moves), r = topReason(m.why?.filter((x) => x.key !== "guess"));
-  const to = when(m.to, now), what = t("briefMove", { title: m.title, when: to });
-  const sub = [m.cause ? t("briefCause", { cause: m.cause, what }) : what, r && reasonText(r, true)].filter(Boolean).join(". ") + ".";
-  const at = sub.indexOf(what), toAt = at + what.length - to.length; // `what` opens with the title and ends with the time
-  return (
-    <GestureDetector gesture={pan}>
-    <Animated.View style={flick}>
-    <Tap onPress={onOpen} scale={0.98} accessibilityRole="button" accessibilityLabel={t("briefOpen")} style={[s.brief, { backgroundColor: th.chip }]}
-      // the swipe, for a screen reader: a custom action
-      accessibilityActions={onDismiss ? [{ name: "dismiss", label: t("briefHide") }] : undefined} onAccessibilityAction={(e) => { if (e.nativeEvent.actionName === "dismiss") onDismiss?.(); }}>
-      <Text style={[s.lab, { color: th.muted, opacity: 1 }]}>{t(new Date(now).getHours() < 12 ? "briefMorning" : "briefNow")}</Text>
-      <View style={s.lf}><Logo size={30} mode="line" color={th.ink} /></View>
-      <Text style={[s.t, { color: th.ink, marginTop: 26, paddingRight: 40 }]}>{moves.length === 1 ? t("briefOne", { title: m.title }) : t("briefN", { n: moves.length })}</Text>
-      {/* The moved task and its new time in ink 600 (.brief .s b), so which task and when stand out from the sentence. */}
-      <Text style={[s.bs, { color: th.muted }]}>
-        {sub.slice(0, at)}<Text style={{ color: th.ink, fontFamily: ff("600") }}>{m.title}</Text>
-        {sub.slice(at + m.title.length, toAt)}<Text style={{ color: th.ink, fontFamily: ff("600"), fontVariant: ["tabular-nums"] }}>{to}</Text>
-        {sub.slice(toAt + to.length)}
-      </Text>
-    </Tap>
-    </Animated.View>
-    </GestureDetector>
-  );
-}
-
 // views.html .mvp: moves not yet briefed, slim, under the now card or above the week grid. Tap opens the story; a swipe or screen-reader action dismisses.
 export function MovesPill({ moves, now, onOpen, onDismiss }: { moves: Move[]; now: number; onOpen: () => void; onDismiss?: () => void }) {
   const th = useTheme();
@@ -181,10 +155,11 @@ export function MovesPill({ moves, now, onOpen, onDismiss }: { moves: Move[]; no
       accessibilityActions={onDismiss ? [{ name: "dismiss", label: t("briefHide") }] : undefined} onAccessibilityAction={(e) => { if (e.nativeEvent.actionName === "dismiss") onDismiss?.(); }}
       style={[s.mvp, { backgroundColor: th.chip }]}>
       <View style={[s.mvDot, { backgroundColor: th.seal }]} />
-      <Text numberOfLines={1} style={[s.mvT, { color: th.ink }]}>
-        {moves.length === 1 ? t("briefOne", { title: m.title }) : t("briefN", { n: moves.length })}
-        <Text style={{ color: th.muted, fontFamily: ff("500") }}>{` · ${t("briefMove", { title: m.title, when: when(m.to, now) })}`}</Text>
-      </Text>
+      {/* two lines: how many, then the biggest move with its title in bold (never " · " run on) */}
+      <View style={s.mvTx}>
+        <Text numberOfLines={1} style={[s.mvT, { color: th.ink }]}>{t("briefN", { n: moves.length })}</Text>
+        <Text numberOfLines={1} style={[s.mvS, { color: th.muted }]}>{bolded(t("briefMove", { title: m.title, when: when(m.to, now) }), { color: th.ink })}</Text>
+      </View>
       <View style={[s.mvX, { backgroundColor: th.ink }]}><Text style={[s.mvXT, { color: th.bg }]}>{t("briefSee")}</Text></View>
     </Tap>
     </Animated.View>
@@ -203,7 +178,7 @@ export function Story({ moves, now, onClose, onUndo }: { moves: Move[]; now: num
     <Animated.View entering={fadeIn}>
       {[...groups].map(([cause, ms]) => (
         <View key={cause} style={{ marginTop: 6 }}>
-          {!!cause && <Text style={[s.sl, { color: th.muted }]}>{cause}</Text>}
+          {!!cause && <Text style={[s.sl, { color: th.muted }]}>{bolded(cause, { color: th.ink })}</Text>}
           <View style={{ marginTop: 2 }} />
           {ms.map((m, i) => {
             const r = topReason(m.why?.filter((x) => x.key !== "guess"));
@@ -215,7 +190,7 @@ export function Story({ moves, now, onClose, onUndo }: { moves: Move[]; now: num
                   <Icon name="right" size={14} color={th.ink} w={2.2} />
                   <Text style={[s.fr, { color: th.ink, fontFamily: ff("600") }]}>{when(m.to, now)}</Text>
                 </View>
-                {r && <Text style={[s.rs, { color: th.muted }]}>{reasonText(r, true)}</Text>}
+                {r && <Text style={[s.rs, { color: th.muted }]}>{bolded(reasonText(r, true), { color: th.ink })}</Text>}
               </View>
             );
           })}
@@ -284,20 +259,22 @@ const s = StyleSheet.create({
   small: { fontSize: font.md, fontFamily: ff("500"), opacity: 0.9, marginTop: 3 },
   glass: { width: 52, height: 52, borderRadius: 26, overflow: "hidden", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.28)", borderWidth: 1, borderColor: "rgba(255,255,255,0.5)" },
   solid: { backgroundColor: "rgba(255,255,255,0.85)" },
+  acts2: { flexDirection: "row", alignItems: "center", gap: 8 },
+  start: { width: undefined, paddingHorizontal: 18 }, // views.html "Day, next up": a glass pill as tall as the check
+  startT: { color: "#fff", fontSize: font.sub, fontFamily: ff("700") },
   words: { fontSize: 24, lineHeight: LINE, fontFamily: ff("600"), letterSpacing: -0.48 }, // .words: 24/600, 1.3, -.02em
   wordsBox: { maxHeight: MAX, overflow: "hidden", justifyContent: "flex-end" },
   wordsRow: { flexDirection: "row", flexWrap: "wrap" },
   wordsFade: { position: "absolute", left: 0, right: 0, top: 0, height: 32 },
   viz: { flexDirection: "row", gap: 6, alignItems: "center", height: TALL, marginTop: 24 },
   bar: { width: DOT, borderRadius: DOT / 2 },
-  brief: { marginTop: 16, borderRadius: 28, padding: 18, paddingHorizontal: 20 },
-  mvp: { marginTop: 14, height: 48, paddingLeft: 16, paddingRight: 6, borderRadius: 99, flexDirection: "row", alignItems: "center", gap: 10 }, // .mvp
+  mvp: { marginTop: 14, minHeight: 60, paddingVertical: 10, paddingLeft: 16, paddingRight: 10, borderRadius: 22, flexDirection: "row", alignItems: "center", gap: 10 }, // .mvp: two lines
   mvDot: { width: 8, height: 8, borderRadius: 99 },
-  mvT: { flex: 1, minWidth: 0, fontSize: font.md, fontFamily: ff("600") },
+  mvTx: { flex: 1, minWidth: 0 },
+  mvT: { fontSize: font.md, fontFamily: ff("600") },
+  mvS: { marginTop: 2, fontSize: font.label, fontFamily: ff("500") },
   mvX: { height: 36, paddingHorizontal: 12, borderRadius: 99, alignItems: "center", justifyContent: "center" },
   mvXT: { fontSize: font.sub, fontFamily: ff("600") },
-  lf: { position: "absolute", top: 16, right: 16 },
-  bs: { marginTop: 6, fontSize: font.md, lineHeight: 20.25, fontFamily: ff("500") }, // .brief .s: 1.35
   sl: { fontSize: font.label, fontFamily: ff("500"), marginTop: 16 },
   mv: { paddingVertical: 14 },
   mt: { fontSize: 17, fontFamily: ff("600") },

@@ -1,3 +1,4 @@
+import { bolded } from "@/components/bold";
 import type { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
@@ -48,8 +49,8 @@ export function Toast({ text, sub, onAction, actionLabel, onAlt, altLabel, altPl
       <View style={s.tl}>
         {lead}
         <View style={s.tx} accessibilityRole={error ? "alert" : undefined}>
-          <Text numberOfLines={2} style={[s.t1, { color: fg }]}>{text}</Text>
-          {!!sub && <Text numberOfLines={2} style={[s.sub, error && { color: "rgba(255,255,255,0.85)" }]}>{sub}</Text>}
+          <Text numberOfLines={2} style={[s.t1, { color: fg }]}>{bolded(text, { fontFamily: ff("800") })}</Text>
+          {!!sub && <Text numberOfLines={2} style={[s.sub, error && { color: "rgba(255,255,255,0.85)" }]}>{bolded(sub, { color: fg })}</Text>}
         </View>
       </View>
       {(!!alt || !!onAction) && (
@@ -75,7 +76,7 @@ const s = StyleSheet.create({
   tl: { flexDirection: "row", alignItems: "center", gap: 12 }, // ui.css .toast .tl
   tx: { minWidth: 0, flexShrink: 1 },
   row: { flexDirection: "row", justifyContent: "flex-end", gap: 8 },
-  t1: { fontSize: font.md, fontFamily: ff("700"), lineHeight: 19.5 }, // 15px, line-height 1.3
+  t1: { fontSize: font.md, fontFamily: ff("600"), lineHeight: 19.5 }, // the title in it 800 (bolded) // 15px, line-height 1.3
   sub: { marginTop: 1, fontSize: font.label, fontFamily: ff("500"), lineHeight: 19.5, color: "rgb(127,127,127)" },
   a: { height: 40, paddingHorizontal: 13, borderRadius: 99, alignItems: "center", justifyContent: "center" },
   at: { fontSize: font.sub, fontFamily: ff("700") },

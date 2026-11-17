@@ -4,7 +4,8 @@ import * as Haptics from "expo-haptics";
 import { Week } from "./week";
 import { mondayOf, short } from "./cal";
 import { at, DAY, HOUR, lecture, MIN, NOW, task, TODAY } from "../../test/factories";
-import { t } from "@/lib/i18n";
+import { plain, t } from "@/lib/i18n";
+import { when } from "@/lib/when";
 import type { Move, Rule } from "@/lib/types";
 
 // The pan is driven by calling its config: the gesture hook needs native code (and `isSharedValue` the reanimated mock lacks).
@@ -69,7 +70,7 @@ it("unbriefed moves: the pill sits above the grid, and the moved block carries t
   const onMoves = jest.fn();
   const moved: Move = { id: "t1", title: "Ôn Giải tích", from: at(9), to: at(14), at: NOW };
   await show({ tasks: [task({ id: "t1" })], moves: ["t1"], brief: [moved], onMoves });
-  expect(screen.getByText(new RegExp(t("briefOne", { title: "Ôn Giải tích" })))).toBeTruthy();
+  expect(screen.getByText(new RegExp(plain(t("briefMove", { title: "Ôn Giải tích", when: when(at(14), NOW) }))))).toBeTruthy();
   expect(all(root(), (x) => flat(x).width === 7 && flat(x).height === 7)).toHaveLength(1); // the dot, 7px
   await fireEvent.press(screen.getByLabelText(t("briefOpen")));
   expect(onMoves).toHaveBeenCalledTimes(1);

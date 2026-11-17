@@ -1,8 +1,8 @@
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
 import { StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { Brief, Live, MovesPill, NowCard, Steps, Story, Weekly } from "./nowcard";
-import { t } from "@/lib/i18n";
+import { Live, MovesPill, NowCard, Steps, Story, Weekly } from "./nowcard";
+import { plain, t } from "@/lib/i18n";
 import { when } from "@/lib/when";
 import type { Move } from "@/lib/types";
 import { at, MIN, NOW, task } from "../../test/factories";
@@ -32,9 +32,20 @@ describe("NowCard", () => {
     await render(<NowCard card={{ task: task(), start: at(14), end: at(14) }} onDone={jest.fn()} />);
     expect(screen.getByText(t("nMin", { n: 1 }))).toBeOnTheScreen();
   });
-  it("a gap card names the free minutes", async () => {
-    await render(<NowCard card={{ task: task({ title: "Đọc sách" }), start: at(14), end: at(14, 45), gap: true }} onDone={jest.fn()} />);
-    expect(screen.getByText(t("gap", { n: 45, title: "Đọc sách" }))).toBeOnTheScreen();
+  it("running says Đang làm and offers no Làm luôn; the next block says Tiếp theo and Làm luôn starts it", async () => {
+    const onStart = jest.fn();
+    const r = await render(<NowCard card={{ task: task(), start: at(9, 30), end: at(10, 30) }} onDone={jest.fn()} onStart={onStart} />);
+    expect(screen.getByText(t("doingNow"))).toBeOnTheScreen();
+    expect(screen.queryByLabelText(t("startNow"))).toBeNull();
+    await r.unmount();
+    await render(<NowCard card={{ task: task(), start: at(14), end: at(15) }} onDone={jest.fn()} onStart={onStart} />);
+    expect(screen.getByText(t("nextUp"))).toBeOnTheScreen();
+    await fireEvent.press(screen.getByLabelText(t("startNow")));
+    expect(onStart).toHaveBeenCalledTimes(1);
+  });
+  it("a class or an exam next has no Làm luôn", async () => {
+    await render(<NowCard card={{ task: task({ fixed: "lecture" }), start: at(14), end: at(15) }} onDone={jest.fn()} onStart={jest.fn()} />);
+    expect(screen.queryByLabelText(t("startNow"))).toBeNull();
   });
   it("ticks every 3 s and stops ticking once unmounted", async () => {
     const r = await render(<NowCard card={{ task: task(), start: at(9, 30), end: at(10, 30) }} onDone={jest.fn()} />);
@@ -48,7 +59,7 @@ describe("NowCard", () => {
   it("the check marks it done", async () => {
     const onDone = jest.fn();
     await render(<NowCard card={{ task: task(), start: at(14), end: at(15) }} onDone={onDone} />);
-    await fireEvent.press(screen.getByTestId("nowDone")); // the glass check button: no label of its own
+    await fireEvent.press(screen.getByLabelText(t("markDone")));
     expect(onDone).toHaveBeenCalledTimes(1);
   });
 });
@@ -77,46 +88,25 @@ describe("Live", () => {
 const root = { wrapper: GestureHandlerRootView }; // the brief swipes away
 const mv = (over: Partial<Move>): Move => ({ id: "m", title: "Ôn tập", from: at(14), to: at(16), at: NOW, ...over });
 
-describe("Brief", () => {
-  it("one move: its title, the morning header, and the bold task and time", async () => {
-    await render(<Brief moves={[mv({ cause: "Có tiết bù" })]} now={NOW} onOpen={jest.fn()} />, root);
-    expect(screen.getByText(t("briefMorning"))).toBeOnTheScreen();
-    expect(screen.getByText(t("briefOne", { title: "Ôn tập" }))).toBeOnTheScreen();
-    expect(screen.getByText(when(at(16), NOW))).toBeOnTheScreen(); // the new time in its own bold run
-    expect(screen.getByText(/^Có tiết bù, nên/)).toBeOnTheScreen();
-  });
-  it("several moves count them; after noon the header is 'just now'", async () => {
-    await render(<Brief moves={[mv({ id: "a" }), mv({ id: "b", title: "Đi chợ" })]} now={at(15)} onOpen={jest.fn()} />, root);
-    expect(screen.getByText(t("briefNow"))).toBeOnTheScreen();
-    expect(screen.getByText(t("briefN", { n: 2 }))).toBeOnTheScreen();
+describe("MovesPill picks the move it names", () => {
+  it("one move: its title and new time", async () => {
+    await render(<MovesPill moves={[mv({})]} now={NOW} onOpen={jest.fn()} />, root);
+    expect(screen.getByText(plain(t("briefN", { n: 1 })))).toBeOnTheScreen();
+    expect(screen.getByText(new RegExp(plain(t("briefMove", { title: "Ôn tập", when: when(at(16), NOW) }))))).toBeOnTheScreen();
   });
   it("names a real cause over a bigger knock-on", async () => {
     const moves = [mv({ id: "a", title: "Giặt đồ", to: at(15), cause: "Có tiết bù" }), mv({ id: "b", title: "Đi chợ", to: at(20), cause: t("causeKnock") })];
-    await render(<Brief moves={moves} now={NOW} onOpen={jest.fn()} />, root);
-    expect(screen.getByText("Giặt đồ")).toBeOnTheScreen();
-    expect(screen.queryByText("Đi chợ")).toBeNull();
+    await render(<MovesPill moves={moves} now={NOW} onOpen={jest.fn()} />, root);
+    expect(screen.getByText(new RegExp(`Giặt đồ sang`))).toBeOnTheScreen();
   });
   it("without a real cause the biggest move wins", async () => {
-    await render(<Brief moves={[mv({ id: "a", title: "Giặt đồ", to: at(15) }), mv({ id: "b", title: "Đi chợ", to: at(20) })]} now={NOW} onOpen={jest.fn()} />, root);
-    expect(screen.getByText("Đi chợ")).toBeOnTheScreen();
-  });
-  it("opens the story on tap", async () => {
-    const onOpen = jest.fn();
-    await render(<Brief moves={[mv({})]} now={NOW} onOpen={onOpen} />, root);
-    await fireEvent.press(screen.getByLabelText(t("briefOpen")));
-    expect(onOpen).toHaveBeenCalledTimes(1);
+    await render(<MovesPill moves={[mv({ id: "a", title: "Giặt đồ", to: at(15) }), mv({ id: "b", title: "Đi chợ", to: at(20) })]} now={NOW} onOpen={jest.fn()} />, root);
+    expect(screen.getByText(/Đi chợ sang/)).toBeOnTheScreen();
   });
   it("renders nothing when nothing moved", async () => {
-    await render(<Brief moves={[]} now={NOW} onOpen={jest.fn()} />);
+    await render(<MovesPill moves={[]} now={NOW} onOpen={jest.fn()} />);
     expect(screen.toJSON()).toBeNull();
   });
-});
-
-it("Brief: a screen reader can put it away, as the swipe does", async () => {
-  const onDismiss = jest.fn();
-  await render(<Brief moves={[mv({})]} now={NOW} onOpen={jest.fn()} onDismiss={onDismiss} />, root);
-  await fireEvent(screen.getByLabelText(t("briefOpen")), "accessibilityAction", { nativeEvent: { actionName: "dismiss" } });
-  expect(onDismiss).toHaveBeenCalledTimes(1);
 });
 
 describe("MovesPill", () => {

@@ -24,7 +24,7 @@ import { PdfView, PhotoMenu, PhotoView, TypeBar, Veil } from "@/components/captu
 import { Hold, type Aside, type HoldState } from "@/components/hold";
 import type { Item } from "@/components/menu";
 import { Month } from "@/components/month";
-import { Brief, Live, MovesPill, NowCard, Steps, Story, Weekly, type Card } from "@/components/nowcard";
+import { Live, MovesPill, NowCard, Steps, Story, Weekly, type Card } from "@/components/nowcard";
 import { RowMenu, menuTop, sittingItems } from "@/components/rowmenu";
 import { fadeIn, fadeOut, glide, popIn, settle, Tap, EASE } from "@/components/tap";
 import { Sweep, useSweep } from "@/components/sweep";
@@ -50,7 +50,7 @@ import { listenWidgets, pushWidgets } from "@/lib/widgets";
 import { useTheme, font, space, ff } from "@/lib/theme";
 import type { Move, Notice, Rule, Step, Task, Warn } from "@/lib/types";
 import { dayLabel, day as dayName, endAt, when } from "@/lib/when";
-import { grounded, insights, suggest, typeOf, type Insights } from "@/planner";
+import { grounded, insights, typeOf, type Insights } from "@/planner";
 
 type View_ = "day" | "week" | "month" | "rhythm"; // rhythm sits apart on the right of the tabs, outside the swipe cycle
 const VIEWS: View_[] = ["day", "week", "month"];
@@ -89,7 +89,6 @@ export default function Home() {
   const [over, setOver] = useState<Overlap[]>([]);
   const [pop, setPop] = useState<Set<string>>(new Set());
   const level = useSharedValue(0); // real mic level 0..1 for the listening wave
-  const dismissed = useRef(new Set<string>());
   const [moves, setMoves] = useState<Move[]>([]); // unseen only
   const [warns, setWarns] = useState<Warn[]>([]);
   const [maps, setMaps] = useState<{ trail: Record<string, string>; froms: Record<string, number>; reason: Record<string, string>; alts: Record<string, number> }>({ trail: {}, froms: {}, reason: {}, alts: {} });
@@ -152,8 +151,6 @@ export default function Home() {
     setWk(w ? { title: w, sub: t("sundaySub", { done: all.filter((x) => x.doneAt && x.doneAt >= wkAgo).length, moved: mv.filter((m) => m.at >= wkAgo).length }) } : undefined);
     const cur = pickNow(all, now);
     if (cur && cur.start! <= now) return setCard({ task: cur, start: cur.start, end: cur.end });
-    const s = suggest(all.filter((x) => !dismissed.current.has(x.id)), [], model, now);
-    if (s) return setCard({ task: s.task, start: s.start, end: s.end, gap: true });
     // views.html "Day, all done": a task of another day is not today's art card; the rest card takes its slot and names tomorrow.
     setCard(cur && startOfDay(cur.start!) === startOfDay(now) ? { task: cur, start: cur.start, end: cur.end } : undefined);
   }, []);
@@ -625,15 +622,21 @@ export default function Home() {
 
   const cardRef = useRef(card);
   useEffect(() => { cardRef.current = card; }, [card]);
+  // "Làm luôn" on the next block: that very sitting moves to now (its old slot goes to whatever waits for a time).
+  const startNow = async () => {
+    const c = cardRef.current;
+    if (!c || c.start === undefined || c.end === undefined) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    const at = Math.ceil(Date.now() / 60_000) * 60_000, r = await take(c.task.id, at, at + (c.end - c.start));
+    say(r.toast, r);
+    await shuffle(r);
+  };
   const commit = async (dir: "done" | "later") => {
     const c = cardRef.current;
     if (!c) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
     let r: Result | undefined;
-    if (c.gap) {
-      if (dir === "done") r = await take(c.task.id, c.start!, c.end!);
-      else dismissed.current.add(c.task.id);
-    } else r = await (dir === "done" ? swipeDone(c.task.id) : swipeLater(c.task.id));
+    r = await (dir === "done" ? swipeDone(c.task.id) : swipeLater(c.task.id));
     if (r) say(r.toast, r);
     await shuffle(r);
   };
@@ -697,15 +700,14 @@ export default function Home() {
   const stepDay = (d: -1 | 1) => setSel(addDays(sel, d));
   const share = { tasks, hols, now, pop, rules: mind?.rules ?? [], overlaps: over, onMove: async (o: Overlap) => { const r = await moveMine(o.mine.id); say(r.toast, r); refresh(); }, onKeep: async (o: Overlap) => { await keepBoth(o); refresh(); }, trail: maps.trail, moves, onFix: async (w: Warn, f: Warn["fixes"][number]) => { const r = await makeRoom(f.id, w.deadline); say(r.toast, r); refresh(); }, ...rowActs, drag: dd.drag };
   const isToday = sel === today0;
-  const running = !!card && !card.gap && card.start! <= now && now < card.end!;
+  const running = !!card && card.start! <= now && now < card.end!;
   const quiet = isToday && view === "day" && !running;
-  // Every move not yet briefed, not just the latest batch. The full card takes the hero slot when it can, else a slim pill (day, week).
+  // magic 1: every move not yet briefed is one pill under the tabs, the same in day, week and month; it never takes the now card's place.
   // Retired only on story close or swipe; `unseen` drives the dots until the story is closed.
   const fresh = moves.filter((m) => !m.briefed), unseen = moves.filter((m) => !m.seen).map((m) => m.id);
-  const briefOn = quiet && fresh.length > 0; // the running card keeps priority
-  const pillOn = !briefOn && fresh.length > 0 && !mine && (view === "day" || view === "week");
-  const sunOn = quiet && !briefOn && !!wk;
-  const showStory = !!mine || (story && (briefOn || pillOn)); // the list becomes the story, in place
+  const pillOn = fresh.length > 0 && !mine && (view === "day" || view === "week" || view === "month");
+  const sunOn = quiet && !!wk;
+  const showStory = !!mine || (story && pillOn); // the list becomes the story, in place
   const dismissBrief = () => { void briefMoves(fresh.map((m) => m.id)).then(refresh); }; // magic 1b: swiped away for good
   const closeStory = async () => { setStory(false); await seeMoves(fresh.map((m) => m.id)); await briefMoves(fresh.map((m) => m.id)); refresh(); };
   const busy = state !== "idle";
@@ -719,15 +721,15 @@ export default function Home() {
     && !tasks.some((a) => inView(a) && a.start! >= Math.max(addDays(sel, 1), now));
   const weekEmpty = view === "week" && Array.from({ length: 7 }, (_, i) => addDays(mon, i)).every((d) => !hols.has(d) && !onDay(tasks, d).length);
   // Rest card only where the art card would sit: day view, and no now-card above it.
-  const empty = weekEmpty ? "week" : view === "day" && selEmpty && !(isToday && card) && !briefOn && !sunOn ? "rest" : "inl";
+  const empty = weekEmpty ? "week" : view === "day" && selEmpty && !(isToday && card) && !sunOn ? "rest" : "inl";
   const closeMine = () => { if (mine) void seeMoves(mine.moves.map((m) => m.id)).then(refresh); setMine(undefined); };
   const undoMine = async () => { const r = mine?.r; setMine(undefined); await r?.undo(); setToasts((u) => [{ text: t("undone") }, ...u.slice(1)]); refresh(); };
-  const hero = mine ? "mine" : briefOn ? (story ? "story" : "brief") : sunOn ? "sun" : card ? card.task.id : "none";
+  const hero = mine ? "mine" : sunOn ? "sun" : card ? card.task.id : "none";
 
   const cardView = card && (
     <GestureDetector gesture={swipe}>
       <Reanimated.View style={flick}>
-        <NowCard card={card} onDone={() => commit("done")} />
+        <NowCard card={card} onDone={() => commit("done")} onStart={startNow} />
       </Reanimated.View>
     </GestureDetector>
   );
@@ -806,11 +808,11 @@ export default function Home() {
           {view === "day" && isToday && (
             // Keyed per branch so hero swaps cross-fade; a new now-card lands with a small pop.
             <Reanimated.View key={hero} entering={card && hero === card.task.id ? popIn : fadeIn} exiting={fadeOut} layout={glide}>
-              {mine ? <Story moves={mine.moves} now={now} onClose={closeMine} onUndo={undoMine} /> : briefOn ? (story ? <Story moves={fresh} now={now} onClose={closeStory} /> : <Brief moves={fresh} now={now} onOpen={() => setStory(true)} onDismiss={dismissBrief} />) : sunOn ? <Weekly title={wk!.title} sub={wk!.sub} onPress={() => setView("rhythm")} /> : cardView}
+              {mine ? <Story moves={mine.moves} now={now} onClose={closeMine} onUndo={undoMine} /> : sunOn ? <Weekly title={wk!.title} sub={wk!.sub} onPress={() => setView("rhythm")} /> : cardView}
             </Reanimated.View>
           )}
           {/* Moves not yet briefed, under the now card (or the header when no card): the story opens in its place. */}
-          {view === "day" && pillOn && (story
+          {(view === "day" || view === "month") && pillOn && (story
             ? <Story moves={fresh} now={now} onClose={closeStory} />
             : <MovesPill moves={fresh} now={now} onOpen={() => setStory(true)} onDismiss={dismissBrief} />)}
           {view === "rhythm" && mind && <Rhythm i={mind.i} rules={mind.rules} onForget={async (x) => { const r = await removeRule(x.id); say(r.toast, r); refresh(); }} />}
@@ -824,9 +826,9 @@ export default function Home() {
                 : <Month tasks={tasks} hols={hols} now={now} selected={sel} anchor={dd.anchor} onSelect={setSel} onStep={stepMonth} gridRef={dd.gridRef} hover={dd.hover} />}
             </Reanimated.View>
           )}
-          {firstRun || (nothingAhead && !briefOn && !sunOn) ? <First onSchool={() => router.push("/settings")} /> : !showStory && view !== "rhythm" && (
+          {firstRun || (nothingAhead && !sunOn) ? <First onSchool={() => router.push("/settings")} /> : !showStory && view !== "rhythm" && (
             <Reanimated.View entering={fadeIn} exiting={fadeOut} layout={glide} style={{ marginTop: empty === "rest" || empty === "week" ? 0 : isToday && view === "day" && warns.length ? 20 : view === "month" ? 24 : 28 }}>
-              <Day {...share} empty={empty} warns={isToday ? warns : []} day={sel} label={view === "day" ? (isToday ? (card && !briefOn && !sunOn ? t("after") : t("today")) : dayLabel(sel)) : dayLabel(sel)} />
+              <Day {...share} empty={empty} warns={isToday ? warns : []} day={sel} label={view === "day" ? (isToday ? (card && !sunOn ? t("after") : t("today")) : dayLabel(sel)) : dayLabel(sel)} />
             </Reanimated.View>
           )}
         </DayPull>

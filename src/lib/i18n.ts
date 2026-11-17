@@ -72,6 +72,7 @@ const S = {
   itemLess: "Bớt một buổi",
   sittingAdded: "Thêm một buổi {title}",
   sittingDropped: "Bớt một buổi {title}",
+  respread: "Chia lại {n} buổi cho đều",
   stillMore: "Còn nữa",
   saveFailed: "Chưa lưu được, thử lại nhé",
   hold: "Giữ để nói",
@@ -80,7 +81,6 @@ const S = {
   today: "Hôm nay",
   notes: "Ghi chú",
   until: "đến {time}",
-  gap: "{n}p trống, hợp làm {title}",
   downloading: "Đang tải mô hình {p}%",
   micFail: "Không ghi âm được",
   heardNothing: "Chưa nghe thấy gì",
@@ -141,6 +141,9 @@ const S = {
   tabWeek: "Tuần",
   tabMonth: "Tháng",
   nextUp: "Tiếp theo",
+  doingNow: "Đang làm",
+  startNow: "Làm luôn",
+  markDone: "Xong",
   after: "Sau đó",
   doneN: "Xong ({n})",
   nTasks: "{n} việc",
@@ -395,4 +398,12 @@ export type Key = keyof typeof S;
 export const t = (k: Key, v: Record<string, string | number> = {}) => fill(S[k], v);
 
 // "Hôm nay"/"Ngày mai" open a line capitalised; inside a sentence they are plain words ("Hạn hôm nay 23:59", not "Hạn Hôm nay").
-export const fill = (s: string, v: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k, i: number) => { const x = String(v[k] ?? ""); return i > 0 && /^(Hôm nay|Ngày mai|Sáng|Trưa|Chiều|Tối)(\s|$)/.test(x) ? x[0].toLowerCase() + x.slice(1) : x; });
+/** A task's title inside a sentence is wrapped in two invisible marks, so the views can set it in bold (components/rich.tsx); unrendered, they show nothing. */
+export const B0 = "\u2063", B1 = "\u2064";
+const BOLD = new Set(["title", "prev"]);
+/** The sentence without its bold marks: for notifications, widgets, logs and comparisons. */
+export const plain = (s: string) => s.replace(/[\u2063\u2064]/g, "");
+export const fill = (s: string, v: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k, i: number) => {
+  const x = String(v[k] ?? ""), y = i > 0 && /^(Hôm nay|Ngày mai|Sáng|Trưa|Chiều|Tối)(\s|$)/.test(x) ? x[0].toLowerCase() + x.slice(1) : x;
+  return BOLD.has(k) && y ? B0 + plain(y) + B1 : y;
+});

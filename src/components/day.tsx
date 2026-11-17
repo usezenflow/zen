@@ -1,3 +1,4 @@
+import { bolded } from "@/components/bold";
 import * as Haptics from "expo-haptics";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { StyleSheet, Text, View, type ScrollViewInstance } from "react-native";
@@ -195,7 +196,7 @@ export function RestCard({ lab, title, sub, leaf = "line", h = 220 }: { lab?: st
       {!!lab && <Text style={[s.lab, { color: th.muted }]}>{lab}</Text>}
       <View style={s.restLf}><Logo size={52} mode={leaf} color={th.ink} /></View>
       <Text style={[s.restT, { color: th.ink }]}>{title}</Text>
-      <Text style={[s.restS, { color: th.muted }]}>{sub}</Text>
+      <Text style={[s.restS, { color: th.muted }]}>{bolded(sub, { color: th.ink })}</Text>
     </View>
   );
 }
@@ -208,7 +209,7 @@ function Inl({ title, sub }: { title: string; sub?: string }) {
       <Logo size={34} mode="line" color={th.ink} />
       <View style={{ flex: 1 }}>
         <Text style={[s.inlB, { color: th.ink }]}>{title}</Text>
-        {!!sub && <Text style={[s.inlS, { color: th.muted }]}>{sub}</Text>}
+        {!!sub && <Text style={[s.inlS, { color: th.muted }]}>{bolded(sub, { color: th.ink })}</Text>}
       </View>
     </View>
   );
@@ -372,7 +373,7 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
               <View style={[s.pills, s.blk]}>
                 {pills.map((p, i) => (
                   <Tap key={p.key} onPress={p.go} accessibilityLabel={[p.label, p.day].filter(Boolean).join(" ")} style={[s.pl, s.plBlk, i === 0 ? { backgroundColor: th.ink } : { borderColor: th.line, borderWidth: 1 }]}>
-                    <Text numberOfLines={1} style={[s.plt, s.nm, i === 0 ? { color: th.bg, fontFamily: ff("700") } : { color: th.ink }]}>{p.label}</Text>
+                    <Text numberOfLines={1} style={[s.plt, s.nm, i === 0 ? { color: th.bg, fontFamily: ff("700") } : { color: th.ink }]}>{bolded(p.label, i === 0 ? { fontFamily: ff("800") } : undefined)}</Text>
                     {!!p.day && <Text style={[s.plt, { opacity: 0.7, fontVariant: ["tabular-nums"] }, i === 0 ? { color: th.bg, fontFamily: ff("700") } : { color: th.ink }]}>{p.day}</Text>}
                   </Tap>
                 ))}
