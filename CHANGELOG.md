@@ -1,5 +1,11 @@
 # zen
 
+## 26.0.8
+
+### Patch Changes
+
+- Cảnh báo trùng giờ cũng hiện khi bạn kéo giờ bắt đầu về quá khứ nhưng việc vẫn chưa kết thúc
+
 ## 26.0.7
 
 ### Patch Changes
