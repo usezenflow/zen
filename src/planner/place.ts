@@ -25,6 +25,8 @@ const T0 = 0.5, T1 = 0.005, CAP_MS = 150, LOG_CAP = 40; // CAP_MS: a safety net 
 const MISS = -1e6; // an unplaced piece: worse than any late placement, so a piece is left out only when no cell is free
 export const EJECT_CAP = 12;
 
+// about a move's cost: a sitting takes another day when one is free, and shares a day when the due leaves no room
+const TWIN = 1.5;
 const ceil = (t: number) => Math.ceil(t / STEP) * STEP;
 const ov = (a0: number, a1: number, b0: number, b1: number) => Math.max(0, Math.min(a1, b1) - Math.max(a0, b0));
 
@@ -34,7 +36,7 @@ export function fixedHours(busy: Busy[], day: number): number {
   return ms / HOUR;
 }
 
-interface Iv { start: number; end: number }
+interface Iv { start: number; end: number; g?: string } // g: the split parent, to keep its sittings on separate days
 
 export function cells(p: Piece, now: number): number[] {
   if (p.lock) return [p.prior!];
@@ -113,6 +115,7 @@ export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
     const load = 0.3 * Math.max(0, L - 4) + 1.0 * Math.max(0, L - 6);
     const big = items.filter((i) => i.end - i.start > SLOT).length; // errands of one slot or less do not count
     const count = big > 2 ? 0.5 * (2 ** (big - 2) - 1) : 0;
+    const gs = items.map((i) => i.g).filter(Boolean), twins = gs.length - new Set(gs).size; // a second sitting of one task the same day
     let halo = 0, over = 0;
     for (let i = 0; i < N; i++) {
       const a = items[i];
@@ -123,7 +126,7 @@ export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
       }
       if (!lax) for (let j = i + 1; j < N; j++) over += 500 * (ov(a.start, a.end, items[j].start, items[j].end) / HOUR);
     }
-    return SPREAD * (load + count) + halo + over;
+    return SPREAD * (load + count) + TWIN * twins + halo + over;
   };
 
   let S: number[] = Array(n).fill(-1); // current starts
@@ -139,7 +142,7 @@ export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
   };
   const listsOf = (x: number[]) => {
     const m = new Map<number, Iv[]>();
-    for (let i = 0; i < n; i++) if (x[i] >= 0) { const d = dayStart(x[i]); (m.get(d) ?? m.set(d, []).get(d)!).push({ start: x[i], end: x[i] + du[i] }); }
+    for (let i = 0; i < n; i++) if (x[i] >= 0) { const d = dayStart(x[i]); (m.get(d) ?? m.set(d, []).get(d)!).push({ start: x[i], end: x[i] + du[i], g: pieces[i].task.parentId }); }
     return m;
   };
 
@@ -153,7 +156,7 @@ export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
       if (!pullOk(p, c) || !awake(p, c, day) || clash(bz.get(day) ?? [], c, e) || (!lax && clash(items, c, e))) continue;
       let b0 = base.get(day);
       if (b0 === undefined) base.set(day, (b0 = dayCost(day, items, lax)));
-      const v = startValue(p, c, now, u ? u[k] : env.util(p, c, ends)) - (dayCost(day, [...items, { start: c, end: c + du[i] }], lax) - b0);
+      const v = startValue(p, c, now, u ? u[k] : env.util(p, c, ends)) - (dayCost(day, [...items, { start: c, end: c + du[i], g: p.task.parentId }], lax) - b0);
       if (v > top.v) top = { c, v };
     }
     return top.c;

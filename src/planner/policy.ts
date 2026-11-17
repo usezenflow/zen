@@ -8,6 +8,7 @@ import { type Busy, type End, type Util, EJECT_CAP, SLOT, STEP, WAKE_FROM, WAKE_
 import { day, dayLabel, when } from "../lib/when";
 import { minSitting, split } from "./split";
 import { type Piece, bell, dur, lateH, moveCost, pullOk, startValue } from "./value";
+import { isMicro, r30 } from "../lib/nlu/size";
 
 const LONG_SITTING = 180; // near a deadline sittings merge up to this; longer work still splits
 
@@ -20,7 +21,8 @@ type Titled = Busy & { title?: string };
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 // One colour per task everywhere (rows, week, month, detail): a prep is the user's plan even though it has a due time.
 export const typeOf = (t: Task): TaskType => t.fixed ?? (dueOf(t) !== undefined && !t.forId ? "assignment" : "plan");
-const round15 = (m: number) => Math.max(15, Math.ceil(m / 15) * 15);
+// A said length keeps its minutes; a guessed one sits on the half hour (a micro chore on 15).
+const sized = (t: Task, m: number) => (!t.effortGuessed ? m : isMicro(t.cls) ? Math.max(15, Math.ceil(m / 15) * 15) : r30(m));
 
 function decay(m: Model, now: number) {
   const dt = now - m.at;
@@ -73,7 +75,7 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
   const endOf = (t: Task) => t.deadline ?? (t.rrule ? undefined : t.notAfter);
   const mk = (task: Task, eff: number, k: number, n: number, prior?: number, missed?: number): Piece => ({
     id: task.id, task, effort: eff, k, n, slip: dueOf(task) === undefined ? 0 : slipOf(m, task.kind),
-    prior: prior !== undefined && prior >= now ? prior : undefined, missed, soon: missed !== undefined || opts.later === task.id || opts.later === task.parentId,
+    prior: prior !== undefined && prior >= now ? prior : undefined, missed, soon: missed !== undefined || (opts.later !== undefined && (opts.later === task.id || opts.later === task.parentId)), // no "later": undefined === undefined made every unsplit piece "soon" (2-day reach)
   });
   // Longest free, awake stretch inside a window that lies within one day; undefined for anything wider.
   const widest = (t: Task) => {
@@ -92,10 +94,12 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
   const lost = (t: Task) => (t.start !== undefined && t.end !== undefined && t.end <= now ? t.start : undefined);
   for (let t of flex) {
     if (t.parentId) continue;
+    // An exam's prep is done by 22:00 the evening before, never the morning of, unless that leaves no time at all.
+    if (t.forId && t.deadline !== undefined && dayStart(t.deadline) - 2 * HOUR > now + HOUR) t = { ...t, deadline: Math.min(t.deadline, dayStart(t.deadline) - 2 * HOUR) };
     if (dayGone(t, now)) continue; // a past day of a repeating task stays missed; the next day has its own
     const sibs = kids.get(t.id), old = ever.get(t.id);
     if (sibs) {
-      sibs.sort((a, b) => ix(a) - ix(b)).forEach((c, i) => pieces.push(mk(c, round15(c.effort), i + 1, sibs.length, c.start, lost(c))));
+      sibs.sort((a, b) => ix(a) - ix(b)).forEach((c, i) => pieces.push(mk(c, sized(c, c.effort), i + 1, sibs.length, c.start, lost(c))));
       continue;
     }
     // No open sitting left yet not done: its sittings were dropped to resize it (materialize). Split what is left again, with new ids.
@@ -103,16 +107,16 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
     const done = old?.filter((c) => c.doneAt) ?? [];
     const left = effort(t, m) - done.reduce((a, c) => a + c.effort, 0);
     if (old && left <= 0) continue;
-    let eff = round15(left);
+    let eff = sized(t, left);
     let cap = t.maxSitting ?? 120;
     // A tight deadline gets fewer sittings, one per whole day left (under a day: one), not a full set crammed in.
     // Exam prep (maxSitting) shrinks its total a little with them (halfway to proportional); other work keeps its size, in sittings of at most 3 h.
     const natural = Math.ceil(eff / cap), room = endOf(t) === undefined ? natural : Math.max(1, Math.floor((endOf(t)! - now) / DAY));
     // A guessed length gives way to a said due: "mai làm đồ án" is what fits by tomorrow (a long sitting a day), not 30 h that fit nowhere.
     const guess = eff;
-    if (natural > room && t.effortGuessed) { eff = Math.min(eff, room * LONG_SITTING); cap = Math.max(cap, Math.min(round15(eff / room), LONG_SITTING)); }
-    else if (natural > room && t.maxSitting !== undefined) { eff = round15((eff * (natural + room)) / (2 * natural)); cap = Math.min(round15(eff / room), LONG_SITTING); }
-    else if (natural > room) cap = Math.max(cap, Math.min(round15(eff / room), LONG_SITTING));
+    if (natural > room && t.effortGuessed) { eff = Math.min(eff, room * LONG_SITTING); cap = Math.max(cap, Math.min(Math.ceil(eff / room / 30) * 30, LONG_SITTING)); }
+    else if (natural > room && t.maxSitting !== undefined) { eff = sized(t, (eff * (natural + room)) / (2 * natural)); cap = Math.min(Math.ceil(eff / room / 30) * 30, LONG_SITTING); }
+    else if (natural > room) cap = Math.max(cap, Math.min(Math.ceil(eff / room / 30) * 30, LONG_SITTING));
     // What was asked bends to what is free, never past sense. A guessed length (no length said) shrinks to the longest free stretch of its
     // window, not below what the work needs (an errand 15 min, deep work 1h30); a said length never shrinks. A window too packed for that
     // runs on to the rest of its day, then to any day: the task always gets a time, and its reason says why it is not where it was asked.
@@ -124,10 +128,22 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
       gapMin = widest(t);
       if (gapMin !== undefined && gapMin < need) { t = { ...t, notAfter: undefined }; gapMin = undefined; }
     }
-    if (t.effortGuessed && gapMin !== undefined && gapMin >= need && eff > gapMin) { eff = Math.floor(gapMin / 15) * 15; cap = eff; }
+    const step = isMicro(t.cls) ? 15 : 30;
+    if (t.effortGuessed && gapMin !== undefined && Math.floor(gapMin / step) * step >= need && eff > gapMin) { eff = Math.floor(gapMin / step) * step; cap = eff; }
     const fit: Partial<Piece> = { ...(ask && t.notAfter !== ask.to ? { ask } : {}), ...(eff < guess && t.effortGuessed ? { cut: guess } : {}) };
     if (eff > cap || old) {
-      const sizes = split(eff, cap), from = old ? Math.max(...old.map(ix)) : 0, d = done.length;
+      // Each sitting's share follows the free time of the day the bell aims it at (value.ts SOFT_AIM), so a light day gets a long one.
+      // Sittings land one a day on the freest days before the due (place.ts TWIN, load): size each by its day's free hours, in date order.
+      const due = endOf(t), lo0 = dayStart(Math.max(now, t.notBefore ?? now)), cnt = split(eff, cap).length;
+      const days = due === undefined ? [] : Array.from({ length: Math.max(0, Math.round((dayStart(due - 1) - lo0) / DAY)) + 1 }, (_, i) => lo0 + i * DAY);
+      // A day's room is what is left under the 6 h load hinge (place.ts dayCost); a class-heavy day has none.
+      const freeH = (d: number) => Math.max(0, 6 - fixedHours(allBusy, d) - (d === dayStart(now) ? Math.max(0, (now - d) / HOUR - WAKE_FROM / 60) / 3 : 0));
+      const light = days.filter((d) => freeH(d) > 0);
+      // Fewer light days than sittings: fewer, longer sittings (up to 2 h) on the light days, not two a day or a short one on a full day.
+      const cap2 = light.length && light.length < cnt ? Math.min(Math.max(cap, 120), Math.max(cap, Math.ceil(eff / light.length / 30) * 30)) : cap;
+      const cnt2 = split(eff, cap2).length;
+      const pick = days.length > cnt2 ? days.map((d) => [freeH(d), d] as const).sort((a, b) => b[0] - a[0] || a[1] - b[1]).slice(0, cnt2).sort((a, b) => a[1] - b[1]) : undefined;
+      const sizes = split(eff, cap2, pick?.map(([h]) => h)), from = old ? Math.max(...old.map(ix)) : 0, d = done.length;
       const ids = sizes.map((_, i) => `${t.id}#${from + i + 1}`);
       sizes.forEach((s, i) => pieces.push(Object.assign(mk({ ...t, id: ids[i], parentId: t.id, effort: s, start: undefined, end: undefined }, s, d + i + 1, d + sizes.length, undefined, i ? undefined : lost(t)), fit)));
       splits.push({ parentId: t.id, ids });
@@ -135,7 +151,7 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
   }
   // Orphan sittings whose parent is gone or done.
   for (const t of flex) if (t.parentId && !flex.some((p) => p.id === t.parentId && !p.parentId) && !pieces.some((p) => p.id === t.id)) {
-    pieces.push(mk(t, round15(t.effort), 1, 1, t.start, lost(t)));
+    pieces.push(mk(t, sized(t, t.effort), 1, 1, t.start, lost(t)));
   }
   // Work due today that, all together, is longer than what is left before 22:00 may run on to midnight ("hôm nay A, B, C" at 19:45).
   const tonight = pieces.filter((p) => { const e = endOf(p.task); return e !== undefined && !p.task.rrule && dayStart(e - 1) === dayStart(now); });
@@ -164,15 +180,21 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
   if (opts.pull) for (const p of pieces) {
     const tk = p.task;
     if (tk.fixed || tk.pinned || tk.userEdited?.includes("start")) continue;
+    const day = dayStart(opts.pull.from);
+    // Calmer: a piece in the next 24 h keeps its day, and a later day never gives its time to an earlier gap.
+    if (p.prior !== undefined && (dayStart(p.prior) > day || (p.prior < now + DAY && dayStart(p.prior) !== day))) continue;
     if (p.prior === undefined || p.prior > opts.pull.from) p.gap = opts.pull;
   }
   const held: Busy[] = [...allBusy], own = (p: Piece) => Number(!!p.task.userEdited?.includes("start"));
+  // The checks an old slot must pass to be kept: no rule, window or awake hour is broken, and nothing clashes.
+  const clear = (p: Piece, s: number, others: Busy[]) => {
+    const t = p.task, e = s + dur(p);
+    return !(spanLater(p, s) || hits(p, s).length || !awake(p, s) || (t.deadline !== undefined && e > t.deadline) || (t.notAfter !== undefined && e > t.notAfter) || (t.notBefore !== undefined && s < t.notBefore) || others.some((b) => s < b.end && e > b.start));
+  };
   for (const p of [...pieces].sort((a, b) => own(b) - own(a))) { // a time set by hand wins a clash between two plans
-    const s = p.prior, t = p.task;
-    if (s === undefined || p.gap || unlock?.has(p.id)) continue;
-    const e = s + dur(p);
-    if (spanLater(p, s) || hits(p, s).length || !awake(p, s) || (t.deadline !== undefined && e > t.deadline) || (t.notAfter !== undefined && e > t.notAfter) || (t.notBefore !== undefined && s < t.notBefore) || held.some((b) => s < b.end && e > b.start)) continue;
-    p.lock = true; held.push({ start: s, end: e });
+    const s = p.prior;
+    if (s === undefined || p.gap || unlock?.has(p.id) || !clear(p, s, held)) continue;
+    p.lock = true; held.push({ start: s, end: s + dur(p) });
   }
   // Exploring: not while the model is cold, and only the first new piece without a deadline per plan.
   const explorer = m.hist.length + m.doneHours.length >= 5 ? pieces.find((p) => dueOf(p.task) === undefined && p.prior === undefined) : undefined;
@@ -231,7 +253,20 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
     return opts.hourOnly ? x.map((v, i) => (i === 0 ? 1 : 0)) : x;
   }
   const solved = solve(pieces, { busy: allBusy, fixedEnds, now, util: linUtil, utilAll: linAll }, [...pieces.map((p) => p.id)].sort().join("|").split("").reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0, 2166136261)); // same pieces, same plan
-  const at = (p: Piece) => solved.starts.get(p.id)!;
+  const fin = new Map(solved.starts), at = (p: Piece) => fin.get(p.id)!;
+  // Cause-free moves: placed pieces the solver moved that are not pinned, missed or "later". Only the 5 most valuable keep their move.
+  // shortcut: 5 is a constant, upgrade to a per-user budget once undo rate is tracked
+  // (not `soon`: it is true for every undated piece, since `later` undefined matches parentId undefined)
+  const movers = pieces.filter((q) => q.prior !== undefined && !q.lock && !q.task.pinned && q.missed === undefined && (opts.later === undefined || (opts.later !== q.id && opts.later !== q.task.parentId)) && at(q) >= 0 && at(q) !== q.prior);
+  if (movers.length > 5) {
+    const gain = (q: Piece) => startValue(q, at(q), now, linUtil(q, at(q), fixedEnds)) - startValue(q, q.prior!, now, linUtil(q, q.prior!, fixedEnds));
+    const keep = new Set(movers.sort((a, b) => gain(b) - gain(a)).slice(0, 5));
+    for (const q of movers) { // the rest go back to their old slot when it is still clear
+      if (keep.has(q)) continue;
+      const others: Busy[] = [...allBusy, ...pieces.filter((o) => o !== q && at(o) >= 0).map((o) => ({ start: at(o), end: at(o) + dur(o) }))];
+      if (clear(q, q.prior!, others)) fin.set(q.id, q.prior!);
+    }
+  }
   // Packed (item 9): a piece unplaced, late, or out of its said window. Zen-placed pieces in its way with a later due (or none) can give way.
   const short = pieces.filter((q) => at(q) < 0 ? cells(q, now).length > 0
     : (q.task.deadline !== undefined && at(q) + dur(q) > q.task.deadline) || (!!q.ask && (at(q) + dur(q) > q.ask.to || (q.ask.from !== undefined && at(q) < q.ask.from))));
@@ -572,10 +607,14 @@ export function suggest(tasks: Task[], busy: Busy[], model: Model, now: number):
   const room = (g.end - g.start) / MIN;
   const peak = peakHour(model, now);
   let best: { task: Task; v: number; e: number } | undefined;
+  const eod = dayStart(now) + DAY; // only today's work: never a task placed tomorrow, or due after today
   for (const t of tasks) {
     if (t.doneAt || t.deletedAt || t.fixed || t.parentId || (t.notBefore ?? 0) > g.start) continue;
-    let e = round15(effort(t, model));
-    if (e > room && t.effortGuessed && minSitting(t) <= room) e = Math.floor(room / 15) * 15; // no length said: what the gap holds, if worth a sitting
+    const placedAt = model.placed[t.id]?.start ?? t.start;
+    if ((placedAt !== undefined && placedAt >= eod) || (t.deadline !== undefined && t.deadline > eod)) continue;
+    const step = isMicro(t.cls) ? 15 : 30;
+    let e = sized(t, effort(t, model));
+    if (e > room && t.effortGuessed && Math.floor(room / step) * step >= minSitting(t)) e = Math.floor(room / step) * step; // no length said: what the gap holds, if worth a sitting
     if (e > room) continue;
     const nb = neighbors(t, model, now);
     const x = features(t, g.start, { fixedH: () => 0, peak, nb, ends: [] });

@@ -79,8 +79,8 @@ describe("split and deadline", () => {
       expect(r.len).toBeGreaterThanOrEqual(90);
       expect(r.why).toMatch(/^Sáng mai kín, dời sang (trưa|chiều|tối) mai$/);
     });
-    it("an errand takes even 15 min of the window", () => {
-      const r = run({ effort: 60, effortGuessed: true, cls: "call", kind: "other" }, [{ start: at(1, 7) + 15 * MIN, end: at(1, 11) }]);
+    it("a micro chore takes even 15 min of the window (a guessed errand is on the half hour, so it cannot)", () => {
+      const r = run({ effort: 15, effortGuessed: true, cls: "pet", kind: "other" }, [{ start: at(1, 7) + 15 * MIN, end: at(1, 11) }]);
       expect([r.start, r.len]).toEqual([at(1, 7), 15]);
     });
     it("a said length never shrinks: it keeps 3 h, later that day", () => {
@@ -122,7 +122,7 @@ describe("split and deadline", () => {
     const urgent = (o: Partial<Task> = {}) => task("urgent", { effort: 60, deadline: at(0, 22), tods: EVENING, ...o });
     const at_ = (ps: { id: string; start: number }[], id: string, t: Task) => ps.find((p) => p.id === id)?.start ?? t.start!;
 
-    it("the urgent one keeps the evening; the lax one moves to another day", () => {
+    it("the urgent one keeps the evening; the lax one moves to another day (a due it would miss beats the 24 h freeze)", () => {
       const L = lax(), U = urgent();
       const { diff } = plan([L, U], [], newModel(n), n);
       const u = at_(diff.placed, "urgent", U), l = at_(diff.placed, "lax", L);
@@ -166,6 +166,57 @@ describe("split and deadline", () => {
     expect(share).toBeGreaterThan(0.6);
     expect(share).toBeLessThan(0.85);
     expect(p.end).toBeLessThanOrEqual(due);
+  });
+});
+
+describe("half-hour lengths, calmer replans, today's suggestion", () => {
+  it("a guessed length is a half hour multiple, whatever its due", () => {
+    for (const effort of [60, 75, 90, 105, 120, 150, 180, 240, 300, 450, 600]) for (const days of [1, 2, 3, 5, 10]) {
+      const { diff } = plan([task("g", { effort, effortGuessed: true, kind: "study", cls: "code", deadline: now + days * DAY })], [], newModel(now), now);
+      expect(diff.placed.length).toBeGreaterThan(0);
+      for (const p of diff.placed) expect(((p.end - p.start) / MIN) % 30).toBe(0);
+    }
+  });
+
+  it("a said 75 min task stays one 75 min piece", () => {
+    const { diff } = plan([task("s", { effort: 75 })], [], newModel(now), now);
+    expect(diff.placed).toHaveLength(1);
+    expect(diff.placed[0].end - diff.placed[0].start).toBe(75 * MIN);
+  });
+
+  it("a guessed 120 min task with an 80 min free gap gets 60, not 75", () => {
+    const n = at(0, 20);
+    const { diff } = plan([task("g", { effort: 120, effortGuessed: true, notBefore: at(1, 8), notAfter: at(1, 11) + 20 * MIN })],
+      [{ start: at(1, 9), end: at(1, 10) }], newModel(n), n);
+    expect(diff.unplaced ?? []).toHaveLength(0);
+    expect(diff.placed).toHaveLength(1);
+    expect((diff.placed[0].end - diff.placed[0].start) / MIN).toBe(60);
+    expect(diff.placed[0].start).toBeGreaterThanOrEqual(at(1, 8));
+    expect(diff.placed[0].end).toBeLessThanOrEqual(at(1, 11) + 20 * MIN);
+  });
+
+  it("a task marked done at 10:00 frees its time, and tomorrow's sitting stays where it is", () => {
+    const done = task("d", { effort: 60, start: at(0, 9), end: at(0, 10), doneAt: at(0, 10) });
+    const T = task("t", { effort: 60, effortGuessed: true, kind: "other", deadline: at(3, 23), start: at(1, 15), end: at(1, 16) });
+    const { diff } = plan([done, T], [], newModel(now), now, { pull: { from: at(0, 10), to: at(0, 11) } });
+    expect(diff.placed.find((p) => p.id === "t")?.start ?? T.start).toBe(at(1, 15));
+  });
+
+  it("more than 5 cause-free moves: 5 move, the rest keep their slot; a missed task still moves", () => {
+    const sit = Array.from({ length: 6 }, (_, i) => task(`s${i}`, { effort: 60, start: at(1, 15 + i), end: at(1, 16 + i) }));
+    const missed = task("m", { effort: 60, start: at(0, 6), end: at(0, 7) });
+    const { diff } = plan([...sit, missed], [], newModel(now), now, { pull: { from: at(1, 9), to: at(1, 15) } });
+    const moved = diff.placed.filter((p) => p.id.startsWith("s") && p.from !== undefined && p.from !== p.start);
+    expect(moved).toHaveLength(5);
+    const m = diff.placed.find((p) => p.id === "m");
+    expect(m).toBeDefined();
+    expect(m!.start).toBeGreaterThanOrEqual(now);
+  });
+
+  it("the gap card suggests only today's work, never a task placed tomorrow", () => {
+    const tomorrow = task("tm", { effort: 30, start: at(1, 10), end: at(1, 10) + 30 * MIN });
+    const today = task("td", { effort: 30 });
+    expect(suggest([tomorrow, today], [], newModel(now), now)?.task.id).toBe("td");
   });
 });
 
@@ -633,14 +684,15 @@ describe("scheduler behaviour", () => {
     expect(early.arms[m.placed.a.arm].A[0]).toBe(m.arms[m.placed.a.arm].A[0]);
   });
 
-  it("effort ignores unlike titles and rounds down to 15", () => {
+  it("effort ignores unlike titles; a guessed length rounds to the nearest half hour (floor 30), a said one stays", () => {
     const m = newModel(now);
     const a = new Float32Array(4).fill(0); a[0] = 1;
     const b = new Float32Array(4).fill(0); b[1] = 1;
     m.efforts.push({ vec: Array.from(a), minutes: 120, at: now });
-    const d = plan([task("x", { effort: 0, kind: "chores", vec: b }), task("y", { effort: 10 })], [], m, now).diff;
+    const d = plan([task("x", { effort: 0, kind: "chores", vec: b }), task("y", { effort: 10, effortGuessed: true }), task("z", { effort: 10 })], [], m, now).diff;
     expect(d.placed.find((p) => p.id === "x")!.end - d.placed.find((p) => p.id === "x")!.start).toBe(30 * MIN);
-    expect(d.placed.find((p) => p.id === "y")!.end - d.placed.find((p) => p.id === "y")!.start).toBe(15 * MIN);
+    expect(d.placed.find((p) => p.id === "y")!.end - d.placed.find((p) => p.id === "y")!.start).toBe(30 * MIN);
+    expect(d.placed.find((p) => p.id === "z")!.end - d.placed.find((p) => p.id === "z")!.start).toBe(10 * MIN);
   });
 
   it("six 15 minute errands pay no per-day count penalty", () => {
@@ -814,4 +866,52 @@ it("a new repeat is narrated as one series line, and the read line reaches as fa
   expect(diff.steps!.some((s) => s.key === "place")).toBe(false);
   expect(diff.steps![0].vars.what).toMatch(/^đến \d+\/\d+$/);
   expect(stepText(series[0])).toMatch(/^Xếp \d+ buổi Tập thể dục, (T\d|CN) \d+\/\d+ - (T\d|CN) \d+\/\d+$/);
+});
+
+describe("reach of an undated task", () => {
+  it("is a week, not 2 days: today and tomorrow full, it lands later that week", () => {
+    const busy = [...[0, 1].map((d) => ({ start: at(d, 6), end: at(d + 1, 0) })), { start: at(2, 6), end: at(2, 10) }]; // 2 days from 08:00 end at 08:00 on day 3
+    const { diff } = plan([task("u", { effortGuessed: true })], busy, newModel(now), now);
+    const p = diff.placed.find((x) => x.id === "u");
+    expect(p?.start).toBeGreaterThanOrEqual(at(2, 10));
+    expect(p!.start).toBeLessThan(at(7, 0));
+  });
+});
+
+describe("sitting lengths follow free time", () => {
+  it("split by weights keeps count and total on the 30 grid, 30 to 2× the sitting", () => {
+    for (const eff of [120, 180, 240, 300, 360, 600]) for (const cap of [60, 90, 120]) for (const w of [[15, 2, 15, 9], [1, 1, 14], [0, 15], [3, 3, 3, 3, 15, 0]]) {
+      const even = split(eff, cap), ws = even.map((_, i) => w[i % w.length]), got = split(eff, cap, ws);
+      expect(got.length).toBe(even.length);
+      expect(got.reduce((a, x) => a + x, 0)).toBe(even.reduce((a, x) => a + x, 0));
+      for (const x of got) { expect(x % 30).toBe(0); expect(x).toBeGreaterThanOrEqual(30); expect(x).toBeLessThanOrEqual(Math.max(Math.min(120, 2 * cap), Math.max(...even))); }
+      if (even.length > 1 && new Set(ws).size > 1) expect(got[ws.indexOf(Math.max(...ws))]).toBeGreaterThanOrEqual(got[ws.indexOf(Math.min(...ws))]);
+    }
+  });
+  it("equal free days give equal sittings (no weights effect)", () => {
+    expect(split(240, 60, [5, 5, 5, 5])).toEqual([60, 60, 60, 60]);
+  });
+  it("a prep over a week with class-heavy days: one longer sitting a light day, none on the full days", () => {
+    const heavy = [1, 3, 5].map((d) => ({ start: at(d, 7), end: at(d, 19) })); // 12 h of classes
+    const t = task("prep", { effort: 360, maxSitting: 60, deadline: at(7, 8), forId: "exam", kind: "study" });
+    const ps = plan([t], heavy, newModel(now), now).diff.placed.filter((p) => p.id.startsWith("prep#"));
+    const dayOf = (p: { start: number }) => Math.round((dayStart(p.start) - dayStart(now)) / DAY);
+    expect(ps.reduce((a, p) => a + (p.end - p.start) / MIN, 0)).toBe(360);
+    expect(ps.some((p) => [1, 3, 5].includes(dayOf(p)))).toBe(false);
+    expect(new Set(ps.map(dayOf)).size).toBe(ps.length); // one a day
+    expect(Math.max(...ps.map((p) => (p.end - p.start) / MIN))).toBeGreaterThan(60);
+    expect(ps.every((p) => p.end <= at(6, 22))).toBe(true); // done by the evening before the exam
+  });
+  it("two sittings before an exam in 4 days with classes on day 2 take two days, not one", () => {
+    const heavy = [1, 3].map((d) => ({ start: at(d, 7), end: at(d, 19) }));
+    const t = task("prep", { effort: 180, maxSitting: 60, deadline: at(4, 8), forId: "exam", kind: "study" });
+    const ps = plan([t], heavy, newModel(now), now).diff.placed.filter((p) => p.id.startsWith("prep#"));
+    expect(new Set(ps.map((p) => dayStart(p.start))).size).toBe(ps.length);
+  });
+  it("free days: sittings spread one a day, never two of one task on a day", () => {
+    const t = task("p", { effort: 300, maxSitting: 60, deadline: at(9, 22), kind: "study" });
+    const ps = plan([t], [], newModel(now), now).diff.placed.filter((p) => p.id.startsWith("p#"));
+    expect(ps.length).toBe(5);
+    expect(new Set(ps.map((p) => dayStart(p.start))).size).toBe(5);
+  });
 });

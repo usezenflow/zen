@@ -1,8 +1,20 @@
 // Effort over 120 min (or maxSitting) becomes sittings of whole half hours, as even as they go (150 in two: 90 and 60), never 45s.
-export function split(effort: number, maxSitting = 120): number[] {
+export function split(effort: number, maxSitting = 120, weights?: number[]): number[] {
   const halves = Math.max(1, Math.ceil(effort / 30));
   const n = Math.min(halves, Math.max(1, Math.ceil(effort / maxSitting)));
-  return Array.from({ length: n }, (_, i) => (Math.floor(halves / n) + (i < halves % n ? 1 : 0)) * 30);
+  const even = Array.from({ length: n }, (_, i) => (Math.floor(halves / n) + (i < halves % n ? 1 : 0)) * 30);
+  if (!weights || weights.length !== n || n < 2 || weights.every((w) => w === weights[0])) return even;
+  // Same count and total, shares by weight (a day's free time): a light day up to twice the sitting (at most 2 h), a heavy one down to 30.
+  const hi = Math.max(1, Math.min(4, Math.floor((2 * maxSitting) / 30))), sum = weights.reduce((a, w) => a + Math.max(0, w), 0);
+  if (sum <= 0) return even;
+  const out = weights.map((w) => Math.min(hi, Math.max(1, Math.round((Math.max(0, w) / sum) * halves))));
+  // settle the rounding on the grid: add to the lightest-loaded (highest weight) first, take from the lowest weight first
+  const order = weights.map((w, i) => [w, i] as const).sort((a, b) => b[0] - a[0]).map(([, i]) => i);
+  for (let left = halves - out.reduce((a, x) => a + x, 0), k = 0; left !== 0 && k < 4 * n * hi; k++) {
+    const i = left > 0 ? order[k % n] : order[n - 1 - (k % n)];
+    if (left > 0 && out[i] < hi) { out[i]++; left--; } else if (left < 0 && out[i] > 1) { out[i]--; left++; }
+  }
+  return out.reduce((a, x) => a + x, 0) === halves ? out.map((x) => x * 30) : even;
 }
 
 // Shortest sitting worth doing when no length was said: an errand fits 15 min, deep work never under 1h30.

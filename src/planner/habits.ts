@@ -35,7 +35,7 @@ export function effort(t: Task, m: Model): number {
       .map((e) => ({ c: cosine(t.vec!, e.vec), m: e.minutes }))
       .filter((e) => e.c > SIM).sort((a, b) => b.c - a.c).slice(0, 5);
     if (guessed && near.length >= 2) return r30(median(near.map((n) => n.m)));
-    if (!guessed && near.length) return median(near.map((n) => n.m));
+    if (!guessed && near.length) return r30(median(near.map((n) => n.m))); // no length said at all: a guess, on the half hour
   }
   return guessed ? t.effort : KIND_EFFORT[t.kind];
 }
