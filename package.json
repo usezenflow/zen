@@ -1,6 +1,6 @@
 {
   "name": "zen",
-  "version": "26.0.9",
+  "version": "26.0.10",
   "main": "expo-router/entry",
   "dependencies": {
     "@dariyd/react-native-pdf-page-image": "^2.1.0",

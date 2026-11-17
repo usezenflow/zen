@@ -1,5 +1,19 @@
 # zen
 
+## 26.0.10
+
+### Patch Changes
+
+- Thẻ trên cùng gọn và đúng hơn
+    - Việc đang làm ghi "Đang làm"; việc tiếp theo hôm nay ghi "Tiếp theo", có nút "Làm luôn" để dời đúng buổi đó về bây giờ
+    - Bỏ thẻ "...p trống, hợp làm ...": không còn gợi ý việc ngày khác, chạm dấu xong không còn làm kẹt buổi ở mấy hôm sau
+    - Bỏ thẻ lớn "Sáng nay"; việc bị dời chỉ hiện ở một dòng nhỏ dưới thanh chọn, giống nhau ở ngày, tuần và tháng
+- Dòng "Xếp lại 2 việc" có hai hàng: số việc, rồi việc dời nhiều nhất ("**Gym** sang T4 7:00") ở hàng dưới
+- Tên việc in đậm khi nằm giữa câu: "**Đọc sách** chưa có giờ trống", "Đã dời **Gym** sang 15:00"...
+- "Các buổi": thêm hay bỏ một buổi là chia lại các buổi còn lại cho đều; bỏ đúng buổi bạn chạm
+- Độ dài tự đoán: việc nhỏ 15p, còn lại tròn nửa giờ hay một giờ; không còn 45p, 1h15p
+- Buổi ôn thi đã có được chia lại theo cách mới ngay lần đầu mở app sau khi cập nhật; buổi đã xong, đang làm hay bạn tự đặt giờ thì giữ nguyên
+
 ## 26.0.9
 
 ### Patch Changes
