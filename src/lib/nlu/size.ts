@@ -131,6 +131,8 @@ const BYDAY: Record<number, string> = {
 
 /** A guessed length is a half or whole hour (user rule: no odd 1h15p guesses); said lengths never come here. */
 export const r30 = (x: number): number => Math.max(30, Math.round(x / 30) * 30);
+/** Any guessed length: minor work is 15 minutes, anything longer a half or whole hour; never 45 or 1h15 (user rule). */
+export const snapGuess = (x: number): number => (x <= 22 ? 15 : r30(x));
 const ymd = (ms: number): string => new Date(ms + VN).toISOString().slice(0, 10).replace(/-/g, "");
 
 /** Whole days left in the VN month, the day itself included: at least 1. */

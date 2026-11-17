@@ -3,7 +3,8 @@ import type { Kind, Task } from "../lib/types";
 import { D, DAY, HOUR, I_AFTER, I_ENERGY, KINDS, MIN, dayStart, dueOf, features, hourOf } from "./features";
 import { coldArms, prepare, primeBatch, ucb, ucbAt, update } from "./linucb";
 import { reasonText, stepText } from "../lib/reasons";
-import { learn, newModel, outcome, plan, suggest, typeOf } from "./index";
+import { plain } from "../lib/i18n";
+import { learn, newModel, outcome, plan, typeOf } from "./index";
 import { awake, solve } from "./place";
 import { split } from "./split";
 import type { Piece } from "./value";
@@ -169,13 +170,20 @@ describe("split and deadline", () => {
   });
 });
 
-describe("half-hour lengths, calmer replans, today's suggestion", () => {
+describe("half-hour lengths, calmer replans", () => {
   it("a guessed length is a half hour multiple, whatever its due", () => {
     for (const effort of [60, 75, 90, 105, 120, 150, 180, 240, 300, 450, 600]) for (const days of [1, 2, 3, 5, 10]) {
       const { diff } = plan([task("g", { effort, effortGuessed: true, kind: "study", cls: "code", deadline: now + days * DAY })], [], newModel(now), now);
       expect(diff.placed.length).toBeGreaterThan(0);
       for (const p of diff.placed) expect(((p.end - p.start) / MIN) % 30).toBe(0);
     }
+  });
+  it("a guessed length is 15 for minor work, else whole half hours: never 45 or 1h15", () => {
+    const lens = (t: Task) => plan([t], [], newModel(now), now).diff.placed.map((p) => (p.end - p.start) / MIN);
+    expect(lens(task("pet", { effort: 15, effortGuessed: true, cls: "pet" }))).toEqual([15]);
+    for (const e of [20, 40, 45, 50, 75, 100, 105, 135]) for (const x of lens(task("g", { effort: e, effortGuessed: true }))) expect(x === 15 || x % 30 === 0).toBe(true);
+    expect(lens(task("g", { effort: 20, effortGuessed: true }))).toEqual([15]);
+    expect(lens(task("g", { effort: 45, effortGuessed: true }))).toEqual([60]);
   });
 
   it("a said 75 min task stays one 75 min piece", () => {
@@ -211,12 +219,6 @@ describe("half-hour lengths, calmer replans, today's suggestion", () => {
     const m = diff.placed.find((p) => p.id === "m");
     expect(m).toBeDefined();
     expect(m!.start).toBeGreaterThanOrEqual(now);
-  });
-
-  it("the gap card suggests only today's work, never a task placed tomorrow", () => {
-    const tomorrow = task("tm", { effort: 30, start: at(1, 10), end: at(1, 10) + 30 * MIN });
-    const today = task("td", { effort: 30 });
-    expect(suggest([tomorrow, today], [], newModel(now), now)?.task.id).toBe("td");
   });
 });
 
@@ -377,12 +379,6 @@ describe("policy and events", () => {
   it("is deterministic", () => {
     const ts = [task("a"), task("b", { deadline: at(3, 12) })];
     expect(plan(ts, [], newModel(now), now)).toEqual(plan(ts, [], newModel(now), now));
-  });
-
-  it("offers a fitting task for a gap starting soon", () => {
-    const s = suggest([task("chores", { effort: 30 }), task("big", { effort: 240 })], [{ start: now + 90 * MIN, end: now + 5 * HOUR }], newModel(now), now);
-    expect(s?.task.id).toBe("chores");
-    expect(suggest([task("c")], [{ start: now, end: now + 5 * HOUR }], newModel(now), now)).toBeUndefined();
   });
 });
 
@@ -684,14 +680,14 @@ describe("scheduler behaviour", () => {
     expect(early.arms[m.placed.a.arm].A[0]).toBe(m.arms[m.placed.a.arm].A[0]);
   });
 
-  it("effort ignores unlike titles; a guessed length rounds to the nearest half hour (floor 30), a said one stays", () => {
+  it("effort ignores unlike titles; a guessed 10 is minor work, 15, a said one stays", () => {
     const m = newModel(now);
     const a = new Float32Array(4).fill(0); a[0] = 1;
     const b = new Float32Array(4).fill(0); b[1] = 1;
     m.efforts.push({ vec: Array.from(a), minutes: 120, at: now });
     const d = plan([task("x", { effort: 0, kind: "chores", vec: b }), task("y", { effort: 10, effortGuessed: true }), task("z", { effort: 10 })], [], m, now).diff;
     expect(d.placed.find((p) => p.id === "x")!.end - d.placed.find((p) => p.id === "x")!.start).toBe(30 * MIN);
-    expect(d.placed.find((p) => p.id === "y")!.end - d.placed.find((p) => p.id === "y")!.start).toBe(30 * MIN);
+    expect(d.placed.find((p) => p.id === "y")!.end - d.placed.find((p) => p.id === "y")!.start).toBe(15 * MIN);
     expect(d.placed.find((p) => p.id === "z")!.end - d.placed.find((p) => p.id === "z")!.start).toBe(10 * MIN);
   });
 
@@ -787,17 +783,9 @@ describe("scheduler behaviour", () => {
     expect(p.why![0]).toEqual({ key: "said", w: 1 });
   });
 
-  it("the gap card skips a task not yet due and offers nothing next to a planned task", () => {
-    const busy = [{ start: now + 90 * MIN, end: now + 5 * HOUR }];
-    expect(suggest([task("later", { effort: 30, notBefore: at(7, 9) })], busy, newModel(now), now)).toBeUndefined();
-    expect(suggest([task("c", { effort: 30 }), task("p", { start: now + 15 * MIN, end: now + 75 * MIN })], busy, newModel(now), now)).toBeUndefined();
-    expect(suggest([task("c", { effort: 30 })], busy, newModel(now), now)?.task.id).toBe("c");
-    expect(suggest([task("c", { effort: 30 }), task("p", { start: now + 15 * MIN, end: now + 75 * MIN, effort: 60 })], [], newModel(now), now)).toBeUndefined();
-  });
-
   it("negative reasons are comparisons", () => {
     expect(reasonText({ key: "hour", w: -1 })).toBe("Giờ khác hợp hơn");
-    expect(reasonText({ key: "after", w: 1, vars: { prev: "study" } })).toBe("Sau giờ học, như mọi khi");
+    expect(plain(reasonText({ key: "after", w: 1, vars: { prev: "study" } }))).toBe("Sau giờ học, như mọi khi");
   });
 });
 
@@ -865,7 +853,7 @@ it("a new repeat is narrated as one series line, and the read line reaches as fa
   expect(series[0].ids).toHaveLength(diff.placed.length);
   expect(diff.steps!.some((s) => s.key === "place")).toBe(false);
   expect(diff.steps![0].vars.what).toMatch(/^đến \d+\/\d+$/);
-  expect(stepText(series[0])).toMatch(/^Xếp \d+ buổi Tập thể dục, (T\d|CN) \d+\/\d+ - (T\d|CN) \d+\/\d+$/);
+  expect(plain(stepText(series[0]))).toMatch(/^Xếp \d+ buổi Tập thể dục, (T\d|CN) \d+\/\d+ - (T\d|CN) \d+\/\d+$/);
 });
 
 describe("reach of an undated task", () => {

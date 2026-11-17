@@ -4,11 +4,11 @@ import { effort, neighbors, peakHour, slipOf } from "./habits";
 import { ALPHA, D, LAMBDA, N0, type Primed, decayArms, prepare, primeBatch, ucb, ucbAt, update } from "./linucb";
 import { grounded } from "./grounded";
 import { type Model, newModel } from "./model";
-import { type Busy, type End, type Util, EJECT_CAP, SLOT, STEP, WAKE_FROM, WAKE_TO, awake, cells, dayGone, fixedHours, gap, solve } from "./place";
+import { type Busy, type End, type Util, EJECT_CAP, SLOT, STEP, WAKE_FROM, WAKE_TO, awake, cells, dayGone, fixedHours, solve } from "./place";
 import { day, dayLabel, when } from "../lib/when";
 import { minSitting, split } from "./split";
 import { type Piece, bell, dur, lateH, moveCost, pullOk, startValue } from "./value";
-import { isMicro, r30 } from "../lib/nlu/size";
+import { snapGuess } from "../lib/nlu/size";
 
 const LONG_SITTING = 180; // near a deadline sittings merge up to this; longer work still splits
 
@@ -22,7 +22,7 @@ const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 // One colour per task everywhere (rows, week, month, detail): a prep is the user's plan even though it has a due time.
 export const typeOf = (t: Task): TaskType => t.fixed ?? (dueOf(t) !== undefined && !t.forId ? "assignment" : "plan");
 // A said length keeps its minutes; a guessed one sits on the half hour (a micro chore on 15).
-const sized = (t: Task, m: number) => (!t.effortGuessed ? m : isMicro(t.cls) ? Math.max(15, Math.ceil(m / 15) * 15) : r30(m));
+const sized = (t: Task, m: number) => (!t.effortGuessed ? m : snapGuess(m)); // said: as said; guessed: 15, else half hours
 
 function decay(m: Model, now: number) {
   const dt = now - m.at;
@@ -128,8 +128,9 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
       gapMin = widest(t);
       if (gapMin !== undefined && gapMin < need) { t = { ...t, notAfter: undefined }; gapMin = undefined; }
     }
-    const step = isMicro(t.cls) ? 15 : 30;
-    if (t.effortGuessed && gapMin !== undefined && Math.floor(gapMin / step) * step >= need && eff > gapMin) { eff = Math.floor(gapMin / step) * step; cap = eff; }
+    // shrunk to the gap on the same grid: half hours, or 15 for minor work when only 15 to 29 minutes are free
+    const fitGap = (g: number) => (g >= 30 ? Math.floor(g / 30) * 30 : g >= 15 ? 15 : 0);
+    if (t.effortGuessed && gapMin !== undefined && fitGap(gapMin) >= need && eff > gapMin) { eff = fitGap(gapMin); cap = eff; }
     const fit: Partial<Piece> = { ...(ask && t.notAfter !== ask.to ? { ask } : {}), ...(eff < guess && t.effortGuessed ? { cut: guess } : {}) };
     if (eff > cap || old) {
       // Each sitting's share follows the free time of the day the bell aims it at (value.ts SOFT_AIM), so a light day gets a long one.
@@ -598,30 +599,5 @@ export function learn(model: Model, ev: TaskEvent, task: Task, own = false): Mod
   return m;
 }
 
-// A free gap starting within 60 min gets the best-fitting unplaced task.
-export function suggest(tasks: Task[], busy: Busy[], model: Model, now: number): { task: Task; start: number; end: number } | undefined {
-  const fixed = tasks.filter((t) => !t.doneAt && !t.deletedAt && t.start !== undefined && t.end !== undefined)
-    .map((t) => ({ start: t.start!, end: t.end! }));
-  const g = gap([...busy, ...fixed], now);
-  if (!g) return undefined;
-  const room = (g.end - g.start) / MIN;
-  const peak = peakHour(model, now);
-  let best: { task: Task; v: number; e: number } | undefined;
-  const eod = dayStart(now) + DAY; // only today's work: never a task placed tomorrow, or due after today
-  for (const t of tasks) {
-    if (t.doneAt || t.deletedAt || t.fixed || t.parentId || (t.notBefore ?? 0) > g.start) continue;
-    const placedAt = model.placed[t.id]?.start ?? t.start;
-    if ((placedAt !== undefined && placedAt >= eod) || (t.deadline !== undefined && t.deadline > eod)) continue;
-    const step = isMicro(t.cls) ? 15 : 30;
-    let e = sized(t, effort(t, model));
-    if (e > room && t.effortGuessed && Math.floor(room / step) * step >= minSitting(t)) e = Math.floor(room / step) * step; // no length said: what the gap holds, if worth a sitting
-    if (e > room) continue;
-    const nb = neighbors(t, model, now);
-    const x = features(t, g.start, { fixedH: () => 0, peak, nb, ends: [] });
-    const v = e / room + 0.5 * x[I_ENERGY] + 0.5 * x[I_SIM] + x[3];
-    if (!best || v > best.v) best = { task: t, v, e };
-  }
-  return best && { task: best.task, start: g.start, end: g.start + best.e * MIN };
-}
 
 export { newModel };

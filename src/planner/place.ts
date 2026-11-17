@@ -268,18 +268,3 @@ export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
   for (let i = 0; i < n; i++) if (S[i] < 0 && pieces[i].gap && pieces[i].prior !== undefined && fits(i, pieces[i].prior!, S)) S[i] = pieces[i].prior!;
   return { starts: new Map(pieces.map((p, i) => [p.id, S[i]])), score: full(S), greedyScore, log };
 }
-
-// Best-fitting flexible task for a free gap of 30 min or more that starts within 60 min.
-export function gap(busy: Busy[], now: number): Busy | undefined {
-  const from = ceil(now);
-  const sorted = [...busy].sort((a, b) => a.start - b.start);
-  let t = from;
-  for (const b of sorted) {
-    if (b.end <= t) continue;
-    if (b.start - t >= SLOT) break;
-    t = Math.max(t, b.end);
-  }
-  if (t - now > HALO) return undefined;
-  const next = sorted.find((b) => b.start >= t)?.start ?? t + 4 * HOUR;
-  return next - t >= SLOT ? { start: t, end: Math.min(next, t + 4 * HOUR) } : undefined;
-}

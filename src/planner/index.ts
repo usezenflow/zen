@@ -1,4 +1,4 @@
-export { plan, typeOf, learn, outcome, suggest, type Opts } from "./policy";
+export { plan, typeOf, learn, outcome, type Opts } from "./policy";
 export { migrateModel, newModel, type Model } from "./model";
 export type { Busy } from "./place";
 export { preps } from "./prep";

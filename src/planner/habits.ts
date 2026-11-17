@@ -1,7 +1,7 @@
 import type { Kind, Task } from "../lib/types";
 import { DAY, hourOf, type Nb } from "./features";
 import type { Model } from "./model";
-import { r30 } from "../lib/nlu/size";
+import { snapGuess } from "../lib/nlu/size";
 
 const KIND_EFFORT: Record<Kind, number> = { study: 60, exercise: 60, chores: 30, social: 90, other: 30, work: 60, errand: 30, finance: 30, self: 30 };
 const HALF = 21 * DAY;
@@ -34,8 +34,8 @@ export function effort(t: Task, m: Model): number {
     const near = m.efforts.filter((e) => !e.kind || e.kind === t.kind)
       .map((e) => ({ c: cosine(t.vec!, e.vec), m: e.minutes }))
       .filter((e) => e.c > SIM).sort((a, b) => b.c - a.c).slice(0, 5);
-    if (guessed && near.length >= 2) return r30(median(near.map((n) => n.m)));
-    if (!guessed && near.length) return r30(median(near.map((n) => n.m))); // no length said at all: a guess, on the half hour
+    if (guessed && near.length >= 2) return snapGuess(median(near.map((n) => n.m)));
+    if (!guessed && near.length) return snapGuess(median(near.map((n) => n.m))); // no length said at all: a guess: 15, else half hours
   }
   return guessed ? t.effort : KIND_EFFORT[t.kind];
 }
