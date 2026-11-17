@@ -345,6 +345,13 @@ const canon = (x: Task) => JSON.stringify(Object.keys(x).filter((k) => k !== "ve
 let chain: Promise<unknown> = Promise.resolve();
 const serial = <T>(fn: () => Promise<T>): Promise<T> => { const r = chain.then(fn); chain = r.catch(() => {}); return r; };
 
+/** A flexible task still waiting for a time (not a split parent, whose sittings hold the time): any freed time should take it. */
+export const waiting = (all: Task[]) => {
+  const parents = new Set(all.filter((c) => c.parentId && !c.deletedAt).map((c) => c.parentId));
+  // a repeat's gone day stays missed (the planner skips it), so it is not waiting
+  return all.some((x) => !x.fixed && !x.doneAt && !x.deletedAt && x.start === undefined && !parents.has(x.id) && !(x.rrule && (x.deadline ?? x.notAfter ?? Infinity) <= Date.now()));
+};
+
 /** Runs one mutation, optionally replans, mirrors to the calendar and persists. One call is one undo group. */
 function transact(now: number, mutate: (w: Work) => Promise<void> | void, o: { replan?: boolean | "pull"; self?: boolean; quiet?: boolean; dry?: boolean; plan?: Opts; text?: (d: Diff | undefined, w: Work) => string | undefined } = {}): Promise<Result> {
   return serial(() => transactNow(now, mutate, o));
@@ -387,7 +394,9 @@ async function transactNow(now: number, mutate: (w: Work) => Promise<void> | voi
     }
   }
   const pulled: string[] = []; // placed earlier than before, or unscheduled before: the freed time took them
-  if ((o.replan === true || o.replan === undefined || pullGap) && (!past || pullGap)) {
+  // a pull that freed nothing ahead still plans when a task waits for a time: placing it moves nothing that is placed
+  const waits = o.replan === "pull" && !pullGap && waiting([...w.tasks.values()]);
+  if ((o.replan === true || o.replan === undefined || pullGap || waits) && (!past || pullGap || waits)) {
     // The newest time set by hand wins: an older hand-set flexible task under it gives way and is planned again (not one already running).
     for (const a of set) for (const x of [...w.tasks.values()]) {
       if (x.id === a.id || x.fixed || !span(x) || !(x.start! < a.end! && a.start! < x.end!)) continue;
@@ -454,8 +463,9 @@ async function transactNow(now: number, mutate: (w: Work) => Promise<void> | voi
   // a guessed length (per frame class) against what the user finished: its multiplier learns from it
   for (const e of w.events) {
     const x = w.tasks.get(e.taskId);
-    if (e.type === "done" && x?.cls && x.effortGuessed && x.guessMin && x.start !== undefined && e.at >= x.start && e.at <= (x.end ?? x.start) + 30 * 60_000)
-      await learnClass(x.cls, Math.min(240, Math.max(15, (e.at - x.start) / 60_000)) / x.guessMin);
+    // an exam's prep learns too (its length is the sizer's, not said); a sitting is measured against its own length, not the whole task's
+    if (e.type === "done" && x?.cls && (x.effortGuessed || x.forId) && x.guessMin && x.start !== undefined && e.at >= x.start && e.at <= (x.end ?? x.start) + 30 * 60_000)
+      await learnClass(x.cls, Math.min(240, Math.max(15, (e.at - x.start) / 60_000)) / (x.parentId && x.effort > 0 ? x.effort : x.guessMin));
   }
   if (w.model !== model0) await store.saveModel(w.model); // ~500 KB of JSON: not rewritten by a write that learned nothing (a held wheel value)
   if (diff) { await store.kvSet("plannedAt", String(now)); await recordMoves(w.moves); await saveWarn(diff.warn ?? []); }

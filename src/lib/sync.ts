@@ -7,7 +7,7 @@ import { examMonth, feeMonth, marksOpen, resolveTerm, termMondays, vnMidnight } 
 import { t } from "./i18n";
 import { digestNotices, marksNotice, type Digest } from "./dlu/materialize";
 import { pushWidgetsNow } from "./widgets";
-import { ingest, keepSweep, loadGone, replan, topUp, type Result } from "./apply";
+import { ingest, keepSweep, loadClassMult, loadGone, replan, topUp, waiting, type Result } from "./apply";
 import type { Notice } from "./types";
 import type { ParsedMarks } from "./dlu/parse/student";
 import * as queue from "./queue";
@@ -168,7 +168,7 @@ async function run(j: queue.Job, acc: Acc): Promise<void> {
   await setBad(src, false);
   for (const k of [AT[p], "sync.last", `sync.last.${src}`]) await store.kvSet(k, String(now));
   if (!fetched) return;
-  const { upserts, deletes, digest } = materialize(fetched, await store.allTasks(), now, prepMult(await getMarks()), await loadGone());
+  const { upserts, deletes, digest } = materialize(fetched, await store.allTasks(), now, prepMult(await getMarks()), await loadGone(), await loadClassMult().catch(() => ({})));
   acc.digest.exams.push(...digest.exams); acc.digest.assignments.push(...digest.assignments); acc.digest.rooms.push(...digest.rooms);
   acc.digest.lectures!.push(...(digest.lectures ?? []));
   acc.digest.moved.push(...digest.moved); acc.digest.due.push(...digest.due); acc.digest.makeup.push(...digest.makeup); acc.digest.cancelled.push(...digest.cancelled);
@@ -254,7 +254,7 @@ export async function connect(typed: Creds): Promise<{ portal: Check; lms: Check
 /** Preps follow the exams already stored and need no campus: made, resized or renamed without a fetch, so a new prep rule reaches old exams at once. */
 async function backfill(now: number): Promise<Result | undefined> {
   const none: Fetched = Object.assign([], { failed: ["portal", "lms"] as Source[] }); // both "failed": no stored campus item is touched
-  const { upserts, deletes } = materialize(none, await store.allTasks(), now, prepMult(await getMarks()), await loadGone());
+  const { upserts, deletes } = materialize(none, await store.allTasks(), now, prepMult(await getMarks()), await loadGone(), await loadClassMult().catch(() => ({})));
   return upserts.length || deletes.length ? ingest(upserts, deletes, now) : undefined;
 }
 
@@ -276,7 +276,9 @@ async function foregroundNow(now: number): Promise<Synced | undefined> {
   // A task that ended after the last plan was missed: roll it forward once (plannedAt moves on after the replan).
   const planned = Number((await store.kvGet("plannedAt")) ?? now);
   // A time the user set by hand (pinned, or userEdited start) is not missed: it stays where the user put it.
-  if (!out && (await store.allTasks()).some((x) => !x.doneAt && !x.deletedAt && !x.fixed && !x.pinned && !x.userEdited?.includes("start") && x.end !== undefined && x.end <= now && x.end > planned)) {
+  // ...and a task still waiting for a time gets any time freed since (a class gone, a block ended): placing it moves nothing placed.
+  const all = await store.allTasks();
+  if (!out && (waiting(all) || all.some((x) => !x.doneAt && !x.deletedAt && !x.fixed && !x.pinned && !x.userEdited?.includes("start") && x.end !== undefined && x.end <= now && x.end > planned))) {
     const r = await replan(now);
     if (r.changed) out = wrap(r);
   }

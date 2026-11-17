@@ -777,3 +777,18 @@ it("a time dragged to start in the past, end ahead, also moves flexible blocks a
   const mine = db.tasks.get(id);
   for (const k of ["r", "p"]) { const f = db.tasks.get(k); expect(f.start >= mine.end || f.end <= mine.start, k).toBe(true); }
 });
+
+it("a task waiting for a time takes it when a delete frees none ahead (a past block deleted)", async () => {
+  db.tasks.set("w", { id: "w", title: "Gọi điện cho mẹ", kind: "other", source: "user", effort: 60, effortGuessed: true, createdAt: NOW } as Task);
+  db.tasks.set("old", { id: "old", title: "Họp", kind: "other", source: "user", effort: 60, start: NOW - 3 * 3600_000, end: NOW - 2 * 3600_000, createdAt: NOW } as Task);
+  await removeScope("old", "this", NOW);
+  expect(db.tasks.get("w").start).toBeGreaterThanOrEqual(NOW);
+});
+
+it("an exam prep's sitting done longer than planned teaches its class, measured against the sitting", async () => {
+  const s = (i: number) => ({ id: `prep:e#${i}`, parentId: "prep:e", title: "Ôn thi", kind: "study", source: "user", forId: "e", cls: "exam_review", guessMin: 600,
+    effort: 60, start: NOW - (100 + i * 1440) * 60_000, end: NOW - (40 + i * 1440) * 60_000, createdAt: NOW }) as Task;
+  for (let i = 0; i < 4; i++) { db.tasks.set(s(i).id, s(i)); await swipeDone(s(i).id, s(i).start! + 90 * 60_000); }
+  const m = (await loadClassMult()).exam_review;
+  expect(m).toBeGreaterThan(1); // 90 of 60 planned, not 90 of the whole 600
+});
