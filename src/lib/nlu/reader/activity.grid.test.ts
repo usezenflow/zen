@@ -45,11 +45,11 @@ describe("a former activity phrase keeps its length in every spelling", () => {
 });
 
 describe("an unsized guess is split, not capped", () => {
-  it("a 270 minute guess with no class keeps its length and splits into sittings of at most 120", () => {
+  it("a 270 minute guess with no class keeps its length and splits into sittings of at most 90", () => {
     const item: ReaderItem = {
       type: "ASSIGNMENT", title: "Nộp", note: null, durationMinutes: 270, confidence: 0.8,
       inferred: ["durationMinutes"], flags: [], alternatives: [], evidence: "nộp", checked: false,
     };
-    expect(itemAction(item)).toMatchObject({ effortMinutes: 270, effortGuessed: true, maxSitting: 120 });
+    expect(itemAction(item)).toMatchObject({ effortMinutes: 270, effortGuessed: true, maxSitting: 90 });
   });
 });

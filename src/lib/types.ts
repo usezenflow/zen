@@ -22,6 +22,8 @@ export interface Task {
   content?: string; // LMS assignment description, sanitized HTML, upstream-owned
   forId?: string; // prep: the exam it prepares for
   format?: string; // exam format; names what its prep does
+  credits?: number; // exam: course credits (portal); its prep scales by credits / 3
+  retake?: boolean; // exam: a retake (LanThi); its prep is 1.3 times longer
   maxSitting?: number; // longest sitting in minutes when split
   effortGuessed?: boolean; // the length was guessed, not said
   cls?: string; // the reader's frame class of a guessed length ("code"): its guesses are learned per class

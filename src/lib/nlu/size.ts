@@ -33,7 +33,7 @@ interface Row {
   micro?: boolean;
 }
 
-const T: Record<TaskClass, Row> = {
+export const T: Record<TaskClass, Row> = {
   code: { shape: "project", base: 180, per: 90, days: 7 },
   fix: { shape: "errand", base: 60, per: 0, days: 2 },
   review_code: { shape: "errand", base: 30, per: 0, days: 2 },
@@ -59,23 +59,23 @@ const T: Record<TaskClass, Row> = {
   cook: { shape: "errand", base: 60, per: 0, days: 1 },
   shop: { shape: "errand", base: 60, per: 0, days: 3 },
   bill: { shape: "errand", base: 30, per: 0 },
-  budget: { shape: "project", base: 60, per: 60, days: 7 },
+  budget: { shape: "project", base: 120, per: 60, days: 7 },
   tax: { shape: "project", base: 180, per: 60, days: 7 },
   paperwork: { shape: "errand", base: 60, per: 0, days: 7 },
   call: { shape: "errand", base: 30, per: 0, days: 1 },
   email: { shape: "errand", base: 30, per: 0, days: 1 },
   meeting: { shape: "event", base: 60, per: 0 },
   appointment: { shape: "event", base: 120, per: 0 },
-  content: { shape: "project", base: 120, per: 60, days: 5 },
-  design: { shape: "project", base: 240, per: 120, days: 7 },
+  content: { shape: "project", base: 180, per: 60, days: 5 },
+  design: { shape: "project", base: 360, per: 120, days: 7 },
   sales: { shape: "errand", base: 60, per: 0, days: 3 },
-  report: { shape: "project", base: 90, per: 90, days: 3 },
-  plan: { shape: "project", base: 120, per: 60, days: 7 },
+  report: { shape: "project", base: 180, per: 60, days: 3 },
+  plan: { shape: "project", base: 180, per: 60, days: 7 },
   interview: { shape: "event", base: 60, per: 0 },
   deploy: { shape: "errand", base: 60, per: 0, days: 2 },
-  research: { shape: "project", base: 240, per: 120, days: 10 },
-  spec: { shape: "project", base: 180, per: 90, days: 5 },
-  presentation: { shape: "project", base: 120, per: 60, days: 5 },
+  research: { shape: "project", base: 480, per: 120, days: 10 },
+  spec: { shape: "project", base: 270, per: 90, days: 5 },
+  presentation: { shape: "project", base: 180, per: 60, days: 5 },
   admin_work: { shape: "errand", base: 60, per: 0, days: 3 },
   pet: { shape: "errand", base: 15, per: 0, days: 1, micro: true },
   plants: { shape: "errand", base: 15, per: 0, days: 3, micro: true },
@@ -89,6 +89,14 @@ const T: Record<TaskClass, Row> = {
   meal_lunch: { shape: "errand", base: 60, per: 0 },
   meal_dinner: { shape: "errand", base: 60, per: 0 },
   cafe: { shape: "errand", base: 60, per: 0 },
+  apply_job: { shape: "project", base: 180, per: 60, days: 7 },
+  learn_tool: { shape: "practice", base: 60, per: 60, freq: 3 },
+  move_house: { shape: "project", base: 600, per: 120, days: 14 },
+  trip: { shape: "project", base: 180, per: 60, days: 10 },
+  event_plan: { shape: "project", base: 360, per: 90, days: 14 },
+  declutter: { shape: "project", base: 180, per: 60, days: 7 },
+  invest_research: { shape: "project", base: 180, per: 60, days: 7 },
+  finance_paper: { shape: "project", base: 120, per: 60, days: 7 },
 };
 
 /** Minutes of a kind the words do not size: a flexible task, an assignment, a fixed exam, lecture or meeting. */

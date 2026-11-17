@@ -34,7 +34,7 @@ const FIXED: Partial<Record<ReaderItemType, Fixed>> = { EXAM: "exam", LECTURE: "
 const mins = (c: string) => +c.slice(0, 2) * 60 + +c.slice(3);
 
 /** An unsized guess longer than this is split into sittings of this size (maxSitting), never capped. */
-const GUESS_SITTING = 120;
+const GUESS_SITTING = 90;
 
 // "mỗi/hằng/hàng" + unit anywhere, or a bare "mỗi/hằng" left at an edge ("hàng" alone is a word: "mua hàng").
 const UNIT = "ngày|tuần|tháng|năm|sáng|trưa|chiều|tối|đêm|khuya";

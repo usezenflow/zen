@@ -15,7 +15,8 @@ export type TaskClass =
   | "meeting" | "appointment"
   | "content" | "design" | "sales" | "report" | "plan" | "interview" | "deploy" | "research" | "spec" | "presentation" | "admin_work"
   | "pet" | "plants" | "trash" | "meds" | "pickup" | "repair" | "selfcare"
-  | "meal_breakfast" | "meal_lunch" | "meal_dinner" | "cafe";
+  | "meal_breakfast" | "meal_lunch" | "meal_dinner" | "cafe"
+  | "apply_job" | "learn_tool" | "move_house" | "trip" | "event_plan" | "declutter" | "invest_research" | "finance_paper";
 export type Unit = "trang" | "chuong" | "bai" | "cau" | "slide" | "chu" | "cuon" | "km" | "buoi" | "lan";
 export interface Frame {
   verb?: string;
@@ -88,6 +89,7 @@ const CLASSES: [TaskClass, RegExp][] = [
   ["presentation", /\b(?:pitch|pitching|present|presentation)\b/],
   ["write_doc", /\b(?:viet (?:bao cao|tai lieu|doc|proposal)|bao cao|report|proposal)\b/],
   ["skill", /\b(?:hoc )?(?:guitar|piano|ghi ta|nhay|boi loi)\b|\bhoc dan\b|\bdan (?:guitar|piano|bau)\b|\bhoc ve\b|\bve tranh\b/],
+  ["learn_tool", /\bhoc (?:excel|figma|photoshop|cach dung|cach su dung)\b/],
   ["workout_gym", /\b(?:gym|tap ta)\b/],
   ["workout_yoga", /\byoga\b/],
   ["workout_run", /\b(?:chay bo|chay|run|running)\b/],
@@ -101,9 +103,16 @@ const CLASSES: [TaskClass, RegExp][] = [
   ["pickup", /\b(?:(?:don|dua) (?:con|em|be)|di (?:don|dua) (?:con|em|be)|pick ?up|drop ?off)\b/],
   ["repair", /\b(?:sua (?:xe|dien|may|nha|dien thoai|ong nuoc|tu lanh|dieu hoa|laptop)|repair)\b/],
   ["selfcare", /\b(?:cat toc|goi dau|go toc|hair ?cut|barber|massage|nhuom toc|uon toc|lam mong)\b/],
+  // before clean: "dọn nhà sang" moves house, "dọn tủ"/"dọn kho" declutters, plain "dọn nhà" stays a clean
+  ["move_house", /\b(?:chuyen nha|don nha sang|move house)\b/],
+  ["declutter", /\b(?:don tu quan ao|don kho|sap xep lai phong|declutter)\b/],
   ["clean", /\b(?:don nha|don phong|don bep|don dep|lau nha|lau bep|clean)\b/],
   ["laundry", /\b(?:giat do|giat ui|phoi do|laundry)\b/],
   ["cook", /\b(?:nau an|nau com|nau canh|cook)\b/],
+  // before shop and paperwork: "mua bảo hiểm" and "hồ sơ vay" are finance papers
+  ["finance_paper", /\b(?:lam ho so vay|ho so vay|mua bao hiem|ho so bao hiem)\b/],
+  ["trip", /\b(?:(?:len )?ke hoach du lich|chuan bi di du lich|dat ve|book khach san|dat khach san)\b/],
+  ["event_plan", /\b(?:to chuc (?:sinh nhat|tiec)|chuan bi dam cuoi)\b/],
   ["shop", /\b(?:di cho|di sieu thi|sieu thi|mua|shop)\b/],
   ["bill", /\b(?:(?:dong|tra|nop) (?:tien )?(?:dien|nuoc|mang|net|internet|nha|hoc phi)|hoc phi|(?:tra|dong) (?:the|no)|tien (?:dien|nuoc|mang|net|internet|nha))\b/],
   ["budget", /\b(?:lap ngan sach|ngan sach|tinh chi tieu|budget)\b/],
@@ -111,8 +120,11 @@ const CLASSES: [TaskClass, RegExp][] = [
   ["design", /\b(?:thiet ke|design|banner|logo|poster|mockup)\b/],
   ["content", /\b(?:post|reel|reels|short|shorts|caption|fanpage|(?:edit|quay|lam) video)\b/],
   ["sales", /\b(?:sales?|ban hang|bao gia|chao hang|chot don|client|quotation)\b/],
+  // "nộp hồ sơ" alone is a paperwork; "xin việc" makes it a job application
+  ["apply_job", /\b(?:cv|ung tuyen|xin viec|apply job)\b/],
   ["interview", /\b(?:phong van|interview|tuyen dung|recruit|recruiting|ung vien|screening)\b/],
   ["deploy", /\b(?:deploy|release|rollout|hotfix|len prod|phat hanh)\b/],
+  ["invest_research", /\b(?:tim hieu (?:chung khoan|quy)|nghien cuu dau tu)\b/],
   ["research", /\b(?:nghien cuu|research|phan tich|analysis|analyze|khao sat|survey)\b/],
   ["admin_work", /\b(?:hop dong|hoa don|cham cong|invoice|contract|bang cong)\b/],
   ["paperwork", /\b(?:lam giay to|giay to|gia han|nop ho so|ho so|lam ho chieu|ho chieu|cccd|nop form)\b/],
@@ -152,6 +164,8 @@ const DOMAIN: Record<TaskClass, Domain> = {
   research: "work", spec: "work", presentation: "work", admin_work: "work",
   pet: "home", plants: "home", trash: "home", repair: "home", meds: "growth", pickup: "errand", selfcare: "growth",
   meal_breakfast: "home", meal_lunch: "home", meal_dinner: "home", cafe: "social",
+  apply_job: "work", learn_tool: "work", move_house: "home", trip: "errand", event_plan: "social", declutter: "home",
+  invest_research: "finance", finance_paper: "finance",
 };
 
 /** Words of the patterns above: a token of these is never fuzzed, so "khai" stays "khai" and not "khoa". */

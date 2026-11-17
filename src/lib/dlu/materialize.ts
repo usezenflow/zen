@@ -28,7 +28,7 @@ function fromItem(i: Fetched[number], now: number, mult: (title: string) => numb
     return { ...base, effort, maxSitting: PREP_SITTING, deadline: start, ...(i.submitted ? { doneAt: now } : {}) };
   }
   const end = start + i.durationMinutes * 60_000;
-  return { ...base, effort: i.durationMinutes, fixed: i.type === "EXAM" ? "exam" : "lecture", start, end, ...(i.type === "EXAM" ? { deadline: start, ...(i.examFormat ? { format: i.examFormat } : {}) } : {}) };
+  return { ...base, effort: i.durationMinutes, fixed: i.type === "EXAM" ? "exam" : "lecture", start, end, ...(i.type === "EXAM" ? { deadline: start, ...(i.examFormat ? { format: i.examFormat } : {}), ...(i.examCredits ? { credits: i.examCredits } : {}), ...(i.examRetake ? { retake: true } : {}) } : {}) };
 }
 
 /** Upstream-owned fields; a field in `userEdited` is never overwritten. Planner-owned `start`/`effort` of a flexible task are untouched. */
@@ -50,6 +50,7 @@ function merge(old: Task, next: Task): Task {
   set("content", next.content);
   if (old.source === "dlu") out.rrule = undefined; // lectures are not repeats
   if (next.format) set("format", next.format);
+  if (next.fixed === "exam") { set("credits", next.credits); set("retake", next.retake); } // the portal's values; a cleared one clears
   if (next.fixed) {
     set("fixed", next.fixed);
     set("start", next.start);
@@ -111,7 +112,7 @@ export function marksNotice(prev: ParsedMarks | null, next: ParsedMarks | null):
  * deletes are ids of future upstream tasks that disappeared from a source that fetched cleanly
  * (caller soft-deletes them).
  */
-export function materialize(items: Fetched, tasks: Task[], now = Date.now(), mult: (title: string) => number = () => 1, gone: Gone = { sections: {}, series: {} }): { upserts: Task[]; deletes: string[]; digest: Digest } {
+export function materialize(items: Fetched, tasks: Task[], now = Date.now(), mult: (title: string) => number = () => 1, gone: Gone = { sections: {}, series: {} }, pace: Record<string, number> = {}): { upserts: Task[]; deletes: string[]; digest: Digest } {
   // Sittings copy their parent's upstreamKey; only the parent stands for the upstream item.
   const byKey = new Map(tasks.filter((t) => t.upstreamKey && !t.parentId).map((t) => [t.upstreamKey!, t]));
   const seen = new Set<string>();
@@ -173,12 +174,12 @@ export function materialize(items: Fetched, tasks: Task[], now = Date.now(), mul
   for (const e of exams.values()) {
     const old = prepOf.get(`prep:${e.id}`);
     const live = !e.deletedAt && !dropped.has(e.id) && e.start! > now;
-    const [want] = live ? preps(e, mult(e.title)) : [];
+    const [want] = live ? preps(e, mult(e.title), pace) : [];
     if (want && !old) upserts.push(want);
     else if (want && old && !old.deletedAt && !old.doneAt) {
       const title = old.userEdited?.includes("title") ? old.title : want.title; // a name the student gave stays
-      if (old.deadline === want.deadline && old.effort === want.effort && old.maxSitting === want.maxSitting && old.forId === want.forId && old.course === want.course && old.title === title) continue;
-      const next = { ...old, deadline: want.deadline, effort: want.effort, maxSitting: want.maxSitting, title, vec: embed(title), forId: want.forId, course: want.course };
+      if (old.deadline === want.deadline && old.effort === want.effort && old.maxSitting === want.maxSitting && old.forId === want.forId && old.course === want.course && old.title === title && old.guessMin === want.guessMin) continue;
+      const next = { ...old, deadline: want.deadline, effort: want.effort, maxSitting: want.maxSitting, title, vec: embed(title), forId: want.forId, course: want.course, cls: want.cls, guessMin: want.guessMin };
       upserts.push(next);
       if (old.deadline !== want.deadline || old.effort !== want.effort || old.maxSitting !== want.maxSitting) deletes.push(...kids(old.id)); // resplit at the new size
       else upserts.push(...syncKids(next, tasks)); // renamed only: open sittings follow

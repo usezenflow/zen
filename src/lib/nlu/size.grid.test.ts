@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { frameOf } from "./frame";
-import { sizeOf, type Size } from "./size";
+import { frameOf, type TaskClass } from "./frame";
+import { sizeOf, T, type Size } from "./size";
 
 const DAY = 86_400_000;
 // 16 Nov 2026, 10:00 in Vietnam (UTC+7).
@@ -45,7 +45,7 @@ describe("sizeOf projects", () => {
   it("slide chương 3: 90 minutes, due in 5 days", () => {
     expect(size("slide chương 3")).toMatchObject({ total: 90, sittings: 1, dueInDays: 5 });
   });
-  it("làm 10 slide: 90 + 10 × 5 = 140, rounded to 135", () => {
+  it("làm 10 slide: 90 + 10 × 5 = 140, rounded to 150", () => {
     expect(size("làm 10 slide")).toMatchObject({ total: 150, sittings: 2 });
   });
   it("khóa luận tốt nghiệp: 6000 minutes at 120 a sitting, due in 60 days", () => {
@@ -113,8 +113,8 @@ describe("sizeOf errands and events", () => {
   it("khai thuế TNCN: 180 minutes at 60 a sitting, due in 7 days", () => {
     expect(size("khai thuế TNCN")).toMatchObject({ total: 180, perSitting: 60, sittings: 3, dueInDays: 7 });
   });
-  it("lập ngân sách: 60 minutes, one sitting, due in 7 days", () => {
-    expect(size("lập ngân sách")).toMatchObject({ total: 60, sittings: 1, dueInDays: 7 });
+  it("lập ngân sách: 120 minutes in 60s, due in 7 days", () => {
+    expect(size("lập ngân sách")).toMatchObject({ total: 120, perSitting: 60, sittings: 2, dueInDays: 7 });
   });
   it("gọi điện cho mẹ: 30 minutes, due in a day", () => {
     expect(size("gọi điện cho mẹ")).toMatchObject({ total: 30, dueInDays: 1 });
@@ -217,8 +217,62 @@ describe("sizeOf new classes, all phrasings", () => {
       expect(size(title)).toMatchObject({ shape: "errand", total: 15, sittings: 1 });
     });
   }
-  it("a real work task is 30-minute steps: report 90 minutes", () => {
-    expect(size("báo cáo tuần")).toMatchObject({ total: 90, sittings: 1, dueInDays: 3 });
+  it("a real work task is 30-minute steps: report 180 minutes in 60s", () => {
+    expect(size("báo cáo tuần")).toMatchObject({ total: 180, sittings: 3, dueInDays: 3 });
+  });
+});
+
+// Classes added to the title keywords: each reads as its class with and without accents, and sizes to its sittings.
+const NEW_ROWS: [TaskClass, string, number][] = [
+  ["apply_job", "ứng tuyển vị trí Backend", 3],
+  ["learn_tool", "học Excel", 1],
+  ["move_house", "chuyển nhà", 5],
+  ["trip", "lên kế hoạch du lịch Đà Lạt", 3],
+  ["event_plan", "tổ chức sinh nhật mẹ", 4],
+  ["declutter", "dọn tủ quần áo", 3],
+  ["invest_research", "tìm hiểu chứng khoán", 3],
+  ["finance_paper", "làm hồ sơ vay", 2],
+];
+describe("sizeOf new keyword classes", () => {
+  for (const [cls, title, sittings] of NEW_ROWS) {
+    it(`${cls}: ${title} is ${sittings} sittings, with and without accents`, () => {
+      for (const t of [title, plain(title)]) {
+        expect(frameOf(t).cls).toBe(cls);
+        expect(size(t).sittings).toBe(sittings);
+      }
+    });
+  }
+  it("plain dọn nhà stays a clean; dọn nhà sang moves house", () => {
+    expect(frameOf("dọn nhà").cls).toBe("clean");
+    expect(frameOf("dọn nhà sang Quận 7").cls).toBe("move_house");
+  });
+  it("nộp hồ sơ học bổng stays paperwork, not a job application", () => {
+    expect(frameOf("nộp hồ sơ học bổng").cls).toBe("paperwork");
+  });
+});
+
+// The class table: every row sizes in half hours (micro chores 15), grows with its quantity, and a project of 5+ days gets 3+ sittings.
+// Listed rows keep the table's own numbers: code, read (not retuned) and slides, budget, finance_paper make 2 sittings or fewer.
+const SHORT = new Set<string>(["code", "read", "slides", "budget", "finance_paper"]);
+const classes = Object.keys(T) as TaskClass[];
+const run = (cls: TaskClass, n: number | undefined, hard: boolean, group: boolean): Size =>
+  sizeOf({ objects: ["x"], cls, group, hard, ...(n === undefined ? {} : { qty: { n, unit: "trang" as const } }) }, { now: NOW });
+describe("sizeOf class table", () => {
+  it("every class, quantity, hard and group: whole half hours (micro 15), monotonic in quantity", () => {
+    for (const cls of classes) for (const hard of [false, true]) for (const group of [false, true]) {
+      for (const n of [undefined, 3, 10]) {
+        const total = run(cls, n, hard, group).total;
+        expect(T[cls].micro ? total : total % 30, `${cls} ${n}`).toBe(T[cls].micro ? 15 : 0);
+      }
+      expect(run(cls, 10, hard, group).total, cls).toBeGreaterThanOrEqual(run(cls, 3, hard, group).total);
+    }
+  });
+  it("a project of 5+ days with no quantity gets 3+ sittings", () => {
+    for (const cls of classes) {
+      const r = T[cls];
+      if (r.shape !== "project" || r.days === undefined || r.days < 5 || SHORT.has(cls)) continue;
+      expect(run(cls, undefined, false, false).sittings, cls).toBeGreaterThanOrEqual(3);
+    }
   });
 });
 

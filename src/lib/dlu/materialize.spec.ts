@@ -191,7 +191,7 @@ describe("materialize", () => {
     it("adds one prep with a new exam, sized by the marks multiplier of its course", () => {
       const { upserts } = materialize([exam()] as Fetched, [], NOW, (title) => (title === exam().title ? 1.6 : 1));
       const prep = upserts.find((t) => t.id.startsWith("prep:"))!;
-      expect(prep).toMatchObject({ id: "prep:dlu:portal:exam:9", title: "Ôn thi", course: exam().title, effort: 180, maxSitting: 60, deadline: NOW + 5 * D });
+      expect(prep).toMatchObject({ id: "prep:dlu:portal:exam:9", title: "Ôn thi", course: exam().title, effort: 300, maxSitting: 60, deadline: NOW + 5 * D });
     });
     it("adds the prep for an exam stored before preps existed", () => {
       const { upserts } = materialize([exam()] as Fetched, [stored(exam())], NOW);
@@ -200,10 +200,21 @@ describe("materialize", () => {
     it("adds the prep for an exam stored before preps existed", () => {
       const { upserts } = materialize([exam()] as Fetched, [stored(exam())], NOW);
       expect(upserts.filter((t) => t.id.startsWith("prep:"))).toHaveLength(1);
+    });
+    it("carries an exam's credits and retake onto the exam and into its prep, and refreshes them when stored", () => {
+      const plain = materialize([exam()] as Fetched, [], NOW).upserts.find((t) => t.id.startsWith("prep:"))!;
+      const row = exam(NOW + 5 * D, { examCredits: 4, examRetake: true });
+      const { upserts } = materialize([row] as Fetched, [], NOW);
+      expect(upserts.find((t) => t.id === "dlu:portal:exam:9")).toMatchObject({ credits: 4, retake: true });
+      expect(upserts.find((t) => t.id.startsWith("prep:"))!.effort).toBeGreaterThan(plain.effort);
+      const stored1 = upserts.find((t) => t.id === "dlu:portal:exam:9")!;
+      const later = materialize([exam(NOW + 5 * D, { examCredits: 2, examRetake: null })] as Fetched, [stored1], NOW);
+      expect(later.upserts.find((t) => t.id === "dlu:portal:exam:9")).toMatchObject({ credits: 2 });
+      expect(later.upserts.find((t) => t.id === "dlu:portal:exam:9")!.retake).toBeUndefined();
     });
     it("adds a writing prep for a report exam", () => {
       const { upserts } = materialize([exam(NOW + 5 * D, { examFormat: "Báo cáo(TL)" })] as Fetched, [], NOW);
-      expect(upserts.filter((t) => t.id.startsWith("prep:"))).toMatchObject([{ title: "Viết báo cáo", effort: 180 }]);
+      expect(upserts.filter((t) => t.id.startsWith("prep:"))).toMatchObject([{ title: "Viết báo cáo", effort: 270 }]);
     });
     it("renames a prep made under the old title and its open sittings, but not one the student renamed", () => {
       const [ex, prep] = withPrep();

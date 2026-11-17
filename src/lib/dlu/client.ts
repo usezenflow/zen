@@ -11,6 +11,8 @@ export type UpstreamItem = Pick<ParsedBlock, "externalKey" | "title" | "type" | 
   Partial<Pick<ParsedLmsItem, "lmsCourse" | "url" | "description">> & {
     submitted?: boolean;
     examFormat?: string | null;
+    examCredits?: number | null;
+    examRetake?: boolean | null;
   };
 
 export type Source = "portal" | "lms";
