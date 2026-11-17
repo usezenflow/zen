@@ -170,7 +170,7 @@ export type RowActions = {
 
 // The list under the card / week / month: rows, overlap cards, the collapsed Done group.
 // 90 -> "1h30p", 100 -> "1h45p": quarter hours.
-const mins = (n: number) => {
+export const mins = (n: number) => {
   const q = Math.round(n / 15) * 15, h = Math.floor(q / 60), m = q % 60;
   return h === 0 ? t("minsN", { n: Math.max(15, q) }) : m === 0 ? t("hoursN", { h }) : m === 30 ? t("hoursHalf", { h }) : t("hoursMins", { h, n: m });
 };
@@ -285,8 +285,8 @@ export function Found({ tasks, q: raw, now, ...act }: RowActions & { tasks: Task
 const dmOf = (ms: number) => { const d = new Date(ms); return `${d.getDate()}/${d.getMonth() + 1}`; };
 
 // `empty`: what an empty day shows (views.html). rest: the art slot's card plus what's next; week: the whole week is empty; inl: a small note in place of rows.
-export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl", onMove, onKeep, trail, moves, warns, onFix, rules = [], ...act }: RowActions & {
-  tasks: Task[]; hols: Hols; day: number; now: number; pop: Set<string>; overlaps: Overlap[]; label?: string; empty?: "rest" | "inl" | "week"; onMove: (o: Overlap) => void; onKeep: (o: Overlap) => void; rules?: Rule[];
+export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl", onMove, onKeep, trail, moves, warns, onFix, rules = [], noCard, ...act }: RowActions & {
+  tasks: Task[]; hols: Hols; day: number; now: number; pop: Set<string>; overlaps: Overlap[]; label?: string; empty?: "rest" | "inl" | "week"; onMove: (o: Overlap) => void; onKeep: (o: Overlap) => void; rules?: Rule[]; noCard?: boolean;
   trail: Record<string, string>; moves: Move[]; warns: Warn[]; onFix: (w: Warn, f: Warn["fixes"][number]) => void;
 }) {
   const th = useTheme();
@@ -418,7 +418,7 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
       )}
       {isEmpty && (
         <Animated.View entering={fadeIn} exiting={fadeOut} layout={glide}>
-          {empty === "rest" && <RestCard lab={label} title={t(done.length ? (tomorrow ? "nightDoneT" : "allDoneT") : "freeDay")} sub={done.length ? (tomorrow ? t("nextMai", { time: hhmm(tomorrow.start!), title: tomorrow.title }) : t("allDoneSub", { n: doneCount(done) })) : t("freeSub")} leaf={done.length ? "color" : "line"} />}
+          {empty === "rest" && !noCard && <RestCard lab={label} title={t(done.length ? (tomorrow ? "nightDoneT" : "allDoneT") : "freeDay")} sub={done.length ? (tomorrow ? t("nextMai", { time: hhmm(tomorrow.start!), title: tomorrow.title }) : t("allDoneSub", { n: doneCount(done) })) : t("freeSub")} leaf={done.length ? "color" : "line"} />}
           {empty === "week" && <Inl title={t("weekFree")} sub={t("weekFreeSub")} />}
           {empty === "inl" && <Inl title={t("noTasks")} sub={near ? t("nearest", { when: when(near.start!, now), title: near.title }) : undefined} />}
           {next && next.xs.length > 0 && (

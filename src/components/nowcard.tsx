@@ -17,7 +17,8 @@ import { when } from "@/lib/when";
 import type { Move, Task } from "@/lib/types";
 import { typeOf } from "@/planner";
 
-export type Card = { task: Task; start?: number; end?: number };
+// gap: magic.html 17, a later task offered for the free time now (its label, e.g. "30p"); the circle takes it now.
+export type Card = { task: Task; start?: number; end?: number; gap?: string };
 
 // Art card with progress meter; the circle marks it done. Swipe is handled by the caller.
 // views.html "Day, next up": a flexible block not started yet also offers Làm luôn (onStart: that sitting moves to now).
@@ -29,14 +30,14 @@ export function NowCard({ card, onDone, onStart }: { card: Card; onDone: () => v
     return () => clearInterval(i);
   }, []);
   const { task, start = 0, end = 0 } = card;
-  const going = start <= now && now < end;
+  const going = !card.gap && start <= now && now < end;
   const p = going ? Math.max(0, Math.min(1, (now - start) / (end - start))) : 0;
   const mins = Math.max(1, Math.round((going ? end - now : end - start) / 60000));
   return (
     <View style={[s.art, { backgroundColor: th.chip }]}>
       <View style={StyleSheet.absoluteFill}><TypeArt type={typeOf(task)} w={264} h={220} seed={4} /></View>
       <Text style={[s.lab, { color: th.onart }]}>{t(going ? "doingNow" : "nextUp")}</Text>
-      <Text style={[s.t, { color: th.onart }]} numberOfLines={3}>{task.title}</Text>
+      <Text style={[s.t, { color: th.onart }]} numberOfLines={3}>{card.gap ? bolded(t("gapT", { free: card.gap, title: task.title })) : task.title}</Text>
       <View style={s.foot}>
         <View style={s.meter}>
           <View style={s.cap}><Fill p={p} /></View>
@@ -46,7 +47,7 @@ export function NowCard({ card, onDone, onStart }: { card: Card; onDone: () => v
           </View>
         </View>
         <View style={s.acts2}>
-          {!going && !task.fixed && onStart && <Tap onPress={onStart} scale={0.94} accessibilityRole="button" accessibilityLabel={t("startNow")} style={[s.glass, s.start]}><Glass /><Text style={s.startT}>{t("startNow")}</Text></Tap>}
+          {!going && !task.fixed && !card.gap && onStart && <Tap onPress={onStart} scale={0.94} accessibilityRole="button" accessibilityLabel={t("startNow")} style={[s.glass, s.start]}><Glass /><Text style={s.startT}>{t("startNow")}</Text></Tap>}
           <Tap onPress={onDone} hitSlop={8} scale={0.88} testID="nowDone" accessibilityRole="button" accessibilityLabel={t("markDone")} style={[s.glass, s.solid]}><Glass /><Icon name="check" size={22} color="#0b0b0c" w={2.2} /></Tap>
         </View>
       </View>

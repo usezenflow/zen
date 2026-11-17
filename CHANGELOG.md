@@ -20,7 +20,11 @@
 
 - Thẻ trên cùng gọn và đúng hơn
     - Việc đang làm ghi "Đang làm"; việc tiếp theo hôm nay ghi "Tiếp theo", có nút "Làm luôn" để dời đúng buổi đó về bây giờ
-    - Bỏ thẻ "...p trống, hợp làm ...": không còn gợi ý việc ngày khác, chạm dấu xong không còn làm kẹt buổi ở mấy hôm sau
+    - Thẻ "30p trống, hợp làm **Giặt đồ**" chỉ hiện khi hôm nay hết việc của bạn và bạn chưa làm đủ: gợi ý một việc ngày khác vừa chỗ trống trước tiết học kế tiếp hoặc 22:00, việc gần hạn trước; chạm vòng tròn để làm ngay, vuốt đi thì hôm nay không gợi ý nữa
+    - Làm đủ rồi thì thẻ ghi "Đủ cho hôm nay · Phần còn lại của ngày là của bạn." và không gợi ý gì thêm
+        - Tính việc bạn đã xong từ giờ bắt đầu tới lúc chạm xong, cộng nửa thời gian tiết học và thi; một ngày học đủ 7h10 tính là 3h35
+        - Mặc định 6h; sau 5 ngày có làm việc thì theo nhịp của chính bạn (3h tới 10h)
+        - Vuốt thẻ nghỉ đi là mình hiểu ngay: "Đã hiểu · nghỉ sau 6h30p", có Hoàn tác
     - Bỏ thẻ lớn "Sáng nay"; việc bị dời chỉ hiện ở một dòng nhỏ dưới thanh chọn, giống nhau ở ngày, tuần và tháng
 - Dòng "Xếp lại 2 việc" có hai hàng: số việc, rồi việc dời nhiều nhất ("**Gym** sang T4 7:00") ở hàng dưới
 - Tên việc in đậm khi nằm giữa câu: "**Đọc sách** chưa có giờ trống", "Đã dời **Gym** sang 15:00"...

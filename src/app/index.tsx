@@ -16,7 +16,8 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { Icon, Logo } from "@/components/art";
 import { Rhythm, rhythmHead } from "@/components/rhythm";
 import { addDays, live, mondayOf, monthLabel, onDay, parents, short, startOfDay, weekday, type Hols } from "@/components/cal";
-import { Day, DayPull, First } from "@/components/day";
+import { Day, DayPull, First, RestCard, mins } from "@/components/day";
+import { gapPick, restLine, worked } from "@/lib/rest";
 import { foldRepeats } from "@/components/fold";
 import { useDragDay } from "@/components/dragday";
 import { Search, type Origin } from "@/components/search";
@@ -77,6 +78,8 @@ export default function Home() {
   const [menu, setMenu] = useState<{ task: Task; top: number; items: Item[] } | undefined>();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [card, setCard] = useState<Card | undefined>();
+  // magic.html 17b: today's work reached the line, so the art slot rests. Kept for the swipe that moves the line (17c).
+  const [rest, setRest] = useState<{ w: number; line: number; more: number } | undefined>();
   const [state, setState] = useState<HoldState>("idle");
   const [words, setWords] = useState("");
   const [toasts, setToasts] = useState<ToastState[]>([]); // [0] is showing, the rest wait their turn
@@ -150,9 +153,18 @@ export default function Home() {
     setMoves(unseen); setWarns(wn.filter((w) => open(w.id) && (w.deadline <= now || w.free < w.need))); setMaps({ trail, froms, reason, alts });
     setWk(w ? { title: w, sub: t("sundaySub", { done: all.filter((x) => x.doneAt && x.doneAt >= wkAgo).length, moved: mv.filter((m) => m.at >= wkAgo).length }) } : undefined);
     const cur = pickNow(all, now);
-    if (cur && cur.start! <= now) return setCard({ task: cur, start: cur.start, end: cur.end });
+    if (cur && cur.start! <= now) { setRest(undefined); return setCard({ task: cur, start: cur.start, end: cur.end }); }
     // views.html "Day, all done": a task of another day is not today's art card; the rest card takes its slot and names tomorrow.
-    setCard(cur && startOfDay(cur.start!) === startOfDay(now) ? { task: cur, start: cur.start, end: cur.end } : undefined);
+    const day0 = startOfDay(now), next = cur && startOfDay(cur.start!) === day0 ? cur : undefined;
+    if (next && !next.fixed) { setRest(undefined); return setCard({ task: next, start: next.start, end: next.end }); }
+    // magic.html 17-17c: no own work left today. Under the line a later task fits the gap (swiped: not today); past it, rest.
+    const [more, off] = await Promise.all([store.kvGet("rest.more"), store.kvGet("gap.off")]);
+    if (mine !== gen.current) return;
+    const done = worked(all, day0, now), m = Number(more) || 0, line = restLine(all, now, m);
+    const g = done < line && off !== String(day0) ? gapPick(all, now, next?.start) : undefined;
+    if (g) { const s = Math.ceil(now / 60_000) * 60_000; setRest(undefined); return setCard({ task: g.task, start: s, end: s + g.len, gap: mins(g.free / 60_000) }); }
+    setRest(!next && done >= line ? { w: done, line, more: m } : undefined);
+    setCard(next ? { task: next, start: next.start, end: next.end } : undefined);
   }, []);
 
   useEffect(() => {
@@ -631,9 +643,25 @@ export default function Home() {
     say(r.toast, r);
     await shuffle(r);
   };
+  const restRef = useRef(rest);
+  useEffect(() => { restRef.current = rest; }, [rest]);
+  // magic.html 17c: swiping the rest card away moves the line 30p past today's work, at once; Hoàn tác puts it back.
+  const moreRest = async () => {
+    const r = restRef.current;
+    if (!r) return;
+    const more = Math.max(r.more + 30 * 60_000, r.w + 30 * 60_000 - (r.line - r.more));
+    await store.kvSet("rest.more", String(more));
+    let undone = false;
+    setToasts((q) => [{ text: t("restMore"), sub: t("restLearned", { h: mins((r.line - r.more + more) / 60_000) }), action: { run: async () => {
+      if (undone) return; undone = true;
+      await store.kvSet("rest.more", String(r.more)); setToasts((u) => [{ text: t("undone") }, ...u.slice(1)]); refresh();
+    } } }, ...q.slice(1)]);
+    refresh();
+  };
   const commit = async (dir: "done" | "later") => {
     const c = cardRef.current;
-    if (!c) return;
+    if (!c) return moreRest();
+    if (c.gap) { await store.kvSet("gap.off", String(startOfDay(Date.now()))); return refresh(); } // a swiped gap card: not today
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
     let r: Result | undefined;
     r = await (dir === "done" ? swipeDone(c.task.id) : swipeLater(c.task.id));
@@ -724,12 +752,19 @@ export default function Home() {
   const empty = weekEmpty ? "week" : view === "day" && selEmpty && !(isToday && card) && !sunOn ? "rest" : "inl";
   const closeMine = () => { if (mine) void seeMoves(mine.moves.map((m) => m.id)).then(refresh); setMine(undefined); };
   const undoMine = async () => { const r = mine?.r; setMine(undefined); await r?.undo(); setToasts((u) => [{ text: t("undone") }, ...u.slice(1)]); refresh(); };
-  const hero = mine ? "mine" : sunOn ? "sun" : card ? card.task.id : "none";
+  const hero = mine ? "mine" : sunOn ? "sun" : card ? card.task.id : rest ? "rest" : "none";
 
+  const restView = rest && (
+    <GestureDetector gesture={swipe}>
+      <Reanimated.View style={flick}>
+        <RestCard lab={selEmpty ? t("today") : undefined} title={t("restT")} sub={t("restSub")} leaf="color" />
+      </Reanimated.View>
+    </GestureDetector>
+  );
   const cardView = card && (
     <GestureDetector gesture={swipe}>
       <Reanimated.View style={flick}>
-        <NowCard card={card} onDone={() => commit("done")} onStart={startNow} />
+        <NowCard card={card} onDone={card.gap ? startNow : () => commit("done")} onStart={startNow} />
       </Reanimated.View>
     </GestureDetector>
   );
@@ -808,7 +843,7 @@ export default function Home() {
           {view === "day" && isToday && (
             // Keyed per branch so hero swaps cross-fade; a new now-card lands with a small pop.
             <Reanimated.View key={hero} entering={card && hero === card.task.id ? popIn : fadeIn} exiting={fadeOut} layout={glide}>
-              {mine ? <Story moves={mine.moves} now={now} onClose={closeMine} onUndo={undoMine} /> : sunOn ? <Weekly title={wk!.title} sub={wk!.sub} onPress={() => setView("rhythm")} /> : cardView}
+              {mine ? <Story moves={mine.moves} now={now} onClose={closeMine} onUndo={undoMine} /> : sunOn ? <Weekly title={wk!.title} sub={wk!.sub} onPress={() => setView("rhythm")} /> : cardView ?? restView}
             </Reanimated.View>
           )}
           {/* Moves not yet briefed, under the now card (or the header when no card): the story opens in its place. */}
@@ -828,7 +863,7 @@ export default function Home() {
           )}
           {firstRun || (nothingAhead && !sunOn) ? <First onSchool={() => router.push("/settings")} /> : !showStory && view !== "rhythm" && (
             <Reanimated.View entering={fadeIn} exiting={fadeOut} layout={glide} style={{ marginTop: empty === "rest" || empty === "week" ? 0 : isToday && view === "day" && warns.length ? 20 : view === "month" ? 24 : 28 }}>
-              <Day {...share} empty={empty} warns={isToday ? warns : []} day={sel} label={view === "day" ? (isToday ? (card && !sunOn ? t("after") : t("today")) : dayLabel(sel)) : dayLabel(sel)} />
+              <Day {...share} empty={empty} noCard={isToday && !!rest} warns={isToday ? warns : []} day={sel} label={view === "day" ? (isToday ? (card && !sunOn ? t("after") : t("today")) : dayLabel(sel)) : dayLabel(sel)} />
             </Reanimated.View>
           )}
         </DayPull>

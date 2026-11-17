@@ -93,6 +93,11 @@
 /* Smart sizing: a folded series row is muted; a last sitting carries its in-place text button. */
 .r.more b { font-weight: 500; color: var(--muted); }
 .tbtn { margin-left: 8px; font-size: 14px; font-weight: 600; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+/* views.html rest card: it takes the art card's 220px slot. */
+.rest { position: relative; margin-top: 16px; height: 220px; border-radius: 28px; background: var(--chip); padding: 20px; display: flex; flex-direction: column; }
+.rest .lf { position: absolute; top: 18px; right: 18px; color: var(--ink); }
+.rest .t { margin-top: auto; padding-right: 58px; font-size: 24px; line-height: 1.15; font-weight: 600; letter-spacing: -.02em; }
+.rest .s { margin-top: 6px; font-size: 15px; color: var(--muted); font-weight: 500; line-height: 1.35; }
 </style>
 </head>
 <body>
@@ -305,13 +310,23 @@ const explore = `${head("T5", "19/11", "3 việc")}${tabs("Ngày")}
   <div class="lab" style="margin-top:28px">Hôm nay</div>
   <div class="list" style="margin-top:6px">${row("6:30", "Gym", "plan", "Thử giờ mới, một lần thôi")}${row("9:00", "Viết luận Triết", "assignment", "Hạn T2 23/11 23:59")}${row("20:00", "Đọc sách mỗi tối", "plan", "Buổi tối")}</div>`;
 
-// 17. A free gap: nothing in the next hour, so the card offers the flexible task that fits it best.
-const gap = `${head("T2", "16/11", "4 việc, 1 tiết học")}${tabs("Ngày")}
-  <div class="art" style="margin-top:16px;height:220px;padding:20px 20px 18px">${art("plan", { w: 264, h: 220, seed: 4, cls: "bgart" })}
-    <div class="lab" style="color:#fff;opacity:.85">Tiếp theo</div><div class="t" style="margin-top:10px">30p trống, hợp làm Giặt đồ</div>
-    <div style="position:absolute;left:20px;right:16px;bottom:16px;display:flex;align-items:flex-end;justify-content:space-between"><div class="meter"><span class="cap2" style="--p:0%"><i></i></span><div><div class="big">14:30</div><div class="small">30p</div></div></div><span class="glass solid">${ic(I.check, 22, 2.2)}</span></div></div>
+// 17. A free gap: today is empty from now and today's work is under your baseline, so the card offers the open flexible task (from a later day) that fits the gap best.
+const gapCard = (t, at, len) => `<div class="art" style="margin-top:16px;height:220px;padding:20px 20px 18px">${art("plan", { w: 264, h: 220, seed: 4, cls: "bgart" })}
+    <div class="lab" style="color:#fff;opacity:.85">Tiếp theo</div><div class="t" style="margin-top:10px">${t}</div>
+    <div style="position:absolute;left:20px;right:16px;bottom:16px;display:flex;align-items:flex-end;justify-content:space-between"><div class="meter"><span class="cap2" style="--p:0%"><i></i></span><div><div class="big">${at}</div><div class="small">${len}</div></div></div><span class="glass solid">${ic(I.check, 22, 2.2)}</span></div></div>`;
+const gap = `${head("T2", "16/11", "2 việc, 1 tiết học")}${tabs("Ngày")}
+  ${gapCard("30p trống, hợp làm <b>Giặt đồ</b>", "14:30", "30p")}
   <div class="lab" style="margin-top:28px">Sau đó</div>
-  <div class="list" style="margin-top:6px">${row("17:30", "Cơ sở dữ liệu", "lecture", "A2.104")}${row("20:00", "Đọc sách mỗi tối", "plan", "Buổi tối")}</div>`;
+  <div class="list" style="margin-top:6px">${row("15:00", "Cơ sở dữ liệu", "lecture", "A2.104")}</div>`;
+// 17b. Enough for today: a full lecture day (counted at half) plus your own work reached the baseline; the slot says rest and offers nothing.
+const rest = (lab, t, sub, leaf = "line") => `<div class="rest"><span class="lab">${lab}</span><span class="lf">${LOGO(52, leaf)}</span><div class="t">${t}</div><div class="s">${sub}</div></div>`;
+const enough = `${head("T2", "16/11", "3 việc, 2 tiết học, xong hết")}${tabs("Ngày")}
+  ${rest("Hôm nay", "Đủ cho hôm nay", "Phần còn lại của ngày là của bạn.", "color")}
+  <div class="lab" style="margin-top:28px">Ngày mai</div>
+  <div class="list" style="margin-top:6px">${row("9:00", "Giặt đồ", "plan")}${row("13:00", "Cấu trúc dữ liệu", "lecture", "A2.301")}</div>`;
+// 17c. Swiped the rest away: the baseline grows 30p at once, the toast says so, and the gap card takes the slot.
+const oneMore = toast("Thêm một việc nữa", "Đã hiểu · nghỉ sau 6h30p", [["Hoàn tác"]]) + `${head("T2", "16/11", "4 việc, 2 tiết học")}${tabs("Ngày")}
+  ${gapCard("1h trống, hợp làm <b>Ôn Giải tích</b>", "21:00", "60p")}`;
 
 // ---- Preps: a budget of minutes, poured into sittings, told by what you write. ----
 const si = (d, p, m, cls = "", dot = false) => `<div class="si ${cls}"><span class="d">${d}</span><span class="p">${dot ? '<span class="dot"></span>' : ""}${p}</span><span class="m">${m}</span></div>`;
@@ -520,7 +535,9 @@ mount([
   { tag: "14. Sunday", sub: "Sundays only, and only when the model is at least fairly sure of something: one sentence, with the week's done and moved counts. Tap through to Nhịp.", html: chrome(sunday) },
   { tag: "15. Missed, no nag", sub: "A block that passed undone turns vermilion in place. The next time you open the app it has moved to the next good time within two days, and the row says so. That hour counts a little against itself.", html: chrome(missed) },
   { tag: "16. Trying something", sub: "Once Zen knows you a little, it may try an hour it is unsure about, and the row says it is a try. Only a new task without a due date, at most one per re-plan.", html: chrome(explore) },
-  { tag: "17. A free gap", sub: "Nothing fixed or planned in the next hour: the card offers the flexible task that fits the gap best. The circle takes it now; swiping it away keeps the plan.", html: chrome(gap) },
+  { tag: "17. A free gap", sub: "Today is empty from now on and your work so far is under your baseline: the card offers the open flexible task, from a later day, that fits the gap before the next class or 22:00. Due soonest first (a prep by its exam), then the earliest planned. Never a repeat, a task with its own time window, or one you placed. The circle takes it now; swiping it away means no gap card again today.", html: chrome(gap) },
+  { tag: "17b. Enough for today", sub: "Work so far: ticked tasks from start to tick (a late tick counts only its block, an early one its length), plus classes and exams at half their length. At 6h or more the slot says rest and offers nothing; a full lecture day (7h10) counts 3h35. After 5 working days the line follows your own days (3h to 10h), never fixed.", html: chrome(enough) },
+  { tag: "17c. One more", sub: "Swipe the rest card away and Zen learns at once: the line moves to 30p past what you did today, for good, the toast says so, and the gap card takes the slot. Hoàn tác puts the line back.", html: chrome(oneMore) },
   { tag: "18. Prep: why this big", sub: "A prep is a budget of minutes. “Vì sao 12h, 10 buổi”: the base for the exam format (3-credit course, average student), then each signal that changed it, its bar the size of the change; vermilion takes time away. Signals: credits and a retake (exam row), the course's past mark or else your average, your pace (sittings ticked inside their block), your last Ít hơn / Nhiều hơn for this format, a crowded exam week, and what the title and notes say. “Các buổi”: every sitting, done struck, this one bold.", html: chrome(prepDetail(), { dock: null }) },
   { tag: "19. Steps, not copies", sub: "Each sitting is titled by its step. Tự luận: Đọc lại bài, Luyện đề, Ôn nhanh. Trắc nghiệm: Đọc lại bài, Làm câu hỏi trắc nghiệm, Ôn nhanh. Vấn đáp: Ôn ý chính, Tập trả lời thành tiếng. Thực hành: Làm lại bài thực hành, Làm đề thực hành. Báo cáo, tiểu luận: Tìm tài liệu, lập dàn ý; Viết nháp; Sửa và hoàn thiện. The sub line keeps Buổi k/n and the course.", html: chrome(prepDay) },
   { tag: "20. Long on light days", sub: "Sittings are 60 to 90 minutes, so each one feels doable. Each is sized by the room on the day it aims at: 4+ hours of class gets 60, a free day 90. At most one sitting of a prep a day, so subjects alternate. A morning exam's last sitting ends the evening before.", html: chrome(prepWeek) },
