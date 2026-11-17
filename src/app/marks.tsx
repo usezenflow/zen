@@ -79,6 +79,6 @@ const s = StyleSheet.create({
   b: { fontSize: font.base, lineHeight: 24, fontFamily: ff("600") },
   small2: { fontFamily: ff("500"), fontSize: font.sub, lineHeight: 21 },
   score: { fontSize: font.base, fontFamily: ff("600"), fontVariant: ["tabular-nums"] },
-  pl: { width: 44, height: 36, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  pl: { width: 44, height: 40, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   plT: { fontSize: font.sub, fontFamily: ff("500") },
 });

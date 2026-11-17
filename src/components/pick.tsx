@@ -49,6 +49,6 @@ export function DateChip({ value, min, past, side = "left", onChange }: { value:
 
 const s = StyleSheet.create({
   fit: { flexShrink: 1, minWidth: 0 },
-  chip: { height: 34, paddingHorizontal: 6, borderRadius: 9, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
+  chip: { height: 40, paddingHorizontal: 6, borderRadius: 9, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   t: { fontFamily: ff("600"), fontSize: font.sub, fontVariant: ["tabular-nums"] },
 });

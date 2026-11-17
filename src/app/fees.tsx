@@ -94,7 +94,7 @@ const s = StyleSheet.create({
   bottom: { position: "absolute", left: 20, right: 16, bottom: 18, flexDirection: "row", alignItems: "flex-end", gap: 12 },
   big: { color: "#fff", fontSize: 34, fontFamily: ff("600"), lineHeight: 38 },
   small: { color: "#fff", opacity: 0.9, fontSize: font.md, fontFamily: ff("500"), marginTop: 3 },
-  pay: { height: 36, paddingHorizontal: 16, borderRadius: 99, backgroundColor: "rgba(255,255,255,0.9)", alignItems: "center", justifyContent: "center" },
+  pay: { height: 40, paddingHorizontal: 16, borderRadius: 99, backgroundColor: "rgba(255,255,255,0.9)", alignItems: "center", justifyContent: "center" },
   payT: { color: "#0b0b0c", fontSize: font.sub, fontFamily: ff("700") },
   labRow: { marginTop: 28, flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
   labT: { fontSize: font.label, fontFamily: ff("500") },

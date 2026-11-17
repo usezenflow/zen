@@ -5,14 +5,14 @@ import { Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from "r
 import Animated, { Extrapolation, FadeOut, interpolate, useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, ZoomIn, type SharedValue } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { useDrop } from "@/components/outside";
-import { EASE } from "@/components/tap";
+import { EASE, Hit } from "@/components/tap";
 import { t } from "@/lib/i18n";
 import { ff, useTheme } from "@/lib/theme";
 
 // views.html .dial: zen's small time drum dropped from its chip like a menu. Five 36px rows, the middle one in a band; minutes step 15.
 // Three rows: with five, the hours before today's first (or an end's start) left blank rows above the band.
 const ROW = 36, SHOW = 3, COL = 52, SEP = 16, PADX = 12, PADY = 10;
-const PRE = 42, PILL = 30, GAP = 6; // the preset row: views.html .pre, one tap picks and closes
+const PRE = 48, PILL = 38, GAP = 8; // the preset row: views.html .pre, one tap picks and closes
 const H = SHOW * ROW + 2 * PADY;
 const TW = 168; // just past the drums: two presets to a line, each time centred with room on both sides
 // A start's usual morning, afternoon, after class, evening; a due's before midnight and midnight.
@@ -30,9 +30,9 @@ function Presets({ items, style, pill }: { items: { label: string; off?: boolean
   return (
     <View style={[s.pre, style]}>
       {items.map((x) => (
-        <Pressable key={x.label} disabled={x.off} onPress={x.onPress} accessibilityRole="button" accessibilityLabel={x.label} style={[s.pill, pill, { backgroundColor: th.chip }, x.off && { opacity: 0.4 }]}>
+        <Hit key={x.label} disabled={x.off} onPress={x.onPress} accessibilityRole="button" accessibilityLabel={x.label} style={[s.pill, pill, { backgroundColor: th.chip }, x.off && { opacity: 0.4 }]}>
           <Text style={[s.pt, { color: th.ink }]} numberOfLines={1}>{x.label}</Text>
-        </Pressable>
+        </Hit>
       ))}
     </View>
   );
@@ -162,7 +162,7 @@ export function TimeDial({ open, anchor, value, due, min, past, side = "right", 
 }
 
 // views.html .cal: the month, Monday first, six weeks. Today vermilion, the picked day a filled vermilion circle, days before today or `min` greyed out.
-const CW = 300, CELL = 36, CH = 14 + PRE + 34 + 22 + 6 * (CELL + 4) + 10;
+const CW = 322, CELL = 40, CH = 14 + PRE + 44 + 22 + 6 * (CELL + 4) + 10;
 const WEEK = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
 const day0 = (ts: number) => { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); };
 
@@ -181,8 +181,8 @@ function Month({ value, min, past, onPick }: { value: Date; min?: Date; past?: b
       <View style={s.mh}>
         <Text style={[s.mt, { color: th.ink }]}>{`Tháng ${m + 1} ${y}`}</Text>
         <View style={s.arrows}>
-          <Pressable onPress={() => step(-1)} hitSlop={10} accessibilityLabel="‹"><Text style={[s.arrow, { color: th.seal }]}>‹</Text></Pressable>
-          <Pressable onPress={() => step(1)} hitSlop={10} accessibilityLabel="›"><Text style={[s.arrow, { color: th.seal }]}>›</Text></Pressable>
+          <Hit onPress={() => step(-1)} accessibilityLabel="‹" style={s.arrowB}><Text style={[s.arrow, { color: th.seal }]}>‹</Text></Hit>
+          <Hit onPress={() => step(1)} accessibilityLabel="›" style={s.arrowB}><Text style={[s.arrow, { color: th.seal }]}>›</Text></Hit>
         </View>
       </View>
       <View style={s.gr}>
@@ -219,10 +219,11 @@ const s = StyleSheet.create({
   pad: { paddingHorizontal: PADX, paddingVertical: PADY },
   band: { position: "absolute", left: PADX, right: PADX, top: PADY + ((SHOW - 1) / 2) * ROW, height: ROW, borderRadius: 9 },
   cal: { paddingTop: 14, paddingHorizontal: 12, paddingBottom: 10 },
-  mh: { height: 34, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 4 },
+  mh: { height: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 4 },
   mt: { fontSize: 17, fontFamily: ff("600") },
-  arrows: { flexDirection: "row", gap: 22 },
-  arrow: { fontSize: 24, lineHeight: 26, fontFamily: ff("600") },
+  arrows: { flexDirection: "row", gap: 4 },
+  arrow: { fontSize: 28, lineHeight: 30, fontFamily: ff("600") },
+  arrowB: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   gr: { flexDirection: "row", flexWrap: "wrap" },
   wd: { width: "14.2857%", height: 22, textAlign: "center", fontSize: 12, fontFamily: ff("600") },
   dc: { width: "14.2857%", height: CELL + 4, alignItems: "center", justifyContent: "center" },

@@ -77,6 +77,6 @@ const s = StyleSheet.create({
   row: { flexDirection: "row", justifyContent: "flex-end", gap: 8 },
   t1: { fontSize: font.md, fontFamily: ff("700"), lineHeight: 19.5 }, // 15px, line-height 1.3
   sub: { marginTop: 1, fontSize: font.label, fontFamily: ff("500"), lineHeight: 19.5, color: "rgb(127,127,127)" },
-  a: { height: 36, paddingHorizontal: 13, borderRadius: 99, alignItems: "center", justifyContent: "center" },
+  a: { height: 40, paddingHorizontal: 13, borderRadius: 99, alignItems: "center", justifyContent: "center" },
   at: { fontSize: font.sub, fontFamily: ff("700") },
 });

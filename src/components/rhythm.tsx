@@ -125,7 +125,7 @@ const s = StyleSheet.create({
   small2: { fontSize: 14, fontFamily: ff("500"), marginTop: 2 },
   small: { fontSize: font.sub, fontFamily: ff("500"), lineHeight: 20 },
   viz: { marginTop: 12, flexDirection: "row", alignItems: "center", gap: 8 },
-  chip: { flexDirection: "row", alignItems: "center", gap: 8, height: 32, paddingLeft: 4, paddingRight: 12, borderRadius: 99 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 8, height: 40, paddingLeft: 4, paddingRight: 12, borderRadius: 99 },
   sw: { width: 24, height: 24, borderRadius: 12, overflow: "hidden" },
   chipT: { fontSize: 14, fontFamily: ff("600") },
   set: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 17, borderBottomWidth: 1 },

@@ -218,7 +218,7 @@ const s = StyleSheet.create({
   h: { fontSize: font.h, lineHeight: 36, fontFamily: ff("600"), letterSpacing: -0.75, marginTop: 18 },
   lab: { fontSize: font.label, fontFamily: ff("500") },
   pills: { flexDirection: "row", gap: 8, marginTop: 10 },
-  pill: { height: 36, paddingHorizontal: 16, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  pill: { height: 40, paddingHorizontal: 16, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   row: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 17, paddingHorizontal: 14, marginHorizontal: -14, borderRadius: 14 },
   hair: { position: "absolute", left: 14, right: 14, bottom: 0, height: 1 },
   right: { marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 8 },
@@ -226,7 +226,7 @@ const s = StyleSheet.create({
   artLab: { color: "#fff", opacity: 0.85 },
   artId: { color: "#fff", fontSize: 20, fontFamily: ff("600"), marginTop: 4, paddingRight: 50 },
   artSub: { color: "#fff", opacity: 0.9, fontFamily: ff("500"), fontSize: 14, marginTop: 3, paddingRight: 50 },
-  chevO: { width: 30, height: 30, borderRadius: 15, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  chevO: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   off: { paddingTop: 14, paddingBottom: 17, flexDirection: "row", gap: 22 },
   glass: { position: "absolute", right: 14, bottom: 14, width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,.28)", borderWidth: 1, borderColor: "rgba(255,255,255,.5)" },
 });

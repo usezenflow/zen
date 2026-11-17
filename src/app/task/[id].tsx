@@ -11,7 +11,7 @@ import { EdLine, Gly, Meta } from "@/components/detail-meta";
 import { useTapOutside, type Box } from "@/components/outside";
 import { DropMenu } from "@/components/menu";
 import { RichText } from "@/components/richtext";
-import { apply, lastMore, moveMine, preview, removeScope, stillMore, toAction, type LiveEdit, type Result } from "@/lib/apply";
+import { addSitting, apply, lastMore, moveMine, preview, removeScope, stillMore, toAction, type LiveEdit, type Result } from "@/lib/apply";
 import { Story } from "@/components/nowcard";
 import { seeMoves } from "@/lib/moves";
 import { keepBoth } from "@/lib/overlap";
@@ -270,6 +270,10 @@ export default function Detail() {
   // "Còn nữa": under the sittings once the last one is done or under way (lastMore); no sheet, the result stays here with its Undo.
   const still = lastMore(sits.length ? sits : task.rrule ? [] : [task], now); // an unsplit task is its own last sitting
   const addMore = async () => { if (!still) return; setAdded(await stillMore(still)); void load(); };
+  // "−" and "+ Thêm buổi" in the list: the result stays here with its Undo, as "Còn nữa". "−" only with two or more open: the last open one
+  // going would leave no open sitting, and the planner would split the task again.
+  const dropOne = async (id: string) => { setAdded(await removeScope(id, "this")); void load(); };
+  const addOne = async () => { setAdded(await addSitting(task.parentId ?? task.id)); void load(); };
   const undoMore = async () => { const r = added; setAdded(undefined); await r?.undo(); void load(); };
   const why =!task.fixed ? grounded(plc?.why, { task, start: task.start ?? 0, rules }).flatMap((r) => (r.key !== "pace" ? [r] : open.length > 1 ? [{ ...r, vars: { k: open.findIndex((k) => k.id === task.id) + 1, n: open.length } }] : [])).slice(0, 4) : undefined;
   const me = split ? tt?.id : task.id;
@@ -346,18 +350,30 @@ export default function Detail() {
                 {sits.map((k) => {
                   const done = !!k.doneAt, on = k.id === me, dim = { color: th.muted, textDecorationLine: done ? "line-through" : "none" } as const;
                   return (
-                    // push, not replace: back returns to this one
-                    <Tap key={k.id} variant="row" disabled={k.id === task.id} onPress={() => router.push(`/task/${k.id}`)} accessibilityRole="button" style={s.si}>
-                      <Text style={[s.sd, dim, on && !done && { color: th.ink, fontFamily: ff("600") }]}>{k.start !== undefined ? day(k.start, now) : "—"}</Text>
-                      <Text style={[s.sp, { color: th.ink }, done && dim, on && !done && { fontFamily: ff("700") }]} numberOfLines={1}>{k.title}</Text>
-                      <Text style={[s.sm, { color: th.muted }]}>{t("minutes", { n: k.effort })}</Text>
-                    </Tap>
+                    <View key={k.id} style={s.sirow}>
+                      {/* push, not replace: back returns to this one */}
+                      <Tap variant="row" disabled={k.id === task.id} onPress={() => router.push(`/task/${k.id}`)} accessibilityRole="button" style={[s.si, { flex: 1 }]}>
+                        <Text style={[s.sd, dim, on && !done && { color: th.ink, fontFamily: ff("600") }]}>{k.start !== undefined ? day(k.start, now) : "—"}</Text>
+                        <Text style={[s.sp, { color: th.ink }, done && dim, on && !done && { fontFamily: ff("700") }]} numberOfLines={1}>{k.title}</Text>
+                        <Text style={[s.sm, { color: th.muted }]}>{t("minutes", { n: k.effort })}</Text>
+                      </Tap>
+                      {done || open.length < 2 ? <View style={s.xGap} /> : (
+                        <Tap onPress={() => dropOne(k.id)} accessibilityRole="button" accessibilityLabel={t("dropSit")} style={s.x}>
+                          <Icon name="x" size={20} color={th.muted} w={2} />
+                        </Tap>
+                      )}
+                    </View>
                   );
                 })}
+                {/* a whole-width button, not a "+" glyph: easy to hit with a thumb */}
+                <Tap onPress={addOne} accessibilityRole="button" accessibilityLabel={t("addSit")} style={[s.add, { borderColor: th.line }]}>
+                  <Icon name="plus" size={20} color={th.ink} w={2.2} />
+                  <Text style={[s.addT, { color: th.ink }]}>{t("addSit")}</Text>
+                </Tap>
               </View>
             </View>
           )}
-          {still && <Tap onPress={addMore} accessibilityRole="button" accessibilityLabel={t("stillMore")} style={s.more}><Text style={[s.moreT, { color: th.ink }]}>{t("stillMore")}</Text></Tap>}
+          {still && sits.length < 2 && <Tap onPress={addMore} accessibilityRole="button" accessibilityLabel={t("stillMore")} style={s.more}><Text style={[s.moreT, { color: th.ink }]}>{t("stillMore")}</Text></Tap>}
           {added && (
             <View style={s.addRow}>
               <Text style={[s.sp, { color: th.muted }]}>{added.toast}</Text>
@@ -416,11 +432,16 @@ const s = StyleSheet.create({
   lms: { marginTop: 18, paddingVertical: 14, paddingHorizontal: 16, borderWidth: 1, borderRadius: 16 },
   lab: { fontSize: font.label, fontFamily: ff("500") },
   why: { marginTop: 22 },
-  si: { flexDirection: "row", alignItems: "baseline", gap: 10, paddingVertical: 7 }, // prep.html .si
+  si: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 48 }, // prep.html .si: a whole row to tap, at least 48
+  sirow: { flexDirection: "row", alignItems: "center" },
+  x: { width: 40, height: 48, alignItems: "center", justifyContent: "center" }, // views.html .si .x: a plain x, centred on the row, 48 tall to hit
+  xGap: { width: 40 }, // a done or lone row keeps the remove space empty
+  add: { marginTop: 10, height: 48, borderRadius: 24, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }, // views.html .si.add
+  addT: { fontSize: font.sub, fontFamily: ff("600") },
   more: { alignSelf: "flex-start", marginTop: 10, paddingVertical: 6 }, // magic.html .tbtn: an in-place text button
   moreT: { fontSize: 14, fontFamily: ff("600"), textDecorationLine: "underline" },
   addRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
-  sd: { width: 92, fontSize: font.sub, fontFamily: ff("500"), fontVariant: ["tabular-nums"] },
+  sd: { width: 74, fontSize: font.sub, fontFamily: ff("500"), fontVariant: ["tabular-nums"] },
   sp: { flex: 1, fontSize: font.sub, fontFamily: ff("500") },
   sm: { fontSize: font.sub, fontFamily: ff("500"), fontVariant: ["tabular-nums"] },
   wr: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 9 },
@@ -433,7 +454,7 @@ const s = StyleSheet.create({
   wb: { marginTop: 4, fontFamily: ff(), fontSize: font.sub, lineHeight: 21 },
   pill2: { height: 36, paddingHorizontal: 16, borderRadius: 99, alignItems: "center", justifyContent: "center", flexShrink: 1, minWidth: 0 },
   plt: { fontSize: font.sub, fontFamily: ff("500") },
-  pill: { height: 36, paddingHorizontal: 16, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  pill: { height: 40, paddingHorizontal: 16, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   note: { marginTop: 18, fontFamily: ff(), fontSize: font.base, lineHeight: 25.5, minHeight: 120, textAlignVertical: "top", padding: 0 },
 });
 

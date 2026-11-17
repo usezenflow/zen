@@ -96,14 +96,14 @@ describe("Row", () => {
 
   it("the checkbox ticks with a success haptic", async () => {
     const f = await draw();
-    await fireEvent.press(screen.container.queryAll((n) => n.props.hitSlop === 8 && typeof n.props.onResponderRelease === "function")[0]);
+    await fireEvent.press(screen.getByTestId("ck"));
     expect(f.onToggle).toHaveBeenCalledTimes(1);
     expect(Haptics.notificationAsync).toHaveBeenCalledWith(Haptics.NotificationFeedbackType.Success);
   });
 
   it("an already-done checkbox does not untick", async () => {
     const f = await draw({ done: true });
-    await fireEvent.press(screen.container.queryAll((n) => n.props.hitSlop === 8 && typeof n.props.onResponderRelease === "function")[0]);
+    await fireEvent.press(screen.getByTestId("ck"));
     expect(f.onToggle).not.toHaveBeenCalled();
     expect(flat(screen.getByText("Ôn tập")).textDecorationLine).toBe("line-through");
   });

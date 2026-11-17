@@ -1,3 +1,4 @@
+import { Hit } from "@/components/tap";
 import { useState, type ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { MenuPanel } from "@/components/rowmenu";
@@ -14,9 +15,9 @@ export function DropMenu({ icon, label = "", items, color, size, chevron, style 
   const [open, setOpen] = useState(false);
   return (
     <View style={style}>
-      <Pressable onPress={() => setOpen(!open)} accessibilityRole="button" accessibilityLabel={label || "menu"} hitSlop={8}>
+      <Hit onPress={() => setOpen(!open)} accessibilityRole="button" accessibilityLabel={label || "menu"} hitSlop={8}>
         {icon ?? <Text style={{ color: color ?? th.ink, fontSize: size ?? 15, fontFamily: ff("500") }}>{label}</Text>}
-      </Pressable>
+      </Hit>
       {open && (
         <>
           <Pressable style={s.scrim} onPress={() => setOpen(false)} />

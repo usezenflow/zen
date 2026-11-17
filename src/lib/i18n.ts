@@ -254,6 +254,8 @@ const S = {
   planAt: "Làm {t}",
   noSlot: "Chưa có giờ trống · Chọn giờ",
   sittings: "Các buổi",
+  addSit: "Thêm buổi",
+  dropSit: "Bỏ buổi này",
   youKind: "Việc của bạn · {k}",
   fixedTime: "Giờ cố định",
   clearDue: "Bỏ hạn",

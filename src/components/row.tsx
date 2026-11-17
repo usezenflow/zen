@@ -7,7 +7,7 @@ import Animated, { Extrapolation, interpolate, interpolateColor, useAnimatedStyl
 import { scheduleOnRN } from "react-native-worklets";
 import { Icon, TypeArt } from "@/components/art";
 import { hhmm, startOfDay } from "@/components/cal";
-import { glide, Tap, settle, EASE } from "@/components/tap";
+import { glide, Hit, Tap, settle, EASE } from "@/components/tap";
 import { hits, type Query } from "@/lib/find";
 import { t } from "@/lib/i18n";
 import { reasonText } from "@/lib/reasons";
@@ -202,14 +202,14 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
       {ghost ? (
         <View style={[s.ck, { borderColor: th.line, borderStyle: "dashed" }]} />
       ) : check ? (
-        <Pressable onPress={() => { if (!done) { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {}); onToggle(); } }} hitSlop={8}>
+        <Hit onPress={() => { if (!done) { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {}); onToggle(); } }} hitSlop={8} testID="ck">
           <Animated.View style={[s.ck, { borderColor: late ? th.seal : th.line }, done && [{ borderWidth: 0 }, pop]]}>
             {done && <Animated.View entering={ZoomIn.duration(180).easing(EASE)}>
               <Icon name="check" size={16} color={th.ink} w={2.4} />
               <Animated.View style={[StyleSheet.absoluteFill, popInk]}><Icon name="check" size={16} color={th.bg} w={2.4} /></Animated.View>
             </Animated.View>}
           </Animated.View>
-        </Pressable>
+        </Hit>
       ) : (
         <View style={[s.ck, s.art, { opacity: type === "busy" ? 0.55 : 1 }, ring && { borderWidth: 2.5, borderColor: th.art[type][1], shadowColor: th.art[type][1], shadowOpacity: 0.6, shadowRadius: 8, shadowOffset: { width: 0, height: 0 }, overflow: "visible" }]}>
           <View style={s.clip}><TypeArt type={type} w={34} h={34} seed={task.id.length} /></View>
