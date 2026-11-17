@@ -267,6 +267,7 @@ jobs:
           # cannot read the app's data (they fall back to their sample). Fake-sign them into the binaries.
           brew install ldid
           ldid -Sios/ExpoWidgetsTarget/ExpoWidgetsTarget.entitlements Payload/Zen.app/PlugIns/ExpoWidgetsTarget.appex/ExpoWidgetsTarget
+          ldid -Sios/expo-sharing-extension/expo-sharing-extension.entitlements Payload/Zen.app/PlugIns/expo-sharing-extension.appex/expo-sharing-extension
           ldid -Sios/Zen/Zen.entitlements Payload/Zen.app/Zen
           zip -qry dist/zen-ios-unsigned.ipa Payload
       - uses: actions/upload-artifact@v7
