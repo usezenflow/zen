@@ -3,8 +3,9 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react-nativ
 import * as Haptics from "expo-haptics";
 import { Week } from "./week";
 import { mondayOf, short } from "./cal";
-import { DAY, HOUR, lecture, MIN, NOW, task, TODAY } from "../../test/factories";
-import type { Rule } from "@/lib/types";
+import { at, DAY, HOUR, lecture, MIN, NOW, task, TODAY } from "../../test/factories";
+import { t } from "@/lib/i18n";
+import type { Move, Rule } from "@/lib/types";
 
 // The pan is driven by calling its config: the gesture hook needs native code (and `isSharedValue` the reanimated mock lacks).
 type Pan = { onDeactivate: (e: { translationX: number; velocityX: number }) => void };
@@ -25,7 +26,7 @@ const root = () => screen.root as unknown as El;
 const show = async (over: Partial<Parameters<typeof Week>[0]> = {}, width = 350) => {
   const p = { tasks: [], hols: new Map(), monday: MON, selected: TODAY, now: NOW, onSelect: jest.fn(), onStep: jest.fn(), ...over };
   await render(<Week {...p} />);
-  if (width) await fireEvent(all(root(), (x) => !!x.props.onLayout).at(-1) as never, "layout", { nativeEvent: { layout: { width } } });
+  if (width) await fireEvent(screen.getByTestId("wkGrid"), "layout", { nativeEvent: { layout: { width } } });
   return p;
 };
 /** Positioned blocks in the overlay (tasks and rule windows), by column left. */
@@ -64,6 +65,22 @@ describe("swipe", () => {
   });
 });
 
+it("unbriefed moves: the pill sits above the grid, and the moved block carries the seal dot", async () => {
+  const onMoves = jest.fn();
+  const moved: Move = { id: "t1", title: "Ôn Giải tích", from: at(9), to: at(14), at: NOW };
+  await show({ tasks: [task({ id: "t1" })], moves: ["t1"], brief: [moved], onMoves });
+  expect(screen.getByText(new RegExp(t("briefOne", { title: "Ôn Giải tích" })))).toBeTruthy();
+  expect(all(root(), (x) => flat(x).width === 7 && flat(x).height === 7)).toHaveLength(1); // the dot, 7px
+  await fireEvent.press(screen.getByLabelText(t("briefOpen")));
+  expect(onMoves).toHaveBeenCalledTimes(1);
+});
+
+it("no unbriefed moves: no pill; a block not in the unseen set has no dot", async () => {
+  await show({ tasks: [task({ id: "t1" })], moves: [], brief: [] });
+  expect(screen.queryByLabelText(t("briefOpen"))).toBeNull();
+  expect(all(root(), (x) => flat(x).width === 7 && flat(x).height === 7)).toHaveLength(0);
+});
+
 it("a whole empty week shows a dashed slot per day and no blocks", async () => {
   await show();
   expect(dashed()).toHaveLength(7);
@@ -73,7 +90,7 @@ it("a whole empty week shows a dashed slot per day and no blocks", async () => {
 it("the overlay waits for the grid's layout", async () => {
   await show({ tasks: [task()] }, 0);
   expect(blocks()).toHaveLength(0);
-  await fireEvent(all(root(), (x) => !!x.props.onLayout).at(-1) as never, "layout", { nativeEvent: { layout: { width: 350 } } });
+  await fireEvent(screen.getByTestId("wkGrid"), "layout", { nativeEvent: { layout: { width: 350 } } });
   expect(blocks()).toHaveLength(1);
 });
 

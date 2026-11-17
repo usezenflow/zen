@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Day } from "./day";
+import { t } from "@/lib/i18n";
 import { at, DAY, HOUR, NOW, TODAY, task } from "../../test/factories";
 
 // Gesture events take RNGH's JS path: the Reanimated mock has no native event bridge.
@@ -46,8 +47,29 @@ describe("Day: all of today done (card.html \"Night, nothing left\")", () => {
   it("the rest card says it, and its sub names tomorrow's first task", async () => {
     const done = task({ title: "Viết luận", start: at(9), end: at(10), doneAt: at(10) });
     const tomorrow = task({ title: "Đọc chương 4", start: at(8, 0, TODAY + DAY), end: at(9, 0, TODAY + DAY) });
-    await draw(TODAY, [done, tomorrow], at(20), "rest");
+    await draw(TODAY, [done, tomorrow], at(21), "rest");
     expect(screen.getByText("Hôm nay xong rồi")).toBeTruthy();
     expect(screen.getByText("Mai 8:00, Đọc chương 4")).toBeTruthy();
+  });
+
+  // The day is over from 20:00 and past its last block; before that, no nudge toward tomorrow.
+  const done = () => task({ title: "Viết luận", start: at(9), end: at(10), doneAt: at(10) });
+  const tomorrow = () => task({ title: "Đọc chương 4", start: at(8, 0, TODAY + DAY), end: at(9, 0, TODAY + DAY) });
+  it("at 14:00 no 'Ngày mai' list and no tomorrow sub", async () => {
+    await draw(TODAY, [done(), tomorrow()], at(14), "rest");
+    expect(screen.queryByText(t("tomorrow"))).toBeNull();
+    expect(screen.queryByText("Mai 8:00, Đọc chương 4")).toBeNull();
+  });
+  it("at 21:00 the 'Ngày mai' list shows", async () => {
+    await draw(TODAY, [done(), tomorrow()], at(21), "rest");
+    expect(screen.getByText(t("tomorrow"))).toBeTruthy();
+  });
+  it("a past day all done says Xong hết rồi, never Hôm nay xong rồi or its next day", async () => {
+    const y = TODAY - DAY, past = task({ title: "Viết luận", start: at(9, 0, y), end: at(10, 0, y), doneAt: at(10, 0, y) });
+    const today = task({ title: "Đọc chương 4", start: at(15), end: at(16) });
+    await draw(y, [past, today], at(10), "rest");
+    expect(screen.getByText("Xong hết rồi")).toBeTruthy();
+    expect(screen.queryByText("Hôm nay xong rồi")).toBeNull();
+    expect(screen.queryByText(t("tomorrow"))).toBeNull();
   });
 });

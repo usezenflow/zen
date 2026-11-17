@@ -44,7 +44,7 @@ export function NowCard({ card, onDone }: { card: Card; onDone: () => void }) {
             <Text style={[s.small, { color: th.onart }]}>{going ? t("until", { time: hhmm(end) }) : t("nMin", { n: mins })}</Text>
           </View>
         </View>
-        <Tap onPress={onDone} hitSlop={8} scale={0.88} style={[s.glass, s.solid]}><Glass /><Icon name="check" size={22} color="#0b0b0c" w={2.2} /></Tap>
+        <Tap onPress={onDone} hitSlop={8} scale={0.88} testID="nowDone" style={[s.glass, s.solid]}><Glass /><Icon name="check" size={22} color="#0b0b0c" w={2.2} /></Tap>
       </View>
     </View>
   );
@@ -116,10 +116,11 @@ export function Live({ state, words = "", level }: { state: Exclude<HoldState, "
 
 const biggest = (ms: Move[]) => ms.reduce((a, b) => (Math.abs(b.to - b.from) > Math.abs(a.to - a.from) ? b : a));
 
-// views.html magic 1: the art slot's replacement on a day something moved. Tap opens the story in place.
+// The move the sentence names: a real cause over a knock-on, then the biggest shift.
+const headMove = (ms: Move[]) => { const direct = ms.filter((x) => x.cause && x.cause !== t("causeKnock")); return biggest(direct.length ? direct : ms); };
+
 // magic 1b: swiped sideways past 110 it flicks off as the now-card does, and `onDismiss` retires it; short of that it springs back.
-export function Brief({ moves, now, onOpen, onDismiss }: { moves: Move[]; now: number; onOpen: () => void; onDismiss?: () => void }) {
-  const th = useTheme();
+function useFlick(onDismiss?: () => void) {
   const x = useSharedValue(0);
   const pan = usePanGesture({
     testID: "brief",
@@ -134,9 +135,15 @@ export function Brief({ moves, now, onOpen, onDismiss }: { moves: Move[]; now: n
     },
   });
   const flick = useAnimatedStyle(() => ({ transform: [{ translateX: x.get() }, { rotate: `${interpolate(x.get(), [-300, 300], [-8, 8]).toFixed(2)}deg` }] }));
-  if (!moves.length) return null; // nothing moved: no brief (biggest() needs one)
-  const direct = moves.filter((x) => x.cause && x.cause !== t("causeKnock")); // the sentence names a real cause, not a knock-on
-  const m = biggest(direct.length ? direct : moves), r = topReason(m.why?.filter((x) => x.key !== "guess"));
+  return { pan, flick };
+}
+
+// views.html magic 1: the art slot's replacement on a day something moved. Tap opens the story in place.
+export function Brief({ moves, now, onOpen, onDismiss }: { moves: Move[]; now: number; onOpen: () => void; onDismiss?: () => void }) {
+  const th = useTheme();
+  const { pan, flick } = useFlick(onDismiss);
+  if (!moves.length) return null; // nothing moved: no brief (headMove() needs one)
+  const m = headMove(moves), r = topReason(m.why?.filter((x) => x.key !== "guess"));
   const to = when(m.to, now), what = t("briefMove", { title: m.title, when: to });
   const sub = [m.cause ? t("briefCause", { cause: m.cause, what }) : what, r && reasonText(r, true)].filter(Boolean).join(". ") + ".";
   const at = sub.indexOf(what), toAt = at + what.length - to.length; // `what` opens with the title and ends with the time
@@ -155,6 +162,30 @@ export function Brief({ moves, now, onOpen, onDismiss }: { moves: Move[]; now: n
         {sub.slice(at + m.title.length, toAt)}<Text style={{ color: th.ink, fontFamily: ff("600"), fontVariant: ["tabular-nums"] }}>{to}</Text>
         {sub.slice(toAt + to.length)}
       </Text>
+    </Tap>
+    </Animated.View>
+    </GestureDetector>
+  );
+}
+
+// views.html .mvp: moves not yet briefed, slim, under the now card or above the week grid. Tap opens the story; a swipe or screen-reader action dismisses.
+export function MovesPill({ moves, now, onOpen, onDismiss }: { moves: Move[]; now: number; onOpen: () => void; onDismiss?: () => void }) {
+  const th = useTheme();
+  const { pan, flick } = useFlick(onDismiss);
+  if (!moves.length) return null;
+  const m = headMove(moves);
+  return (
+    <GestureDetector gesture={pan}>
+    <Animated.View style={flick}>
+    <Tap onPress={onOpen} scale={0.98} accessibilityRole="button" accessibilityLabel={t("briefOpen")}
+      accessibilityActions={onDismiss ? [{ name: "dismiss", label: t("briefHide") }] : undefined} onAccessibilityAction={(e) => { if (e.nativeEvent.actionName === "dismiss") onDismiss?.(); }}
+      style={[s.mvp, { backgroundColor: th.chip }]}>
+      <View style={[s.mvDot, { backgroundColor: th.seal }]} />
+      <Text numberOfLines={1} style={[s.mvT, { color: th.ink }]}>
+        {moves.length === 1 ? t("briefOne", { title: m.title }) : t("briefN", { n: moves.length })}
+        <Text style={{ color: th.muted, fontFamily: ff("500") }}>{` · ${t("briefMove", { title: m.title, when: when(m.to, now) })}`}</Text>
+      </Text>
+      <View style={[s.mvX, { backgroundColor: th.ink }]}><Text style={[s.mvXT, { color: th.bg }]}>{t("briefSee")}</Text></View>
     </Tap>
     </Animated.View>
     </GestureDetector>
@@ -260,6 +291,11 @@ const s = StyleSheet.create({
   viz: { flexDirection: "row", gap: 6, alignItems: "center", height: TALL, marginTop: 24 },
   bar: { width: DOT, borderRadius: DOT / 2 },
   brief: { marginTop: 16, borderRadius: 28, padding: 18, paddingHorizontal: 20 },
+  mvp: { marginTop: 14, height: 48, paddingLeft: 16, paddingRight: 6, borderRadius: 99, flexDirection: "row", alignItems: "center", gap: 10 }, // .mvp
+  mvDot: { width: 8, height: 8, borderRadius: 99 },
+  mvT: { flex: 1, minWidth: 0, fontSize: font.md, fontFamily: ff("600") },
+  mvX: { height: 36, paddingHorizontal: 12, borderRadius: 99, alignItems: "center", justifyContent: "center" },
+  mvXT: { fontSize: font.sub, fontFamily: ff("600") },
   lf: { position: "absolute", top: 16, right: 16 },
   bs: { marginTop: 6, fontSize: font.md, lineHeight: 20.25, fontFamily: ff("500") }, // .brief .s: 1.35
   sl: { fontSize: font.label, fontFamily: ff("500"), marginTop: 16 },
@@ -269,7 +305,7 @@ const s = StyleSheet.create({
   fr: { fontSize: font.md, fontFamily: ff("500"), fontVariant: ["tabular-nums"] },
   rs: { marginTop: 3, fontSize: font.md, lineHeight: 20.25, fontFamily: ff("500") },
   acts: { flexDirection: "row", gap: 8, marginTop: 14 },
-  close: { alignSelf: "flex-start", height: 36, paddingHorizontal: 16, borderRadius: 99, alignItems: "center", justifyContent: "center" },
+  close: { alignSelf: "flex-start", height: 40, paddingHorizontal: 16, borderRadius: 99, alignItems: "center", justifyContent: "center" },
   ct: { fontSize: font.sub, fontFamily: ff("700") },
   steps: { position: "absolute", left: 24, right: 24, bottom: 150, gap: 10, zIndex: 7 },
   st: { flexDirection: "row", alignItems: "center", gap: 10 },

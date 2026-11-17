@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
 import { StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { Brief, Live, NowCard, Steps, Story, Weekly } from "./nowcard";
+import { Brief, Live, MovesPill, NowCard, Steps, Story, Weekly } from "./nowcard";
 import { t } from "@/lib/i18n";
 import { when } from "@/lib/when";
 import type { Move } from "@/lib/types";
@@ -48,10 +48,7 @@ describe("NowCard", () => {
   it("the check marks it done", async () => {
     const onDone = jest.fn();
     await render(<NowCard card={{ task: task(), start: at(14), end: at(15) }} onDone={onDone} />);
-    type I = { props: Record<string, unknown>; children: (I | string)[] };
-    const walk = (n: I): I[] => [n, ...n.children.flatMap((c) => (typeof c === "string" ? [] : walk(c)))];
-    const check = walk(screen.root as unknown as I).find((n) => n.props.hitSlop === 8)!; // the glass check button: no label of its own
-    await fireEvent.press(check as never);
+    await fireEvent.press(screen.getByTestId("nowDone")); // the glass check button: no label of its own
     expect(onDone).toHaveBeenCalledTimes(1);
   });
 });
@@ -120,6 +117,28 @@ it("Brief: a screen reader can put it away, as the swipe does", async () => {
   await render(<Brief moves={[mv({})]} now={NOW} onOpen={jest.fn()} onDismiss={onDismiss} />, root);
   await fireEvent(screen.getByLabelText(t("briefOpen")), "accessibilityAction", { nativeEvent: { actionName: "dismiss" } });
   expect(onDismiss).toHaveBeenCalledTimes(1);
+});
+
+describe("MovesPill", () => {
+  it("renders under a running card: the count, the move, and Xem", async () => {
+    const card = { task: task({ title: "Ôn tập" }), start: at(9, 30), end: at(10, 30) };
+    await render(<><NowCard card={card} onDone={jest.fn()} /><MovesPill moves={[mv({ id: "a" }), mv({ id: "b", title: "Đi chợ" })]} now={NOW} onOpen={jest.fn()} /></>, root);
+    expect(screen.getByLabelText(t("nMin", { n: 30 }))).toBeOnTheScreen(); // the running card stays
+    expect(screen.getByText(new RegExp(t("briefN", { n: 2 })))).toBeOnTheScreen();
+    expect(screen.getByText(t("briefSee"))).toBeOnTheScreen();
+  });
+  it("tap opens the story; a screen reader can dismiss it, as the swipe does", async () => {
+    const onOpen = jest.fn(), onDismiss = jest.fn();
+    await render(<MovesPill moves={[mv({})]} now={NOW} onOpen={onOpen} onDismiss={onDismiss} />, root);
+    await fireEvent.press(screen.getByLabelText(t("briefOpen")));
+    await fireEvent(screen.getByLabelText(t("briefOpen")), "accessibilityAction", { nativeEvent: { actionName: "dismiss" } });
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+  it("renders nothing when nothing is unbriefed", async () => {
+    await render(<MovesPill moves={[]} now={NOW} onOpen={jest.fn()} />, root);
+    expect(screen.queryByLabelText(t("briefOpen"))).toBeNull();
+  });
 });
 
 describe("Story", () => {

@@ -24,7 +24,7 @@ import { PdfView, PhotoMenu, PhotoView, TypeBar, Veil } from "@/components/captu
 import { Hold, type Aside, type HoldState } from "@/components/hold";
 import type { Item } from "@/components/menu";
 import { Month } from "@/components/month";
-import { Brief, Live, NowCard, Steps, Story, Weekly, type Card } from "@/components/nowcard";
+import { Brief, Live, MovesPill, NowCard, Steps, Story, Weekly, type Card } from "@/components/nowcard";
 import { RowMenu, menuTop, sittingItems } from "@/components/rowmenu";
 import { fadeIn, fadeOut, glide, popIn, settle, Tap, EASE } from "@/components/tap";
 import { Sweep, useSweep } from "@/components/sweep";
@@ -94,8 +94,10 @@ export default function Home() {
   const [warns, setWarns] = useState<Warn[]>([]);
   const [maps, setMaps] = useState<{ trail: Record<string, string>; froms: Record<string, number>; reason: Record<string, string>; alts: Record<string, number> }>({ trail: {}, froms: {}, reason: {}, alts: {} });
   const [wk, setWk] = useState<{ title: string; sub: string } | undefined>(); // Sunday card
-  const [story, setStory] = useState(false);
-  const briefed = useRef<string[]>([]);
+  // The story is open for one view and day only: leaving them folds it back (the moves stay until seen).
+  const [storyAt, setStoryAt] = useState("");
+  const story = storyAt === `${view}${sel}`;
+  const setStory = (on: boolean) => setStoryAt(on ? `${view}${sel}` : "");
   const [mine, setMine] = useState<{ moves: Move[]; r: Result }>(); // what the user's own change just moved, opened from its toast (magic.html 7d)
   const shuf = useRef(false); // the plan is playing out on the list; no second run until it ends
   const [shufOn, setShufOn] = useState(false);
@@ -235,8 +237,6 @@ export default function Home() {
   useEffect(() => {
     const sub = AppState.addEventListener("change", (s) => {
       if (s === "active") { onForeground().then((r) => (r ? landed(r) : refresh())).catch(() => refresh()); pushWidgets(); }
-      // a brief is shown for one visit: leaving the app retires it (magic.html 1)
-      else if (s === "background" && briefed.current.length) { const ids = briefed.current; briefed.current = []; setStory(false); void briefMoves(ids).then(refresh); }
     });
     return () => sub.remove();
   }, [refresh, landed]);
@@ -699,18 +699,15 @@ export default function Home() {
   const isToday = sel === today0;
   const running = !!card && !card.gap && card.start! <= now && now < card.end!;
   const quiet = isToday && view === "day" && !running;
-  // The latest change only, the user's own knock-ons included: the toast fades, the card stays until seen. Older ones retire with it.
-  const fresh = moves.filter((m) => !m.briefed), last = Math.max(0, ...fresh.map((m) => m.at));
-  const said = fresh.filter((m) => m.at === last);
-  const briefOn = quiet && said.length > 0; // the running card keeps priority
+  // Every move not yet briefed, not just the latest batch. The full card takes the hero slot when it can, else a slim pill (day, week).
+  // Retired only on story close or swipe; `unseen` drives the dots until the story is closed.
+  const fresh = moves.filter((m) => !m.briefed), unseen = moves.filter((m) => !m.seen).map((m) => m.id);
+  const briefOn = quiet && fresh.length > 0; // the running card keeps priority
+  const pillOn = !briefOn && fresh.length > 0 && !mine && (view === "day" || view === "week");
   const sunOn = quiet && !briefOn && !!wk;
-  useEffect(() => { if (briefOn) briefed.current = fresh.map((m) => m.id); }); // what this visit has shown: retired on leaving
-  // Seen, then left for another view or day: it goes, as on leaving the app.
-  const away = view !== "day" || !isToday;
-  useEffect(() => { if (away && briefed.current.length) { const ids = briefed.current; briefed.current = []; setStory(false); void briefMoves(ids).then(refresh); } }, [away]); // eslint-disable-line react-hooks/exhaustive-deps -- on leaving only
-  const showStory = (briefOn && story) || !!mine; // the list becomes the story, in place
-  const dismissBrief = () => { const ids = fresh.map((m) => m.id); briefed.current = []; void briefMoves(ids).then(refresh); }; // magic 1b: swiped away for good
-  const closeStory = async () => { setStory(false); await seeMoves(said.map((m) => m.id)); await briefMoves(fresh.map((m) => m.id)); refresh(); };
+  const showStory = !!mine || (story && (briefOn || pillOn)); // the list becomes the story, in place
+  const dismissBrief = () => { void briefMoves(fresh.map((m) => m.id)).then(refresh); }; // magic 1b: swiped away for good
+  const closeStory = async () => { setStory(false); await seeMoves(fresh.map((m) => m.id)); await briefMoves(fresh.map((m) => m.id)); refresh(); };
   const busy = state !== "idle";
   const listing = busy && !shufOn && !!words; // the day stays under the veil until words are heard; while the plan plays out the list stays, the dock keeps thinking
   const firstRun = !tasks.length && view === "day" && !busy; // views.html "Day, first launch"
@@ -809,14 +806,21 @@ export default function Home() {
           {view === "day" && isToday && (
             // Keyed per branch so hero swaps cross-fade; a new now-card lands with a small pop.
             <Reanimated.View key={hero} entering={card && hero === card.task.id ? popIn : fadeIn} exiting={fadeOut} layout={glide}>
-              {mine ? <Story moves={mine.moves} now={now} onClose={closeMine} onUndo={undoMine} /> : briefOn ? (story ? <Story moves={said} now={now} onClose={closeStory} /> : <Brief moves={said} now={now} onOpen={() => setStory(true)} onDismiss={dismissBrief} />) : sunOn ? <Weekly title={wk!.title} sub={wk!.sub} onPress={() => setView("rhythm")} /> : cardView}
+              {mine ? <Story moves={mine.moves} now={now} onClose={closeMine} onUndo={undoMine} /> : briefOn ? (story ? <Story moves={fresh} now={now} onClose={closeStory} /> : <Brief moves={fresh} now={now} onOpen={() => setStory(true)} onDismiss={dismissBrief} />) : sunOn ? <Weekly title={wk!.title} sub={wk!.sub} onPress={() => setView("rhythm")} /> : cardView}
             </Reanimated.View>
           )}
+          {/* Moves not yet briefed, under the now card (or the header when no card): the story opens in its place. */}
+          {view === "day" && pillOn && (story
+            ? <Story moves={fresh} now={now} onClose={closeStory} />
+            : <MovesPill moves={fresh} now={now} onOpen={() => setStory(true)} onDismiss={dismissBrief} />)}
           {view === "rhythm" && mind && <Rhythm i={mind.i} rules={mind.rules} onForget={async (x) => { const r = await removeRule(x.id); say(r.toast, r); refresh(); }} />}
           {(view === "week" || view === "month") && (
             <Reanimated.View key={view} entering={fadeIn}>
               {view === "week"
-                ? <Week tasks={tasks} hols={hols} rules={mind?.rules ?? []} now={now} monday={dd.anchor} selected={sel} onSelect={setSel} onStep={stepWeek} gridRef={dd.gridRef} hover={dd.hover} />
+                ? <>
+                    {story && pillOn && <Story moves={fresh} now={now} onClose={closeStory} />}
+                    <Week tasks={tasks} hols={hols} rules={mind?.rules ?? []} now={now} monday={dd.anchor} selected={sel} onSelect={setSel} onStep={stepWeek} gridRef={dd.gridRef} hover={dd.hover} moves={unseen} brief={pillOn && !story ? fresh : []} onMoves={() => setStory(true)} onDismiss={dismissBrief} />
+                  </>
                 : <Month tasks={tasks} hols={hols} now={now} selected={sel} anchor={dd.anchor} onSelect={setSel} onStep={stepMonth} gridRef={dd.gridRef} hover={dd.hover} />}
             </Reanimated.View>
           )}
@@ -865,12 +869,12 @@ const s = StyleSheet.create({
   pad: { padding: space.gutter, paddingTop: 0 }, // .scr: the safe area stands in for its 54px top
   top: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginTop: 6 },
   h: { fontSize: font.h, lineHeight: 36, fontFamily: ff("600"), letterSpacing: -0.75, marginTop: 2 },
-  go: { position: "absolute", right: 0, bottom: 0, height: 30, paddingHorizontal: 12, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  go: { position: "absolute", right: 0, bottom: 0, height: 36, paddingHorizontal: 12, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   sub: { marginTop: 6, fontFamily: ff(), fontSize: font.md },
   o: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, alignItems: "center", justifyContent: "center", marginTop: 2 },
   tabs: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 18 }, // magic.html .tabs: text and the Nhịp pill share a centre line
   tabL: { flexDirection: "row", gap: 20 },
-  mind: { flexDirection: "row", alignItems: "center", gap: 6, height: 30, paddingHorizontal: 11, borderRadius: 99, borderWidth: 1 }, // magic.html .mind
+  mind: { flexDirection: "row", alignItems: "center", gap: 6, height: 36, paddingHorizontal: 11, borderRadius: 99, borderWidth: 1 }, // magic.html .mind
   tabDot: { position: "absolute", bottom: 0, left: "50%", width: 5, height: 5, marginLeft: -2.5, borderRadius: 3 },
   fade: { position: "absolute", left: 0, right: 0, bottom: 0, height: 120 },
   dock: { position: "absolute", left: 0, right: 0, bottom: 0 },

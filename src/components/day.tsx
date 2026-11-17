@@ -317,8 +317,11 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
   const isEmpty = !rows.length && !hol && !unplaced.length && !fold.length;
   const after = (from: number, to = Infinity) => shown(tasks).filter((x) => !hidden.has(x.id) && x.start! >= from && x.start! < to).sort((a, b) => a.start! - b.start!).slice(0, 3);
   const near = isEmpty && empty === "inl" ? after(Math.max(end, now))[0] : undefined;
+  // The day is over from 20:00 and past its last block: only then may tomorrow show (views.html "Day, all done, night").
+  // Today only: a past day is done, not "Hôm nay xong rồi", and its "tomorrow" is not what comes next.
+  const over = day === startOfDay(now) && now >= Math.max(day + 20 * 3600_000, ...[...real, ...done].map((x) => x.end ?? x.start! + x.effort * 60_000));
   const next = !isEmpty || empty === "inl" ? undefined : (() => {
-    if (empty === "rest" && done.length) { const xs = onDay(tasks, end).slice(0, 3); if (xs.length) return { lab: t("tomorrow"), xs, dated: false }; }
+    if (empty === "rest" && done.length) { if (!over) return undefined; const xs = onDay(tasks, end).slice(0, 3); if (xs.length) return { lab: t("tomorrow"), xs, dated: false }; }
     if (empty === "week") {
       const cur = addDays(mondayOf(now), 7); // a later week: what's left of this one first
       if (day >= cur) { const xs = after(now, cur); if (xs.length) return { lab: t("weekLeft"), xs, dated: true }; }
@@ -326,8 +329,8 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
     }
     return { lab: t("soon"), xs: after(Math.max(end, now)), dated: true };
   })();
-  // card.html "Night, nothing left": the rest card's sub names tomorrow's first task.
-  const tomorrow = empty === "rest" && done.length && new Date(now).getHours() >= 18 ? next?.xs[0] : undefined; // views "Day, all done" by day, card "Night" from 18:00
+  // card.html "Night, nothing left": the rest card's sub names tomorrow's first task, once the day is over.
+  const tomorrow = next?.lab === t("tomorrow") ? next.xs[0] : undefined;
   // views.html "Day, assignment sittings": a split assignment's next sitting after this day, under its own day label.
   const later = [...new Set(real.map((x) => x.parentId).filter(Boolean))]
     .flatMap((p) => tasks.filter((x) => x.parentId === p && live(x) && x.start !== undefined && x.start >= end).sort((a, b) => a.start! - b.start!).slice(0, 1));
@@ -467,7 +470,7 @@ const s = StyleSheet.create({
   blk: { flexDirection: "column" }, // heads up (magic.html 9): pills name tasks, so each is a full-width block
   plBlk: { alignSelf: "stretch", height: 44, paddingHorizontal: 18, flexDirection: "row", justifyContent: "flex-start", gap: 12 }, // name left, day right: every pill shares both edges
   nm: { flex: 1, minWidth: 0 },
-  pl: { height: 36, paddingHorizontal: 16, borderRadius: 99, alignItems: "center", justifyContent: "center", flexShrink: 1, minWidth: 0 },
+  pl: { height: 40, paddingHorizontal: 16, borderRadius: 99, alignItems: "center", justifyContent: "center", flexShrink: 1, minWidth: 0 },
   plt: { fontSize: font.sub, fontFamily: ff("500") },
   rest: { marginTop: 16, borderRadius: 28, padding: 20 },
   restLf: { position: "absolute", top: 18, right: 18 },

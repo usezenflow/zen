@@ -8,9 +8,10 @@ import { scheduleOnRN } from "react-native-worklets";
 import { TypeArt } from "@/components/art";
 import { addDays, holLines, keptOn, onDay, short, startOfDay, type Hols } from "@/components/cal";
 import { Tap, glide, settle } from "@/components/tap";
+import { MovesPill } from "@/components/nowcard";
 import type { Box } from "@/components/outside";
 import { useTheme, ff, motion } from "@/lib/theme";
-import type { Rule, Task } from "@/lib/types";
+import type { Move, Rule, Task } from "@/lib/types";
 import { typeOf } from "@/planner";
 
 /** Diagonal hairline stripes (.hb / .hol in ui.css): lines every `gap` px, 1.5px thick. */
@@ -86,10 +87,12 @@ function fit(hs: number[]) {
   return { hs: list.map((h) => Math.max(MINH, Math.floor(h * sc))), more };
 }
 
-export function Week({ tasks, hols, monday, selected, now, onSelect, onStep, rules = [], gridRef, hover }: {
+export function Week({ tasks, hols, monday, selected, now, onSelect, onStep, rules = [], gridRef, hover, moves = [], brief = [], onMoves, onDismiss }: {
   tasks: Task[]; hols: Hols; monday: number; selected: number; now: number; onSelect: (day: number) => void; onStep: (d: -1 | 1) => void; rules?: Rule[];
   /** gridRef: the seven columns, measured for a drop; hover: the day under a dragged row */
   gridRef?: React.Ref<Box>; hover?: number;
+  /** moves: ids not yet seen (a seal dot on each block); brief: moves not yet briefed (the pill above the grid), onMoves opens its story */
+  moves?: string[]; brief?: Move[]; onMoves?: () => void; onDismiss?: () => void;
 }) {
   const th = useTheme();
   const [gw, setGw] = useState(0);
@@ -99,8 +102,10 @@ export function Week({ tasks, hols, monday, selected, now, onSelect, onStep, rul
   // A whole empty week keeps its height as dashed slots, so the grid reads as room, not as missing.
   const nil = short.every((_, i) => !hols.has(addDays(monday, i)) && !onDay(tasks, addDays(monday, i)).length && !keptOn(rules, addDays(monday, i)).length); // a kept rule alone still fills the week
   return (
+    <View>
+    {!!onMoves && <MovesPill moves={brief} now={now} onOpen={onMoves} onDismiss={onDismiss} />}
     <Swipe onStep={onStep} stepKey={monday}>
-      <View ref={gridRef} collapsable={false} style={s.wk} onLayout={(e) => setGw(e.nativeEvent.layout.width)}>
+      <View ref={gridRef} collapsable={false} testID="wkGrid" style={s.wk} onLayout={(e) => setGw(e.nativeEvent.layout.width)}>
         {short.map((d, i) => {
           const day = addDays(monday, i);
           const hol = hols.get(day);
@@ -121,6 +126,8 @@ export function Week({ tasks, hols, monday, selected, now, onSelect, onStep, rul
               ) : (
                 <Animated.View key={`${x.id}${i}`} layout={glide} entering={FadeIn} style={[s.b, pos]}>
                   <TypeArt type={typeOf(x)} w={40} h={h} seed={j * 3 + h} />
+                  {/* the row trail's dot, until the move is seen (.wk .b.mv::after): a seal dot with a 2px ring */}
+                  {moves.includes(x.id) && <View style={[s.mvRing, { backgroundColor: th.bg }]}><View style={[s.mvDot, { backgroundColor: th.seal }]} /></View>}
                 </Animated.View>
               ));
             });
@@ -144,6 +151,7 @@ export function Week({ tasks, hols, monday, selected, now, onSelect, onStep, rul
         {gw > 0 && <View pointerEvents="none" style={s.ov}>{over}</View>}
       </View>
     </Swipe>
+    </View>
   );
 }
 
@@ -161,4 +169,6 @@ const s = StyleSheet.create({
   nil: { height: AREA, borderRadius: 10, borderWidth: 1, borderStyle: "dashed" },
   hb: { height: AREA, borderRadius: 10, borderWidth: 1, overflow: "hidden", alignItems: "center", justifyContent: "center", padding: 2 },
   hl: { fontSize: 12, fontFamily: ff("700"), textAlign: "center", lineHeight: 15.6 },
+  mvRing: { position: "absolute", top: 1, right: 1, width: 11, height: 11, borderRadius: 99, alignItems: "center", justifyContent: "center" },
+  mvDot: { width: 7, height: 7, borderRadius: 99 },
 });
