@@ -1,4 +1,9 @@
-export const D = 16;
+import type { Kind } from "../lib/types";
+
+/** The task kinds, in feature order. Append only: a saved model keeps its columns by position. */
+export const KINDS: Kind[] = ["study", "exercise", "chores", "social", "other", "work", "errand", "finance", "self"];
+/** Feature vector: [1, weekend, busy, due, kind(K), after(K), energy, similar]. */
+export const D = 6 + 2 * KINDS.length;
 export const ARMS = 24;
 export const LAMBDA = 1;
 export const ALPHA = 0.15;
@@ -12,7 +17,7 @@ const bumps = (h: number) => 0.5 * Math.max(Math.exp(-((h - 10) ** 2) / 18), Mat
 const dip = (h: number) => (h === 12 ? 0.15 : h === 18 ? 0.1 : 0); // lunch and dinner
 export const curve = (h: number) => bumps(h) - dip(h);
 
-// Prior on each kind's one-hot weight (features 4..8: study, exercise, chores, social, other); small, so real outcomes override it.
+// Prior on each kind's one-hot weight (features 4..4+K); small, so real outcomes override it.
 const g = (h: number, c: number, s = 6) => Math.exp(-((h - c) ** 2) / s);
 export const KIND_MASS = 1;
 export const kindCurve = (k: number, h: number) => 0.3 * [
@@ -21,6 +26,10 @@ export const kindCurve = (k: number, h: number) => 0.3 * [
   g(h, 17), // chores
   g(h, 19, 10) - 0.7 * g(h, 10, 10) + dip(h), // social: evenings, not dipped at meals
   0, // other
+  Math.max(g(h, 10), g(h, 14)), // work: office hours
+  g(h, 11), // errand: late morning, shops are open
+  g(h, 12, 4), // finance: lunch break
+  Math.max(g(h, 7, 4), g(h, 21, 8)), // self: first thing and before sleep
 ][k];
 
 // v 1 is the prior before per-kind hours, kept to upgrade saved models.
@@ -31,7 +40,7 @@ export function coldArms(v = 2): Arm[] {
     A[0] += N0;
     const b = new Array(D).fill(0);
     b[0] = N0 * (v === 1 ? bumps(a) : curve(a));
-    if (v > 1) for (let k = 0; k < 5; k++) { A[(4 + k) * D + 4 + k] += KIND_MASS; b[4 + k] = KIND_MASS * kindCurve(k, a); }
+    if (v > 1) for (let k = 0; k < KINDS.length; k++) { A[(4 + k) * D + 4 + k] += KIND_MASS; b[4 + k] = KIND_MASS * kindCurve(k, a); }
     return { A, b };
   });
 }
@@ -43,6 +52,29 @@ export function decayArms(arms: Arm[], dtMs: number) {
   arms.forEach((arm, a) => {
     for (let k = 0; k < D * D; k++) arm.A[k] = cold[a].A[k] + f * (arm.A[k] - cold[a].A[k]);
     for (let i = 0; i < D; i++) arm.b[i] = cold[a].b[i] + f * (arm.b[i] - cold[a].b[i]);
+  });
+}
+
+/** Feature i of a layout with k0 kinds, in this layout: kinds keep their place, the blocks after them shift. */
+export const mapFeat = (i: number, k0: number): number => {
+  const k = KINDS.length;
+  return i < 4 + k0 ? i : i < 4 + 2 * k0 ? i + k - k0 : i + 2 * (k - k0);
+};
+
+/** Arms saved with fewer kinds move onto this layout: shared columns keep their evidence, new ones start at the prior. */
+export function fitArms(arms: Arm[]): Arm[] {
+  const cold = coldArms();
+  return arms.map((arm, a) => {
+    const oD = Math.round(Math.sqrt(arm.A.length));
+    if (oD === D) return arm;
+    if (oD < 6 || oD > D || (oD - 6) % 2 || arm.b.length !== oD) return cold[a]; // not a layout we know: start over
+    const k0 = (oD - 6) / 2, A = [...cold[a].A], b = [...cold[a].b];
+    for (let i = 0; i < oD; i++) {
+      const ni = mapFeat(i, k0);
+      b[ni] = arm.b[i];
+      for (let j = 0; j < oD; j++) A[ni * D + mapFeat(j, k0)] = arm.A[i * oD + j];
+    }
+    return { A, b };
   });
 }
 

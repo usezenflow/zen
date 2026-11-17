@@ -33,7 +33,8 @@ export const kindOf = (type: ReaderItemType, title: string): Kind | undefined =>
 const FIXED: Partial<Record<ReaderItemType, Fixed>> = { EXAM: "exam", LECTURE: "lecture", BUSY: "busy" };
 const mins = (c: string) => +c.slice(0, 2) * 60 + +c.slice(3);
 
-const GUESS_CAP = 120;
+/** An unsized guess longer than this is split into sittings of this size (maxSitting), never capped. */
+const GUESS_SITTING = 120;
 
 // "mỗi/hằng/hàng" + unit anywhere, or a bare "mỗi/hằng" left at an edge ("hàng" alone is a word: "mua hàng").
 const UNIT = "ngày|tuần|tháng|năm|sáng|trưa|chiều|tối|đêm|khuya";
@@ -68,12 +69,12 @@ export function itemAction(it: ReaderItem): Action {
   // A repeat keeps its start ("mỗi sáng" from today) but its window is no deadline either ("Hạn 12:00").
   const win = !!one && !!a.notAfter;
   if (it.deadline && !win) a.deadline = iso(it.deadline);
-  // A guessed size uses coursework norms ("demo" is 6 h); spoken, unsized, it is one sitting of at most 2 h. Said minutes stand.
-  // A class-sized length keeps its size; any other guessed one is capped.
+  // Said minutes stand. A guessed one keeps its whole length; one with no class is split into sittings of at most GUESS_SITTING.
   if (it.durationMinutes) {
     const guessed = it.inferred?.includes("durationMinutes");
-    a.effortMinutes = guessed && !it.sized ? Math.min(it.durationMinutes, GUESS_CAP) : it.durationMinutes;
+    a.effortMinutes = it.durationMinutes;
     if (guessed) a.effortGuessed = true;
+    if (guessed && !it.sized) a.maxSitting = GUESS_SITTING;
     if (guessed && it.cls) { a.cls = it.cls; if (it.guessMin) a.guessMin = it.guessMin; }
   }
   if (it.sittingMinutes) a.maxSitting = it.sittingMinutes;

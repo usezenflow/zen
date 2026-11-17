@@ -17,10 +17,13 @@ describe("readActions", () => {
     expect(readActions("mua sữa mai", now)[0].note).toBeUndefined();
     expect(a.note).toBe("Hạn nộp: trước 23:00 ngày 16/11\n1. Báo cáo & slide\n2. Bài báo");
   });
-  it("a week word with a clock is that weekday at that clock, fixed", () => {
+  it("a week word with a clock and no weekday is its first day at that clock, fixed", () => {
     const sat = new Date("2026-11-14T08:00:00Z");
+    // a clock with a week word and no weekday: one fixed item on the first day of that week (Monday)
     for (const said of ["Báo cáo môn web tuần sau 8h sáng", "báo cáo môn web tuần tới 8 giờ sáng"])
-      expect(readActions(said, sat, "voice")[0]).toMatchObject({ title: "Báo cáo môn web", when: "2026-11-21T08:00:00", fixed: "busy" });
+      expect(readActions(said, sat, "voice")[0]).toMatchObject({ title: "Báo cáo môn web", when: "2026-11-16T08:00:00", fixed: "busy" });
+    // a said weekday wins
+    expect(readActions("Báo cáo môn web thứ 7 tuần sau 8h sáng", sat, "voice")[0]).toMatchObject({ when: "2026-11-21T08:00:00", fixed: "busy" });
     // no clock: still the whole week
     expect(readActions("Báo cáo môn web tuần sau", sat)[0]).toMatchObject({ notBefore: "2026-11-16T00:00:00", deadline: "2026-11-22T23:59:00" });
   });
@@ -78,7 +81,7 @@ describe("itemAction carries what the reader knew (1.7)", () => {
 describe("kinds (1.8)", () => {
   it("maps the type first, then the words of the title", () => {
     expect(kindOf("EXAM", "Thi toán")).toBe("study");
-    for (const [title, kind] of [["Chạy bộ", "exercise"], ["Tập gym", "exercise"], ["Đi bơi", "exercise"], ["Giặt đồ", "chores"], ["Dọn nhà", "chores"], ["Cà phê với Quang", "social"], ["Gọi điện cho mẹ", "social"], ["Viết nhật ký", undefined]] as const)
+    for (const [title, kind] of [["Chạy bộ", "exercise"], ["Tập gym", "exercise"], ["Đi bơi", "exercise"], ["Giặt đồ", "chores"], ["Dọn nhà", "chores"], ["Cà phê với Quang", "social"], ["Gọi điện cho mẹ", "social"], ["Viết nhật ký", "self"]] as const)
       expect(kindOf("PLAN", title)).toBe(kind);
   });
   it("reaches the action", () => {

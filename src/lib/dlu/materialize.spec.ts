@@ -173,7 +173,7 @@ describe("materialize", () => {
   it("announces a new timetable with its size and first lecture, and changed marks", () => {
     const ls = [0, 1, 2].map((i) => lecture(`portal:lecture:S1:2026-09-0${i + 3}:1`, NOW + (i + 1) * D));
     const { digest } = materialize(ls as Fetched, [], NOW);
-    expect(digestNotices(digest, NOW)).toEqual([{ title: "Thời khoá biểu học kỳ đã có", sub: "3 tiết, đã xếp vào tuần", route: `day:${NOW + D}` }]);
+    expect(digestNotices(digest, NOW)).toEqual([{ title: "Thời khoá biểu học kỳ 1 đã có", sub: "3 tiết, đã xếp vào tuần", route: `day:${NOW + D}` }]);
     const m = (score10: number | null) => ({ marks: [{ scheduleStudyUnitId: "u", curriculumName: "Giải tích", score10 }] }) as never;
     expect(marksNotice(m(null), m(8.6))).toEqual({ title: "Điểm vừa cập nhật", sub: "Giải tích: 8,6", route: "/marks" });
     expect(marksNotice(m(8.6), m(8.6))).toEqual({ title: "Điểm vừa cập nhật", route: "/marks" });
@@ -249,4 +249,48 @@ it("an exam list scoped with `only` deletes only exams it listed before (semeste
   const reply = Object.assign([] as Fetched, { failed: ["lms"], skipped: ["portal:lecture"], only: ["portal:exam:2"] }) as Fetched;
   const { deletes } = materialize(reply, [...hk1, ...hk2old], NOW);
   expect(deletes).toEqual(hk2old.map((x) => x.id)); // the cancelled semester-2 exam goes; semester 1's stays
+});
+
+describe("changes that now get a notice", () => {
+  const exam = (at = NOW + 5 * D): Fetched[number] => ({ ...lecture("portal:exam:9", at), type: "EXAM", durationMinutes: 90 });
+  const term = () => [0, 1, 2].map((i) => lecture(`portal:lecture:S1:2026-09-0${i + 3}:1`, NOW + (i + 1) * D));
+
+  it("says an exam whose time moved, not one that stayed", () => {
+    const old = stored(exam());
+    const { digest } = materialize([exam(NOW + 6 * D)] as Fetched, [old], NOW);
+    expect(digestNotices(digest, NOW)).toEqual([{ title: "Lịch thi đổi: Môn mẫu", sub: expect.any(String), route: `/task/${old.id}` }]);
+    expect(materialize([exam()] as Fetched, [old], NOW).digest.moved).toEqual([]);
+  });
+
+  it("says an open assignment whose due date changed, and not a done one", () => {
+    const old = stored(assign());
+    const { digest } = materialize([assign({ scheduledStartTime: new Date(NOW + 4 * D) })] as Fetched, [old], NOW);
+    expect(digestNotices(digest, NOW)).toEqual([{ title: "Hạn đổi: Bài tập", sub: expect.stringMatching(/^Hạn /), route: `/task/${old.id}` }]);
+    const done = materialize([assign({ scheduledStartTime: new Date(NOW + 4 * D), submitted: true })] as Fetched, [{ ...old, doneAt: NOW - H }], NOW);
+    expect(done.digest.due).toEqual([]);
+  });
+
+  it("says a new single lecture once the timetable exists, and not while the timetable is first made", () => {
+    expect(materialize(term() as Fetched, [], NOW).digest.makeup).toEqual([]);
+    const tasks = materialize(term() as Fetched, [], NOW).upserts;
+    const extra = lecture("portal:lecture:S1:2026-09-20:1", NOW + 10 * D);
+    const { digest } = materialize([...term(), extra] as Fetched, tasks, NOW);
+    expect(digestNotices(digest, NOW)).toEqual([{ title: "Buổi học bù: Môn mẫu", sub: expect.any(String), route: expect.stringMatching(/^\/task\//) }]);
+  });
+
+  it("says a future upstream item the campus took back, and not a past one", () => {
+    const gone = stored(lecture());
+    const { digest, deletes } = materialize([] as unknown as Fetched, [gone], NOW);
+    expect(deletes).toEqual([gone.id]);
+    expect(digestNotices(digest, NOW)).toEqual([{ title: "Đã huỷ: Môn mẫu", sub: expect.any(String) }]);
+    const past = stored(lecture("portal:lecture:S1:2026-08-01:1", NOW - D));
+    expect(materialize([] as unknown as Fetched, [past], NOW).digest.cancelled).toEqual([]);
+  });
+
+  it("merges three or more of the new kinds into the many-changes notice", () => {
+    const ex = stored(exam()), a = stored(assign()), cancelled = stored(lecture());
+    const { digest } = materialize([exam(NOW + 6 * D), assign({ scheduledStartTime: new Date(NOW + 5 * D) })] as Fetched, [ex, a, cancelled], NOW);
+    expect([digest.moved.length, digest.due.length, digest.cancelled.length]).toEqual([1, 1, 1]);
+    expect(digestNotices(digest, NOW)).toEqual([{ title: "Trường cập nhật 3 việc", sub: "Môn mẫu, Bài tập +1" }]);
+  });
 });

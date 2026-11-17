@@ -11,9 +11,9 @@ import { ff, useTheme } from "@/lib/theme";
 
 // views.html .dial: zen's small time drum dropped from its chip like a menu. Five 36px rows, the middle one in a band; minutes step 15.
 // Three rows: with five, the hours before today's first (or an end's start) left blank rows above the band.
-const ROW = 36, SHOW = 3, COL = 52, SEP = 16, PADX = 12, PADY = 10, BANDX = 12; // BANDX: the band reaches past the digits on both sides
+const ROW = 36, SHOW = 3, COL = 52, SEP = 16, PADX = 12, PADY = 10;
 const PRE = 42, PILL = 30, GAP = 6; // the preset row: views.html .pre, one tap picks and closes
-const W = 2 * COL + SEP + 2 * PADX, H = SHOW * ROW + 2 * PADY;
+const H = SHOW * ROW + 2 * PADY;
 const TW = 168; // just past the drums: two presets to a line, each time centred with room on both sides
 // A start's usual morning, afternoon, after class, evening; a due's before midnight and midnight.
 const TPRE: [number, number][] = [[8, 0], [14, 0], [17, 0], [20, 0]], DPRE: [number, number][] = [[23, 59], [0, 0]];
@@ -44,7 +44,8 @@ function Cell({ i, y, label }: { i: number; y: SharedValue<number>; label: strin
     const d = (y.get() - i * ROW) / ROW, a = Math.abs(d);
     return {
       opacity: interpolate(a, [0, 1, 2], [1, 0.5, 0.22], Extrapolation.CLAMP),
-      transform: [{ perspective: 300 }, { rotateX: `${Math.max(-60, Math.min(60, d * 24))}deg` }, { scale: interpolate(a, [0, 2], [1, 0.88], Extrapolation.CLAMP) }],
+      // no rotateX: a 3D tilt next to the card's BlurView rendered as hard blurred blocks on iOS
+      transform: [{ scale: interpolate(a, [0, 1], [1, 0.96], Extrapolation.CLAMP) }],
     };
   });
   return (
@@ -107,13 +108,13 @@ function Drop({ anchor, w, h, side, onClose, children }: { anchor: Anchor; w: nu
   );
 }
 
-function Clock({ value, due, min, onChange, onClose }: { value: Date; due?: boolean; min?: Date; onChange: (d: Date) => void; onClose: () => void }) {
+function Clock({ value, due, min, past, onChange, onClose }: { value: Date; due?: boolean; min?: Date; past?: boolean; onChange: (d: Date) => void; onClose: () => void }) {
   const th = useTheme();
-  // On today only now to midnight is offered: an hour once a quarter of it is left, minutes from now on.
+  // On today only now to midnight is offered: an hour once a quarter of it is left, minutes from now on. `past`: any time (a manual edit).
   const [now] = useState(() => new Date(Date.now())); // Date.now, as the calendar: one clock for both
   const today = value.toDateString() === now.toDateString(), nh = now.getHours(), nm = now.getMinutes();
   // The earliest time offered, in minutes of the day: now on today; an end's `min` (its start + 15) on the start's day.
-  const floor = Math.max(today ? nh * 60 + nm : -1, min && min.toDateString() === value.toDateString() ? min.getHours() * 60 + min.getMinutes() : -1);
+  const floor = Math.max(today && !past ? nh * 60 + nm : -1, min && min.toDateString() === value.toDateString() ? min.getHours() * 60 + min.getMinutes() : -1);
   const minsOf = (h: number) => minutesAt(h, due).filter((m) => h * 60 + m >= floor);
   const open = HOURS.filter((h) => minsOf(h).length);
   const hours = open.length ? open : HOURS; // shortcut: past the day's last step (23:46 for a start) nothing is left today; the whole day shows rather than an empty drum
@@ -155,9 +156,9 @@ function Clock({ value, due, min, onChange, onClose }: { value: Date; due?: bool
 }
 
 /** The time dial under `anchor` (from measureInWindow). Each settled drum calls `onChange`; a tap outside closes. */
-export function TimeDial({ open, anchor, value, due, min, side = "right", onChange, onClose }: { open: boolean; anchor?: Anchor; value: Date; due?: boolean; min?: Date; side?: "left" | "right"; onChange: (d: Date) => void; onClose: () => void }) {
+export function TimeDial({ open, anchor, value, due, min, past, side = "right", onChange, onClose }: { open: boolean; anchor?: Anchor; value: Date; due?: boolean; min?: Date; past?: boolean; side?: "left" | "right"; onChange: (d: Date) => void; onClose: () => void }) {
   if (!open || !anchor) return null;
-  return <Drop anchor={anchor} w={TW} h={TH((due ? DPRE : TPRE).length)} side={side} onClose={onClose}><Clock value={value} due={due} min={min} onChange={onChange} onClose={onClose} /></Drop>;
+  return <Drop anchor={anchor} w={TW} h={TH((due ? DPRE : TPRE).length)} side={side} onClose={onClose}><Clock value={value} due={due} min={min} past={past} onChange={onChange} onClose={onClose} /></Drop>;
 }
 
 // views.html .cal: the month, Monday first, six weeks. Today vermilion, the picked day a filled vermilion circle, days before today or `min` greyed out.
@@ -165,13 +166,13 @@ const CW = 300, CELL = 36, CH = 14 + PRE + 34 + 22 + 6 * (CELL + 4) + 10;
 const WEEK = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
 const day0 = (ts: number) => { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); };
 
-function Month({ value, min, onPick }: { value: Date; min?: Date; onPick: (d: Date) => void }) {
+function Month({ value, min, past, onPick }: { value: Date; min?: Date; past?: boolean; onPick: (d: Date) => void }) {
   const th = useTheme();
   const [now] = useState(() => Date.now()); // today, as the calendar opened
   const [shown, setShown] = useState(() => new Date(value.getFullYear(), value.getMonth(), 1));
   const y = shown.getFullYear(), m = shown.getMonth();
   const lead = (new Date(y, m, 1).getDay() + 6) % 7; // Monday first
-  const sel = day0(value.getTime()), today = day0(now), lo = Math.max(today, min ? day0(min.getTime()) : -Infinity); // never a day already gone
+  const sel = day0(value.getTime()), today = day0(now), lo = Math.max(past ? -Infinity : today, min ? day0(min.getTime()) : -Infinity); // never a day already gone, unless `past`
   const step = (k: number) => setShown(new Date(y, m + k, 1));
   const plus = (k: number) => { const d = new Date(today); d.setDate(d.getDate() + k); return d; };
   return (
@@ -203,12 +204,12 @@ function Month({ value, min, onPick }: { value: Date; min?: Date; onPick: (d: Da
 }
 
 /** The date dropdown under `anchor`: a tap on a day calls `onChange` with that day (the time kept) and closes. */
-export function DateDrop({ open, anchor, value, min, side = "left", onChange, onClose }: { open: boolean; anchor?: Anchor; value: Date; min?: Date; side?: "left" | "right"; onChange: (d: Date) => void; onClose: () => void }) {
+export function DateDrop({ open, anchor, value, min, past, side = "left", onChange, onClose }: { open: boolean; anchor?: Anchor; value: Date; min?: Date; past?: boolean; side?: "left" | "right"; onChange: (d: Date) => void; onClose: () => void }) {
   if (!open || !anchor) return null;
   return (
     <Drop anchor={anchor} w={CW} h={CH} side={side} onClose={onClose}>
-      {/* a day whose time is already gone (today) takes the next quarter hour, as the dial does */}
-      <Month value={value} min={min} onPick={(d) => { const n = new Date(value); n.setFullYear(d.getFullYear(), d.getMonth(), d.getDate()); onChange(new Date(Math.max(n.getTime(), Math.ceil(Date.now() / 900_000) * 900_000))); onClose(); }} />
+      {/* a day whose time is already gone (today) takes the next quarter hour, as the dial does; `past` keeps the time as it is */}
+      <Month value={value} min={min} past={past} onPick={(d) => { const n = new Date(value); n.setFullYear(d.getFullYear(), d.getMonth(), d.getDate()); onChange(past ? n : new Date(Math.max(n.getTime(), Math.ceil(Date.now() / 900_000) * 900_000))); onClose(); }} />
     </Drop>
   );
 }
@@ -216,7 +217,7 @@ export function DateDrop({ open, anchor, value, min, side = "left", onChange, on
 const s = StyleSheet.create({
   card: { position: "absolute", borderRadius: 16, overflow: "hidden", boxShadow: "0 0 0 0.5px rgba(0,0,0,0.08), 0 18px 40px -8px rgba(0,0,0,0.28)" },
   pad: { paddingHorizontal: PADX, paddingVertical: PADY },
-  band: { position: "absolute", left: (TW - W) / 2 + PADX - BANDX, right: (TW - W) / 2 + PADX - BANDX, top: PADY + ((SHOW - 1) / 2) * ROW, height: ROW, borderRadius: 9 },
+  band: { position: "absolute", left: PADX, right: PADX, top: PADY + ((SHOW - 1) / 2) * ROW, height: ROW, borderRadius: 9 },
   cal: { paddingTop: 14, paddingHorizontal: 12, paddingBottom: 10 },
   mh: { height: 34, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 4 },
   mt: { fontSize: 17, fontFamily: ff("600") },

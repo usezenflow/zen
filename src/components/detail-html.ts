@@ -34,13 +34,14 @@ export function parseHtml(html: string): Node[] {
 const WD = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
 const BY: Record<string, string> = { MO: "T2", TU: "T3", WE: "T4", TH: "T5", FR: "T6", SA: "T7", SU: "CN" };
 const WEEK = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"];
-/** "Mỗi ngày", "Mỗi T3", "Mỗi T2, T5", "Ngày thường", "Mỗi ngày trừ CN" from a simple rrule; `ref` (epoch ms, UTC+7) names the weekday when BYDAY is absent. */
+/** "Mỗi ngày", "Mỗi tuần vào T3", "Mỗi tuần vào T2, T5", "Ngày thường", "Mỗi ngày trừ CN" from a simple rrule; `ref` (epoch ms, UTC+7) names the weekday when BYDAY is absent. */
 export function repeatText(rrule: string, ref: number): string {
   const p = Object.fromEntries(rrule.split(";").map((kv) => kv.split("=")));
   const days = WEEK.filter((d) => (p.BYDAY ?? "").split(",").some((x: string) => x.endsWith(d)));
-  if (!days.length) return p.FREQ === "WEEKLY" ? `Mỗi ${WD[new Date(ref + 7 * 3600_000).getUTCDay()]}` : "Mỗi ngày";
+  const weekly = p.FREQ === "WEEKLY";
+  if (!days.length) return weekly ? `Mỗi tuần vào ${WD[new Date(ref + 7 * 3600_000).getUTCDay()]}` : "Mỗi ngày";
   if (days.length === 7) return "Mỗi ngày";
   if (days.join() === "MO,TU,WE,TH,FR") return "Ngày thường";
   if (days.length >= 5) return `Mỗi ngày trừ ${WEEK.filter((d) => !days.includes(d)).map((d) => BY[d]).join(", ")}`;
-  return `Mỗi ${days.map((d) => BY[d]).join(", ")}`;
+  return `${weekly ? "Mỗi tuần vào" : "Mỗi"} ${days.map((d) => BY[d]).join(", ")}`;
 }

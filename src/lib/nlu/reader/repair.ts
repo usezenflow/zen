@@ -3,6 +3,7 @@
 import { fold } from "./fold";
 import { findMentions } from "./mentions";
 import { isSyllable } from "./syllables";
+import { isFrequentSyllable } from "./vifreq";
 import { spokenEdits } from "./spoken";
 import { EN_WORDS } from "./en";
 import { TELEX_TERMS, untelex } from "./telex";
@@ -636,18 +637,27 @@ const TYPO_KEEP = new Set([
   "meet",
   "week",
 ]);
+/** Time words a doubled vowel may hide: "saau", "tuaan", "thaang", "maai", "naay". */
+const ELONGATED_CUES = new Set(["sau", "tuan", "thang", "mai", "nay", "ngay", "chieu", "sang", "trua"]);
+/** Folded text with a clock, a date or a clean time word in it. */
+const TIMELIKE = /\d\s*(?:h|g|gio|:\d\d)(?![a-z])|\d{1,2}\/\d{1,2}|(?<![a-z])(?:tuan|thang|ngay|mai|nay|hom|thu [2-7]|t[2-7]|cn|chu nhat|chieu|sang|trua|sau|truoc|mot|kia)(?![a-z])/;
+
 /** A typed word repaired to a time or cue word, or a word with a doubled letter collapsed. Undefined when it reads as a syllable. */
 function typoFix(w: string): string | undefined {
   if (w.length < 2 || isSyllable(w)) return undefined;
   // English words with a doubled letter are not typos: "app" is not "ap"
   if (TYPO_KEEP.has(fold(w).text)) return undefined;
-  // a doubled a, e, o or d is a typed mark ("dd" is đ), not a typo
-  if (/([^aeod])\1/iu.test(w)) {
+  // a doubled d is a typed mark ("dd" is đ); a doubled a, e or o is one too, unless the decode is no common word and the single letter is ("naay" is "nay", not "nây")
+  const dbl = /(.)\1/iu.exec(w)?.[1].toLowerCase();
+  if (dbl && dbl !== "d" && !EN_WORDS.has(fold(w).text) && !TELEX_TERMS.has(fold(w).text)) {
     let collapsed = "";
     for (let i = 0; i < w.length; i++)
       if (i === 0 || w[i].toLowerCase() !== w[i - 1].toLowerCase())
         collapsed += w[i];
-    if (TYPO.has(fold(collapsed).text) || isSyllable(collapsed))
+    if (
+      TYPO.has(fold(collapsed).text) ||
+      (isSyllable(collapsed) && (!"aeo".includes(dbl) || !isFrequentSyllable(decodeTyped(w) ?? "")))
+    )
       return collapsed;
   }
   // a short word with no vowel is an acronym ("lsm", "sql"), not "làm" with a slipped key
@@ -1021,11 +1031,59 @@ const thuDay = (text: string, s: number, e: number) => {
   if (next === "tuan") return true;
   return !!next && WEEKDAY_NUM.test(next) && !COUNT_AFTER.test(after ?? "");
 };
+/** A vowel letter, any tone or mark: "a" matches a, à, ạ, ă, â ... (the folded letter is the key). */
+const vowel = (base: string) =>
+  `[${base}${[..."àáạảãăằắặẳẵâầấậẩẫèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹ"].filter((c) => fold(c).text === base).join("")}]`;
+const [VA, VE, VI, VO, VU] = ["a", "e", "i", "o", "u"].map(vowel);
+const ANY_VOWEL = `[aeiouy${[..."àáạảãăằắặẳẵâầấậẩẫèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹ"].join("")}]`;
+/** Between the syllables of a spoken word: a space, a hyphen, or none. */
+const SEP = "[\\s-]*";
+/** Cues that the word around a spoken form is content (video, a post), dev work, or plain work. Folded text. */
+const CONTENT_CUE = /(?<![a-z])(?:quay|video|clip|reel|tiktok|youtube|fb|facebook|fanpage|page|post|dang|content|noi dung|livestream|acc|nick|tai khoan|story|banner|edit|kenh)(?![a-z])/;
+const DEV_CUE = /(?<![a-z])(?:code|lap trinh|bug|fix|github|deploy|commit|merge|app|tinh nang|debug|server|api|git|ham|function|test)(?![a-z])/;
+const WORK_CUE = /(?<![a-z])(?:lam|viet|hop|chay|review|deadline|nop|team|nhom|marketing|sprint|du an|bao cao|slide|project|ke hoach|thiet ke|design|task|jira)(?![a-z])/;
+const cued = (re: RegExp) => (text: string) => re.test(fold(text).text);
+/** Spoken English work terms: tone-free and spacing-free patterns, each with its display form. Before the VN rules, which rewrite "rờ". */
+const SPOKEN_EN: [RegExp, (m: RegExpExecArray) => string, (text: string, s: number, e: number) => boolean][] = [
+  [new RegExp(`(?<!\\p{L})m${VA}[cn]?${SEP}[kc]${VE}t${SEP}t${VI}nh?(?!\\p{L})`, "giu"), () => "marketing", () => true],
+  [new RegExp(`(?<!\\p{L})r${VI}${SEP}v${VI}${VU}(?!\\p{L})`, "giu"), () => "review", () => true],
+  [new RegExp(`(?<!\\p{L})ph${VE}(?:ch|c|t)(?!\\p{L})`, "giu"), () => "fake", (t) => cued(CONTENT_CUE)(t)],
+  // "riêu", "riu", "rin": reel after a content cue, real when it is set against "fake"
+  [
+    new RegExp(`(?<!\\p{L})r${VI}(?:${VE}${VU}|${VU}|n)(?!\\p{L})`, "giu"),
+    (m) => (/fake|phech|phec/.test(fold(m.input).text) ? "real" : "reel"),
+    (t) => cued(CONTENT_CUE)(t) || /fake|phech|phec/.test(fold(t).text),
+  ],
+  // "sót", "sọt": short, after a content cue; "sọt rác" is the bin
+  [
+    new RegExp(`(?<!\\p{L})s${VO}${VO}?[tc](?!\\p{L})`, "giu"),
+    () => "short",
+    (t, s, e) => cued(CONTENT_CUE)(t) && !/^\s*rac(?!\p{L})/u.test(fold(t.slice(e)).text),
+  ],
+  [new RegExp(`(?<!\\p{L})[sx]${ANY_VOWEL}${SEP}p${ANY_VOWEL}?${SEP}r?${ANY_VOWEL}?n(?:h|g)?(?!\\p{L})`, "giu"), () => "sprint", cued(WORK_CUE)],
+  [new RegExp(`(?<!\\p{L})[dđ]${VI}${SEP}(?:gi|d|z|r|g)${VA}${VI}(?:n)?(?!\\p{L})`, "giu"), () => "design", cued(WORK_CUE)],
+  [new RegExp(`(?<!\\p{L})p${VO}[tsc](?!\\p{L})`, "giu"), () => "post", cued(CONTENT_CUE)],
+  [new RegExp(`(?<!\\p{L})(?:${VA}[td]|${VE}t|ad)${SEP}m${VI}n(?!\\p{L})`, "giu"), () => "admin", () => true],
+  [new RegExp(`(?<!\\p{L})h${VA}[tc]h?${SEP}t${VA}[ck](?!\\p{L})`, "giu"), () => "hashtag", () => true],
+  [new RegExp(`(?<!\\p{L})${VO}${SEP}k${VE}${SEP}(?:${VA}|r${VO})(?!\\p{L}|\\d)`, "giu"), () => "OKR", () => true],
+  [new RegExp(`(?<!\\p{L})p${VI}${SEP}${VA}(?!\\p{L}|\\d)`, "giu"), () => "PR", () => true],
+  [new RegExp(`(?<!\\p{L})g${VO}${SEP}t${VE}${SEP}${VE}m(?!\\p{L})`, "giu"), () => "GTM", () => true],
+  [new RegExp(`(?<!\\p{L})m(?:${VE}|${VI})${SEP}[dđ]${VI}${SEP}${VA}(?!\\p{L}|\\d)`, "giu"), () => "media", () => true],
+  // "cốt" is code with a dev cue; "cốt truyện" is the plot
+  [
+    new RegExp(`(?<!\\p{L})c${VO}t(?!\\p{L})`, "giu"),
+    () => "code",
+    (t, s, e) => cued(DEV_CUE)(t) && !/^\s*truyen(?!\p{L})/u.test(fold(t.slice(e)).text),
+  ],
+  [new RegExp(`(?<!\\p{L})ph${VI}t${SEP}b${VA}ch?(?!\\p{L})`, "giu"), () => "feedback", () => true],
+];
+
 const ASR_CONFUSIONS: [
   RegExp,
   (m: RegExpExecArray) => string,
   (text: string, s: number, e: number) => boolean,
 ][] = [
+  ...SPOKEN_EN,
   [/(?<!\p{L})(?:dờ|rờ)(?!\p{L})/giu, () => "giờ", anchored],
   // after a number, a misspelt "giờ" is still the hour: "2 giiờ", "9 gờ"
   [/(?<=(?<![\d.,/:])\d{1,2}\s*)(?:gi+ờ+|gờ+|gi+ơ+)(?!\p{L})/giu, () => "giờ", () => true],
@@ -1178,6 +1236,36 @@ function repairSpoken(src: Repaired): Repaired {
 const MENTION_TOKEN = /^(t[2-7]|cn|\d{1,2}(h|g|p|pm|am)\d{0,2})$/;
 const WEEKDAY_TOKEN = /^(thu[2-7]|t[2-7]|cn)$/;
 
+/** The decode when it is a common syllable; else the one that is common once a circumflex, horn or breve is added
+ * ("nopj" is "nọp", and a typist who forgot the second o means "nộp"). Undefined when neither is. */
+function frequentDecode(dec: string | undefined): string | undefined {
+  if (!dec) return undefined;
+  if (isFrequentSyllable(dec)) return dec;
+  const chars = [...dec.normalize("NFD")];
+  const hit = new Set<string>();
+  chars.forEach((c, i) => {
+    const l = c.toLowerCase();
+    const marks = l === "a" ? ["\u0302", "\u0306"] : l === "e" ? ["\u0302"] : l === "o" ? ["\u0302", "\u031b"] : l === "u" ? ["\u031b"] : [];
+    for (const mark of marks) {
+      const v = [...chars.slice(0, i + 1), mark, ...chars.slice(i + 1)].join("").normalize("NFC");
+      if (isFrequentSyllable(v)) hit.add(v);
+    }
+  });
+  if (hit.size === 1) return [...hit][0];
+  // a stop final (c, ch, p, t) takes only nặng or sắc: "noop" is "nôp" with its tone key left out, so nặng, else sắc
+  if (/(?:c|ch|p|t)$/i.test(fold(dec).text) && !/[\u0300\u0301\u0303\u0309\u0323]/.test(dec.normalize("NFD")))
+    for (const tone of ["\u0323", "\u0301"]) {
+      const j = chars.findLastIndex((c) => /[aeiouyAEIOUY]/.test(c));
+      const k = /[\u0302\u0306\u031b]/.test(chars[j + 1] ?? "") ? j + 1 : j;
+      const v = [...chars.slice(0, k + 1), tone, ...chars.slice(k + 1)].join("").normalize("NFC");
+      if (isFrequentSyllable(v)) return v;
+    }
+  return undefined;
+}
+
+/** A VNI digit is no English letter, so it needs no frequency check ("Nghe1" is Nghé); a Telex word does. */
+const guarded = (w: string) => (/\d/.test(w) ? decodeTypedCore(w) : frequentDecode(decodeTypedCore(w)));
+
 /** A telex or VNI typed word as Vietnamese, or undefined when the keys do not read as one. */
 export function decodeTyped(word: string): string | undefined {
   const m = word.match(
@@ -1186,10 +1274,10 @@ export function decodeTyped(word: string): string | undefined {
   if (m && (m[1] || m[3])) {
     const core = m[2];
     if (!core) return undefined;
-    const dec = decodeTypedCore(core);
+    const dec = guarded(core);
     return dec ? m[1] + dec + m[3] : undefined;
   }
-  return decodeTypedCore(word);
+  return guarded(word);
 }
 
 function decodeTypedCore(word: string): string | undefined {
@@ -1605,6 +1693,8 @@ export function repair(raw: string, source: ReaderSource): Repaired {
   r = sub(r, /\p{L}\p{M}+/gu, (m) => m[0].normalize("NFC"));
   r = sub(r, /Ð/g, () => "Đ");
   r = sub(r, /ð/g, () => "đ");
+  // "nhé1", "nha2": a sentence particle with a stray digit stuck to it, at the end of a clause
+  r = sub(r, /(?<![\p{L}\d])(nhé|nhá|nha|nhe|nhen|nghen|ạ)\d{1,2}(?![\p{L}\d:/.,-])/giu, (m) => m[1]);
   // 2.5 an English term typed with Telex left on: "ưeb" is web, "mêting" meeting. Typed text only: speech has no keys.
   if (source !== "voice") {
     // only the words that change are edits: an untouched word keeps its own offsets
@@ -1668,10 +1758,14 @@ export function repair(raw: string, source: ReaderSource): Repaired {
     /((?<![\p{L}\d])[Gg]iờ) (\d) (\d)(?!\d)/gu,
     (m) => `${m[1]} ${m[2]}${m[3]}`,
   );
+  // "21h tới nửa đêm": the range word, not the evening (which would split it into two parts)
+  r = sub(r, /(?<=(?:\d\s*(?:h|g|giờ)\s*\d{0,2}|:\d\d)\s*)tới(?=\s+nửa đêm)/gu, () => "đến");
+  // a tilde between two clocks is a range dash: "22h ~ 1h sáng"
+  r = sub(r, /(?<=\d[hHgG]?|\d[hHgG]\d\d)\s*~\s*(?=\d|nửa đêm)/g, () => " - ");
   // a spaced unit and minute: "9 h 30" is 9h30; "t 6" is the weekday T6
   r = sub(
     r,
-    /(?<![\p{L}\d:/.])(\d{1,2}) ?([hg]) ?(\d{2})(?![\d/:.])(?!\s*(?:buổi|lần|tuần|tháng|năm|tiết|bài|câu|trang|người)(?!\p{L}))/giu,
+    /(?<![\p{L}\d:/.])(\d{1,2}) ?([hg]) ?(\d{2})(?![\d/:.])(?!\s*(?:buổi|lần|tuần|tháng|năm|tiết|bài|câu|trang|người|âm|am lịch|am lich)(?!\p{L}))/giu,
     (m) => `${m[1]}${m[2].toLowerCase()}${m[3]}`,
   );
   r = sub(
@@ -1702,6 +1796,17 @@ export function repair(raw: string, source: ReaderSource): Repaired {
   );
   // exam rows, after the dewrap, so each row still starts its own line
   r = examRows(r);
+  // a doubled vowel in a time word of a time-like line is a slip of the word, not Telex for a rarer one: "tuần saau 9h" is "sau"
+  // (not "sâu"), "thaang sau" is "tháng". A line with no other time word or clock keeps its Telex ("đào hố saau").
+  r = sub(r, /\p{L}*(?:aa|ee|oo)\p{L}*/giu, (m) => {
+    const c = m[0].replace(/(\p{L})\1+/giu, "$1");
+    if (!ELONGATED_CUES.has(fold(c).text)) return m[0];
+    const at = m.index ?? 0;
+    const from = m.input.lastIndexOf("\n", at - 1) + 1;
+    const to = m.input.indexOf("\n", at);
+    const line = m.input.slice(from, at) + " " + m.input.slice(at + m[0].length, to < 0 ? undefined : to);
+    return TIMELIKE.test(fold(line).text) ? c : m[0];
+  });
   // 8 typed forms
   r = decodeTypedForms(r);
   // after the VNI digits are tones again: a word glued to a clock: "nhóm9h", "lớp2 giờ", "mai8h" (a room code has no clock unit after its digits)
@@ -1712,6 +1817,8 @@ export function repair(raw: string, source: ReaderSource): Repaired {
   for (const [re, rep] of MONTH_WORDS) r = sub(r, re, rep);
   for (const [re, rep] of ENGLISH_NUMBERS) r = sub(r, re, rep);
   // 9 typos on time and cue words, then spoken numbers, which read the decoded words
+  // "30 pht": a length unit with its vowel dropped (no word of 3 letters with no vowel is read otherwise)
+  r = sub(r, /(?<=\d\s?)pht(?![\p{L}\d])/giu, () => "phút");
   r = repairTypos(r);
   return repairRepeats(repairSpoken(r));
 }

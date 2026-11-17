@@ -19,8 +19,9 @@ export const parents = (all: Task[]) => new Set(all.map((x) => x.parentId));
 /** Everything on that day: what starts on it, and a block running over it from an earlier day (a trip, 23:00 to 01:00). */
 export const onDay = (all: Task[], day: number) => { const e = addDays(day, 1); return shown(all).filter((x) => x.start! < e && x.end! > day).sort((a, b) => a.start! - b.start!); };
 /** The time a row shows on a day its block began earlier: "đến 12:00" on the last day, `allDay` (Cả ngày) in between; undefined on its first day. */
-export const carried = (x: Task, day: number, allDay: string, until: string) =>
-  x.start === undefined || x.start >= day ? undefined : x.end !== undefined && x.end < addDays(day, 1) ? `${until} ${hhmm(x.end)}` : allDay;
+/** A task begun on an earlier day: its last day shows its own times (the start with -1), a whole day between them "Cả ngày". */
+export const carried = (x: Task, day: number, allDay: string) =>
+  x.start === undefined || x.start >= day || (x.end !== undefined && x.end < addDays(day, 1)) ? undefined : allDay;
 /** Holiday / all-day phone events by local day start. */
 export type Hols = Map<number, string>;
 /** Week label: "Tết mùng 3" splits in two lines ("Tết" / "mùng 3"); else the title. */

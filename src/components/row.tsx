@@ -71,16 +71,23 @@ const marked = (title: string, q: Query) => {
  *  for the floating chip; begin, move and end run on JS (end with NaN: let go off any day, or cancelled). */
 export type Drag = { x: SharedValue<number>; y: SharedValue<number>; begin: (task: Task) => void; move: (x: number, y: number) => void; end: (x: number, y: number) => void };
 
-export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost, tm, hl, lifted, onHold, onDelete, onSeries, onToggle, onTitle, onTime, onOpen, drag }: {
+/** "+1" / "-1": a time on another day than the list's, small and vermilion (views.html "Day, past midnight"). */
+function Over({ n }: { n: number }) {
+  const th = useTheme();
+  return n ? <Text style={[s.sup, { color: th.seal }]}>{n > 0 ? `+${n}` : `${n}`}</Text> : null;
+}
+
+export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost, tm, hl, lifted, onHold, onDelete, onSeries, onToggle, onTitle, onTime, onEnd, onOpen, drag, on }: {
   task: Task; now: number; first?: boolean; done?: boolean; allDay?: boolean; sub?: string; trail?: string; ghost?: boolean; tm?: string; hl?: Query; // hl: a search query, its matches tinted
   /** Long-press: the row lifts (.lift) and the caller drops its menu under the row, or over it when there is no room below. */
   lifted?: boolean; onHold?: (bottom: number, top: number) => void;
   onDelete?: () => void; onSeries?: (bottom: number, top: number) => void; // swipe right: plain task deletes, series asks where the menu goes
-  onToggle: () => void; onTitle: (title: string) => void; onTime: (at: Date) => void; onOpen: () => void; drag?: Drag;
+  onToggle: () => void; onTitle: (title: string) => void; onTime: (at: Date) => void; onEnd?: (at: Date) => void; onOpen: () => void; drag?: Drag; on?: number /* the list's day, for the start's -1 */;
 }) {
   const th = useTheme();
   const [editing, setEditing] = useState(false);
-  const [picking, setPicking] = useState(false);
+  const [dial, setDial] = useState<"start" | "end">(); // which time's dial is open
+  const picking = dial !== undefined;
   const typed = useRef<string | null>(null);
   // Return and losing focus both keep what was typed; an empty title is dropped, not saved.
   const saveTitle = () => {
@@ -100,7 +107,11 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
   // The time chip drops zen's dial (views.html "Row, change the time"). Each settled drum is saved at once by onTime; the screen re-plans once it rests.
   const timeBox = useRef<ComponentRef<typeof View>>(null);
   const [anchor, setAnchor] = useState<Anchor>();
-  const openDial = () => timeBox.current?.measureInWindow((x, y, w, h) => { setAnchor({ x, y, w, h }); setPicking(true); });
+  const endBox = useRef<ComponentRef<typeof View>>(null);
+  // Days from the list's day (the start's own day when not given): +1 on an end past midnight, -1 on a start the day before.
+  const base = on ?? (task.start !== undefined ? startOfDay(task.start) : 0);
+  const off = (ts?: number) => (ts === undefined ? 0 : Math.round((startOfDay(ts) - base) / 86_400_000));
+  const openDial = (which: "start" | "end" = "start") => (which === "end" ? endBox : timeBox).current?.measureInWindow((x, y, w, h) => { setAnchor({ x, y, w, h }); setDial(which); });
   const live = useRef({ task, onTitle });
   useEffect(() => { live.current.task = task; live.current.onTitle = onTitle; });
   useEffect(() => () => {
@@ -225,14 +236,28 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
           </Pressable>
         )}
       </Animated.View>
-      <View ref={timeBox} collapsable={false}>
-        <Pressable onPress={canTime ? openDial : undefined} hitSlop={8} accessibilityRole={canTime ? "button" : undefined}>
-          <Text style={[s.tm, picking && [s.chip, { backgroundColor: th.chip, borderColor: th.seal, color: th.ink }], !picking && { color: editing ? th.ink : late ? th.seal : th.muted }]}>
-            {allDay ? t("allDay") : tm ?? (task.start !== undefined ? hhmm(task.start) : "")}
-          </Text>
-        </Pressable>
+      {/* views.html .r .tm: the start, and under it the end at the same size; each its own tap, each its own dial.
+          "Day, past midnight": a day over is a vermilion +1 on the end, and -1 on the next day's start. */}
+      <View style={s.tmBox}>
+        <View ref={timeBox} collapsable={false}>
+          <Pressable onPress={canTime ? () => openDial("start") : undefined} hitSlop={{ top: 8, bottom: 4, left: 8, right: 8 }} accessibilityRole={canTime ? "button" : undefined} style={s.tmLine}>
+            <Text style={[s.tm, dial === "start" && [s.chip, { backgroundColor: th.chip, borderColor: th.seal }], { color: dial === "start" ? th.ink : late ? th.seal : done ? th.muted : th.ink }]}>
+              {allDay ? t("allDay") : tm ?? (task.start !== undefined ? hhmm(task.start) : "")}
+            </Text>
+            {!allDay && !tm && <Over n={off(task.start)} />}
+          </Pressable>
+        </View>
+        {!allDay && !tm && task.start !== undefined && task.end !== undefined && (
+          <View ref={endBox} collapsable={false}>
+            <Pressable onPress={canTime ? () => openDial(onEnd ? "end" : "start") : undefined} hitSlop={{ top: 4, bottom: 8, left: 8, right: 8 }} accessibilityRole={canTime ? "button" : undefined} style={s.tmLine}>
+              <Text style={[s.tm, s.tmEnd, dial === "end" && [s.chip, { backgroundColor: th.chip, borderColor: th.seal }], { color: dial === "end" ? th.ink : th.muted }]}>{hhmm(task.end)}</Text>
+              <Over n={off(task.end)} />
+            </Pressable>
+          </View>
+        )}
       </View>
-      {task.start !== undefined && <TimeDial open={picking} anchor={anchor} value={new Date(task.start)} onChange={onTime} onClose={() => setPicking(false)} />}
+      {task.start !== undefined && <TimeDial open={dial === "start"} anchor={anchor} value={new Date(task.start)} past onChange={onTime} onClose={() => setDial(undefined)} />}
+      {task.start !== undefined && task.end !== undefined && onEnd && <TimeDial open={dial === "end"} anchor={anchor} value={new Date(task.end)} past onChange={onEnd} /* an end before the start rolls to the next day: +1 */ onClose={() => setDial(undefined)} />}
     </Tap>
   );
   return (
@@ -265,6 +290,10 @@ const s = StyleSheet.create({
   dot: { width: 6, height: 6, borderRadius: 3, marginTop: 2 },
   pick: { width: 96, height: 34 },
   tm: { fontSize: font.sub, fontFamily: ff("600"), fontVariant: ["tabular-nums"] }, // .r .tm 15/600
+  tmBox: { alignItems: "flex-end", gap: 6 }, // apart enough to tap each
+  tmLine: { flexDirection: "row", alignItems: "flex-start" },
+  sup: { position: "absolute", left: "100%", top: -3, marginLeft: 1, fontSize: 10, lineHeight: 12, fontFamily: ff("700"), fontVariant: ["tabular-nums"] }, // ui.css .r .tm sup: hangs past the column, so the times stay aligned
+  tmEnd: { fontFamily: ff("400") }, // the same size as the start, regular and muted: less weight, not less size
 });
 
 /**

@@ -210,7 +210,8 @@ describe("grid: \"tháng này\" is by the month's end, and a vowelless acronym i
       }
     const r = items("đọc sách tối mỗi ngày tháng này")[0];
     rows.push(["đọc sách tối mỗi ngày tháng này", [r?.windows, r?.rrule?.startsWith("FREQ=DAILY")], [["NIGHT"], true]]);
-    for (const w of ["lsm", "sql", "css", "dns"]) rows.push([`học ${w} trong tuần này`, items(`học ${w} trong tuần này`)[0]?.title, `Học ${w}`]);
+    // "sql" is a canon term (display SQL); the others keep the typed case
+    for (const w of ["lsm", "sql", "css", "dns"]) rows.push([`học ${w} trong tuần này`, items(`học ${w} trong tuần này`)[0]?.title, `Học ${w === "lsm" ? "lsm" : w === "sql" || w === "css" || w === "dns" ? w.toUpperCase() : w}`]);
     check(rows);
   });
 });

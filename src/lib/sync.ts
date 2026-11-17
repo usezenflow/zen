@@ -157,6 +157,8 @@ async function run(j: queue.Job, acc: Acc): Promise<void> {
     }
   } catch (e) {
     if (!(e instanceof CampusLoginError)) throw e;
+    const before = await loginError();
+    if (before !== src && before !== "both") acc.extra.push({ title: t(src === "portal" ? "noticeLoginPortal" : "noticeLoginLms"), sub: t("noticeLoginSub"), route: "/settings" }); // once: a refusal while the flag is set is silent
     await setBad(src, true);
     await queue.dropWhere((x) => SRC[x.kind as Part] === src);
     return;
@@ -169,6 +171,7 @@ async function run(j: queue.Job, acc: Acc): Promise<void> {
   const { upserts, deletes, digest } = materialize(fetched, await store.allTasks(), now, prepMult(await getMarks()), await loadGone());
   acc.digest.exams.push(...digest.exams); acc.digest.assignments.push(...digest.assignments); acc.digest.rooms.push(...digest.rooms);
   acc.digest.lectures!.push(...(digest.lectures ?? []));
+  acc.digest.moved.push(...digest.moved); acc.digest.due.push(...digest.due); acc.digest.makeup.push(...digest.makeup); acc.digest.cancelled.push(...digest.cancelled);
   // Stored now, planned once when the drain ends: a term's ~26 weekly jobs would otherwise each run the whole planner.
   if (upserts.length || deletes.length) acc.changed = (await ingest(upserts, deletes, now, [], false)).changed || acc.changed;
 }
@@ -184,12 +187,13 @@ let wake: ReturnType<typeof setTimeout> | undefined;
 export function drain(opts: { budget?: number } = {}): Promise<Synced | undefined> {
   return (draining ??= (async () => {
     const tasks = await store.allTasks(), now = Date.now();
-    const acc: Acc = { digest: { exams: [], assignments: [], rooms: [], lectures: [] }, extra: [], changed: false,
+    const acc: Acc = { digest: { exams: [], assignments: [], rooms: [], moved: [], due: [], makeup: [], cancelled: [], lectures: [] }, extra: [], changed: false,
       hadTimetable: tasks.some((x) => x.source === "dlu" && x.fixed === "lecture" && !x.deletedAt && x.start! > now) };
     await queue.work((j) => run(j, acc), opts.budget);
     if (acc.changed) await replan(Date.now());
     const ls = acc.digest.lectures!;
     acc.digest.timetable = !acc.hadTimetable && ls.length >= 3 ? { n: ls.length, first: Math.min(...ls) } : undefined;
+    if (!acc.hadTimetable) acc.digest.makeup = []; // lectures of a timetable that came in this drain are not makeups
     const notices = [...digestNotices(acc.digest, now), ...acc.extra];
     const next = await queue.nextDue();
     if (wake) clearTimeout(wake);
@@ -271,7 +275,8 @@ async function foregroundNow(now: number): Promise<Synced | undefined> {
   }
   // A task that ended after the last plan was missed: roll it forward once (plannedAt moves on after the replan).
   const planned = Number((await store.kvGet("plannedAt")) ?? now);
-  if (!out && (await store.allTasks()).some((x) => !x.doneAt && !x.deletedAt && !x.fixed && x.end !== undefined && x.end <= now && x.end > planned)) {
+  // A time the user set by hand (pinned, or userEdited start) is not missed: it stays where the user put it.
+  if (!out && (await store.allTasks()).some((x) => !x.doneAt && !x.deletedAt && !x.fixed && !x.pinned && !x.userEdited?.includes("start") && x.end !== undefined && x.end <= now && x.end > planned)) {
     const r = await replan(now);
     if (r.changed) out = wrap(r);
   }

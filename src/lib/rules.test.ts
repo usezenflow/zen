@@ -48,7 +48,7 @@ describe("chains", () => {
 describe("exceptions", () => {
   it("'trừ' takes days or kinds off", () => {
     expect(one("tối nào cũng để trống trừ thứ bảy")).toMatchObject({ text: "Tối trừ T7 để trống", days: [1, 2, 3, 4, 5, 0], from: 1080 });
-    expect(one("sau 10 giờ tối đừng xếp gì trừ việc học")).toMatchObject({ text: "Sau 22:00 chỉ học", kinds: ["exercise", "chores", "social", "other"] });
+    expect(one("sau 10 giờ tối đừng xếp gì trừ việc học")).toMatchObject({ text: "Sau 22:00 chỉ học", kinds: ["exercise", "chores", "social", "other", "work", "errand", "finance", "self"] });
     expect(one("cuối tuần để trống ngoại trừ chủ nhật")).toMatchObject({ days: [6] });
   });
 });

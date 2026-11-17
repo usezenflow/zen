@@ -25,24 +25,24 @@ function Chip({ label, on, onPress, box }: { label: string; on: boolean; onPress
   );
 }
 
-/** "17:00": drops zen's time dial, its right edge on the chip's. `due`: 23 also offers :59. `min`: nothing earlier on that day (an end: its start + 15). */
-export function TimeChip({ value, due, min, onChange }: { value: number; due?: boolean; min?: number; onChange: (d: Date) => void }) {
+/** "17:00": drops zen's time dial, its right edge on the chip's. `due`: 23 also offers :59. `min`: nothing earlier on that day (an end: its start + 15). `past`: a manual edit, any time. */
+export function TimeChip({ value, due, min, past, onChange }: { value: number; due?: boolean; min?: number; past?: boolean; onChange: (d: Date) => void }) {
   const c = useChip();
   return (
     <>
       <Chip label={hhmm(value)} on={!!c.anchor} onPress={c.open} box={c.box} />
-      <TimeDial open={!!c.anchor} anchor={c.anchor} value={new Date(value)} due={due} min={min === undefined ? undefined : new Date(min)} onChange={onChange} onClose={c.close} />
+      <TimeDial open={!!c.anchor} anchor={c.anchor} value={new Date(value)} due={due} min={min === undefined ? undefined : new Date(min)} past={past} onChange={onChange} onClose={c.close} />
     </>
   );
 }
 
-/** "T4 18/11": drops zen's calendar from the chip's left (a start) or right (an end) edge. `min`: days before it greyed out. */
-export function DateChip({ value, min, side = "left", onChange }: { value: number; min?: number; side?: "left" | "right"; onChange: (d: Date) => void }) {
+/** "T4 18/11": drops zen's calendar from the chip's left (a start) or right (an end) edge. `min`: days before it greyed out. `past`: days gone too. */
+export function DateChip({ value, min, past, side = "left", onChange }: { value: number; min?: number; past?: boolean; side?: "left" | "right"; onChange: (d: Date) => void }) {
   const c = useChip();
   return (
     <>
       <Chip label={day(value, 0)} on={!!c.anchor} onPress={c.open} box={c.box} />
-      <DateDrop open={!!c.anchor} anchor={c.anchor} value={new Date(value)} min={min !== undefined ? new Date(min) : undefined} side={side} onChange={onChange} onClose={c.close} />
+      <DateDrop open={!!c.anchor} anchor={c.anchor} value={new Date(value)} min={min !== undefined ? new Date(min) : undefined} past={past} side={side} onChange={onChange} onClose={c.close} />
     </>
   );
 }

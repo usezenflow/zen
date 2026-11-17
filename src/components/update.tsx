@@ -64,6 +64,7 @@ export function DownloadToast() {
 }
 
 let offered: string | null = null; // each version is offered once a run
+let checkedAt = 0; // settings.html: launch always checks GitHub; a return at most every 15 minutes
 
 /** Mounted once in _layout: what's new after an update (once), then any newer release on launch and on return. */
 export function UpdatePrompt() {
@@ -77,12 +78,12 @@ export function UpdatePrompt() {
       if (!seen) return; // a fresh install has nothing "new"
       if (notes.length) setD((c) => c ?? { kind: "new", version: installed, notes });
     })();
-    const check = () => void checkUpdate().then((u) => {
+    const check = (launch = false) => { if (!launch && Date.now() - checkedAt < 15 * 60_000) return; checkedAt = Date.now(); void checkUpdate().then((u) => {
       if (!u || offered === u.version) return;
       offered = u.version;
       setD((c) => c ?? { kind: "update", update: u });
-    });
-    check();
+    }); };
+    check(true);
     const sub = AppState.addEventListener("change", (st) => st === "active" && check());
     return () => sub.remove();
   }, []);

@@ -73,6 +73,7 @@
    "probe 2: học bơi 2 rưỡi chiều",
    "probe 2: học bơi 2h rưỡi chiều",
    "probe 2: đi chùa rằm tháng 10",
+   "probe 2: giỗ ông 15/8 âm lịch",
    "probe 2: nộp báo cáo cuối tháng",
    "probe 2: submit the report next month",
    "probe 2: họp lúc 9.15 mai",
@@ -1070,10 +1071,10 @@
   ]
  },
  "mutationPassPct": {
-  "swap": 96.2,
+  "swap": 96.3,
   "drop_tone": 96.8,
-  "telex": 96.1,
-  "vni": 96.4,
+  "telex": 96.4,
+  "vni": 97,
   "ocr": 96.4,
   "spaced": 98.5,
   "nfd": 98.7,
@@ -1084,8 +1085,8 @@
   "homophone*": 69.2,
   "english_misheard*": 50,
   "number_words*": 68.4,
-  "drop_letter*": 29.7,
-  "add_letter*": 59.1,
+  "drop_letter*": 29.9,
+  "add_letter*": 65.6,
   "wrong_tone*": 96.2,
   "glued*": 51.7,
   "mojibake*": 2.7,
@@ -1096,7 +1097,7 @@
   "flat_columns*": 33.3
  },
  "summary": {
-  "golden": "1052/1207",
+  "golden": "1053/1207",
   "hard": "12/75",
   "casesByPhase": {
    "0": 1032,

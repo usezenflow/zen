@@ -3,14 +3,17 @@ import { DAY, hourOf, type Nb } from "./features";
 import type { Model } from "./model";
 import { r30 } from "../lib/nlu/size";
 
-const KIND_EFFORT: Record<Kind, number> = { study: 60, exercise: 60, chores: 30, social: 90, other: 30 };
+const KIND_EFFORT: Record<Kind, number> = { study: 60, exercise: 60, chores: 30, social: 90, other: 30, work: 60, errand: 30, finance: 30, self: 30 };
 const HALF = 21 * DAY;
-const SIM = 0.6; // cosine floor for a title to count as alike
+// Cosine floor for a title to count as alike, in embed() space. Checked in habits.test.ts: 0.6 keeps the synonym pairs
+// that clear it and drops most unrelated pairs; "tập gym" ~ "tập thể dục" (0.36) is below any floor that keeps the rest.
+export const SIM = 0.6;
 
+// Vectors of another length (a stored one from an older embedding) are never alike: 0, not a partial sum.
 export function cosine(a: ArrayLike<number>, b: ArrayLike<number>): number {
+  if (a.length !== b.length) return 0;
   let d = 0, na = 0, nb = 0;
-  const n = Math.min(a.length, b.length);
-  for (let i = 0; i < n; i++) { d += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
+  for (let i = 0; i < a.length; i++) { d += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
   return na && nb ? d / Math.sqrt(na * nb) : 0;
 }
 
@@ -27,7 +30,8 @@ export function effort(t: Task, m: Model): number {
   const guessed = !!t.effortGuessed && t.effort > 0;
   if (t.effort > 0 && !guessed) return t.effort;
   if (t.vec) {
-    const near = m.efforts
+    // embed() alone scores some unrelated titles high ("đi khám răng" ~ "đi ngủ sớm" 0.71): a different kind is never alike
+    const near = m.efforts.filter((e) => !e.kind || e.kind === t.kind)
       .map((e) => ({ c: cosine(t.vec!, e.vec), m: e.minutes }))
       .filter((e) => e.c > SIM).sort((a, b) => b.c - a.c).slice(0, 5);
     if (guessed && near.length >= 2) return r30(median(near.map((n) => n.m)));

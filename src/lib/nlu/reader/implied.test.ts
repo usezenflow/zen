@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ReaderItem, ReaderWC } from "../shared";
 import { nextClock, prepMinutes } from "./assemble";
-import { activityPm, applyImplied, impliedMinutes } from "./implied";
+import { activityPm, applyImplied } from "./implied";
 import { read } from "./reader";
 
 const ref: ReaderWC = { y: 2026, m: 11, d: 5, h: 9, mi: 0 };
@@ -20,27 +20,7 @@ const task = (over: Partial<ReaderItem> = {}): ReaderItem => ({
   ...over,
 });
 
-describe("implied minutes", () => {
-  it("sizes a named activity", () => {
-    expect(impliedMinutes("an sang")).toBe(30);
-    expect(impliedMinutes("chay bo buoi sang")).toBe(60);
-    expect(impliedMinutes("goi dien cho me")).toBe(30);
-    expect(impliedMinutes("giat do")).toBe(60);
-    expect(impliedMinutes("hop nhom")).toBe(60);
-  });
-
-  it("sizes counted units on the 30 minute grid", () => {
-    expect(impliedMinutes("doc 3 chuong")).toBe(180);
-    expect(impliedMinutes("lam 5 bai")).toBe(150);
-    expect(impliedMinutes("doc 10 trang")).toBe(60);
-    expect(impliedMinutes("doc 2 trang")).toBe(30);
-  });
-
-  it("reads no length for a mail box or a task with no activity", () => {
-    expect(impliedMinutes("mua hop but")).toBeUndefined();
-    expect(impliedMinutes("nop bai tap")).toBeUndefined();
-  });
-
+describe("parts of the day of an activity", () => {
   it("marks only the dinner as a PM activity", () => {
     expect(activityPm("an toi")).toBe(true);
     expect(activityPm("an sang")).toBe(false);
@@ -60,48 +40,41 @@ describe("bare clock of an evening activity", () => {
 });
 
 describe("applyImplied", () => {
-  it("replaces an inferred length with the activity's", () => {
+  it("leaves the length to size.ts, whatever the activity", () => {
     const it = task();
-    applyImplied(it, ref, false);
-    expect(it.durationMinutes).toBe(60);
+    applyImplied(it, ref);
+    expect(it.durationMinutes).toBe(45);
     expect(it.inferred).toEqual(["durationMinutes"]);
-  });
-
-  it("keeps a length the workload sized", () => {
-    const it = task({ durationMinutes: 120, title: "chay bo bai" });
-    applyImplied(it, ref, true);
-    expect(it.durationMinutes).toBe(120);
   });
 
   it("keeps a length the text typed", () => {
     const it = task({ inferred: [] });
-    applyImplied(it, ref, false);
+    applyImplied(it, ref);
     expect(it.durationMinutes).toBe(45);
   });
 
   it("gives breakfast the morning and lunch an after-lunch start", () => {
     const breakfast = task({ title: "an sang", evidence: "ăn sáng" });
-    applyImplied(breakfast, ref, false);
+    applyImplied(breakfast, ref);
     expect(breakfast.windows).toEqual(["MORNING"]);
-    expect(breakfast.durationMinutes).toBe(30);
 
     const reading = task({
       title: "doc sach",
       evidence: "sau bữa trưa đọc sách",
       durationMinutes: 45,
     });
-    applyImplied(reading, ref, false);
+    applyImplied(reading, ref);
     expect(reading.notBefore).toBe("2026-11-05 13:00");
     expect(reading.inferred).toContain("notBefore");
   });
 
   it("puts a task before bed in the night, and one on waking first", () => {
     const bed = task({ title: "doc sach", evidence: "trước khi ngủ đọc sách" });
-    applyImplied(bed, ref, false);
+    applyImplied(bed, ref);
     expect(bed.windows).toEqual(["NIGHT"]);
 
     const first = task({ title: "chay bo", evidence: "việc đầu tiên chạy bộ" });
-    applyImplied(first, ref, false);
+    applyImplied(first, ref);
     expect(first.windows).toEqual(["EARLY_MORNING"]);
   });
 
@@ -112,12 +85,12 @@ describe("applyImplied", () => {
       evidence: "sau bữa trưa họp",
       title: "hop",
     });
-    applyImplied(fixed, ref, false);
+    applyImplied(fixed, ref);
     expect(fixed.notBefore).toBeUndefined();
     expect(fixed.durationMinutes).toBe(45);
 
     const dated = task({ startsAt: "2026-11-05 10:00", windows: undefined });
-    applyImplied(dated, ref, false);
+    applyImplied(dated, ref);
     expect(dated.windows).toBeUndefined();
   });
 });

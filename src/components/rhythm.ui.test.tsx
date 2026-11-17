@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react-native";
 import { StyleSheet } from "react-native";
 import { Rhythm } from "./rhythm";
 import { t } from "@/lib/i18n";
-import { KIND_VI } from "@/lib/reasons";
+import { KIND_VI, kindW } from "@/lib/reasons";
 import type { Rule } from "@/lib/types";
 import type { Insights } from "@/planner";
 import { NOW } from "../../test/factories";
@@ -31,8 +31,8 @@ it("a golden range titles the strip, lights its hours, and shows each card", asy
   expect(bars().map((o, h) => (o === 1 ? h : -1)).filter((h) => h >= 0)).toEqual([8, 9, 10]); // to is exclusive
   expect(screen.queryByText(t("learningT"))).toBeNull();
   expect(screen.getByText(t("pairTitle", { k: KIND_VI.exercise }))).toBeOnTheScreen();
-  expect(screen.getByText(t("kindTitle", { k: KIND_VI.study, a: 8, b: 11 }))).toBeOnTheScreen();
-  expect(screen.getByText(t("slipTitle", { k: KIND_VI.chores }))).toBeOnTheScreen();
+  expect(screen.getByText(t("kindTitle", { k: kindW("study", true), a: 8, b: 11 }))).toBeOnTheScreen();
+  expect(screen.getByText(t("slipTitle", { k: kindW("chores", true) }))).toBeOnTheScreen();
   expect(screen.getByText(t("slipSub", { n: 6 }))).toBeOnTheScreen(); // 0.62 of 10, rounded
   expect(screen.getByText(t("unsureTitle", { a: 20, b: 22 }))).toBeOnTheScreen();
 });

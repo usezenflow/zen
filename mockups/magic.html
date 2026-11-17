@@ -98,7 +98,7 @@
 <body>
 <div class="head">
   <h1>Magic, quietly</h1>
-  <p>Zen places your flexible work and leaves it alone. It re-plans only when something happened: <b>the school changed</b> a class, an exam or a due date; <b>you added</b> something or changed a due date; <b>you asked</b> (a rule, "later", a new time); or a block <b>passed undone</b>. Finishing or deleting something frees time; it moves nothing, except that a task still without a time takes it (the toast says “Đọc sách có giờ: T3 16:00”). Then the change is shown in three sizes: <b>motion</b> when it happens in front of you (rows move one at a time), a <b>trail</b> on each moved row (a vermilion dot and "từ T3 14:00"), and a <b>brief</b> when it happened while you were away. Exam and assignment <b>preps</b> (18 onward) are a budget of minutes, not a fixed "2 buổi": a base for the format, multiplied by what Zen knows (credits, a retake, your marks, your pace, what you said last time, a crowded exam week, and what the title and notes say), poured into 60–90 minute sittings named for their step, longer on light days. When the budget changes, the next two days stay as they are and sittings are added or removed further out. Every sentence on this page is one the app can produce from what it knows.</p>
+  <p>Zen places your flexible work and leaves it alone. It re-plans only when something happened: <b>the school changed</b> a class, an exam or a due date; <b>you added</b> something or changed a due date; <b>you asked</b> (a rule, "later", a new time); or a block <b>passed undone</b>. Finishing or deleting something frees time: later tasks move up into it, never later (the toast says “Đọc sách có giờ: T3 16:00”, or “Đã dời sớm 2 việc” when several move). Then the change is shown in three sizes: <b>motion</b> when it happens in front of you (rows move one at a time), a <b>trail</b> on each moved row (a vermilion dot and "từ T3 14:00"), and a <b>brief</b> when it happened while you were away. Exam and assignment <b>preps</b> (18 onward) are a budget of minutes, not a fixed "2 buổi": a base for the format, multiplied by what Zen knows (credits, a retake, your marks, your pace, what you said last time, a crowded exam week, and what the title and notes say), poured into 60–90 minute sittings named for their step, longer on light days. When the budget changes, the next two days stay as they are and sittings are added or removed further out. Every sentence on this page is one the app can produce from what it knows.</p>
   <nav><a href="views.html">Views</a><a href="settings.html">Settings</a></nav>
 </div>
 <div class="gallery"></div>
@@ -185,10 +185,13 @@ const homeList = `${head("T3", "17/11", "4 việc, 1 tiết học")}${tabs("Ngà
 const setToast = toast("Đã dời Gym sang 15:00", "", [["Xem", true, true], ["Hoàn tác"]]) + homeList;
 const setHome = `${head("T3", "17/11", "4 việc, 1 tiết học")}${tabs("Ngày")}
   ${storyOf()}`;
-// 7i: a done frees time; a task with none takes it, and nothing else moves.
+// 7i: a done frees time; later tasks move up into it (earlier only), and the toast says where.
 const pullIn = toast("Xong. Tốt lắm.", "Đọc sách có giờ: T3 16:00", [["Hoàn tác"]]) + `${head("T3", "17/11", "3 việc, 1 tiết học")}${tabs("Ngày")}
   <div class="lab" style="margin-top:28px">Hôm nay</div>
   <div class="list" style="margin-top:6px">${row("13:30", "Cơ sở dữ liệu", "lecture", "A2.104")}${row("16:00", "Đọc sách", "plan")}${row("17:30", "Ôn Giải tích", "plan")}</div>`;
+const pullMany = toast("Xong. Tốt lắm.", "Đã dời sớm 2 việc", [["Hoàn tác"]]) + `${head("T3", "17/11", "3 việc, 1 tiết học")}${tabs("Ngày")}
+  <div class="lab" style="margin-top:28px">Hôm nay</div>
+  <div class="list" style="margin-top:6px">${row("13:30", "Cơ sở dữ liệu", "lecture", "A2.104")}${row("14:30", "Đọc sách", "plan")}${row("16:00", "Ôn Giải tích", "plan")}</div>`;
 const pv = (t) => `<div style="margin:6px 0 0 30px;font-size:15px;font-weight:500;color:var(--muted)">${t}</div>`;
 const chips = (on) => `<div class="ed">${ic(I.clock, 20, 1.9)}<span class="pk">T3 17/11</span><span class="pk ${on ? "on" : ""}">15:00</span><em>đến</em><span class="pk">T3 17/11</span><span class="pk">16:00</span></div>`;
 const setPreview = youSet(chips(1) + pv("Sẽ dời Ôn Giải tích sang 16:30"), "");
@@ -240,7 +243,7 @@ const rhythm = () => `${head("Mình hiểu bạn", "Nhịp của bạn", "8h-11h
     <div class="hrs"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div></div>
   <div class="ins"><b>Sau giờ học, bạn làm tiếp tốt</b><small>Mình sẽ ưu tiên xếp việc kế tiếp ngay sau đó.</small>
     <div class="viz"><span class="chipk">${swatch("lecture")}học</span></div></div>
-  <div class="ins"><b>Bạn tập thể dục hợp nhất lúc 7h-10h</b><small>Mình sẽ xếp việc này vào giờ đó khi có thể.</small>
+  <div class="ins"><b>Việc tập thể dục hợp nhất lúc 7h-10h</b><small>Mình sẽ xếp việc này vào giờ đó khi có thể.</small>
     <div class="viz"><span class="chipk">${swatch("plan")}tập thể dục</span><span class="meterh" style="--v:80%"></span></div></div>
   <div class="ins"><b>Việc học hay bị dời</b><small>4 trên 10 lần. Mình xếp sớm hơn một chút, cho bạn đường lùi.</small>
     <div class="viz"><span class="meterh" style="--v:40%"></span></div></div>
@@ -251,7 +254,7 @@ const mem = `${head("Mình hiểu bạn", "Nhịp của bạn", "8h-11h")}${tabs
   <div class="lab" style="margin-top:22px">Bạn dặn</div>
   <div>${[["Tối T6 để trống", "T6 · Từ 18:00"], ["Sáng cuối tuần để trống", "T7, CN · 5:00 - 11:00"]].map(([t, s]) => `<div class="set"><div class="tx">${t}<small>${s}</small></div></div>`).join("")}</div>
   <div class="lab" style="margin-top:22px">Mình đoán</div>
-  <div>${[["Giờ vàng 8h-11h", "Chắc lắm"], ["Bạn tập thể dục hợp nhất lúc 7h-10h", "Chắc lắm"], ["Sau giờ học, bạn làm tiếp tốt", "Khá chắc"], ["Việc học hay bị dời", "Đang đoán"]].map(([t, s]) => `<div class="set"><div class="tx">${t}<small>${s}</small></div></div>`).join("")}</div>
+  <div>${[["Giờ vàng 8h-11h", "Chắc lắm"], ["Việc tập thể dục hợp nhất lúc 7h-10h", "Chắc lắm"], ["Sau giờ học, bạn làm tiếp tốt", "Khá chắc"], ["Việc học hay bị dời", "Đang đoán"]].map(([t, s]) => `<div class="set"><div class="tx">${t}<small>${s}</small></div></div>`).join("")}</div>
   <div class="lab" style="margin-top:16px;font-size:14px">Vuốt để mình quên.</div>`;
 
 // 13. Nhịp before there is evidence: it says so. The bars are the default guess, all dim.
@@ -288,7 +291,7 @@ const earlyGuess = `${head("Mình hiểu bạn", "Nhịp của bạn", "Có vẻ
 const sunday = `${head("CN", "22/11", "1 việc")}${tabs("Ngày")}
   <div class="art" style="margin-top:16px;height:220px;padding:20px">${art("lecture", { w: 264, h: 220, seed: 8, cls: "bgart" })}
     <div class="lab" style="color:#fff;opacity:.85">Tuần này mình hiểu thêm</div>
-    <div class="t" style="margin-top:10px">Bạn tập thể dục hợp nhất lúc 7h</div>
+    <div class="t" style="margin-top:10px">Việc tập thể dục hợp nhất lúc 7h</div>
     <div style="position:absolute;left:20px;right:16px;bottom:16px;display:flex;align-items:flex-end;justify-content:space-between"><div class="small" style="font-weight:600">12 việc xong, 2 lần dời</div><span class="glass">${ic(I.right, 22, 2.2)}</span></div></div>
   <div class="lab" style="margin-top:28px">Hôm nay</div>
   <div class="list" style="margin-top:6px">${row("20:00", "Đọc sách mỗi tối", "plan", "Buổi tối")}</div>`;
@@ -440,6 +443,19 @@ const need = `${head("T4", "18/11", "3 việc, 1 tiết học")}${tabs("Ngày")}
   ${menu([["Cần thêm một buổi"], ["Bớt một buổi"], ["Đừng dời việc này nữa"], ...DEL], 300, "c")}`;
 const needDone = toast("Thêm một buổi Luyện đề", "T6 14:00", [["Hoàn tác"]]) + prepDay.replace(`Buổi 5/10 · ${GT}`, `Buổi 5/11 · ${GT}`);
 const less = toast("Ôn ít hơn: 9h, 8 buổi", GTX, [["Hoàn tác"]]) + prepDetail("9h, 8 buổi");
+// 31b-c. Còn nữa: a guessed split task whose last sitting (18/11) is under way. A small text button under the sittings, no sheet; the result stays here with Hoàn tác.
+const stillSits = [si(when("2026-11-16"), "Luyện đề", "60p", "done"), si(when("2026-11-17"), "Luyện đề", "90p", "done"), si(when("2026-11-18"), "Luyện đề", "60p", "me")].join("");
+const stillHead = `${dtop}${mine}
+  <div class="h" style="margin-top:14px">Luyện đề</div>
+  <div class="meta">${ml("clock", `Làm ${when("2026-11-18", "19:00")} - 20:00`)}${ml("book", `${GTX} ${ic(I.right, 16)}`, "lk")}</div>
+  <div class="lab" style="margin-top:20px">Các buổi</div>`;
+const stillSet = `${stillHead}<div class="sits">${stillSits}</div><span class="tbtn" style="margin-left:0;display:inline-block;margin-top:10px">Còn nữa</span>`;
+const stillAdded = `${stillHead}<div class="sits">${stillSits}${si(when("2026-11-20"), "Luyện đề", "60p", "", true)}</div>
+  <div style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:15px;font-weight:500;color:var(--muted)"><span>Thêm một buổi Luyện đề</span><span class="tbtn">Hoàn tác</span></div>`;
+const stillOne = `${dtop}${mine}
+  <div class="h" style="margin-top:14px">Viết báo cáo</div>
+  <div class="meta">${ml("clock", `Làm ${when("2026-11-17", "9:00")} - 10:00`)}</div>
+  <span class="tbtn" style="margin-left:0;display:inline-block;margin-top:10px">Còn nữa</span>`;
 const remembered = `${dtop}${mine}
   <div class="h" style="margin-top:14px">Đọc lại bài</div>
   <div class="meta">${ml("clock", `Làm ${when("2026-11-30", "19:00")} - 20:00`)}${ml("book", `Thi Đại số tuyến tính ${ic(I.right, 16)}`, "lk")}</div>
@@ -492,7 +508,8 @@ mount([
   { tag: "7f. You set a time: one is left without", sub: "The cause took the last free time a task had: “Đọc sách chưa có giờ trống”, in vermilion, above the story. Its row says “Chưa có giờ trống” until a slot frees up (7i).", html: chrome(setLost, { dock: null }) },
   { tag: "7g. Set from the list: Xem", sub: "A row’s time chip saves at once. When that moved other tasks, the toast says what you did and offers “Xem” next to Hoàn tác; the moved rows carry their dots.", html: chrome(setToast) },
   { tag: "7h. Set from the list: the story", sub: "Xem opens the same story on today, in the art card’s slot: the list and the dock step aside until Xong or Hoàn tác.", html: chrome(setHome, { dock: null }) },
-  { tag: "7i. A done frees time", sub: "Finishing or deleting moves nothing, except that a task with no time yet takes the freed time. The toast says where it went.", html: chrome(pullIn) },
+  { tag: "7i. A done frees time", sub: "Finishing or deleting frees its time: a later task moves up into it, never later, and the toast says where it went. A task that was set by hand, or pinned, never moves.", html: chrome(pullIn) },
+  { tag: "7j. Several move up", sub: "When more than one task moves up into the freed time, the toast counts them and Hoàn tác undoes them all at once.", html: chrome(pullMany) },
   { tag: "8. Put it back", sub: "Long-press a moved row. Back to the old time, the other good time, or pin it. The first two teach the model, the same as changing the time by hand; pinning just holds it.", html: chrome(back) },
   { tag: "9. Heads up", sub: "After a re-plan, a due date that cannot be met in free time shows on today's list: how much work is left and how much time is free. Each pill pushes one other flexible task to after that due date, longest first; each pill is a full-width block, the task name on the left (one too long ends in an ellipsis) and its day on the right, so every pill shares both edges. One tap applies. Tapping the words opens the task. The card shows only while it is true: real shortfall, the task still open; a task late by its own pin with time to spare raises none.", html: chrome(heads) },
   { tag: "10. A rule, said once", sub: "“Tối thứ sáu để trống nhé.” Zen repeats it in its own words and names the first task it moved to keep it. The week shows the kept evening as a striped block; the day shows it with its words and hours.", html: chrome(rule) },
@@ -524,6 +541,9 @@ mount([
   { tag: "30. Done early", sub: "Ticked a sitting 15+ minutes before its end: half the time saved comes off the far sittings (none under 60 minutes; one that would is removed). It also teaches your pace.", html: chrome(early) },
   { tag: "31. Need more, or less", sub: "Long-press a sitting: “Cần thêm một buổi” adds one of the same step and length after the rest; “Bớt một buổi” removes the last open one.", html: chrome(need) },
   { tag: "Need more, added", sub: "The toast names it and where it went; Hoàn tác removes it.", html: chrome(needDone) },
+  { tag: "31b. Còn nữa, on the last sitting", sub: "A guessed split task whose last sitting is done or under way (here 18/11): one text button under the sittings, in place, no sheet. It is not shown on an earlier sitting, a task whose length was said, or while the last sitting is still to come. Tapping it adds one sitting of the same length after the last, and teaches the class that the guess needed one more.", html: chrome(stillSet, { dock: null }) },
+  { tag: "31c. Còn nữa, added", sub: "The new sitting joins the list with its dot; the line says what was added, and Hoàn tác beside it undoes the sitting. If the user never taps it, the guess stands.", html: chrome(stillAdded, { dock: null }) },
+  { tag: "31d. Còn nữa, one sitting", sub: "A guessed task with no sittings yet, done or under way: the same text button under its time, in place. A tap makes it a split task, its own time kept as the first sitting, and adds the second of the same length. Undo puts it back as one task.", html: chrome(stillOne, { dock: null }) },
   { tag: "32. Ít hơn, Nhiều hơn", sub: "Ít hơn takes a quarter off what is left, Nhiều hơn adds a third, as fewer or more far sittings. The campus no longer resizes it.", html: chrome(less, { dock: null }) },
   { tag: "Remembered", sub: "The next prep of the same format starts from that choice: “Lần trước bạn chọn ôn ít hơn”.", html: chrome(remembered, { dock: null }) },
   { tag: "33. Nhịp, preps", sub: "Two cards, only with evidence. Pace: five or more sittings ticked inside their block; sizes follow it, 0.8× to 1.25×. Long sittings: of five or more 90-minute sittings placed, 40% or more pushed later; then sittings stay at 60 minutes.", html: chrome(prepRhythm) },

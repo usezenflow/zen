@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { examMonth, feeMonth, isoWeek, marksOpen, resolveTerm, termMondays, termNow } from "./season";
+import { examMonth, feeMonth, nextFeeMonth, isoWeek, marksOpen, resolveTerm, termMondays, termNow } from "./season";
 
 describe("season", () => {
   it("resolves the term with a two week lookahead", () => {
@@ -28,5 +28,12 @@ describe("season", () => {
     const vn = (m: number, d: number, h: number) => Date.UTC(2026, m - 1, d, h - 7);
     expect([vn(10, 15, 11), vn(10, 15, 12), vn(10, 31, 23), vn(11, 1, 0), vn(3, 20, 9), vn(6, 16, 8), vn(9, 20, 12)].map(feeMonth))
       .toEqual([null, "2026-10", "2026-10", null, "2026-03", "2026-06", null]);
+  });
+});
+
+describe("nextFeeMonth", () => {
+  it("names the next billing month after this one, wrapping to March", () => {
+    const at = (m: number) => Date.UTC(2026, m - 1, 20, 5);
+    expect([1, 3, 5, 6, 9, 10, 12].map((m) => nextFeeMonth(at(m)))).toEqual([3, 6, 6, 10, 10, 3, 3]);
   });
 });

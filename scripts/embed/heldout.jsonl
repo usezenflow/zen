@@ -244,3 +244,109 @@
 {"text": "ngắm phố đêm", "cls": "none"}
 {"text": "đếm sao trên trời", "cls": "none"}
 {"text": "nghe radio buổi sáng", "cls": "none"}
+{"text": "làm đồ án tốt nghiệp ngành mạng", "cls": "project"}
+{"text": "bài tập lớn môn giải thuật", "cls": "project"}
+{"text": "dự án nhóm môn phần mềm", "cls": "project"}
+{"text": "capstone demo tuần sau", "cls": "project"}
+{"text": "ăn sáng bún bò", "cls": "meal_breakfast"}
+{"text": "bữa sáng với cả nhà", "cls": "meal_breakfast"}
+{"text": "breakfast ở khách sạn", "cls": "meal_breakfast"}
+{"text": "đi ăn sáng với bạn", "cls": "meal_breakfast"}
+{"text": "ăn trưa cơm tấm", "cls": "meal_lunch"}
+{"text": "bữa trưa với sếp", "cls": "meal_lunch"}
+{"text": "lunch với team", "cls": "meal_lunch"}
+{"text": "đi ăn trưa gần công ty", "cls": "meal_lunch"}
+{"text": "ăn tối nhà hàng Nhật", "cls": "meal_dinner"}
+{"text": "bữa tối sinh nhật mẹ", "cls": "meal_dinner"}
+{"text": "dinner với đối tác", "cls": "meal_dinner"}
+{"text": "đi ăn tối cuối tuần", "cls": "meal_dinner"}
+{"text": "cà phê sáng với Nam", "cls": "cafe"}
+{"text": "coffee với bạn cũ", "cls": "cafe"}
+{"text": "đi cafe học bài", "cls": "cafe"}
+{"text": "cf với đồng nghiệp", "cls": "cafe"}
+{"text": "lên bài cho page", "cls": "content"}
+{"text": "quay clip giới thiệu quán", "cls": "content"}
+{"text": "viết caption cho ảnh mới", "cls": "content"}
+{"text": "dựng reel cuối tuần", "cls": "content"}
+{"text": "vẽ banner khuyến mãi", "cls": "design"}
+{"text": "thiết kế logo cho shop", "cls": "design"}
+{"text": "mockup giao diện app", "cls": "design"}
+{"text": "làm poster concert", "cls": "design"}
+{"text": "gửi báo giá cho anh Hùng", "cls": "sales"}
+{"text": "chốt đơn với khách cũ", "cls": "sales"}
+{"text": "sale call buổi chiều", "cls": "sales"}
+{"text": "chào hàng khách mới", "cls": "sales"}
+{"text": "báo cáo tháng 10", "cls": "report"}
+{"text": "weekly report cho sếp", "cls": "report"}
+{"text": "báo cáo quý 4", "cls": "report"}
+{"text": "report ngày cho team", "cls": "report"}
+{"text": "viết OKR cho team", "cls": "plan"}
+{"text": "kế hoạch marketing quý 1", "cls": "plan"}
+{"text": "roadmap tính năng Q3", "cls": "plan"}
+{"text": "đặt KPI tháng", "cls": "plan"}
+{"text": "phỏng vấn dev backend", "cls": "interview"}
+{"text": "interview ứng viên QA", "cls": "interview"}
+{"text": "tuyển dụng sale", "cls": "interview"}
+{"text": "lọc CV tuyển dụng", "cls": "interview"}
+{"text": "deploy bản vá lên production", "cls": "deploy"}
+{"text": "release version 1.5", "cls": "deploy"}
+{"text": "rollout tính năng cho beta", "cls": "deploy"}
+{"text": "phát hành bản cập nhật", "cls": "deploy"}
+{"text": "nghiên cứu đối thủ cạnh tranh", "cls": "research"}
+{"text": "phân tích dữ liệu bán hàng", "cls": "research"}
+{"text": "khảo sát người dùng app", "cls": "research"}
+{"text": "research thị trường", "cls": "research"}
+{"text": "viết spec cho module thanh toán", "cls": "spec"}
+{"text": "PRD tính năng chat", "cls": "spec"}
+{"text": "RFC kiến trúc mới", "cls": "spec"}
+{"text": "tài liệu kỹ thuật cho API", "cls": "spec"}
+{"text": "pitch cho quỹ đầu tư", "cls": "presentation"}
+{"text": "present kết quả cho board", "cls": "presentation"}
+{"text": "presentation demo khách", "cls": "presentation"}
+{"text": "tập pitch tối nay", "cls": "presentation"}
+{"text": "ký hợp đồng với đối tác", "cls": "admin_work"}
+{"text": "gửi hóa đơn tháng 11", "cls": "admin_work"}
+{"text": "chấm công cho nhân viên", "cls": "admin_work"}
+{"text": "xuất invoice cho khách", "cls": "admin_work"}
+{"text": "cho mèo ăn sáng", "cls": "pet"}
+{"text": "cho cá ăn", "cls": "pet"}
+{"text": "cho chó ăn", "cls": "pet"}
+{"text": "cho gà ăn", "cls": "pet"}
+{"text": "tưới cây ban công", "cls": "plants"}
+{"text": "tưới hoa", "cls": "plants"}
+{"text": "tưới vườn rau", "cls": "plants"}
+{"text": "water the plants", "cls": "plants"}
+{"text": "đổ rác tối nay", "cls": "trash"}
+{"text": "vứt rác bếp", "cls": "trash"}
+{"text": "đem rác ra ngoài", "cls": "trash"}
+{"text": "bỏ rác", "cls": "trash"}
+{"text": "uống thuốc huyết áp", "cls": "meds"}
+{"text": "uống thuốc sáng", "cls": "meds"}
+{"text": "thuốc tối", "cls": "meds"}
+{"text": "uống thuốc cho mẹ", "cls": "meds"}
+{"text": "đón con tan học", "cls": "pickup"}
+{"text": "đưa em đi học", "cls": "pickup"}
+{"text": "pick up con", "cls": "pickup"}
+{"text": "đón bé ở trường", "cls": "pickup"}
+{"text": "sửa xe máy hỏng", "cls": "repair"}
+{"text": "sửa tủ lạnh", "cls": "repair"}
+{"text": "sửa điện nước", "cls": "repair"}
+{"text": "repair máy giặt", "cls": "repair"}
+{"text": "cắt tóc cuối tuần", "cls": "selfcare"}
+{"text": "gội đầu massage", "cls": "selfcare"}
+{"text": "nhuộm tóc", "cls": "selfcare"}
+{"text": "làm móng", "cls": "selfcare"}
+{"text": "làm cái đó đi", "cls": "none"}
+{"text": "nộp luôn", "cls": "none"}
+{"text": "xong hết rồi", "cls": "none"}
+{"text": "đi nè", "cls": "none"}
+{"text": "về nhà thôi", "cls": "none"}
+{"text": "làm bài nhanh nào", "cls": "none"}
+{"text": "Anh Lan", "cls": "none"}
+{"text": "9 giờ tối", "cls": "none"}
+{"text": "xin chào mọi người", "cls": "none"}
+{"text": "uiopas", "cls": "none"}
+{"text": "làm nốt đi", "cls": "none"}
+{"text": "ra ngoài chút", "cls": "none"}
+{"text": "có việc gấp", "cls": "none"}
+{"text": "để mai tính", "cls": "none"}

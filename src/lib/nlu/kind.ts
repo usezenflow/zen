@@ -1,5 +1,11 @@
 import type { Kind } from "../types";
 import { fold } from "./reader/fold";
+import { frameOf, type Domain } from "./frame";
+
+// The frame's domain as a kind. An appointment is an errand, whatever its domain says.
+const BY_DOMAIN: Record<Domain, Kind> = {
+  study: "study", work: "work", home: "chores", finance: "finance", health: "exercise", growth: "self", social: "social", admin: "errand", errand: "errand",
+};
 
 // One lexicon over folded text, first match wins ("bài tập" is study before "tập" is exercise). Order is the priority.
 const LEX: [RegExp, Kind][] = [
@@ -9,10 +15,13 @@ const LEX: [RegExp, Kind][] = [
   [/\b(cafe|ca phe|cf|coffee|hen|gap|di choi|goi|goi dien|call|sinh nhat|an voi)\b/, "social"],
 ];
 
-/** Every kind a text names, in lexicon order. "thì" is dropped first: folded it would read as "thi" (exam). */
+/** Every kind a text names: the frame's first (its class decides), then the lexicon's, in lexicon order. "thì" is dropped first: folded it would read as "thi" (exam). */
 export const kindsOf = (title: string): Kind[] => {
-  const f = fold(title.replace(/thì/gi, " ")).text;
-  return LEX.filter(([re]) => re.test(f)).map(([, k]) => k);
+  const text = title.replace(/thì/gi, " ");
+  const f = fold(text).text;
+  const fr = frameOf(text);
+  const byFrame = fr.cls === "appointment" ? "errand" : fr.cls === "language" ? "study" : fr.domain && BY_DOMAIN[fr.domain]; // a language is learnt: study
+  return [...new Set([...(byFrame ? [byFrame] : []), ...LEX.filter(([re]) => re.test(f)).map(([, k]) => k)])];
 };
 
 /** The kind a title's words say; undefined when they say none. */

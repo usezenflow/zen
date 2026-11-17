@@ -26,7 +26,7 @@ vi.mock("../planner", async (orig) => {
   } };
 });
 
-import { addRule, addSitting, apply, dropSitting, ingest, liveEdit, loadClassMult, needMore, pickNow, pin, putBack, removeRule, retime, scopeIds, swipeDone } from "./apply";
+import { addRule, addSitting, apply, dropSitting, ingest, lastMore, liveEdit, loadClassMult, needMore, pickNow, pin, putBack, removeRule, retime, scopeIds, stillMore, swipeDone } from "./apply";
 import { loadMoves } from "./moves";
 import { preps } from "../planner/prep";
 
@@ -46,7 +46,8 @@ it("one line becomes several placed tasks, one undo removes all", async () => {
   expect(tasks.filter((x) => x.title === "Gym")).toHaveLength(3);
   expect(tasks.filter((x) => x.parentId).length).toBeGreaterThan(1); // essay split into sittings
   expect(tasks.filter((x) => !x.parentId && x.title === "Gym").every((x) => x.start !== undefined)).toBe(true);
-  expect(r.toast).toMatch(/sittings|buổi/);
+  expect(r.toast).toMatch(/^Xếp xong \d+ việc$/); // counts tasks, not sittings
+  expect(r.sub).toMatch(/^Essay chia \d+ buổi$/); // the most-split task names its sittings
   await r.undo();
   expect(db.tasks.size).toBe(0);
   expect(db.events.size).toBe(0);
@@ -247,6 +248,17 @@ it("moves record from/to/why, skip dragged ids, and undo restores them", async (
   expect((await loadMoves()).filter((x) => x.at === NOW + 2000)).toEqual([]);
 });
 
+it("a time set wholly in the past is kept pinned and plans nothing; one reaching past now replans", async () => {
+  await apply([{ op: "create", title: "Read", kind: "study", effortMinutes: 30 }], NOW);
+  const id = live()[0].id, planned = db.kv.get("plannedAt");
+  const gone = NOW - 3 * 3600_000;
+  await apply([{ op: "edit", target: id, when: new Date(gone).toISOString() }], NOW + 1000);
+  expect(db.tasks.get(id)).toMatchObject({ pinned: true, start: gone, end: gone + 30 * 60_000 });
+  expect(db.kv.get("plannedAt")).toBe(planned); // no plan ran
+  await apply([{ op: "edit", target: id, when: new Date(NOW - 15 * 60_000).toISOString() }], NOW + 2000); // ends 15 min after now
+  expect(db.kv.get("plannedAt")).toBe(String(NOW + 2000));
+});
+
 it("addRule and removeRule round-trip, pin sets pinned", async () => {
   await addRule({ text: "Tối T6 để trống", days: [5], from: 1080, to: 1440, kinds: [] }, NOW);
   const rules = db.model.rules;
@@ -268,6 +280,14 @@ it("a move's cause is the new class over its old slot", async () => {
   const m = (await loadMoves()).find((x) => x.id === read.id)!;
   expect(m.from).toBe(s0);
   expect(m.cause).toMatch(/^Vì trường thêm Tiết bù /);
+});
+
+it("a repeat with no said clock keeps no 09:00 start: its occurrences open at the day's start", async () => {
+  const d0 = new Date(NOW); d0.setHours(0, 0, 0, 0);
+  await apply([{ op: "create", title: "Đọc sách", repeat: "FREQ=DAILY", when: new Date(d0.getTime() + 9 * 3600_000).toISOString(), notBefore: d0.toISOString() }], NOW);
+  const reads = live().filter((x: Task) => x.title === "Đọc sách");
+  expect(reads.length).toBeGreaterThan(30);
+  expect(reads.every((x: Task) => new Date(x.notBefore!).getHours() === 0 && !x.fixed)).toBe(true);
 });
 
 it("a repeat puts each occurrence on its own day, with the said clock and due time, and skips left-out weekdays", async () => {
@@ -671,6 +691,57 @@ describe("adding and dropping a sitting", () => {
     const n = kids().length;
     await dropSitting(pid, NOW + 1000);
     expect(kids()).toHaveLength(n);
+  });
+});
+
+describe("Còn nữa on a guessed split task's last sitting", () => {
+  const H = 3600_000;
+  const sit = (o: Partial<Task>) => ({ id: "p#1", title: "Code x", kind: "study", source: "user", effort: 60, effortGuessed: true, cls: "code", guessMin: 120, maxSitting: 60, parentId: "p", start: NOW - 3 * H, end: NOW - 2 * H, createdAt: NOW, ...o }) as Task;
+
+  it("shows only on the last sitting once it is done or under way; a said length never", () => {
+    const done = sit({ doneAt: NOW - 2 * H });
+    const running = sit({ id: "p#2", start: NOW, end: NOW + H });
+    const later = sit({ id: "p#3", start: NOW + 5 * H, end: NOW + 6 * H });
+    expect(lastMore([done], NOW)).toBe(done);
+    expect(lastMore([done, running], NOW + 1000)).toBe(running);
+    expect(lastMore([done, running], NOW + 2 * H)).toBeUndefined(); // ended, not ticked
+    expect(lastMore([done, later], NOW + 1000)).toBeUndefined(); // the last is still to come
+    expect(lastMore([done, running, later], NOW + 1000)).toBeUndefined();
+    expect(lastMore([{ ...done, effortGuessed: undefined }], NOW)).toBeUndefined();
+    expect(lastMore([{ ...done, cls: undefined }], NOW)).toBeUndefined();
+  });
+
+  it("a tap adds one sitting of the same length and raises the class multiplier above 1; undo takes it back", async () => {
+    const last = sit({ doneAt: NOW - 2 * H });
+    db.tasks.set("p", { id: "p", title: "Code x", kind: "study", source: "user", effort: 120, effortGuessed: true, cls: "code", guessMin: 120, maxSitting: 60, createdAt: NOW } as any);
+    db.tasks.set(last.id, last as any);
+    const kids = () => live().filter((x: Task) => x.parentId === "p");
+    const r = await stillMore(last, NOW);
+    expect(kids()).toHaveLength(2);
+    const added = kids().find((x: Task) => x.id === "p#2")!;
+    expect(added.effort).toBe(60);
+    expect(added.doneAt).toBeUndefined();
+    expect(r.toast).toBe("Thêm một buổi Code x");
+    expect((await loadClassMult()).code).toBeGreaterThan(1);
+    await r.undo();
+    expect(kids()).toHaveLength(1);
+  });
+
+  it("an unsplit guessed task, done: shows, and a tap splits it into the done sitting plus one more", async () => {
+    const task = { id: "w", title: "Viết báo cáo", kind: "study", source: "user", effort: 60, effortGuessed: true, cls: "write", guessMin: 60, maxSitting: 60, start: NOW - 3 * H, end: NOW - 2 * H, doneAt: NOW - 2 * H, createdAt: NOW } as Task;
+    expect(lastMore([task], NOW)).toBe(task);
+    expect(lastMore([{ ...task, effortGuessed: undefined }], NOW)).toBeUndefined(); // said length
+    db.tasks.set("w", task as any);
+    const kids = () => live().filter((x: Task) => x.parentId === "w");
+    const r = await stillMore(task, NOW);
+    expect(kids()).toHaveLength(2);
+    expect(kids().find((x: Task) => x.id === "w#1")!.doneAt).toBe(NOW - 2 * H);
+    expect(kids().find((x: Task) => x.id === "w#2")!).toMatchObject({ effort: 60, doneAt: undefined });
+    expect(db.tasks.get("w").doneAt).toBeUndefined(); // the parent is the container now
+    expect(r.toast).toBe("Thêm một buổi Viết báo cáo");
+    expect((await loadClassMult()).write).toBeGreaterThan(1);
+    await r.undo();
+    expect(kids()).toHaveLength(0);
   });
 });
 

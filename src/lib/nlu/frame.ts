@@ -12,7 +12,10 @@ export type TaskClass =
   | "code" | "project" | "fix" | "review_code" | "write_doc" | "essay" | "slides" | "thesis" | "exam_review" | "homework" | "read"
   | "language" | "skill" | "workout_gym" | "workout_run" | "workout_yoga" | "workout_swim" | "habit_read" | "habit_meditate"
   | "habit_journal" | "clean" | "laundry" | "cook" | "shop" | "bill" | "budget" | "tax" | "paperwork" | "call" | "email"
-  | "meeting" | "appointment";
+  | "meeting" | "appointment"
+  | "content" | "design" | "sales" | "report" | "plan" | "interview" | "deploy" | "research" | "spec" | "presentation" | "admin_work"
+  | "pet" | "plants" | "trash" | "meds" | "pickup" | "repair" | "selfcare"
+  | "meal_breakfast" | "meal_lunch" | "meal_dinner" | "cafe";
 export type Unit = "trang" | "chuong" | "bai" | "cau" | "slide" | "chu" | "cuon" | "km" | "buoi" | "lan";
 export interface Frame {
   verb?: string;
@@ -42,6 +45,9 @@ const VOCAB = [
   "guitar", "piano", "nhay", "swim", "meditation", "journal", "nhat", "clean", "lau", "laundry", "cook", "shop", "budget",
   "ngan", "sach", "thue", "tax", "giay", "email", "mail", "meeting", "standup", "appointment", "kham", "homework", "bai",
   "tap", "dien", "nuoc", "mang", "internet", "call", "quiz", "midterm", "final", "cuoi",
+  "reel", "caption", "design", "thiet", "interview", "tuyen", "deploy", "release", "research", "nghien", "phan", "tich",
+  "analysis", "pitch", "roadmap", "invoice", "contract", "trash", "garbage", "repair", "pickup", "thuoc", "uong", "tuoi",
+  "sales", "presentation", "breakfast", "lunch", "dinner", "coffee", "cafe", "sang", "hop",
 ];
 const VOCAB_SET = new Set(VOCAB);
 
@@ -70,11 +76,16 @@ const CLASSES: [TaskClass, RegExp][] = [
   ["exam_review", /\b(?:hoc bai thi|on thi|on tap|luyen de|(?<!cam )on)\b/],
   ["homework", /\b(?:(?:lam )?bai tap(?: ve nha)?|btvn|bt|homework|lab|thuc hanh)\b/],
   ["review_code", /\breview (?:pr|code|pull request)\b/],
+  // work before the study words: "báo cáo tuần" is a report, "viết tài liệu kỹ thuật" a spec
+  ["report", /\b(?:(?:bao cao|report) (?:tuan|thang|quy|ngay)|(?:weekly|monthly|daily|quarterly) (?:bao cao|report))\b/],
+  ["plan", /\b(?:okr|kpi|roadmap|ke hoach (?:quy|thang|tuan|nam|q[1-4]|kinh doanh|marketing|san pham|team|du an|ban hang))\b/],
+  ["spec", /\b(?:spec|specs|prd|rfc|tai lieu ky thuat)\b/],
   ["fix", /\b(?:fix(?: bug)?|sua loi|debug)\b/],
   // "đọc code" reads code; it is no coding task
   ["read", /\bdoc (?:code|source)\b/],
   ["code", /\b(?:code|lap trinh|lam api|implement|viet ham|cai dat(?: thuat toan)?)\b/],
   ["slides", /\b(?:slides?|thuyet trinh|powerpoint|pptx|deck)\b/],
+  ["presentation", /\b(?:pitch|pitching|present|presentation)\b/],
   ["write_doc", /\b(?:viet (?:bao cao|tai lieu|doc|proposal)|bao cao|report|proposal)\b/],
   ["skill", /\b(?:hoc )?(?:guitar|piano|ghi ta|nhay|boi loi)\b|\bhoc dan\b|\bdan (?:guitar|piano|bau)\b|\bhoc ve\b|\bve tranh\b/],
   ["workout_gym", /\b(?:gym|tap ta)\b/],
@@ -83,6 +94,13 @@ const CLASSES: [TaskClass, RegExp][] = [
   ["workout_swim", /\b(?:boi|swim)\b/],
   ["habit_meditate", /\b(?:(?<!hoan )thien|meditation|meditate)\b/],
   ["habit_journal", /\b(?:viet nhat ky|nhat ky|journal)\b/],
+  ["pet", /\b(?:cho (?:ga|cho|meo|ca|chim|tho) an|cho an (?:ga|cho|meo|ca|chim|tho))\b/],
+  ["plants", /\b(?:tuoi (?:cay|hoa|rau|vuon|cay canh)|water (?:the )?plants?)\b/],
+  ["trash", /\b(?:do rac|vut rac|bo rac|trash|garbage)\b/],
+  ["meds", /\b(?:uong thuoc|thuoc|meds|medicine)\b/],
+  ["pickup", /\b(?:(?:don|dua) (?:con|em|be)|di (?:don|dua) (?:con|em|be)|pick ?up|drop ?off)\b/],
+  ["repair", /\b(?:sua (?:xe|dien|may|nha|dien thoai|ong nuoc|tu lanh|dieu hoa|laptop)|repair)\b/],
+  ["selfcare", /\b(?:cat toc|goi dau|go toc|hair ?cut|barber|massage|nhuom toc|uon toc|lam mong)\b/],
   ["clean", /\b(?:don nha|don phong|don bep|don dep|lau nha|lau bep|clean)\b/],
   ["laundry", /\b(?:giat do|giat ui|phoi do|laundry)\b/],
   ["cook", /\b(?:nau an|nau com|nau canh|cook)\b/],
@@ -90,12 +108,24 @@ const CLASSES: [TaskClass, RegExp][] = [
   ["bill", /\b(?:(?:dong|tra|nop) (?:tien )?(?:dien|nuoc|mang|net|internet|nha|hoc phi)|hoc phi|(?:tra|dong) (?:the|no)|tien (?:dien|nuoc|mang|net|internet|nha))\b/],
   ["budget", /\b(?:lap ngan sach|ngan sach|tinh chi tieu|budget)\b/],
   ["tax", /\b(?:khai thue|quyet toan thue|tax)\b/],
+  ["design", /\b(?:thiet ke|design|banner|logo|poster|mockup)\b/],
+  ["content", /\b(?:post|reel|reels|short|shorts|caption|fanpage|(?:edit|quay|lam) video)\b/],
+  ["sales", /\b(?:sales?|ban hang|bao gia|chao hang|chot don|client|quotation)\b/],
+  ["interview", /\b(?:phong van|interview|tuyen dung|recruit|recruiting|ung vien|screening)\b/],
+  ["deploy", /\b(?:deploy|release|rollout|hotfix|len prod|phat hanh)\b/],
+  ["research", /\b(?:nghien cuu|research|phan tich|analysis|analyze|khao sat|survey)\b/],
+  ["admin_work", /\b(?:hop dong|hoa don|cham cong|invoice|contract|bang cong)\b/],
   ["paperwork", /\b(?:lam giay to|giay to|gia han|nop ho so|ho so|lam ho chieu|ho chieu|cccd|nop form)\b/],
   ["email", /\b(?:gui mail|gui email|tra loi (?:mail|email)|email|mail|nhan tin)\b/],
   ["call", /\b(?:goi dien|goi cho|goi|call)\b/],
-  ["meeting", /\b(?:(?<!mua )hop|meeting|standup|stand up|sync)\b/],
-  ["appointment", /\b(?:kham|di kham|nha si|cat toc|gap|hen|bac si|appointment)\b/],
+  ["meeting", /\b(?:(?<!mua )hop|meeting|standup|stand up|sync|one on one|1 on 1)\b/],
+  ["appointment", /\b(?:kham|di kham|nha si|bac si|appointment)\b/],
   ["read", /\b(?:doc|read)\b/],
+  // eating and coffee come after the workouts and reads, so "chạy bộ sau bữa tối" stays a run
+  ["meal_breakfast", /\b(?:an sang|bua sang|breakfast)\b/],
+  ["meal_lunch", /\b(?:an trua|bua trua|lunch)\b/],
+  ["meal_dinner", /\b(?:an toi|bua toi|dinner)\b/],
+  ["cafe", /\b(?:ca phe|cafe|cf|coffee)\b/],
   // last: a course or work project when nothing more specific (meeting, homework, report) named it
   ["project", /\b(?:do an|bai tap lon|btl|capstone|du an)\b/],
 ];
@@ -118,6 +148,10 @@ const DOMAIN: Record<TaskClass, Domain> = {
   workout_gym: "health", workout_run: "health", workout_yoga: "health", workout_swim: "health", appointment: "health",
   clean: "home", laundry: "home", cook: "home", shop: "errand", bill: "finance", budget: "finance", tax: "finance",
   paperwork: "admin", call: "social", email: "work", meeting: "work",
+  content: "work", design: "work", sales: "work", report: "work", plan: "work", interview: "work", deploy: "work",
+  research: "work", spec: "work", presentation: "work", admin_work: "work",
+  pet: "home", plants: "home", trash: "home", repair: "home", meds: "growth", pickup: "errand", selfcare: "growth",
+  meal_breakfast: "home", meal_lunch: "home", meal_dinner: "home", cafe: "social",
 };
 
 /** Words of the patterns above: a token of these is never fuzzed, so "khai" stays "khai" and not "khoa". */

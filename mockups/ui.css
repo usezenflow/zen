@@ -65,12 +65,17 @@ body { font-family: 'Be Vietnam Pro', system-ui, sans-serif; background: var(--p
 .r .tx { flex: 1; min-width: 0; align-self: stretch; display: flex; flex-direction: column; justify-content: center; padding: 6px 0; margin: -15px 0; padding-top: 17px; padding-bottom: 17px; line-height: 1.4; }
 .r b { font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .r small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 15px; color: var(--muted); font-weight: 500; margin-top: 2px; }
-.r .tm { font-size: 15px; color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
+.r .tm { font-size: 15px; color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.r .tm small { overflow: visible; margin-top: 0; font-size: 15px; font-weight: 400; color: var(--muted); } /* the end: same size, regular, muted; its +1 may hang out */
+.r .tm > * { position: relative; }
+.r .tm sup { position: absolute; left: 100%; top: -3px; margin-left: 1px; font-size: 10px; font-weight: 700; color: var(--seal); line-height: 12px; } /* hangs past the column: the times stay aligned */ /* a day over: +1 on the end, -1 on the next day's start */
+.r.done .tm { color: var(--muted); }
 .r.done b { text-decoration: line-through; color: var(--muted); }
 .ck { width: 34px; height: 34px; border-radius: 50%; border: 1.5px solid var(--line); flex-shrink: 0; display: grid; place-items: center; }
 .ck.on { border: none; background: var(--chip); color: var(--ink); }
 .ck.late { border-color: var(--seal); }
 .r.late .tm { color: var(--seal); }
+.r.late .tm small { color: var(--muted); }
 .ck.pop { border: none; background: var(--ink); color: var(--bg); transform: scale(1.12); box-shadow: 0 0 0 7px var(--chip); }
 .sw-art { width: 34px; height: 34px; border-radius: 50%; overflow: hidden; flex-shrink: 0; }
 .sw-art svg { width: 100%; height: 100%; display: block; }

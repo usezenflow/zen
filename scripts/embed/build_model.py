@@ -23,7 +23,7 @@ TRI_ALPHA = 1.0  # ridge strength for the trigram table
 
 
 def fnv_bucket(s: str) -> int:
-    # Same hash as src/lib/nlu/vec.ts: FNV-1a over UTF-16 code units, folded into B buckets.
+    # Same hash as src/lib/nlu/embed.ts (bucket): FNV-1a over UTF-16 code units, folded into B buckets.
     h = 0x811C9DC5
     data = s.encode("utf-16-le")
     for i in range(0, len(data), 2):

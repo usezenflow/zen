@@ -2,10 +2,12 @@
 // The keys are still in the word (a mark is the key that made it), so the word is read back to its keys and kept only
 // when they spell a term below. A real Vietnamese syllable is never touched ("lít" stays a litre, not "list").
 import { isSyllable } from "./syllables";
+import { isFrequentSyllable } from "./vifreq";
+import { EN_CANON } from "./en";
 
 /** The English words students type in a task. Short words that are also Telex spellings of Vietnamese ("car" is "cả") stay out. */
-export const TELEX_TERMS = new Set(
-  (
+export const TELEX_TERMS = new Set([
+  ...(
     "web website deadline meeting meet report slide slides quiz test exam midterm final project assignment homework " +
     "seminar workshop online offline zoom teams google classroom class course lecture submit review demo presentation " +
     "present team teamwork group email mail form file word excel powerpoint docs drive code coding server database " +
@@ -18,7 +20,10 @@ export const TELEX_TERMS = new Set(
     "session training tutorial tutor follow view show now how know network keyword password software hardware " +
     "framework workflow worksheet workout walk swimming week weekend wednesday tomorrow today"
   ).split(" "),
-);
+  // the canon terms Telex can mangle and untelex can read back: 5+ letters (shorter ones fall under its length gate).
+  // shortcut: "microsoft" typed in Telex is "micồt", two marks deep that untelex does not undo; upgrade with the untelex key rules.
+  ...Object.keys(EN_CANON).filter((k) => k.length >= 5 && k !== "microsoft"),
+]);
 
 const TONE: Record<string, string> = { "́": "s", "̀": "f", "̉": "r", "̃": "x", "̣": "j" };
 const TONE_KEYS = ["s", "f", "r", "x", "j"];
@@ -28,7 +33,7 @@ const MARKED = /[̀-̛̣̃̆̉̂đ]/;
 const PAIRS = new Set("ai ao au ay eo eu ia ie iu oa oe oi oo ua ue ui uo uu uy ye".split(" "));
 /** A word that can be Vietnamese: a syllable by its letters, its vowels and the tone its final allows ("mêt" has none). */
 function vietnamese(w: string): boolean {
-  if (!isSyllable(w)) return false;
+  if (!isSyllable(w) || !isFrequentSyllable(w)) return false;
   const nfd = w.normalize("NFD");
   const plain = nfd.replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d");
   const vowels = /[aeiouy]+/.exec(plain)?.[0] ?? "";

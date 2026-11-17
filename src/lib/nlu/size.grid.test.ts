@@ -181,3 +181,49 @@ describe("sizeOf practice", () => {
     expect(size("đọc 20 cuốn sách", { spanEnd: SPAN_END })).toMatchObject({ perSitting: 90, tight: true });
   });
 });
+
+const plain = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").replace(/đ/g, "d").replace(/Đ/g, "D");
+// Each new class: a phrasing, and a 1-letter typo of it. Sized the same with accents, without them, and as typed.
+const NEW_CLASSES: [string, string, string][] = [
+  ["content", "làm reel cho fanpage", "reeel cho fanpage"],
+  ["design", "thiết kế banner", "desing banner"],
+  ["sales", "bán hàng cho khách", "bán hàng cho khahc"],
+  ["report", "báo cáo tuần", "reprot tuần"],
+  ["plan", "kế hoạch quý 1", "ke hoach quý 1"],
+  ["interview", "phỏng vấn ứng viên", "intervew ứng viên"],
+  ["deploy", "deploy bản mới", "deplyo bản mới"],
+  ["research", "nghiên cứu thị trường", "reserach thị trường"],
+  ["spec", "viết spec tính năng", "viết spec tính năng"],
+  ["presentation", "pitch startup", "pitch startupp"],
+  ["admin_work", "chấm công tháng 11", "cham cong tháng 11"],
+  ["pet", "cho gà ăn", "cho ga an"],
+  ["plants", "tưới cây", "tươi cây"],
+  ["trash", "đổ rác", "dổ rác"],
+  ["meds", "uống thuốc", "uống thuốc"],
+  ["pickup", "đón con đi học", "đón con đi hcọ"],
+  ["repair", "sửa xe máy", "sưa xe máy"],
+  ["selfcare", "cắt tóc", "cắt tóc"],
+];
+describe("sizeOf new classes, all phrasings", () => {
+  for (const [cls, title, typo] of NEW_CLASSES) {
+    it(`${cls}: ${title} sizes the same as plain and typo`, () => {
+      const s = size(title);
+      expect(size(plain(title))).toEqual(s);
+      expect(size(typo)).toEqual(s);
+    });
+  }
+  for (const title of ["cho gà ăn", "cho ăn gà", "tưới cây", "đổ rác", "uống thuốc", "cho cá ăn", "đổ rác"]) {
+    it(`micro chore ${title}: 15 minutes, one sitting`, () => {
+      expect(size(title)).toMatchObject({ shape: "errand", total: 15, sittings: 1 });
+    });
+  }
+  it("a real work task is 30-minute steps: report 90 minutes", () => {
+    expect(size("báo cáo tuần")).toMatchObject({ total: 90, sittings: 1, dueInDays: 3 });
+  });
+});
+
+describe("sizeOf with a class the table lacks", () => {
+  it("sizes it as a plain errand instead of crashing (a stale heads.json)", () => {
+    expect(sizeOf({ objects: ["x"], group: false, hard: false, cls: "gone" as never }, { now: NOW })).toMatchObject({ shape: "errand", total: 60 });
+  });
+});

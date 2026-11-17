@@ -1,11 +1,11 @@
 // Synthetic user over 30 days: full model vs greedy vs LinUCB on the hour only.
 import type { Kind, Task } from "../lib/types";
-import { DAY, HOUR, MIN, cdist, hourOf } from "./features";
+import { DAY, HOUR, KINDS, MIN, cdist, hourOf } from "./features";
 import { type Model, learn, newModel, plan } from "./index";
 import type { Busy } from "./place";
 
 export type Variant = "full" | "hour" | "greedy";
-const PREF: Record<Kind, number> = { study: 20, exercise: 7, chores: 17, social: 19, other: 12 };
+const PREF: Record<Kind, number> = { study: 20, exercise: 7, chores: 17, social: 19, other: 12, work: 10, errand: 11, finance: 14, self: 8 };
 const SLIP_KIND: Kind = "study";
 
 function rngOf(seed: number) {
@@ -14,7 +14,7 @@ function rngOf(seed: number) {
 }
 const vecOf = (kind: Kind, r: () => number) => {
   const v = new Float32Array(16).fill(0);
-  v[["study", "exercise", "chores", "social", "other"].indexOf(kind)] = 1;
+  v[KINDS.indexOf(kind)] = 1;
   for (let i = 5; i < 16; i++) v[i] = (r() - 0.5) * 0.2;
   return v;
 };

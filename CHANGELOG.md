@@ -12,6 +12,37 @@
     - Về được cả tuần, tháng đã qua
     - Thẻ việc đang kéo nằm giữa, ngay trên ngón tay
     - Ô T2, CN không còn bị cắt khi kéo qua
+- Hiểu nhiều loại việc hơn, không còn dồn vào "Việc khác"
+    - Thêm loại: công việc, việc vặt, tài chính, bản thân
+    - Nhận ra marketing, đăng reel, thiết kế, deploy, phỏng vấn, báo cáo tuần, OKR, cho gà ăn, tưới cây, đổ rác, uống thuốc...
+    - Gõ sai, không dấu, nói ngược thứ tự vẫn hiểu
+- Ít phải nói làm bao lâu
+    - Việc nhỏ như cho gà ăn, đổ rác, tưới cây, uống thuốc tự lấy 15p
+    - Việc giống việc bạn từng làm thì lấy đúng thời gian bạn đã làm, theo nghĩa chứ không chỉ theo chữ
+- Tên việc gọn hơn: bỏ "tí nữa", "lát về", "giúp mình", "nhé"...; "tí nữa" hiểu là trong hôm nay
+- Từ tiếng Anh viết đúng
+    - OKR, PR, GTM, KPI, CPU, RAM, GPU, Wi-Fi, iPhone, TikTok, Figma, CI/CD, check-in...
+    - Gõ sai vẫn sửa ("markting" → marketing); nói kiểu Việt cũng hiểu: ma két tinh, rì viu, đì dai, pốt, hát tác, sờ pờ rin, át min...
+- Đọc đúng hơn
+    - "lên TV2", "xuống B1": lấy được phòng; tin nhắn kiểu "@All chiều mai 16:00 (17/11) các nhóm lên TV2..." thành đúng một việc
+    - "họp nhóm tuần sau lúc 9h" vào T2 tuần sau; "22h đến 1h sáng" qua nửa đêm
+    - Ngày âm lịch: "15 âm", "mùng 1 âm", "rằm tháng giêng"; khoảng "quý này", "học kỳ này", "năm nay"
+    - Không nói giờ thì không tự đặt giờ cố định, kể cả họp có khoảng ("họp nhóm tuần sau") và việc lặp mỗi ngày
+- Xếp lịch thông minh hơn
+    - Xong sớm hay xoá một việc: việc sau được kéo lên chỗ trống, việc gấp chưa có giờ được ưu tiên trước
+    - Buổi đã kín mà thêm việc gấp: việc hạn xa nhường chỗ, việc bạn tự đặt giờ thì giữ nguyên
+    - Việc có hạn được xếp xong sớm, khoảng 3/4 quãng tới hạn
+    - Không có gì mới thì không xáo trộn lịch
+- Danh sách: giờ kết thúc nằm dưới giờ bắt đầu, cùng cỡ chữ, chạm từng giờ để sửa; qua nửa đêm hiện +1, hôm sau hiện -1
+- Chi tiết việc
+    - Giờ bắt đầu - kết thúc trên một dòng; chỉnh giờ kết thúc trước giờ bắt đầu là sang hôm sau
+    - Tự sửa được cả giờ đã qua; zen thì không bao giờ xếp vào quá khứ
+    - "Còn nữa" ở buổi cuối: chưa xong thì thêm một buổi, lần sau đoán dài hơn
+- Việc lặp mỗi ngày: hiện 14 ngày tới, còn lại gộp thành "+16 buổi · đến 16/12"
+- Chia sẻ chữ, link, ảnh, PDF từ app khác vào zen
+- Thông báo mới: Online/LMS không nhận mật khẩu (nếu bạn không đổi thì nên kiểm tra); lịch thi đổi giờ; hạn nộp đổi; lớp bù; lớp, lịch thi bị huỷ
+- Học phí, điểm: "HK1" thay vì "HKHK01"; ngày đã đóng hiện đúng; "kỳ sau xem lại" đúng tháng
+- Nhỏ khác: xong hết việc buổi tối hiện "Hôm nay xong rồi · Mai 8:00, ..."; thông báo xếp xong đếm theo việc ("Xếp xong 11 việc · Bài luận chia 3 buổi"); thời khoá biểu ghi rõ học kỳ; gợi ý thói quen "Tập thể dục xong thì đọc sách nhé"
 
 ## 26.0.6
 

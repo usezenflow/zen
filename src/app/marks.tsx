@@ -1,4 +1,4 @@
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCallback, useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -15,6 +15,7 @@ import { useTheme, font, space, ff } from "@/lib/theme";
 const num = (n: number | null | undefined, d = 2) => (n == null ? "" : n.toFixed(d).replace(".", ","));
 
 export default function Marks() {
+  const { top } = useSafeAreaInsets(); // a full screen: the safe area stands in for the mockup's 54px; in the settings sheet it is 0
   const th = useTheme();
   const [m, setM] = useState<ParsedMarks | null>();
   const load = useCallback(() => void getMarks().then(setM), []);
@@ -22,7 +23,7 @@ export default function Marks() {
   const terms = [...(m?.terms ?? [])].reverse();
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: th.bg }}>
-      <ScrollView contentContainerStyle={{ padding: space.gutter, paddingBottom: 60 }}>
+      <ScrollView contentContainerStyle={{ padding: space.gutter, paddingTop: top ? 0 : space.gutter, paddingBottom: 60 }}>
         <PartHead part="marks" title={t("marks")} onLand={load} />
         {!m?.marks.length ? (
           m !== undefined && <Animated.View entering={fadeIn}><RestCard lab={t("cumulative")} title={t("noMarksT")} sub={t("noMarks")} h={150} /></Animated.View>
@@ -42,7 +43,7 @@ export default function Marks() {
             {terms.map((tm, ti) => (
               <Animated.View key={`${tm.yearStudy}|${tm.termId}`} entering={FadeInDown.delay(60 + Math.min(ti, 8) * 30).duration(220).easing(EASE)}>
                 <View style={[s.labRow, ti > 0 && { marginTop: 20 }]}>
-                  <Text style={[s.labT, { color: th.muted }]}>{t("termOf", { t: tm.termId, y: tm.yearStudy })}</Text>
+                  <Text style={[s.labT, { color: th.muted }]}>{t("termOf", { t: tm.termId.replace(/^HK0?/, ""), y: tm.yearStudy })}</Text>
                   <Text style={[s.labT, { color: th.muted }]}>{num(tm.gpa4)}</Text>
                 </View>
                 {m.marks.filter((k) => k.credits > 0 && k.yearStudy === tm.yearStudy && k.termId === tm.termId).map((k, i) => (

@@ -50,6 +50,20 @@
       ],
       "expo-sqlite",
       "expo-secure-store",
+      [
+        "expo-sharing",
+        {
+          "ios": {
+            "enabled": true,
+            "activationRule": { "supportsText": true, "supportsWebUrlWithMaxCount": 1, "supportsImageWithMaxCount": 1, "supportsFileWithMaxCount": 1 }
+          },
+          "android": {
+            "enabled": true,
+            "singleShareMimeTypes": ["text/*", "image/*", "application/pdf"],
+            "multipleShareMimeTypes": []
+          }
+        }
+      ],
       "expo-background-task",
       [
         "expo-speech-recognition",

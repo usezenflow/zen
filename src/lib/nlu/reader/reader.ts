@@ -12,10 +12,11 @@ import { hintsOf } from "./hints";
 import {
   clauseItems,
   fallbackTask,
+  laterToday,
+  leadsFiller,
   findAnnouncementTopic,
   findCourseTitle,
   applyPrior,
-  workloadMinutes,
   type Ctx,
   type Prior,
   firstUrl,
@@ -31,6 +32,7 @@ import { repairsOf, repairWord } from "./repairs";
 import { bareTitle, segment, type Clause } from "./segment";
 import { findMentions as findDates } from "./mentions";
 import { sizeItems } from "./sizing";
+import { isMicro, defaultMinutes } from "../size";
 import { ocrSchedule } from "./table";
 /** Options of `read`. The controller maps `ReadRequest` onto it. */
 export interface ReadOpts {
@@ -393,13 +395,8 @@ export function read(raw: string, opts: ReadOpts): ReaderResult {
         .replace(/\s{2,}/g, " ")
         .trim() || it.title;
 
-  // the activity's length and parts of the day come before the history prior, which overrides them
-  for (const it of items)
-    applyImplied(
-      it,
-      opts.ref,
-      workloadMinutes(it.type, `${it.evidence} ${it.title}`) !== undefined,
-    );
+  // the activity's parts of the day come before the history prior, which overrides them
+  for (const it of items) applyImplied(it, opts.ref);
   for (const it of items) applyPrior(it, opts.prior);
   // the class sizes what the words did not: length, sittings, due, repeat (a said one stays)
   const sizeOpts = { ref: opts.ref, source: opts.source, calendar: opts.calendar, affinity: opts.affinity, classMult: opts.classMult };
@@ -408,7 +405,7 @@ export function read(raw: string, opts: ReadOpts): ReaderResult {
   // a said length keeps the 15 minute grid ("45p"); a guessed one rounds to 30, at least 30
   for (const it of items)
     if (it.durationMinutes !== undefined)
-      it.durationMinutes = it.inferred.includes("durationMinutes") ? lengthMin(it.durationMinutes) : saidMin(it.durationMinutes);
+      it.durationMinutes = !it.inferred.includes("durationMinutes") ? saidMin(it.durationMinutes) : isMicro(it.cls) ? it.durationMinutes : lengthMin(it.durationMinutes);
 
   // S7: one item per type, title, time and place
   const seen = new Set<string>();
@@ -428,12 +425,15 @@ export function read(raw: string, opts: ReadOpts): ReaderResult {
 
   // text that makes no item still makes one flexible task, unless it is blank
   if (!items.length && raw.trim()) {
-    const fb = fallbackTask(raw);
-    applyImplied(
-      fb,
-      opts.ref,
-      workloadMinutes(fb.type, fb.evidence) !== undefined,
-    );
+    // the repaired words, so a spoken term ("đăng pốt") reads as its form in the title
+    const fb = fallbackTask(rep.text.trim() ? rep.text : raw);
+    applyImplied(fb, opts.ref);
+    if (leadsFiller(fb.evidence) && !findDates(raw).some((m) => m.kind === "date")) laterToday(fb, opts.ref);
+    // a task with no words for a length takes its class's or its kind's (size.ts), never none
+    if (fb.durationMinutes === undefined) {
+      fb.durationMinutes = defaultMinutes(fb.type, fb.evidence);
+      fb.inferred.push("durationMinutes");
+    }
     items = sizeItems(applyDayPick(raw, [fb], opts.calendar), { ref: opts.ref, source: opts.source, calendar: opts.calendar, affinity: opts.affinity, classMult: opts.classMult }, new Set());
   }
 

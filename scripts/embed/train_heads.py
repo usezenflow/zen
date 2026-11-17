@@ -13,10 +13,10 @@ from sklearn.model_selection import GroupKFold
 
 ROOT = Path(__file__).resolve().parents[2]
 BUILD = Path(__file__).parent / "build"
-OUT = ROOT / "src/lib/nlu/model/heads.json"
+OUT = Path(__import__("os").environ.get("HEADS_OUT", ROOT / "src/lib/nlu/model/heads.json"))
 TARGET_PRECISION = 0.90
 NONE = "none"  # the class for titles that name no task class: the head answers nothing for them
-CS = [0.3, 1.0, 3.0, 10.0]
+CS = [0.003, 0.01, 0.03, 0.1, 0.3, 1.0]
 
 
 def taskclasses_and_domains():
@@ -67,28 +67,36 @@ def main() -> None:
     assert set(y) <= set(tc) | {NONE}, set(y) - set(tc) - {NONE}
     print(f"TaskClass {len(tc)} + {NONE}; trained on {len(y)} rows ({int((y == NONE).sum())} NONE) of {len(set(y))} classes; missing from data: {sorted(set(tc) - set(y))}")
 
-    # Pick C by grouped 5-fold accuracy.
+    # Pick (C, threshold) on grouped 5-fold out-of-fold probabilities: precision >= 0.95 on clean rows and >= 0.90 on
+    # noised rows (no diacritics / typo), then the most clean task coverage.
+    aug = np.array([r["aug"] for r in feats["train"]])
+    clean_m = aug == "clean"
+    noisy_m = np.isin(aug, ["nodiac", "typo", "nodiac_typo"])
     cv = GroupKFold(n_splits=5)
-    best_c, best_acc = None, -1
+    best = None
     for C in CS:
-        acc = []
+        oof_p = np.zeros(len(y))
+        oof_pred = np.empty(len(y), dtype=object)
         for tr, te in cv.split(X, y, groups):
             W, b, cls = fit(X[tr], y[tr], C)
-            acc.append((cls[probs(W, b, X[te]).argmax(1)] == y[te]).mean())
-        print(f"C={C}: grouped CV accuracy {np.mean(acc):.3f}")
-        if np.mean(acc) > best_acc:
-            best_c, best_acc = C, np.mean(acc)
-
-    # Out-of-fold probabilities at the chosen C, for the threshold.
-    oof_p = np.zeros(len(y))
-    oof_pred = np.empty(len(y), dtype=object)
-    for tr, te in cv.split(X, y, groups):
-        W, b, cls = fit(X[tr], y[tr], best_c)
-        P = probs(W, b, X[te])
-        oof_p[te] = P.max(1)
-        oof_pred[te] = cls[P.argmax(1)]
-    thr, oof_prec, oof_cov = pick_threshold(oof_p, oof_pred, y)
-    print(f"C={best_c}; threshold {thr} on out-of-fold: precision {oof_prec:.3f}, coverage {oof_cov:.3f}")
+            P = probs(W, b, X[te])
+            oof_p[te] = P.max(1)
+            oof_pred[te] = cls[P.argmax(1)]
+        for t in np.round(np.arange(0.3, 0.995, 0.005), 3):
+            ans = (oof_p >= t) & (oof_pred != NONE)
+            st = []
+            for m in (clean_m, noisy_m):
+                a_ = ans & m
+                st.append(((oof_pred[a_] == y[a_]).mean() if a_.sum() else 1.0, (a_ & (y != NONE)).sum() / (m & (y != NONE)).sum()))
+            ok = st[0][0] >= 0.95 and st[1][0] >= 0.90
+            if ok:
+                print(f"C={C} t={t}: clean prec {st[0][0]:.3f} cov {st[0][1]:.3f}; noised prec {st[1][0]:.3f} cov {st[1][1]:.3f}")
+                if best is None or st[0][1] > best[0]:
+                    best = (st[0][1], C, float(t), st)
+                break
+    assert best, "no (C, threshold) meets the precision targets"
+    _, best_c, thr, st = best
+    print(f"chosen C={best_c}; threshold {thr}: OOF clean precision {st[0][0]:.3f} coverage {st[0][1]:.3f}; noised precision {st[1][0]:.3f} coverage {st[1][1]:.3f}")
 
     W, b, cls = fit(X, y, best_c)
     assert list(cls) == sorted(set(y))

@@ -22,13 +22,13 @@ const after = [[["study", 26], ["exercise", 20]], [["study", 22, "sit", 1], ["st
 const exam = [[["study", 26], ["exercise", 20]], [["study", 22, "sit", 1], ["exercise", 20, "fly"]], [["social", 30], ["study", 22, "sit fly", "ôn"]], [["study", 22, "sit", 2], ["exercise", 20, "ghost"]], [["study", 34, "fx"]], [["exercise", 20]], []];
 mount([
   { tag: "Before", sub: "Three sittings ran to Tuesday. The due date is changed to Saturday on the task.", html: chrome(`<div class="title" style="margin-top:20px">Tuần này</div>${week(before)}`, { dock: "idle" }) },
-  { tag: "After", sub: "Sittings 2 and 3 hop back to Saturday. Ghosts mark where they were.", html: toast("Bài luận xong trước thứ bảy", "2 buổi dời lên sớm") + chrome(`<div class="title" style="margin-top:46px">Tuần này</div>${week(after)}`, { dock: "idle" }) },
-  { tag: "Campus change", sub: "An exam lands from DLU in the background. Gym steps aside, a prep sitting appears. No question asked.", dark: true, html: toast("Có lịch thi mới", "T3 17/11 · thêm buổi ôn, gym dời") + chrome(`<div class="title" style="margin-top:46px">Tuần này</div>${week(exam)}`, { time: "7:12" }) },
+  { tag: "After", sub: "Sittings 2 and 3 hop back to Saturday. Ghosts mark where they were.", html: toast("Đã dời sớm 2 việc", "") + chrome(`<div class="title" style="margin-top:46px">Tuần này</div>${week(after)}`, { dock: "idle" }) },
+  { tag: "Campus change", sub: "An exam lands from DLU in the background. Gym steps aside, a prep sitting appears. No question asked.", dark: true, html: toast("Thêm lịch thi: Giải tích 2", "T3 17/11 8:00", "Xem") + chrome(`<div class="title" style="margin-top:46px">Tuần này</div>${week(exam)}`, { time: "7:12" }) },
   { tag: "Notice, exam", sub: "Each campus change gets its own plain line, named by type. This one: a new exam.", html: toast("Thêm lịch thi: Giải tích 2", "T6 20/11 8:00", "Xem") + chrome(card({ kind: "study", title: "Ôn Giải tích", until: "Đến 15:00", p: "30%" }), { time: "7:12" }) },
   { tag: "Notice, room", sub: "A room change names the class and the new room.", html: toast("Đổi phòng: Cấu trúc dữ liệu", "Sang A2.301", "Xem") + chrome(card({ kind: "study", title: "Ôn Giải tích", until: "Đến 15:00", p: "30%" }), { time: "7:12" }) },
   { tag: "Notice, timetable", sub: "When a new semester goes live the whole timetable arrives at once.", html: toast("Thời khoá biểu học kỳ 1 đã có", "42 tiết, đã xếp vào tuần", "Xem") + chrome(card({ kind: "study", title: "Ôn Giải tích", until: "Đến 15:00", p: "30%" }), { time: "7:12" }) },
   { tag: "Notice, marks", sub: "Marks updated opens the Marks screen.", html: toast("Điểm vừa cập nhật", "Giải tích 2: 8,6", "Xem") + chrome(card({ kind: "study", title: "Ôn Giải tích", until: "Đến 15:00", p: "30%" }), { time: "7:12" }) },
-  { tag: "Habit", sub: "The insight line uses a fixed template. It shows only when a habit moved something.", html: toast("Tập xong thì đọc nhé", "Đọc sách dời sang 18:30") + chrome(card({ kind: "exercise", title: "Gym", until: "Đến 18:15", p: "64%" }), { time: "17:41" }) },
+  { tag: "Habit", sub: "The insight line uses a fixed template. It shows only when a habit moved something.", html: toast("Tập thể dục xong thì đọc sách nhé", "Đọc sách dời sang 18:30") + chrome(card({ kind: "exercise", title: "Gym", until: "Đến 18:15", p: "64%" }), { time: "17:41" }) },
 ]);
 </script>
 </body>

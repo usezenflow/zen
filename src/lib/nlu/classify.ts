@@ -23,7 +23,8 @@ export function classify(title: string): Classified {
   for (let c = 0; c < z.length; c++) sum += Math.exp(z[c] - z[top]);
   const p = 1 / sum;
   const name = heads.classes[top];
-  if (name === NONE || p < heads.threshold) return { p }; // NONE: the title names no task class
+  // NONE: the title names no task class. A class the domain table lacks (heads.json built from another frame.ts) is no answer either.
+  if (name === NONE || p < heads.threshold || !(name in heads.domain)) return { p };
   const cls = name as TaskClass;
   return { cls, p, domain: heads.domain[cls as keyof typeof heads.domain] as Domain };
 }

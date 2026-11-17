@@ -25,3 +25,8 @@ it("reminds open timed tasks 10 min ahead, soonest first", () => {
   expect(r[2].body).toBe("Bắt đầu lúc 12:00 · A1.2");
   expect(r[3].body).toBe("Bắt đầu lúc 13:00 · Hạn CN 22:00"); // an assignment block names its deadline
 });
+
+it("an assignment block names its due date across weeks, the same as the card", () => {
+  const r = upcoming([task("essay", Date.UTC(2026, 10, 16, 2), { deadline: Date.UTC(2026, 10, 23, 16, 59) })], now);
+  expect(r[0].body).toBe("Bắt đầu lúc 9:00 · Hạn T2 23/11 23:59");
+});

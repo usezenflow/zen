@@ -35,18 +35,18 @@ describe("S0 step 6, kerning", () => {
 describe("S0 step 8, telex and VNI", () => {
   it("decodes a telex tone key", () => {
     expect(decodeTyped("thuws")).toBe("thứ");
-    expect(decodeTyped("nopj")).toBe("nọp");
+    expect(decodeTyped("noopj")).toBe("nộp");
   });
 
   it("decodes VNI marks and tone digits", () => {
     expect(decodeTyped("ho5c")).toBe("học");
-    expect(decodeTyped("tie6ng")).toBe("tiêng");
+    expect(decodeTyped("tie6ng1")).toBe("tiếng");
   });
 
   it("decodes the typed words in a Vietnamese line", () => {
     expect(repair("Hạn nộp thuws bài", "typed").text).toBe("Hạn nộp thứ bài");
-    expect(repair("Hạn nộp ho5c tie6ng", "typed").text).toBe(
-      "Hạn nộp học tiêng",
+    expect(repair("Hạn nộp ho5c tie6ng1", "typed").text).toBe(
+      "Hạn nộp học tiếng",
     );
   });
 

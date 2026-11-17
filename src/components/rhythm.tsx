@@ -5,7 +5,7 @@ import { Meter } from "@/components/meter";
 import { SwipeDelete } from "@/components/row";
 import { fadeIn } from "@/components/tap";
 import { t } from "@/lib/i18n";
-import { KIND_VI } from "@/lib/reasons";
+import { KIND_VI, kindW } from "@/lib/reasons";
 import { useTheme, font, ff } from "@/lib/theme";
 import type { Kind, Rule } from "@/lib/types";
 import { EARLY, PROMOTE, type Insights } from "@/planner";
@@ -71,8 +71,8 @@ export function Rhythm({ i, rules, onForget }: { i: Insights; rules: Rule[]; onF
         : i.seen ? <Card title={t("moreN", { n: Math.max(1, EARLY - i.seen) })} sub={t("seenSub")} />
         : <Card title={t("learningT")} sub={t("learningSub")} />)}
       {pair && <Card title={t("pairTitle", { k: KIND_VI[pair.before] })} sub={t("pairSub")}><Chip kind={pair.before} /></Card>}
-      {kind && <Card title={t("kindTitle", { k: KIND_VI[kind.kind], a: kind.from, b: kind.to })} sub={t("kindSub")}><Chip kind={kind.kind} /><Meter v={kind.sure} /></Card>}
-      {slip && <Card title={t("slipTitle", { k: KIND_VI[slip.kind] })} sub={t("slipSub", { n: Math.round(slip.rate * 10) })}><Meter v={slip.rate} /></Card>}
+      {kind && <Card title={t("kindTitle", { k: kindW(kind.kind, true), a: kind.from, b: kind.to })} sub={t("kindSub")}><Chip kind={kind.kind} /><Meter v={kind.sure} /></Card>}
+      {slip && <Card title={t("slipTitle", { k: kindW(slip.kind, true) })} sub={t("slipSub", { n: Math.round(slip.rate * 10) })}><Meter v={slip.rate} /></Card>}
       {un && <Card title={t("unsureTitle", { a: un.from, b: un.to })} sub={t("unsureSub")} />}
 
       <Text style={[s.lab2, { color: th.muted }]}>{t("saidByYou")}</Text>

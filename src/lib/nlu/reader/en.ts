@@ -1,3 +1,5 @@
+import { fold } from "./fold";
+import { isSyllable } from "./syllables";
 // English words and tech/work/life terms people type in a task. The Telex and VNI decoders keep these as typed:
 // "tree" is not "trê", "os" is not "ó", "bus" is not "bú". Lowercase, one per entry. Every TELEX_TERMS word and
 // every word the decoder used to keep is in here too. Do not add a common Telex spelling of a Vietnamese syllable
@@ -167,5 +169,127 @@ yard year yellow yes yesterday yet yield you young your youth
 zero zone zoo zoom
 `;
 
-/** English words and tech terms a Telex or VNI reading must not change. */
-export const EN_WORDS = new Set(WORDS.split(/\s+/).filter(Boolean));
+
+/**
+ * Work, marketing, tech, study and product terms with their display form, one per entry: "key" when the display is the key,
+ * "key=Display" otherwise. Single tokens only. A key that reads as a Vietnamese syllable ("ai", "ba", "ui") stays out of
+ * EN_CANON (its casing and typos are Vietnamese) but is still in EN_WORDS.
+ */
+const CANON = `
+okr=OKR kpi=KPI kr=KR gtm=GTM pr=PR mr=MR cr=CR pm=PM po=PO ba=BA bd=BD qa=QA qc=QC hr=HR ceo=CEO cto=CTO cfo=CFO coo=COO
+b2b=B2B b2c=B2C roi=ROI sop=SOP sla=SLA mvp=MVP poc=POC pic=PIC ot=OT wfh=WFH cv=CV jd=JD payroll invoice budget
+forecast pipeline lead deal client partner vendor stakeholder meeting call workshop webinar event booth launch release
+standup sync retro sprint backlog roadmap milestone deadline timeline scope spec brief proposal pitch deck report
+review feedback onboarding offboarding interview offer
+marketing branding brand content copy caption post story reel short video livestream kol=KOL koc=KOC influencer
+campaign ads seo=SEO sem=SEM ctr=CTR cpc=CPC cpm=CPM crm=CRM funnel persona insight trend viral engagement follower
+media social fanpage page inbox comment hashtag thumbnail edit render mockup banner poster logo layout template design
+ui=UI ux=UX figma=Figma canva=Canva capcut=CapCut
+code coding debug bug fix test deploy build merge commit push pull branch repo refactor api=API backend frontend
+fullstack database db=DB sql=SQL server cloud aws=AWS gcp=GCP azure=Azure docker=Docker app web website mobile
+ios=iOS android=Android data dashboard model ai=AI ml=ML llm=LLM prompt workspace sequence flow workflow script
+crawl tool plugin slide
+deadline assignment quiz midterm final project essay thesis presentation group team lab tutorial lecture zoom=Zoom
+meet=Meet teams=Teams lms=LMS gpa=GPA ielts=IELTS toeic=TOEIC toefl=TOEFL speaking writing listening reading vocab
+grammar homework note mindmap notion=Notion quizlet=Quizlet duolingo=Duolingo
+gym yoga cardio workout healthy diet order bill card visa banking momo=Momo zalopay=ZaloPay vnpay=VNPay grab=Grab
+shopee=Shopee lazada=Lazada tiki=Tiki cashback voucher sale ship shipper cod=COD checkin
+google=Google gmail=Gmail drive=Drive docs=Docs sheets=Sheets youtube=YouTube facebook=Facebook messenger=Messenger
+instagram=Instagram threads=Threads zalo=Zalo tiktok=TikTok telegram=Telegram discord=Discord slack=Slack jira=Jira
+trello=Trello asana=Asana clickup=ClickUp github=GitHub gitlab=GitLab chatgpt=ChatGPT openai=OpenAI claude=Claude
+gemini=Gemini microsoft=Microsoft excel=Excel word=Word powerpoint=PowerPoint outlook=Outlook apple=Apple
+samsung=Samsung viettel=Viettel vnpt=VNPT fpt=FPT vng=VNG vingroup=Vingroup vinfast=VinFast vinamilk=Vinamilk
+techcombank=Techcombank vietcombank=Vietcombank vpbank=VPBank mb=MB acb=ACB bidv=BIDV tpbank=TPBank zen=Zen flow
+orca=Orca dlu=DLU
+cpu=CPU gpu=GPU ssd=SSD hdd=HDD usb=USB vpn=VPN dns=DNS url=URL html=HTML css=CSS js=JS ts=TS json=JSON pdf=PDF
+pc=PC iot!=IoT nas=NAS wan=WAN 4g=4G 5g=5G wifi=Wi-Fi bluetooth=Bluetooth hdmi=HDMI linux=Linux windows=Windows
+macos=macOS iphone=iPhone ipad=iPad macbook=MacBook
+ram!=RAM lan!=LAN os!=OS ip!=IP
+`;
+
+/**
+ * Multi-word terms, matched across spaces, hyphens, slashes, ampersands and colons, case-insensitive, and written in the display
+ * form. The English term keeps its own letters: "check in" "check-in" are one term.
+ */
+const PHRASES: [string, string][] = [
+  ["A/B test", "A/B test"], ["landing page", "Landing page"], ["all hands", "All-hands"], ["check in", "Check-in"],
+  ["check out", "Check-out"], ["unit test", "Unit test"], ["1:1", "1:1"], ["CI/CD", "CI/CD"], ["P&L", "P&L"],
+  ["TikTok Shop", "TikTok Shop"], ["Xanh SM", "Xanh SM"], ["meal prep", "Meal prep"],
+];
+const PHRASE_RES = PHRASES.map(([term, display]) => {
+  const toks = term.split(/[\s\/&:]+/).map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  return [new RegExp(`(?<![\\p{L}\\d])${toks.join("[\\s\\-\\/&:]+")}(?![\\p{L}\\d])`, "giu"), display] as const;
+});
+/** The display form of every multi-word term in a title. */
+export function canonPhrases(title: string): string {
+  // same length only: the caller's word offsets (spans) stay valid
+  return PHRASE_RES.reduce((t, [re, display]) => t.replace(re, (m) => (m.length === display.length ? display : m)), title);
+}
+
+/** Every term key of CANON, syllable or not. */
+function CANON_KEYS(): string[] {
+  return CANON.split(/\s+/).filter(Boolean).map((e) => e.split(/[=!]/)[0]);
+}
+
+/** Keys marked "!" in CANON (ram, lan, os, ip, iot) read as Vietnamese syllables: they apply only to an unaccented token typed in lower case. */
+const FORCED: Record<string, string> = Object.fromEntries(
+  CANON.split(/\s+/).filter((e) => e.includes("!=")).map((e) => {
+    const [k, d] = e.split("!=");
+    return [k, d] as const;
+  }),
+);
+
+/** Folded key to display form. Keys that read as Vietnamese syllables are left out (see CANON). */
+export const EN_CANON: Record<string, string> = Object.fromEntries(
+  CANON.split(/\s+/)
+    .filter((e) => e && !e.includes("!"))
+    .map((e) => {
+      const [k, d] = e.split("=");
+      return [k, d ?? k] as const;
+    })
+    .filter(([k]) => !isSyllable(k)),
+);
+
+/** English words and tech terms a Telex or VNI reading must not change: every word above and every term of CANON. */
+export const EN_WORDS = new Set([...WORDS.split(/\s+/), ...CANON_KEYS()].filter(Boolean));
+
+/** Edit distance, stopping early once it passes `max`. */
+function editsWithin(a: string, b: string, max: number): boolean {
+  if (Math.abs(a.length - b.length) > max) return false;
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++)
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    if (Math.min(...cur) > max) return false;
+    prev = cur;
+  }
+  return prev[b.length] <= max;
+}
+
+const CANON_TYPO_KEYS = Object.keys(EN_CANON).filter((k) => k.length >= 4);
+
+/**
+ * The display form of one word that is an English term: its casing ("markeTing"), or a typo of exactly one term: a word of
+ * 4+ letters that is no Vietnamese syllable and is within one edit of one term (two for 8+ letters). Undefined otherwise.
+ */
+export function canonWord(word: string): string | undefined {
+  const f = fold(word).text;
+  if (!/^[a-z\d]+$/.test(f)) return undefined;
+  // a lowercase display keeps the typed case ("Web" stays); only a display with capitals is the casing
+  if (Object.hasOwn(FORCED, f) && /^[a-z\d]+$/.test(word)) return FORCED[f];
+  if (Object.hasOwn(EN_CANON, f)) return EN_CANON[f] === f ? undefined : EN_CANON[f];
+  // an English word of its own ("memo", "store") is no typo of a term
+  if (!/^[a-z]+$/.test(f) || f.length < 4 || isSyllable(word) || EN_WORDS.has(f)) return undefined;
+  const max = f.length >= 8 ? 2 : 1;
+  const hits = CANON_TYPO_KEYS.filter((k) => editsWithin(f, k, max));
+  return hits.length === 1 ? EN_CANON[hits[0]] : undefined;
+}
+
+/** `canonWord` on a token, keeping the punctuation around it. */
+export function canonToken(tok: string): string {
+  const m = /^([^\p{L}\d]*)(.*?)([^\p{L}\d]*)$/u.exec(tok);
+  if (!m || !m[2]) return tok;
+  const d = canonWord(m[2]);
+  return d ? m[1] + d + m[3] : tok;
+}

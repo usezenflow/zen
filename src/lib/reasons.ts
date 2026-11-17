@@ -2,7 +2,10 @@
 import { fill } from "./i18n";
 import type { Kind, Reason, ReasonKey, Step } from "./types";
 
-export const KIND_VI: Record<Kind, string> = { study: "học", exercise: "tập thể dục", chores: "việc nhà", social: "gặp gỡ", other: "việc khác" };
+export const KIND_VI: Record<Kind, string> = { study: "học", exercise: "tập thể dục", chores: "việc nhà", social: "gặp gỡ", other: "việc khác", work: "công việc", errand: "việc vặt", finance: "tài chính", self: "bản thân" };
+
+/** A kind as "việc …" ("việc học", "công việc", "việc nhà"), capitalised on ask: one wording for reasons and rhythm. */
+export const kindW = (k: Kind, up = false) => { const w = /việc/.test(KIND_VI[k]) ? KIND_VI[k] : `việc ${KIND_VI[k]}`; return up ? w[0].toLocaleUpperCase("vi") + w.slice(1) : w; };
 
 // Row sub line: 4 to 6 words. Detail: the full sentence. Negative w uses `neg` (what counts against this time).
 // Each entry lists its wordings best first; the first whose {vars} are all known is said. Facts come in loose words, not minute math.
@@ -14,7 +17,7 @@ const R: Record<ReasonKey, W> = {
   energy: { short: ["Đúng lúc bạn khoẻ"], long: ["Gần giờ bạn làm được nhiều nhất"], neg: "Hơi xa giờ bạn khoẻ nhất" },
   weekend: { short: ["Cuối tuần thong thả"], long: ["Cuối tuần bạn hay có thời gian cho việc này"], neg: "Ngày thường hợp hơn một chút" },
   busy: { short: ["Ngày nhẹ lịch"], long: ["Hôm đó ít lịch, dễ thở hơn"], neg: "Hôm đó lịch đã dày" },
-  kind: { short: ["Hợp việc {kind}"], long: ["Giờ này hợp với việc {kind}"], neg: "Giờ này ít hợp việc {kind}" },
+  kind: { short: ["Hợp {kind}"], long: ["Giờ này hợp với {kind}"], neg: "Giờ này ít hợp {kind}" },
   deadline: { short: ["{ahead}", "Hạn {due}, làm sớm"], long: ["Hạn {due}, {aheadLong}", "Hạn {due}, xếp sớm cho khỏi dồn vào phút chót"], neg: "Hơi sát hạn {due}" },
   pace: { short: ["Buổi {k}/{n}"], long: ["Buổi {k}/{n}, rải đều tới hạn"], neg: "Các buổi hơi dồn" },
   load: { short: ["Ngày này còn rộng"], long: ["Ngày này còn rộng, không quá tải"], neg: "Ngày này đã {h}h" },
@@ -37,8 +40,8 @@ const R: Record<ReasonKey, W> = {
 const vars = (r: Reason) => {
   const v: Record<string, string | number> = { ...r.vars };
   if (typeof v.prev === "string" && v.prev in KIND_VI) v.prev = KIND_VI[v.prev as Kind];
-  if (typeof v.kind === "string" && v.kind in KIND_VI) v.kind = KIND_VI[v.kind as Kind];
-  if (typeof v.kind === "string") v.kind = v.kind.replace(/^việc /, ""); // "Hợp việc nhà", not "Hợp việc việc nhà"
+  if (typeof v.kind === "string" && v.kind in KIND_VI) v.kind = kindW(v.kind as Kind); // "Hợp việc nhà", "Hợp công việc"
+  else if (typeof v.kind === "string" && !/việc/.test(v.kind)) v.kind = `việc ${v.kind}`; // a label already said (policy's own)
   if (typeof v.left === "number") { // minutes from the end of this block to the due
     const d = Math.floor(v.left / 1440);
     v.ahead = d >= 2 ? `Còn ${d} ngày tới hạn, làm dần` : v.left >= 180 ? "Xong sớm, còn dư giờ" : "Vừa kịp hạn";

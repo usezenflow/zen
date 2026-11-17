@@ -4,6 +4,7 @@ import { MAX_TASK_MINUTES } from "../shared";
 import { saidMin } from "./calendar";
 import { fold } from "./fold";
 import { HOLIDAY_RE } from "./holidays";
+import { EN_WORDS } from "./en";
 
 // A bare "tết" or "noel" is a holiday only beside a holiday word: "nghỉ tết", "trước tết", "tết năm nay".
 const HOLIDAY_BEFORE =
@@ -38,8 +39,12 @@ function holidayRead(
     )
       return null;
   }
+  // a bare unaccented "ram" is the memory unless a lunar word is in the text ("nâng cấp ram", "mua ram 16gb"); "rằm" and "ram tháng 3" are the full moon
+  if (m[1] === "ram" && raw.slice(f.map[fs], f.map[fe - 1] + 1).toLowerCase() === "ram" && !LUNAR_CONTEXT.test(f.text))
+    return null;
   return { k: "holiday" as const, phrase: m[1] };
 }
+export const LUNAR_CONTEXT = /(?<![a-z])(?:am lich|am|thang gieng|thang chap|cung|chua|an chay|mung|ram thang)(?![a-z])/;
 
 /** "mai" is tomorrow in plain spelling only: a tone mark makes "mãi" or "mái", a capital mid-sentence or a person cue ("chị Mai") a name. */
 function tomorrowRead(
@@ -76,7 +81,10 @@ export type Val =
       y?: number;
     }
   | { k: "dow"; dow: number; wk?: number; bare?: boolean; more?: number[] }
-  | { k: "week"; off: number }
+  /** `count`: "2 tuần nữa", a count from today, not "tuần sau nữa". */
+  | { k: "week"; off: number; count?: boolean }
+  /** A lunar day: "15 âm", "mùng 1 âm lịch", "15/1 âm lịch"; its next solar date. No month means the next such day. */
+  | { k: "lunar"; d: number; m?: number }
   | {
       k: "recur";
       freq: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY" | "HOURLY";
@@ -107,7 +115,7 @@ export type Val =
   | { k: "dur"; min: number; days?: boolean }
   /** Tết, the lunar new year of the reference year or the next. */
   | { k: "holiday"; phrase: string }
-  | { k: "place"; text: string }
+  | { k: "place"; text: string; code?: boolean }
   | { k: "course"; text: string }
   | { k: "period"; p1: number; p2: number }
   | { k: "mask" };
@@ -294,6 +302,22 @@ type Rule = [
 ];
 
 const RULES: Rule[] = [
+  // a lunar date, before any clock or day rule: "15 âm", "mùng 1 âm lịch", "15/1 âm", "15 tháng 1 âm lịch". A plain "9 am" stays a clock
+  [
+    "date",
+    /(?<![\d./:a-z])((?:mung|mong|ngay)\s+)?(\d{1,2})(?:\/(\d{1,2})|\s+thang\s+(\d{1,2}))?\s+(am)(\s+lich)?(?:\s+thang\s+(\d{1,2}))?(?![a-z])/g,
+    (m, raw, f) => {
+      const d = +m[2];
+      const mo = +(m[3] ?? m[4] ?? m[7] ?? 0) || undefined;
+      const fs = m.index ?? 0;
+      // the only "â" the match can hold is the one of "âm"
+      const marked = /â/i.test(raw.slice(f.map[fs], f.map[fs + m[0].length - 1] + 1).normalize("NFC"));
+      // shortcut: a plain "am" (no tone) with a day of 12 or less and no lunar word is the English am/pm
+      if (d < 1 || d > 30 || (mo !== undefined && (mo < 1 || mo > 12))) return null;
+      if (!marked && !m[1] && !m[6] && mo === undefined && d <= 12) return null;
+      return { k: "lunar" as const, d, ...(mo && { m: mo }) };
+    },
+  ],
   // masks: never a date, time or place
   [
     "mask",
@@ -336,6 +360,20 @@ const RULES: Rule[] = [
   ],
   ["mask", /\b\d+\s*[/]\s*\d+\s*tiet/g, () => ({ k: "mask" })],
 
+  // a room code after a motion or assembly verb: "lên TV2", "tập trung ở B1", "các nhóm lên C3.2". The verb is in the
+  // span (it drops from the title) and the code keeps its case. A clock, a weekday or an English word is no code.
+  [
+    "place",
+    /(?<![a-z\d])(?:(?:cac nhom|cac ban|moi nguoi|ca lop)\s+)?(?:(?:len|xuong|qua|sang|ra|vao|toi|den|ve)|tap trung\s+(?:o|tai)|co mat\s+(?:o|tai))\s+[a-z]{1,3}\d{1,3}[a-z]?(?:\.\d+)?(?![a-z\d])/g,
+    (m) => {
+      const code = /[a-z]{1,3}\d{1,3}[a-z]?(?:\.\d+)?$/.exec(m[0])?.[0] ?? "";
+      const letters = /^[a-z]+/.exec(code)?.[0] ?? "";
+      if (/^(?:t|th)[2-7]$/.test(code) || (letters.length > 1 && EN_WORDS.has(letters)) || /^cn/.test(code)) return null;
+      // "sang" is also the morning and "tối" (folded "toi") the evening: after a clock ("16:00 sang", "6h tối") or first in the line it is the part of the day, not a verb
+      if (/^(?:sang|toi)\s/.test(m[0]) && (!m.index || /\d(?::\d{2}|[hg]\d{0,2})?\s*$/.test(m.input.slice(0, m.index)))) return null;
+      return { k: "place", text: code.toUpperCase(), code: true };
+    },
+  ],
   // campus places before any clock or date can claim their numbers: "tòa B", "nhà A24.1", "tầng 3", "phòng 302 nhà A"
   [
     "place",
@@ -836,7 +874,7 @@ const RULES: Rule[] = [
     "date",
     /(?<![\d.a-z])(?:(\d{1,3}|mot)\s+)?tuan\s+nua(?![a-z])/g,
     // "2 tuần nữa" is the week after next; any other count is that many weeks from today
-    (m) => (m[1] === "2" ? { k: "week", off: 2 } : { k: "rel", off: 7 * (+m[1] || 1) }),
+    (m) => (m[1] === "2" ? { k: "week", off: 2, count: true } : { k: "rel", off: 7 * (+m[1] || 1) }),
   ],
   // weeks and months: "hết" and "cuối" as deadlines, "đầu/giữa/cuối" and "trong" as spans
   [
@@ -890,6 +928,11 @@ const RULES: Rule[] = [
     /(?<![a-z])quy\s+nay(?![a-z])/g,
     () => ({ k: "span", key: "quy_nay" }),
   ],
+  [
+    "date",
+    /(?<![a-z])quy\s+sau(?![a-z])/g,
+    () => ({ k: "span", key: "quy_sau" }),
+  ],
   // "học kỳ này", "hết học kỳ", "hk này": today to the term's last day (see `spanOf`); "kỳ này" and "hk này" alone too
   [
     "date",
@@ -899,10 +942,22 @@ const RULES: Rule[] = [
   [
     "date",
     /(?<![a-z])(?:(dau|giua|cuoi)\s+thang\s+sau|(cuoi)\s+thang(?:\s+nay)?|sang\s+thang|(?:sang\s+)?thang\s+(?:sau|toi))(?![a-z])/g,
-    (m) => ({
-      k: "span",
-      key: m[1] ? `${m[1]}_thang_sau` : m[2] ? "cuoi_thang" : "thang_sau",
-    }),
+    (m, raw, f) => {
+      // "8h sáng tháng sau": "sáng" is the morning of the clock before it, not "sang tháng sau"; the month word is read alone below
+      if (m[0].startsWith("sang")) {
+        const at = f.map[m.index ?? 0];
+        if (raw.slice(at, at + 4).normalize("NFC").toLowerCase() === "sáng" || /\d\s*(?:h|g|gio|phut)?\s*$/.test(m.input.slice(0, m.index))) return null;
+      }
+      return {
+        k: "span",
+        key: m[1] ? `${m[1]}_thang_sau` : m[2] ? "cuoi_thang" : "thang_sau",
+      };
+    },
+  ],
+  [
+    "date",
+    /(?<![a-z])thang\s+(?:sau|toi)(?![a-z])/g,
+    () => ({ k: "span", key: "thang_sau" }),
   ],
   [
     "date",
@@ -1039,7 +1094,7 @@ const RULES: Rule[] = [
   ],
   [
     "time",
-    /(?<=(?<![a-z])(?:luc|vao|tu|den|toi|hen|bat dau)\s+)(trua|nua dem)(?![a-z])|(?<=(?<![a-z])(?:truoc|han)\s+)(nua dem)(?![a-z])/g,
+    /(?<=(?<![a-z])(?:luc|vao|tu|den|toi|hen|bat dau)\s+|(?:\d\s*(?:h|g|gio)\s*\d{0,2}|:\d\d)\s*-\s*)(trua|nua dem)(?![a-z])|(?<=(?<![a-z])(?:truoc|han)\s+)(nua dem)(?![a-z])/g,
     // "trước nửa đêm" is the day's last minute: as 0:00 the before-rule would end the day before
     (m) => (m[1] === "trua" ? timeVal(12, 0, "trua") : m[2] ? timeVal(23, 59, "dem") : timeVal(0, 0, "dem")),
   ],
@@ -1066,6 +1121,13 @@ const RULES: Rule[] = [
         SPAN_CUE.test(m.input.slice(0, m.index))
       )
         return null;
+      // "4g" and "5g" are the mobile networks unless a time cue is near: a part of the day, minutes, or a clock/day word beside it
+      if ((h === 4 || h === 5) && !ap && !partSuffix && /\dg$/.test(m[0].replace(/\s+/g, ""))) {
+        const before = m.input.slice(0, m.index);
+        const after = m.input.slice((m.index ?? 0) + m[0].length);
+        if (NETWORK_NEAR.test(before.slice(-30) + " | " + after.slice(0, 30))) return null;
+        if (!GNET_CUE_BEFORE.test(before) && !GNET_CUE_AFTER.test(after) && partNear(m) === undefined) return null;
+      }
       if (ap === "pm" && h < 12) h += 12;
       if (ap === "am" && h === 12) h = 0;
       const part = ap
@@ -1321,6 +1383,11 @@ function timeVal(h: number, mi: number, part: string | undefined): Val | null {
 /** The text `findMentions` is reading, for the checks that need a word's marks. */
 let reading: { raw: string; map: number[] } | undefined;
 
+/** Words that make a bare "4g"/"5g" the mobile network. */
+const NETWORK_NEAR = /(?<![a-z])(?:mang|sim|goi|song|wi\s?-?fi|router|data|lte)(?![a-z])/;
+/** A clock or day word right before or after a bare "4g"/"5g": then it is 4 giờ. */
+const GNET_CUE_BEFORE = /(?<![a-z])(?:luc|vao|truoc|sau|den|tu|hen|khoang|mai|nay|mot|hom|kia|cn|t[2-7]|thu\s?[2-7a-z]+|ngay\s?\d+)\s*$|\d{1,2}\/\d{1,2}\s*$/;
+const GNET_CUE_AFTER = /^\s*(?:mai|nay|hom|ngay|thu|t[2-7](?![a-z\d])|cn(?![a-z])|tuan|thang|nua|ruoi|kem)/;
 function partNear(m: RegExpExecArray): string | undefined {
   const s = m.index;
   const e = m.index + m[0].length;
@@ -1403,7 +1470,8 @@ export function findMentions(raw: string): Found[] {
         const from = preposition
           ? fs + trigger.length + (m[2]?.length ?? 0)
           : fs;
-        let text = raw.slice(f.map[from], end).trim();
+        // a room code is its own text, the verb before it is only the span
+        let text = v.k === "place" && v.code ? v.text : raw.slice(f.map[from], end).trim();
         // a link keeps its case and digits
         if (/\b[a-z]{1,3}\d/i.test(text) && !/^https?:/i.test(text))
           text = text.toUpperCase();

@@ -57,6 +57,9 @@ function marksEnd(exam: number): number {
 /** Marks are worth fetching from a week after the season's first exam ended to that season's marks end. */
 export const marksOpen = (now: number, examEnds: number[]): boolean => examEnds.some((e) => e + 7 * DAY <= now && now < marksEnd(e));
 
+/** The next fee month after this one (3, 6 or 10), for "Kỳ sau Zen xem lại giữa tháng {m}". */
+export const nextFeeMonth = (now: number): number => { const m = +vnDate(now).slice(5, 7); return [3, 6, 10].find((x) => x > m) ?? 3; };
+
 /** Fees are billed by mid Oct, Mar and Jun: from noon on the 15th to that month's end. Returns that month ("2026-10") or null. */
 export function feeMonth(now: number): string | null {
   const [y, m, d] = vnDate(now).split("-").map(Number);

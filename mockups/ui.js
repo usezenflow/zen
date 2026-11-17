@@ -113,6 +113,10 @@ const MI = {
   chores: '<path d="M3 21h18M5 21V9l7-6 7 6v12"/><path d="M9 21v-6h6v6"/>',
   social: '<circle cx="9" cy="8" r="3.5"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20a6 6 0 0 1 12 0M16.5 14.6A4.5 4.5 0 0 1 21 19"/>',
   other: '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>',
+  work: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18"/>',
+  errand: '<path d="M5 8h14l-1 12H6Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>',
+  finance: '<rect x="3" y="6" width="18" height="14" rx="2"/><path d="M3 10h18M16 15h2"/>',
+  self: '<path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10Z"/>',
 };
 // right "c": a row's menu, centred on the screen. Each item: [label, icon, red]; the icon leads.
 const menu = (items, top = 96, right = 18) => `<div class="mscrim"></div><div class="menu" style="top:${top}px;${right === "c" ? "left:50%;transform:translateX(-50%)" : `right:${right}px`}">${items.map(([t, i, red]) => `<div class="mi ${red ? "red" : ""}">${i ? ic(MI[i] ?? I[i]) : ""}<span>${t}</span></div>`).join("")}</div>`;

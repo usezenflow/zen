@@ -6,7 +6,8 @@ import { extractTextFromPage, getPageCount } from "expo-pdf-text-extract";
 import { extractTextFromImage } from "expo-text-extractor";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from "react";
-import { Appearance, AppState, Platform, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Appearance, AppState, Image, Platform, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { useIncomingShare } from "expo-sharing";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
 import Reanimated, { interpolate, useAnimatedStyle, useSharedValue, withTiming, ZoomIn, ZoomOut } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
@@ -16,6 +17,7 @@ import { Icon, Logo } from "@/components/art";
 import { Rhythm, rhythmHead } from "@/components/rhythm";
 import { addDays, live, mondayOf, monthLabel, onDay, parents, short, startOfDay, weekday, type Hols } from "@/components/cal";
 import { Day, DayPull, First } from "@/components/day";
+import { foldRepeats } from "@/components/fold";
 import { useDragDay } from "@/components/dragday";
 import { Search, type Origin } from "@/components/search";
 import { PdfView, PhotoMenu, PhotoView, TypeBar, Veil } from "@/components/capture";
@@ -39,6 +41,7 @@ import { think } from "@/lib/nlu/commands";
 import { affinityOf, calendarOf, committedRows, vocab } from "@/lib/nlu/context";
 import { personalPrior } from "@/lib/nlu/reader/assemble";
 import { isRule, readRule } from "@/lib/rules";
+import { sharedOf, viaOf } from "@/lib/share";
 import { onLeftSaved, takeFlash, takeHomeDay } from "@/lib/flash";
 import { keepBoth, pendingOverlaps, type Overlap } from "@/lib/overlap";
 import * as store from "@/lib/store";
@@ -46,7 +49,7 @@ import { getMarks, onForeground, onSynced } from "@/lib/sync";
 import { listenWidgets, pushWidgets } from "@/lib/widgets";
 import { useTheme, font, space, ff } from "@/lib/theme";
 import type { Move, Notice, Rule, Step, Task, Warn } from "@/lib/types";
-import { dayLabel, day as dayName, when } from "@/lib/when";
+import { dayLabel, day as dayName, endAt, when } from "@/lib/when";
 import { insights, suggest, typeOf, type Insights } from "@/planner";
 
 type View_ = "day" | "week" | "month" | "rhythm"; // rhythm sits apart on the right of the tabs, outside the swipe cycle
@@ -149,7 +152,8 @@ export default function Home() {
     if (cur && cur.start! <= now) return setCard({ task: cur, start: cur.start, end: cur.end });
     const s = suggest(all.filter((x) => !dismissed.current.has(x.id)), [], model, now);
     if (s) return setCard({ task: s.task, start: s.start, end: s.end, gap: true });
-    setCard(cur && { task: cur, start: cur.start, end: cur.end });
+    // views.html "Day, all done": a task of another day is not today's art card; the rest card takes its slot and names tomorrow.
+    setCard(cur && startOfDay(cur.start!) === startOfDay(now) ? { task: cur, start: cur.start, end: cur.end } : undefined);
   }, []);
 
   useEffect(() => {
@@ -429,18 +433,23 @@ export default function Home() {
       const r = await (src === "camera" ? ImagePicker.launchCameraAsync : ImagePicker.launchImageLibraryAsync)({ mediaTypes: ["images"] });
       if (r.canceled || !r.assets[0]) return;
       const { uri, width, height } = r.assets[0];
-      setPhoto({ uri, w: width, h: height });
-      setState("thinking");
-      const text = (await extractTextFromImage(uri)).map((l) => l.trim()).filter(Boolean).join("\n");
-      if (!text) { setState("idle"); return nothing("photo"); }
-      // capture.html 8: the read text with what the reader found lit up, held a beat so you see it, then added as usual.
-      const marks = marksOf(text, readFull(text, new Date(), "ocr"));
-      if (marks.length) { setPhoto({ uri, w: width, h: height, text, marks }); await new Promise((ok) => setTimeout(ok, 1400)); }
-      await run(text, "photo");
+      await readImage(uri, width, height);
     } catch (e) {
       setState("idle");
       fail(t("photoFail"), e);
     }
+  };
+
+  // Ảnh, and a picture shared in: the same read under the same sweep (w and h are 0 when unknown: the photo keeps its own shape).
+  const readImage = async (uri: string, width: number, height: number) => {
+    setPhoto({ uri, w: width, h: height });
+    setState("thinking");
+    const text = (await extractTextFromImage(uri)).map((l) => l.trim()).filter(Boolean).join("\n");
+    if (!text) { setState("idle"); return nothing("photo"); }
+    // capture.html 8: the read text with what the reader found lit up, held a beat so you see it, then added as usual.
+    const marks = marksOf(text, readFull(text, new Date(), "ocr"));
+    if (marks.length) { setPhoto({ uri, w: width, h: height, text, marks }); await new Promise((ok) => setTimeout(ok, 1400)); }
+    await run(text, "photo");
   };
 
   // zen:///?type=1: the type bar straight away (the hold-and-slide gesture's "type" satellite, for links and e2e).
@@ -459,12 +468,15 @@ export default function Home() {
   }, [scan]);
 
   // capture.html 5 and 12: the system picker straight away, then every page read on the phone, nothing uploaded.
-  const readPdf = async () => {
-    let uri: string | undefined;
+  // A PDF shared in (shared) skips the picker and is read the same way.
+  const readPdf = async (shared?: string) => {
+    let uri: string | undefined = shared;
     try {
-      const r = await DocumentPicker.getDocumentAsync({ type: "application/pdf" });
-      if (r.canceled || !r.assets[0]) return;
-      uri = r.assets[0].uri;
+      if (!uri) {
+        const r = await DocumentPicker.getDocumentAsync({ type: "application/pdf" });
+        if (r.canceled || !r.assets[0]) return;
+        uri = r.assets[0].uri;
+      }
       setState("thinking");
       const pages = await getPageCount(uri);
       setPdf({ page: 1, pages });
@@ -499,6 +511,38 @@ export default function Home() {
       if (uri) PdfPageImage.close(uri).catch(() => {}); // drops the drawn pages; a no-op for a text PDF
     }
   };
+
+  // A share from another app (expo-sharing, routed here by src/app/+native-intent.ts): read it as Gõ, Ảnh or PDF would, then clear it so it is read once.
+  // shortcut: only the first item of a share is read (the share filters allow one), a second one waits for its own share.
+  const { resolvedSharedPayloads, isResolving, clearSharedPayloads } = useIncomingShare();
+  useEffect(() => {
+    if (isResolving || !resolvedSharedPayloads.length) return;
+    const item = sharedOf(resolvedSharedPayloads[0]);
+    void (async () => {
+      try {
+        if (!item) return;
+        const via = viaOf(item);
+        if (via === "type") { // text or a link: the flat page with its finds lit, then the typed reader
+          setState("thinking");
+          const marks = marksOf(item.value, readFull(item.value, new Date(), "typed"));
+          setPdf({ page: 1, pages: 0, text: item.value, marks });
+          if (marks.length) await new Promise((ok) => setTimeout(ok, 1400));
+          await run(item.value, "type");
+        } else if (via === "photo") { // a picture: its own size keeps its shape, else the photo read takes it as it is
+          try {
+            const { w, h } = await new Promise<{ w: number; h: number }>((ok) => Image.getSize(item.value, (w, h) => ok({ w, h }), () => ok({ w: 0, h: 0 })));
+            await readImage(item.value, w, h);
+          } catch (e) {
+            setState("idle");
+            fail(t("photoFail"), e);
+          }
+        } else await readPdf(item.value);
+      } finally {
+        clearSharedPayloads(); // after the read: clearing deletes zen's copy of the shared file
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per arriving share; the readers it calls are current for this render
+  }, [resolvedSharedPayloads, isResolving]);
 
   // The planner's own second-best start for a single new flexible task.
   const otherSlot = async (made: Task[], now: number) => {
@@ -564,6 +608,14 @@ export default function Home() {
       gen.current++;
       setTasks((p) => p.map((y) => (y.id === x.id ? { ...y, start, end: start + len, pinned: true } : y)));
       retime(x.id, start, Math.round(len / 60_000)).then((r) => { if (r) { say(r.toast, r); refresh(); } }, failed); // saved at once; the toast and reload when it rests
+    },
+    // The end's own dial: the start stays, the length follows (an end before the start runs past midnight, as on the detail screen).
+    onEnd: (x: Task, at: Date) => {
+      if (x.start === undefined || x.end === undefined) return;
+      const end = Math.max(x.start + 15 * 60_000, endAt(x.start, x.end, at));
+      gen.current++;
+      setTasks((p) => p.map((y) => (y.id === x.id ? { ...y, end, pinned: true } : y)));
+      retime(x.id, x.start, Math.round((end - x.start) / 60_000)).then((r) => { if (r) { say(r.toast, r); refresh(); } }, failed);
     },
     onOpen: (x: Task) => router.push(`/task/${x.id}`),
     // Swipe right: a plain task is deleted at once; a series opens the scope dropdown under the row.
@@ -662,7 +714,8 @@ export default function Home() {
   const busy = state !== "idle";
   const listing = busy && !shufOn && !!words; // the day stays under the veil until words are heard; while the plan plays out the list stays, the dock keeps thinking
   const firstRun = !tasks.length && view === "day" && !busy; // views.html "Day, first launch"
-  const selEmpty = !hols.has(sel) && !onDay(tasks, sel).length;
+  const folded = foldRepeats(tasks, now); // a folded repeat's day is not empty: its row sits there
+  const selEmpty = !hols.has(sel) && !onDay(tasks, sel).some((x) => !folded.hidden.has(x.id)) && !folded.folds.some((f) => f.first === sel);
   // The first-launch card also teaches on any empty day with nothing ahead of it: no rows, nothing ticked, nothing coming.
   const nothingAhead = view === "day" && !busy && selEmpty && !(isToday && card)
     && !tasks.some((a) => a.doneAt && !a.deletedAt && a.start !== undefined && a.start >= sel && a.start < addDays(sel, 1))

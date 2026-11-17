@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Kind, Task } from "../lib/types";
-import { DAY, HOUR, MIN, dayStart, dueOf, features, hourOf } from "./features";
+import { D, DAY, HOUR, I_AFTER, I_ENERGY, KINDS, MIN, dayStart, dueOf, features, hourOf } from "./features";
 import { coldArms, prepare, primeBatch, ucb, ucbAt, update } from "./linucb";
 import { reasonText, stepText } from "../lib/reasons";
 import { learn, newModel, outcome, plan, suggest, typeOf } from "./index";
@@ -98,6 +98,55 @@ describe("split and deadline", () => {
     });
   });
 
+  describe("a pull: a placed task goes only into the freed gap, or stays", () => {
+    const gapAt = (h: number, mins: number) => ({ from: at(0, h), to: at(0, h) + mins * MIN });
+    it("a task two days out moves into the gap, never to some other earlier free cell", () => {
+      const C = task("c", { effort: 60, start: at(2, 15), end: at(2, 16) });
+      const { diff } = plan([C], [], newModel(now), now, { pull: gapAt(11, 60) });
+      const s = diff.placed.find((p) => p.id === "c")?.start ?? C.start!;
+      expect([at(0, 11), at(2, 15)]).toContain(s); // the gap, or where it was: 15:00 today is free but not freed
+    });
+    it("a candidate that does not fit the gap keeps its prior slot", () => {
+      const C = task("c", { effort: 60, start: at(2, 15), end: at(2, 16) });
+      const { diff } = plan([C], [], newModel(now), now, { pull: gapAt(11, 30) });
+      expect(diff.unplaced ?? []).toEqual([]);
+      expect(diff.placed.find((p) => p.id === "c")?.start ?? C.start).toBe(at(2, 15));
+    });
+  });
+
+  describe("a packed part of the day: a lax task gives way before the window widens", () => {
+    const n = at(0, 17); // an hour before the evening: a task starting at 18:00 is not running yet
+    const EVENING = [[18 * 60, 22 * 60]] as [number, number][];
+    // A lax 4 h task zen-placed over the whole evening, and an urgent 1 h task that can only be in the evening and is due by 22:00.
+    const lax = (o: Partial<Task> = {}) => task("lax", { effort: 240, maxSitting: 240, start: at(0, 18), end: at(0, 22), ...o }); // one piece, not split
+    const urgent = (o: Partial<Task> = {}) => task("urgent", { effort: 60, deadline: at(0, 22), tods: EVENING, ...o });
+    const at_ = (ps: { id: string; start: number }[], id: string, t: Task) => ps.find((p) => p.id === id)?.start ?? t.start!;
+
+    it("the urgent one keeps the evening; the lax one moves to another day", () => {
+      const L = lax(), U = urgent();
+      const { diff } = plan([L, U], [], newModel(n), n);
+      const u = at_(diff.placed, "urgent", U), l = at_(diff.placed, "lax", L);
+      expect(u).toBeGreaterThanOrEqual(at(0, 18));
+      expect(u + 60 * MIN).toBeLessThanOrEqual(at(0, 22));
+      expect(dayStart(l)).toBeGreaterThan(at(0, 0));
+      expect(diff.placed.find((p) => p.id === "lax")?.from).toBe(L.start);
+    });
+    it("equal deadlines: no bump, the lax one keeps its evening", () => {
+      const L = lax({ deadline: at(0, 22) }), U = urgent();
+      const { diff } = plan([L, U], [], newModel(n), n);
+      expect(at_(diff.placed, "lax", L)).toBe(L.start);
+      expect(diff.placed.find((p) => p.id === "urgent" && p.start < at(0, 22))).toBeUndefined();
+    });
+    it("a pinned lax task never gives way: the urgent one falls back, and nothing overlaps", () => {
+      const L = lax({ pinned: true, userEdited: ["start"] }), U = urgent();
+      const { diff } = plan([L, U], [], newModel(n), n);
+      expect(at_(diff.placed, "lax", L)).toBe(L.start);
+      const u = at_(diff.placed, "urgent", U);
+      expect(u >= L.end! || u + 60 * MIN <= L.start! || u < 0 || u > L.start!).toBe(true);
+      expect(diff.placed.find((p) => p.id === "lax")).toBeUndefined();
+    });
+  });
+
   it("lands every sitting before the deadline in order", () => {
     const deadline = at(4, 18);
     const { diff } = plan([task("essay", { effort: 300, deadline })], [], newModel(now), now);
@@ -107,6 +156,16 @@ describe("split and deadline", () => {
     for (const p of ps) expect(p.end).toBeLessThanOrEqual(deadline);
     expect(ps[0].start).toBeLessThan(ps[1].start);
     expect(ps[1].start).toBeLessThan(ps[2].start);
+  });
+
+  it("a said due within 30 days aims at ~75% of the window, not its last day", () => {
+    const due = at(7, 23);
+    const { diff } = plan([task("report", { effort: 60, deadline: due })], [], newModel(now), now);
+    const p = diff.placed[0];
+    const share = (p.start - now) / (due - now);
+    expect(share).toBeGreaterThan(0.6);
+    expect(share).toBeLessThan(0.85);
+    expect(p.end).toBeLessThanOrEqual(due);
   });
 });
 
@@ -129,6 +188,7 @@ describe("reasons follow the time", () => {
     expect(reasonText({ key: "hour", w: 1, vars: { hour: 20, n: 3 } }, true)).toBe("Mấy lần gần đây bạn xong việc quanh 20h");
     expect(reasonText({ key: "hour", w: 1, vars: { hour: 20, n: 1 } }, true)).toBe("Giờ này bạn hay làm xong việc");
     expect(reasonText({ key: "kind", w: 1, vars: { kind: "chores" } })).toBe("Hợp việc nhà");
+    expect(reasonText({ key: "kind", w: 1, vars: { kind: "work" } })).toBe("Hợp công việc");
   });
 });
 
@@ -233,7 +293,7 @@ describe("policy and events", () => {
     for (const p of diff.placed) {
       expect(p.policy).toBe("linucb");
       expect(p.arm).toBe(Math.floor(hourOf(p.start)));
-      expect(p.x).toHaveLength(16);
+      expect(p.x).toHaveLength(D);
     }
   });
 
@@ -473,7 +533,7 @@ describe("reasons, rules, pins, moves", () => {
 
   it("deadline pieces never explore", () => {
     const m = newModel(now);
-    for (let i = 0; i < 24; i++) update(m.arms[i], new Array(16).fill(0).map((_, k) => (k ? 0 : 1)), i % 3);
+    for (let i = 0; i < 24; i++) update(m.arms[i], new Array(D).fill(0).map((_, k) => (k ? 0 : 1)), i % 3);
     const { diff } = plan([task("a", { deadline: at(3, 12) }), task("b", { deadline: at(2, 12) })], [], m, now);
     for (const p of diff.placed) expect(p.explore).toBe(false);
   });
@@ -483,13 +543,13 @@ describe("batched linucb", () => {
   it("primeBatch + ucbAt equals per-row ucb with the after one-hot patched in", () => {
     const arms = coldArms();
     let s = 1; const r = () => ((s = (s * 16807) % 2147483647) / 2147483647);
-    for (let k = 0; k < 200; k++) { const x = Array.from({ length: 16 }, () => r()); update(arms[k % 24], x, r() - 0.5); }
+    for (let k = 0; k < 200; k++) { const x = Array.from({ length: D }, () => r()); update(arms[k % 24], x, r() - 0.5); }
     const p = prepare(arms);
-    const n = 50, X = new Float64Array(n * 16), arm = new Uint8Array(n);
-    for (let i = 0; i < n; i++) { arm[i] = i % 24; for (let k = 0; k < 16; k++) if (k < 9 || k > 13) X[i * 16 + k] = r(); }
-    const b = primeBatch(p, X, arm, 9, 5);
-    for (let i = 0; i < n; i++) for (let j = -1; j < 5; j++) {
-      const x = Array.from(X.subarray(i * 16, i * 16 + 16)); if (j >= 0) x[9 + j] = 1;
+    const n = 50, X = new Float64Array(n * D), arm = new Uint8Array(n);
+    for (let i = 0; i < n; i++) { arm[i] = i % 24; for (let k = 0; k < D; k++) if (k < I_AFTER || k >= I_ENERGY) X[i * D + k] = r(); }
+    const b = primeBatch(p, X, arm, I_AFTER, KINDS.length);
+    for (let i = 0; i < n; i++) for (let j = -1; j < KINDS.length; j++) {
+      const x = Array.from(X.subarray(i * D, i * D + D)); if (j >= 0) x[I_AFTER + j] = 1;
       expect(ucbAt(p, b, i, j)).toBeCloseTo(ucb(p, arm[i], x), 9);
     }
   });
@@ -591,7 +651,7 @@ describe("scheduler behaviour", () => {
 
   it("a missed task lands within 2 days and its hour's score drops", () => {
     const n = at(0, 14), old = at(0, 10);
-    const m = newModel(n), x = new Array(16).fill(0); x[0] = 1;
+    const m = newModel(n), x = new Array(D).fill(0); x[0] = 1;
     m.placed.a = { arm: 10, x, start: old };
     const t = task("a", { start: old, end: old + HOUR, vec: new Float32Array(4).fill(1) });
     const r = plan([t], [], m, n);
@@ -646,7 +706,7 @@ describe("scheduler behaviour", () => {
   });
 
   it("a warm model lets only one new piece explore; two outcomes on an hour are not enough to name it", () => {
-    const m = newModel(now), x = new Array(16).fill(0); x[0] = 1;
+    const m = newModel(now), x = new Array(D).fill(0); x[0] = 1;
     for (let i = 0; i < 24; i++) update(m.arms[i], x, i % 3);
     for (let i = 0; i < 5; i++) m.doneHours.push({ hour: 10, at: now });
     const { diff } = plan(["a", "b", "c", "d", "e", "f"].map((id) => task(id)), [], m, now);

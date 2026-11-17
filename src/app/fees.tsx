@@ -1,4 +1,4 @@
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Linking, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -7,6 +7,7 @@ import { RestCard } from "@/components/day";
 import { PartHead } from "@/components/parthead";
 import { fadeIn, Tap, EASE } from "@/components/tap";
 import { loadCreds, owed, payUrl, type PortalFeeRow } from "@/lib/dlu";
+import { nextFeeMonth } from "@/lib/dlu/season";
 import { t } from "@/lib/i18n";
 import { ask, getFeeRows, vnd } from "@/lib/sync";
 import { useTheme, font, space, ff } from "@/lib/theme";
@@ -17,8 +18,10 @@ const split = (name = "") => { const m = /\s*\[(\d+(?:[.,]\d+)?)\s*tc\]\s*$/i.ex
 
 /** fees.html: what is owed up top with one button to pay on e-bills, then every fee line term by term, newest first. Read only. */
 export default function Fees() {
+  const { top } = useSafeAreaInsets(); // a full screen: the safe area stands in for the mockup's 54px; in the settings sheet it is 0
   const th = useTheme();
   const [rows, setRows] = useState<PortalFeeRow[] | null>();
+  const [nextMonth] = useState(() => nextFeeMonth(Date.now())); // read once: render stays pure
   const [id, setId] = useState("");
   const load = useCallback(() => { void getFeeRows().then((r) => setRows(r && r.filter((x) => (x.DebtAmount ?? 0) > 0))); void loadCreds().then((c) => setId(c?.studentId ?? "")); }, []);
   useEffect(() => { load(); }, [load]);
@@ -31,10 +34,10 @@ export default function Fees() {
   const terms = [...new Set((rows ?? []).map((r) => `${r.YearStudy}|${r.TermID}`))].sort().reverse();
   const due = (rows ?? []).filter((r) => left(r) > 0);
   const total = owed(rows ?? []);
-  const term = (k: string) => { const [y, tm] = k.split("|"); return t("termOf", { t: tm, y }); };
+  const term = (k: string) => { const [y, tm] = k.split("|"); return t("termOf", { t: tm.replace(/^HK0?/, ""), y }); }; // the portal says "HK01"
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: th.bg }}>
-      <ScrollView contentContainerStyle={{ padding: space.gutter, paddingBottom: 60 }}>
+      <ScrollView contentContainerStyle={{ padding: space.gutter, paddingTop: top ? 0 : space.gutter, paddingBottom: 60 }}>
         <PartHead part="fees" title={t("fees")} onLand={load} />
         {rows === undefined ? null : !rows ? (
           <Animated.View entering={fadeIn}><RestCard lab={t("fees")} title={t("noFeesT")} sub={t("noFees")} h={150} /></Animated.View>
@@ -53,20 +56,20 @@ export default function Fees() {
             </View>
           </Animated.View>
         ) : (
-          <Animated.View entering={fadeIn}><RestCard lab={t("fees")} title={t("paidAll")} sub={t("paidSub")} leaf="color" h={150} /></Animated.View>
+          <Animated.View entering={fadeIn}><RestCard lab={t("fees")} title={t("paidAll")} sub={t("paidSub", { m: nextMonth })} leaf="color" h={150} /></Animated.View>
         )}
         {terms.map((k, ti) => {
           const mine = (rows ?? []).filter((r) => `${r.YearStudy}|${r.TermID}` === k);
           return (
             <Animated.View key={k} entering={FadeInDown.delay(60 + Math.min(ti, 8) * 30).duration(220).easing(EASE)}>
-              <View style={[s.labRow, ti > 0 && { marginTop: 20 }]}>
+              <View style={[s.labRow, ti > 0 && { marginTop: 22 }]}>
                 <Text style={[s.labT, { color: th.muted }]}>{term(k)}</Text>
                 <Text style={[s.labT, { color: th.muted }]}>{vnd(mine.reduce((a, r) => a + (r.DebtAmount ?? 0), 0))}</Text>
               </View>
               {mine.map((r, i) => {
                 const { name, tc } = split(r.FeeName ?? "");
                 const rest = left(r);
-                const note = [tc ? t("creditsShort", { n: tc }) : "", rest ? t("feesLeft", { amount: vnd(rest) }) : r.PaidDate ? t("paidOn", { d: r.PaidDate.slice(0, 5) }) : ""].filter(Boolean).join(" · ");
+                const note = [tc ? t("creditsShort", { n: tc }) : "", rest ? t("feesLeft", { amount: vnd(rest) }) : r.PaidDate ? t("paidOn", { d: /^\d{4}-/.test(r.PaidDate) ? `${r.PaidDate.slice(8, 10)}/${r.PaidDate.slice(5, 7)}` : r.PaidDate.slice(0, 5) }) : ""].filter(Boolean).join(" · ");
                 return (
                   <View key={`${k}|${i}`} style={s.r}>
                     <View style={[s.tx, i > 0 && { borderTopWidth: 1, borderTopColor: th.line }]}>
@@ -99,5 +102,5 @@ const s = StyleSheet.create({
   tx: { flex: 1, minWidth: 0, alignSelf: "stretch", justifyContent: "center", gap: 2, paddingVertical: space.row + 2, marginVertical: -space.row },
   b: { fontSize: font.base, lineHeight: 24, fontFamily: ff("600") },
   small2: { fontFamily: ff("500"), fontSize: font.sub, lineHeight: 21 },
-  amt: { fontSize: font.sub, fontFamily: ff("600"), fontVariant: ["tabular-nums"] },
+  amt: { fontSize: font.meta, fontFamily: ff("600"), fontVariant: ["tabular-nums"] }, // fees.html .tm: 16px
 });

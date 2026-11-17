@@ -1,9 +1,34 @@
 import * as SQLite from "expo-sqlite";
-import { newModel, type Model } from "../planner";
+import { migrateModel, newModel, type Model } from "../planner";
 import { upgradePrior } from "../planner/linucb";
 import type { Task, TaskEvent } from "./types";
+import { DIM, embed } from "./nlu/embed";
 
 let db: Promise<SQLite.SQLiteDatabase> | undefined;
+
+// Stored vectors (tasks, model history and efforts) are embed() of this version. Older ones (the hashed 256-dim bag) are
+// recomputed or dropped once, at open, so no cosine compares two embeddings.
+const VEC_VERSION = `embed${DIM}`;
+async function migrateVecs(d: SQLite.SQLiteDatabase) {
+  const v = await d.getFirstAsync<{ value: string }>("SELECT value FROM kv WHERE key='vec.version'");
+  if (v?.value === VEC_VERSION) return;
+  await d.withTransactionAsync(async () => {
+    const rows = await d.getAllAsync<{ id: string; title: string }>("SELECT id, title FROM tasks");
+    for (const r of rows) {
+      const vec = embed(r.title);
+      await d.runAsync("UPDATE tasks SET vec=? WHERE id=?", [new Uint8Array(vec.buffer), r.id]);
+    }
+    const m = await d.getFirstAsync<{ json: string }>("SELECT json FROM model WHERE key='planner'");
+    if (m) {
+      const j = JSON.parse(m.json);
+      const alike = (e: { vec?: number[] }) => e.vec?.length === DIM;
+      j.hist = (j.hist ?? []).filter(alike);
+      j.efforts = (j.efforts ?? []).filter(alike);
+      await d.runAsync("UPDATE model SET json=? WHERE key='planner'", [JSON.stringify(j)]);
+    }
+    await d.runAsync("INSERT OR REPLACE INTO kv(key,value) VALUES('vec.version',?)", [VEC_VERSION]);
+  });
+}
 
 const open = () =>
   (db ??= (async () => {
@@ -15,6 +40,7 @@ const open = () =>
       CREATE TABLE IF NOT EXISTS events(id TEXT PRIMARY KEY, taskId TEXT, type TEXT, at REAL, data TEXT);
       CREATE TABLE IF NOT EXISTS model(key TEXT PRIMARY KEY, json TEXT);
       CREATE TABLE IF NOT EXISTS kv(key TEXT PRIMARY KEY, value TEXT);`);
+    await migrateVecs(d);
     return d;
   })());
 
@@ -106,7 +132,7 @@ export async function loadModel(now: number): Promise<Model> {
   if (cached) return cached;
   const r = await (await open()).getFirstAsync<Row>("SELECT json FROM model WHERE key='planner'");
   if (!r) return newModel(now);
-  const m: Model = JSON.parse(r.json);
+  const m: Model = migrateModel(JSON.parse(r.json));
   upgradePrior(m);
   return (cached = m);
 }

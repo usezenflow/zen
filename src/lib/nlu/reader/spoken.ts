@@ -140,6 +140,12 @@ export function spokenEdits(raw: string): SpokenEdit[] {
       rawOf(n.s, n.e).normalize("NFC").toLowerCase() === "làm"
     )
       return false;
+    // "bà" (grandma) is not "ba" (three): "cúng ông bà ngày 25"
+    if (
+      n.word === "ba" &&
+      rawOf(n.s, n.e).normalize("NFC").toLowerCase() === "bà"
+    )
+      return false;
     // "từ" (from) is not "tư" (four), so "từ ngày 07/12" keeps its word
     if (
       n.word === "tu" &&

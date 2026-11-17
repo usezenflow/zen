@@ -11,7 +11,7 @@ import { EdLine, Gly, Meta } from "@/components/detail-meta";
 import { useTapOutside, type Box } from "@/components/outside";
 import { DropMenu } from "@/components/menu";
 import { RichText } from "@/components/richtext";
-import { apply, moveMine, preview, removeScope, toAction, type LiveEdit, type Result } from "@/lib/apply";
+import { apply, lastMore, moveMine, preview, removeScope, stillMore, toAction, type LiveEdit, type Result } from "@/lib/apply";
 import { Story } from "@/components/nowcard";
 import { seeMoves } from "@/lib/moves";
 import { keepBoth } from "@/lib/overlap";
@@ -49,6 +49,7 @@ export default function Detail() {
   const draft = useRef<{ id: string; e: LiveEdit }>(undefined);
   const [pv, setPv] = useState<Result>(); // what the draft would do: a dry run, shown as one line under the chips
   const [told, setTold] = useState<{ r: Result; id: string }>(); // what the saved value did, shown in place (magic.html 7d)
+  const [added, setAdded] = useState<Result>(); // what "Còn nữa" just added: its toast and Undo, in place
   const pvGen = useRef(0);
   const pvT = useRef<ReturnType<typeof setTimeout>>(undefined);
   const saved = useRef("");
@@ -230,19 +231,16 @@ export default function Detail() {
   if (ed === "time" && canTime) {
     const i = lines.findIndex((x) => (x as { key: string }).key === "t"), e = new Date(dr.s + dr.m * 60000);
     const row = (
-      // views.html "Detail, set time": the start, and under it the end, so the range reads top to bottom; one box for tap-outside
-      <View key="t" ref={edBox} collapsable={false} style={s.span}>
-        <EdLine icon="clock">
-          <DateChip value={dr.s} onChange={(d) => setTime(dayOf(dr.s, d), dr.m)} />
-          <TimeChip value={dr.s} onChange={(d) => setTime(clock(dr.s, d), dr.m)} />
-        </EdLine>
-        <EdLine word={t("endWord")}>
-          {/* views.html "Detail, over several days": the end day; days before the start are greyed out */}
-          <DateChip value={e.getTime()} min={startDay(dr.s)} onChange={(d) => setEnd(dayOf(e.getTime(), d))} />
-          {/* an end is at least 15 minutes after its start */}
-          <TimeChip value={e.getTime()} min={dr.s + 15 * 60_000} onChange={(d) => setEnd(endAt(dr.s, dr.s + dr.m * 60_000, d))} />
-        </EdLine>
-      </View>
+      // views.html "Detail, set time": one line, start - end; the end's day shows only when it is another day. One box for tap-outside
+      <EdLine key="t" ref={edBox} icon="clock">
+        <DateChip value={dr.s} past onChange={(d) => setTime(dayOf(dr.s, d), dr.m)} />
+        <TimeChip value={dr.s} past onChange={(d) => setTime(clock(dr.s, d), dr.m)} />
+        <Text style={[s.dash, { color: th.muted }]}>-</Text>
+        {/* views.html "Detail, over several days": the end day; days before the start are greyed out */}
+        {startDay(e.getTime()) !== startDay(dr.s) && <DateChip value={e.getTime()} min={startDay(dr.s)} past onChange={(d) => setEnd(dayOf(e.getTime(), d))} />}
+        {/* an end is at least 15 minutes after its start (setEnd); one turned before the start runs into the next day */}
+        <TimeChip value={e.getTime()} past onChange={(d) => setEnd(endAt(dr.s, dr.s + dr.m * 60_000, d))} /* an end turned before the start moves to the next day (endAt); its day chip then shows */ />
+      </EdLine>
     );
     if (i >= 0) lines[i] = row; else lines.push(row);
     // magic.html 7c: what the time being turned to would do; nothing when it touches nothing
@@ -266,7 +264,11 @@ export default function Detail() {
 
   // "Buổi k/n" counts the sittings still open; a lone one says nothing (as the day list).
   const open = sits.filter((k) => !k.doneAt);
-  const why = !task.fixed ? plc?.why?.flatMap((r) => (r.key !== "pace" ? [r] : open.length > 1 ? [{ ...r, vars: { k: open.findIndex((k) => k.id === task.id) + 1, n: open.length } }] : [])).slice(0, 4) : undefined;
+  // "Còn nữa": under the sittings once the last one is done or under way (lastMore); no sheet, the result stays here with its Undo.
+  const still = lastMore(sits.length ? sits : task.rrule ? [] : [task], now); // an unsplit task is its own last sitting
+  const addMore = async () => { if (!still) return; setAdded(await stillMore(still)); void load(); };
+  const undoMore = async () => { const r = added; setAdded(undefined); await r?.undo(); void load(); };
+  const why =!task.fixed ? plc?.why?.flatMap((r) => (r.key !== "pace" ? [r] : open.length > 1 ? [{ ...r, vars: { k: open.findIndex((k) => k.id === task.id) + 1, n: open.length } }] : [])).slice(0, 4) : undefined;
   const me = split ? tt?.id : task.id;
   // "Cũng hợp" only for a real other time: one the planner found, not the current one, not already gone
   const alt = plc?.alt !== undefined && plc.alt !== task.start && plc.alt > now ? plc.alt : undefined;
@@ -286,7 +288,7 @@ export default function Detail() {
     <SafeAreaView style={{ flex: 1, backgroundColor: th.bg }}>
       {/* iOS insets follow the keyboard curve and drag-to-dismiss; KeyboardAvoidingView jumped instead. */}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "android" ? "padding" : undefined}>
-      <ScrollView contentContainerStyle={{ padding: space.gutter, paddingBottom: 60 }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets keyboardDismissMode="interactive">
+      <ScrollView contentContainerStyle={{ padding: space.gutter, paddingTop: 0, paddingBottom: 60 }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets keyboardDismissMode="interactive">
         <Animated.View entering={fadeIn}>
           <View style={s.bar}>
             <Tap onPress={goBack} accessibilityLabel={t("back")} style={circle}><Icon name="back" size={20} color={th.ink} /></Tap>
@@ -352,6 +354,13 @@ export default function Detail() {
               </View>
             </View>
           )}
+          {still && <Tap onPress={addMore} accessibilityRole="button" accessibilityLabel={t("stillMore")} style={s.more}><Text style={[s.moreT, { color: th.ink }]}>{t("stillMore")}</Text></Tap>}
+          {added && (
+            <View style={s.addRow}>
+              <Text style={[s.sp, { color: th.muted }]}>{added.toast}</Text>
+              <Tap onPress={undoMore} accessibilityRole="button" accessibilityLabel={t("undo")} style={s.more}><Text style={[s.moreT, { color: th.ink }]}>{t("undo")}</Text></Tap>
+            </View>
+          )}
           {!!task.content?.trim() && (
             <View style={[s.lms, { borderColor: th.line }]}>
               <Text style={[s.lab, { color: th.muted, marginBottom: 6 }]}>{t("lmsContent")}</Text>
@@ -399,12 +408,15 @@ const s = StyleSheet.create({
   sub: { fontFamily: ff(), fontSize: font.md },
   h: { marginTop: 14, fontSize: font.h, lineHeight: 36, fontFamily: ff("600"), letterSpacing: -0.75, padding: 0 },
   meta: { marginTop: 16, gap: 10 },
-  span: { gap: 12 }, // the end line sits apart from the start, not crammed under it
+  dash: { fontSize: font.sub, fontFamily: ff("500") },
   kd: { flexDirection: "row", alignItems: "center", gap: 4 },
   lms: { marginTop: 18, paddingVertical: 14, paddingHorizontal: 16, borderWidth: 1, borderRadius: 16 },
   lab: { fontSize: font.label, fontFamily: ff("500") },
   why: { marginTop: 22 },
   si: { flexDirection: "row", alignItems: "baseline", gap: 10, paddingVertical: 7 }, // prep.html .si
+  more: { alignSelf: "flex-start", marginTop: 10, paddingVertical: 6 }, // magic.html .tbtn: an in-place text button
+  moreT: { fontSize: 14, fontFamily: ff("600"), textDecorationLine: "underline" },
+  addRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
   sd: { width: 92, fontSize: font.sub, fontFamily: ff("500"), fontVariant: ["tabular-nums"] },
   sp: { flex: 1, fontSize: font.sub, fontFamily: ff("500") },
   sm: { fontSize: font.sub, fontFamily: ff("500"), fontVariant: ["tabular-nums"] },

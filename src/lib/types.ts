@@ -1,5 +1,5 @@
 // Shared contract for zen modules. Times are epoch ms.
-export type Kind = "study" | "exercise" | "chores" | "social" | "other";
+export type Kind = "study" | "exercise" | "chores" | "social" | "other" | "work" | "errand" | "finance" | "self";
 export type Source = "user" | "dlu";
 export type TaskType = "plan" | "lecture" | "exam" | "busy" | "assignment";
 export type Fixed = "lecture" | "exam" | "busy";
@@ -7,7 +7,7 @@ export type Fixed = "lecture" | "exam" | "busy";
 export interface Task {
   id: string;
   title: string;
-  vec?: Float32Array; // titleVec (nlu/vec.ts): hashed words + trigrams, 256
+  vec?: Float32Array; // embed(title) (nlu/embed.ts), DIM 96; stored vectors are versioned (store.ts)
   kind: Kind;
   source: Source;
   upstreamKey?: string; // dlu item key

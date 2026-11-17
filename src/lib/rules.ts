@@ -23,7 +23,7 @@ const EXCEPT = /(?:^|[\s,])(?:ngoại trừ|trừ|riêng(?=\s+(?:thứ|chủ nh�
 const INTENT = /trống|đừng|không|chẳng|nghỉ|ngủ|rảnh|bận|giữ|tránh|miễn|việc riêng/;
 const CHAIN = /\s*(?:,|;|\svà\s|\svới\s|\scòn\s|\scả\s)\s*/;
 const WD = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
-const ALL_KINDS: Kind[] = ["study", "exercise", "chores", "social", "other"];
+const ALL_KINDS: Kind[] = ["study", "exercise", "chores", "social", "other", "work", "errand", "finance", "self"];
 const monFirst = (a: number, b: number) => ((a + 6) % 7) - ((b + 6) % 7);
 
 const DAY_WORD = "thứ\\s+(?:hai|ba|tư|năm|sáu|bảy|[2-7])|t[2-7]|chủ nhật|cn";

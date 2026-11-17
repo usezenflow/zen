@@ -2,7 +2,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import * as Haptics from "expo-haptics";
-import { Appearance, Dimensions, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { Appearance, Dimensions, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { Icon, TypeArt } from "@/components/art";
 import { Chevron } from "@/components/day";
@@ -45,12 +45,12 @@ const Spin = ({ color }: { color: string }) => {
   return <Animated.View style={st}><Icon name="sync" size={14} color={color} /></Animated.View>;
 };
 
-function Row({ label, right, onPress, flat, line = !flat }: { label: string; right?: React.ReactNode; onPress?: () => void; flat?: boolean; line?: boolean }) {
+function Row({ label, right, onPress, flat, line = !flat, dense }: { label: string; right?: React.ReactNode; onPress?: () => void; flat?: boolean; line?: boolean; dense?: boolean }) {
   const th = useTheme();
   return (
     // The press highlight bleeds 14px past the text; the hairline stays on the text column.
-    <Tap variant="fade" onPress={onPress} disabled={!onPress} style={[s.row, flat && { paddingBottom: 4 }]}>
-      <Text style={{ fontSize: font.base, fontFamily: ff("600"), color: th.ink }}>{label}</Text>
+    <Tap variant="fade" onPress={onPress} disabled={!onPress} style={[s.row, dense && { paddingVertical: 13 }, flat && { paddingBottom: 4 }]}>
+      <Text style={{ fontSize: dense ? font.meta : font.base, fontFamily: ff("600"), color: th.ink }}>{label}</Text>
       <View style={s.right}>{right}</View>
       {line && <View style={[s.hair, { backgroundColor: th.line }]} />}
     </Tap>
@@ -116,7 +116,7 @@ export default function Settings() {
       : q.st === "retry" ? t("retryAt", { time: when(q.at!, now) }) : o.value ?? (times[p] ? when(times[p]!, now) : t("neverSynced"));
     const color = !q.st && o.tone ? th[o.tone] : th.muted;
     return (
-      <Row key={p} line={o.line ?? true} label={label} onPress={o.go ?? (() => pull(p))} right={<>
+      <Row key={p} dense line={o.line ?? true} label={label} onPress={o.go ?? (() => pull(p))} right={<>
         <Text style={{ fontSize: font.sub, fontFamily: ff(!q.st && o.tone ? "600" : "500"), color }}>{text}</Text>
         <Tap onPress={() => pull(p)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t("refresh")} style={[s.chevO, { borderColor: th.line, backgroundColor: th.bg }]}>
           {q.st === "run" ? <Spin color={th.ink} /> : <Icon name="sync" size={14} color={th.ink} />}
@@ -191,11 +191,11 @@ export default function Settings() {
         })}
         {!on && !open && (
           <Animated.View entering={fadeIn} exiting={fadeOut} layout={glide}>
-            <Row label={t("stats")} right={<Switch value={share} onValueChange={(v) => { setShare(v); stats.setOptOut(kvStorage, !v); }} trackColor={{ true: th.ink, false: th.line }} ios_backgroundColor={th.line} thumbColor={share ? th.bg : th.dark ? th.muted : "#fff"} />} />
+            <Row label={t("stats")} right={<Tap onPress={() => { setShare(!share); stats.setOptOut(kvStorage, share); }} accessibilityRole="switch" accessibilityState={{ checked: share }} accessibilityLabel={t("stats")} style={[s.tog, { backgroundColor: share ? th.ink : th.line, alignItems: share ? "flex-end" : "flex-start" }]}><View style={[s.knob, { backgroundColor: share ? th.bg : th.muted }]} /></Tap>} />
           </Animated.View>
         )}
         {/* settings.html Version: the last row; a newer release turns it vermilion and opens the update dialog. */}
-        <Row line={false} label={t("version")}
+        <Row label={t("version")}
           right={<Text style={{ fontSize: font.sub, fontFamily: ff(up ? "600" : "500"), color: up ? th.seal : th.muted }}>{dl ? t("downloadingPct", { n: dl.pct }) : up ? t("hasVersion", { version: up.version }) : `${installed} · ${buildHash}`}</Text>}
           onPress={() => (dl ? undefined : up ? setDlg({ kind: "update", update: up }) : setDlg({ kind: "new", version: installed, notes }))} />
       </ScrollView>
@@ -210,6 +210,8 @@ export default function Settings() {
 }
 
 const s = StyleSheet.create({
+  tog: { width: 48, height: 28, borderRadius: 14, padding: 3, justifyContent: "center" }, // ui.css .tog
+  knob: { width: 22, height: 22, borderRadius: 11 },
   root: { flex: 1 },
   body: { padding: space.gutter, paddingBottom: 40 },
   o: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, alignItems: "center", justifyContent: "center" },

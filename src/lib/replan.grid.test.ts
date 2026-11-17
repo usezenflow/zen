@@ -63,19 +63,64 @@ describe("set a time onto another task", () => {
       });
 });
 
-describe("freed time", () => {
-  for (const [how, free] of Object.entries({ done: (id: string) => swipeDone(id, NOW), delete: (id: string) => removeScope(id, "this", NOW) }))
-    it(`${how}: a task with no time takes it, nothing else moves`, async () => {
-      for (const x of [flex("A", NOW + 3 * H), flex("C", NOW + 2 * D), { ...flex("U", 0), start: undefined, end: undefined } as Task]) db.tasks.set(x.id, x);
-      const r = await free("A");
-      expect(db.tasks.get("U").start).toBeDefined();
-      expect(db.tasks.get("C").start).toBe(NOW + 2 * D);
+describe("freed time: later tasks move into it, earlier only", () => {
+  const frees: Record<string, (id: string) => Promise<unknown>> = { done: (id) => swipeDone(id, NOW), delete: (id) => removeScope(id, "this", NOW) };
+  const starts = () => Object.fromEntries([...db.tasks.values()].map((x) => [x.id, x.start]));
+  for (const [how, free] of Object.entries(frees)) {
+    it(`${how}: a task with no time takes the freed time, nothing else moves later`, async () => {
+      for (const x of [flex("A", NOW + 3 * H), { ...flex("U", 0), start: undefined, end: undefined } as Task]) db.tasks.set(x.id, x);
+      const r = await free("A") as { sub?: string };
+      expect(db.tasks.get("U").start).toBe(NOW + 3 * H);
       expect(r.sub).toContain("U");
     });
-  it("done with nothing waiting: no plan at all", async () => {
-    for (const x of [flex("A", NOW + 3 * H), flex("C", NOW + 2 * D)]) db.tasks.set(x.id, x);
+    it(`${how} early: the next auto task moves into the freed time`, async () => {
+      for (const x of [flex("A", NOW + 3 * H), flex("B", NOW + 7 * H)]) db.tasks.set(x.id, x);
+      const r = await free("A") as { sub?: string };
+      expect(db.tasks.get("B").start).toBe(NOW + 3 * H);
+      expect(db.tasks.get("B").end).toBe(NOW + 4 * H);
+      expect(r.sub).toContain("B");
+      expect(db.kv.get("plannedAt")).toBe(String(NOW));
+    });
+    it(`${how}: an unscheduled task due sooner beats a placed lax one for the gap`, async () => {
+      for (const x of [flex("A", NOW + 3 * H), flex("L", NOW + 7 * H), { ...flex("U", 0, 60, { deadline: NOW + 6 * H }), start: undefined, end: undefined } as Task]) db.tasks.set(x.id, x);
+      await free("A");
+      // The urgent one is placed before its due, and the lax one never moves later or onto it.
+      const u = db.tasks.get("U"), l = db.tasks.get("L");
+      expect(u.start).toBeDefined();
+      expect(u.start! + 60 * 60_000).toBeLessThanOrEqual(NOW + 6 * H);
+      expect(l.start).toBeLessThanOrEqual(NOW + 7 * H);
+      expect(over(u, l)).toBe(false);
+    });
+    it(`${how}: pinned and hand-timed tasks never move`, async () => {
+      for (const x of [flex("A", NOW + 3 * H), flex("P", NOW + 7 * H, 60, { pinned: true, userEdited: ["start"] }), flex("H", NOW + 6 * H, 60, { userEdited: ["start"] }), flex("B", NOW + 8 * H)]) db.tasks.set(x.id, x);
+      const s0 = starts();
+      await free("A");
+      expect(db.tasks.get("P").start).toBe(s0.P);
+      expect(db.tasks.get("H").start).toBe(s0.H);
+      expect(db.tasks.get("B").start).toBe(NOW + 3 * H); // the one auto task still moves, into the freed hour
+    });
+    it(`${how}: no task ever moves later`, async () => {
+      for (const x of [flex("A", NOW + 3 * H), flex("B", NOW + 5 * H), flex("C", NOW + 9 * H), flex("E", NOW + D + 2 * H, 90, { deadline: NOW + 3 * D })]) db.tasks.set(x.id, x);
+      const s0 = starts();
+      await free("A");
+      for (const x of [...db.tasks.values()]) if (x.id !== "A" && x.start !== undefined) expect(x.start).toBeLessThanOrEqual(s0[x.id]!);
+    });
+  }
+  it("two tasks take a freed two hours: one count in the toast, not a name", async () => {
+    for (const x of [flex("A", NOW + 3 * H, 120), { ...flex("U1", 0), start: undefined, end: undefined } as Task, { ...flex("U2", 0), start: undefined, end: undefined } as Task]) db.tasks.set(x.id, x);
+    const r = await swipeDone("A", NOW) as { sub?: string };
+    expect(db.tasks.get("U1").start !== undefined && db.tasks.get("U2").start !== undefined).toBe(true);
+    expect(r.sub).toBe("Đã dời sớm 2 việc");
+  });
+  it("done after its time: nothing can take the time, no plan at all", async () => {
+    for (const x of [flex("A", NOW - 3 * H, 60), flex("C", NOW + 2 * D)]) db.tasks.set(x.id, x);
     await swipeDone("A", NOW);
     expect(db.kv.get("plannedAt")).toBeUndefined();
+  });
+  it("a deleted series instance pulls the next task in too", async () => {
+    for (const x of [flex("A", NOW + 3 * H, 60, { rrule: "FREQ=DAILY", seriesId: "s1" }), flex("B", NOW + 7 * H)]) db.tasks.set(x.id, x);
+    await removeScope("A", "this", NOW);
+    expect(db.tasks.get("B").start).toBe(NOW + 3 * H);
   });
 });
 

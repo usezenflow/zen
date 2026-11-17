@@ -79,7 +79,7 @@ const ymd = (s: string): ReaderWC => {
 };
 
 /** The lunar day `day` of lunar `month` (any month when none) on or after ref. */
-function nextLunar(
+export function nextLunar(
   month: number | undefined,
   day: number,
   ref: ReaderWC,

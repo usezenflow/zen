@@ -30,7 +30,7 @@ const DAYS: [string, string][] = [
   ["thứ 2", "2026-11-16"], ["thứ hai", "2026-11-16"], ["thứ 3", "2026-11-17"], ["thứ ba", "2026-11-17"], ["thứ 4", "2026-11-18"], ["thứ tư", "2026-11-18"],
   ["thứ 5", "2026-11-19"], ["thứ năm", "2026-11-19"], ["thứ 6", "2026-11-20"], ["thứ sáu", "2026-11-20"], ["chủ nhật", "2026-11-15"],
   ["thứ 2 tuần sau", "2026-11-16"], ["thứ 7 tuần sau", "2026-11-21"], ["thứ 4 tuần tới", "2026-11-18"], ["chủ nhật tuần sau", "2026-11-22"], ["thứ 3 tuần sau nữa", "2026-11-24"],
-  ["tuần sau", "2026-11-21"], ["tuần tới", "2026-11-21"], ["tuần sau nữa", "2026-11-28"], ["2 tuần nữa", "2026-11-28"], ["3 ngày nữa", "2026-11-17"],
+  ["tuần sau", "2026-11-16"], ["tuần tới", "2026-11-16"], ["tuần sau nữa", "2026-11-23"], ["2 tuần nữa", "2026-11-28"], ["3 ngày nữa", "2026-11-17"],
   ["20/11", "2026-11-20"], ["ngày 20/11", "2026-11-20"], ["ngày 20 tháng 11", "2026-11-20"], ["ngày 20", "2026-11-20"], ["20 tháng 11", "2026-11-20"], ["5/12", "2026-12-05"], ["mùng 5 tháng 12", "2026-12-05"], ["20/11/2026", "2026-11-20"],
 ];
 const CLOCKS: [string, string][] = [
@@ -46,7 +46,7 @@ const SPOKEN_CLOCKS: [string, string][] = [
 const SPOKEN_DAYS: [string, string][] = [
   ["mai", "2026-11-15"], ["thứ hai", "2026-11-16"], ["thứ ba", "2026-11-17"], ["thứ tư", "2026-11-18"], ["thứ năm", "2026-11-19"], ["thứ sáu", "2026-11-20"], ["thứ sáu tuần sau", "2026-11-20"], ["thứ bảy tuần sau", "2026-11-21"], ["chủ nhật tuần sau", "2026-11-22"],
   ["ngày hai mươi tháng mười một", "2026-11-20"], ["ngày hai mươi", "2026-11-20"], ["hai mươi tháng mười một", "2026-11-20"], ["mùng năm tháng mười hai", "2026-12-05"], ["ngày mười lăm tháng mười hai", "2026-12-15"], ["ngày hai mươi mốt tháng mười một", "2026-11-21"],
-  ["ba ngày nữa", "2026-11-17"], ["hai tuần nữa", "2026-11-28"], ["tuần sau", "2026-11-21"],
+  ["ba ngày nữa", "2026-11-17"], ["hai tuần nữa", "2026-11-28"], ["tuần sau", "2026-11-16"],
 ];
 const PARTS: [string, string, string, string][] = [
   ["sáng mai", "2026-11-15", "05:00", "12:00"], ["trưa mai", "2026-11-15", "11:00", "14:00"], ["chiều mai", "2026-11-15", "12:00", "18:00"], ["tối mai", "2026-11-15", "17:00", "23:59"], ["tối nay", "2026-11-14", "17:00", "23:59"], ["chiều nay", "2026-11-14", "12:00", "18:00"],
@@ -62,34 +62,7 @@ const cap = (s: string) => s.replace(/(^|\s)(\p{L})/gu, (_, a: string, b: string
 /** A fixed start is planned on the quarter-hour grid (planner STEP): 8:45 and 8:15 stay, 8:10 is 8:15. A deadline keeps its minute. */
 const snap = (hm: string) => { const t = Math.round((+hm.slice(0, 2) * 60 + +hm.slice(3)) / 15) * 15; return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`; };
 
-const VOWEL = "aeiouy";
-const MOD: Record<string, string> = { a: "ă", o: "ơ", u: "ư" };
-const HAT: Record<string, string> = { a: "â", e: "ê", o: "ô" };
-const MARK: Record<string, string> = { s: "\u0301", f: "\u0300", r: "\u0309", x: "\u0303", j: "\u0323" };
-/** What a Telex keyboard with no spell check writes for the keys of an English word: "web" is "ưeb", "meeting" "mêting". */
-export function telexed(word: string): string {
-  const out: string[] = []; // one entry per letter, marks included
-  let tone: { at: number; key: string } | undefined;
-  const plain = (i: number) => out[i].normalize("NFD")[0];
-  const bare = (i: number) => out[i].normalize("NFD").length === 1 || (tone?.at === i && out[i].normalize("NFD").length === 2 && !/[\u0302\u0306\u031b]/.test(out[i].normalize("NFD")));
-  for (const k of word) {
-    const last = out.length - 1;
-    if (MARK[k] && out.some((c) => VOWEL.includes(c.normalize("NFD")[0]))) {
-      if (tone?.key === k) { out[tone.at] = out[tone.at].normalize("NFD").replace(MARK[k], "").normalize("NFC"); tone = undefined; out.push(k); continue; }
-      if (tone) out[tone.at] = out[tone.at].normalize("NFD").replace(MARK[tone.key], "").normalize("NFC");
-      let at = last; while (at >= 0 && !VOWEL.includes(plain(at))) at--;
-      out[at] = (out[at].normalize("NFD") + MARK[k]).normalize("NFC");
-      tone = { at, key: k };
-    } else if (k === "w") {
-      let at = last; while (at >= 0 && VOWEL.includes(plain(at)) && !(MOD[plain(at)] && bare(at))) at--;
-      if (at >= 0 && MOD[plain(at)] && bare(at) && out.slice(at).every((c) => VOWEL.includes(c.normalize("NFD")[0]))) out[at] = (MOD[plain(at)].normalize("NFD") + out[at].normalize("NFD").slice(1)).normalize("NFC");
-      else out.push("ư");
-    } else if (HAT[k] && last >= 0 && plain(last) === k && bare(last)) out[last] = (HAT[k].normalize("NFD") + out[last].normalize("NFD").slice(1)).normalize("NFC");
-    else if (k === "d" && out.includes("d")) out[out.lastIndexOf("d")] = "đ";
-    else out.push(k);
-  }
-  return out.join("").normalize("NFC");
-}
+import { telexed } from "./telexed";
 
 function cases(): Case[] {
   const out: Case[] = [];
@@ -175,15 +148,17 @@ function cases(): Case[] {
   for (const term of TELEX_TERMS) {
     if (DAY_TERMS.has(term)) continue;
     const forms = new Set([telexed(term), term.startsWith("w") ? `ư${term.slice(1)}` : term, term.replace(/w/g, "ư")]);
+    const shown = term === "wifi" ? "Wi-Fi" : term; // the canon display form (en.ts)
     for (const form of forms) if (form !== term && untelex(form) === term) for (const [d, day] of [DAYS[1], DAYS[14], DAYS[22], DAYS[27]]) for (const [c, clock] of [CLOCKS[0], CLOCKS[12], CLOCKS[18]])
-      for (const [said, title] of [[`Làm ${form} ${d} ${c}`, `Làm ${term}`], [`${d} ${c} họp ${form}`, `Họp ${term}`], [`Xem ${form} toán ${d} ${c}`, `Xem ${term} toán`]]) add("telex", said, title, { k: "at", at: `${day}T${clock}:00` }, {}, ["typed"]);
+      for (const [said, title] of [[`Làm ${form} ${d} ${c}`, `Làm ${shown}`], [`${d} ${c} họp ${form}`, `Họp ${shown}`], [`Xem ${form} toán ${d} ${c}`, `Xem ${shown} toán`]]) add("telex", said, title, { k: "at", at: `${day}T${clock}:00` }, {}, ["typed"]);
   }
   return out;
 }
 
 it("telex: every term's keyboard form reads back, except the ones that are real Vietnamese words", () => {
   const lost = [...TELEX_TERMS].filter((t) => telexed(t) !== t && untelex(telexed(t)) !== t).map((t) => `${t}=${telexed(t)}`);
-  expect(lost).toEqual(["test=tét", "docs=dóc", "now=nơ", "how=hơ"]);
+  // "tét" and "dóc" are rare, so untelex reads them back to "test" and "docs" now; "nơ" and "hơ" are real words
+  expect(lost).toEqual(["now=nơ", "how=hơ"]);
 });
 
 const fold = (s: string) => strip(s).toLowerCase().trim();

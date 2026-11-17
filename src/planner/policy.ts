@@ -3,14 +3,14 @@ import { DAY, HOUR, I_AFTER, I_ENERGY, I_SIM, KINDS, MIN, type FeatCtx, cdist, d
 import { effort, neighbors, peakHour, slipOf } from "./habits";
 import { ALPHA, D, LAMBDA, N0, type Primed, decayArms, prepare, primeBatch, ucb, ucbAt, update } from "./linucb";
 import { type Model, newModel } from "./model";
-import { type Busy, type End, type Util, SLOT, STEP, WAKE_FROM, WAKE_TO, awake, cells, dayGone, fixedHours, gap, solve } from "./place";
+import { type Busy, type End, type Util, EJECT_CAP, SLOT, STEP, WAKE_FROM, WAKE_TO, awake, cells, dayGone, fixedHours, gap, solve } from "./place";
 import { day, dayLabel, when } from "../lib/when";
 import { minSitting, split } from "./split";
-import { type Piece, bell, dur, lateH, moveCost, startValue } from "./value";
+import { type Piece, bell, dur, lateH, moveCost, pullOk, startValue } from "./value";
 
 const LONG_SITTING = 180; // near a deadline sittings merge up to this; longer work still splits
 
-export interface Opts { later?: string; hourOnly?: boolean }
+export interface Opts { later?: string; hourOnly?: boolean; pull?: { from: number; to: number } } // pull: time freed by a done or delete, from its start (or now) to its end
 
 const HALF = 21 * DAY;
 const COLD_A0 = LAMBDA + N0;
@@ -31,13 +31,20 @@ function decay(m: Model, now: number) {
 }
 
 const tpl = {
-  after: ["Bạn hay {prev} trước khi {kind}", "{title} dời sang {time}"],
+  after: ["{prev} xong thì {what} nhé", "{title} dời sang {time}"], // cascade "Habit": "Tập thể dục xong thì đọc sách nhé"
   similar: ["{title} dời sang {time}", "Hợp giờ bạn hay làm việc tương tự"],
   slip: ["{title} được xếp sớm hơn, lúc {time}", "Bạn hay dời lại việc {kind}"],
 };
-const KIND_VI: Record<string, string> = { study: "học", exercise: "tập thể dục", chores: "làm việc nhà", social: "gặp gỡ", other: "làm việc khác" };
+const KIND_VI: Record<string, string> = { study: "học", exercise: "tập thể dục", chores: "làm việc nhà", social: "gặp gỡ", other: "làm việc khác", work: "làm việc", errand: "làm việc vặt", finance: "lo chuyện tiền", self: "chăm bản thân" };
 
 export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opts: Opts = {}): { diff: Diff; model: Model } {
+  const first = planOnce(tasks, busy, model, now, opts);
+  if (!first.bump) return first;
+  const second = planOnce(tasks, busy, model, now, opts, new Set(first.bump));
+  return second.trouble < first.trouble ? second : first; // the bump is kept only when it leaves fewer pieces short
+}
+
+function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: Opts, unlock?: Set<string>): { diff: Diff; model: Model; bump?: string[]; trouble: number } {
   const m = clone(model);
   decay(m, now);
   const live = tasks.filter((t) => !t.doneAt && !t.deletedAt);
@@ -152,10 +159,16 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
   const spanLater = (p: Piece, s: number) =>
     opts.later === p.id && p.task.start !== undefined && s < p.task.start + dur(p) && s + dur(p) > p.task.start;
   // A placed piece whose slot is still good stays put. Only a cause frees it: a clash, a rule, a due date or window it would now miss, "later".
+  // A pull: a piece may take the freed time only if it is unscheduled, or its start is later than the gap's (it moves earlier, never later).
+  if (opts.pull) for (const p of pieces) {
+    const tk = p.task;
+    if (tk.fixed || tk.pinned || tk.userEdited?.includes("start")) continue;
+    if (p.prior === undefined || p.prior > opts.pull.from) p.gap = opts.pull;
+  }
   const held: Busy[] = [...allBusy], own = (p: Piece) => Number(!!p.task.userEdited?.includes("start"));
   for (const p of [...pieces].sort((a, b) => own(b) - own(a))) { // a time set by hand wins a clash between two plans
     const s = p.prior, t = p.task;
-    if (s === undefined) continue;
+    if (s === undefined || p.gap || unlock?.has(p.id)) continue;
     const e = s + dur(p);
     if (spanLater(p, s) || hits(p, s).length || !awake(p, s) || (t.deadline !== undefined && e > t.deadline) || (t.notAfter !== undefined && e > t.notAfter) || (t.notBefore !== undefined && s < t.notBefore) || held.some((b) => s < b.end && e > b.start)) continue;
     p.lock = true; held.push({ start: s, end: e });
@@ -184,7 +197,7 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
       if (masked[i]) continue; // scored BLOCK whatever its features: skip the work
       if (opts.hourOnly) X[i * D] = 1; else X.set(features(p.task, c, c0), i * D);
     }
-    batches.set(p.id, { lo: cs[0], n, prim: primeBatch(prep, X, arm, I_AFTER, 5), masked });
+    batches.set(p.id, { lo: cs[0], n, prim: primeBatch(prep, X, arm, I_AFTER, KINDS.length), masked });
   }
   const gridAt = (b: Batch, s: number) => { const i = (s - b.lo) / STEP; return Number.isInteger(i) && i >= 0 && i < b.n ? i : -1; };
   // Kind of the latest end in the hour before each cell, as features() picks it: O(ends), not O(cells * ends).
@@ -218,6 +231,24 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
   }
   const solved = solve(pieces, { busy: allBusy, fixedEnds, now, util: linUtil, utilAll: linAll }, [...pieces.map((p) => p.id)].sort().join("|").split("").reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0, 2166136261)); // same pieces, same plan
   const at = (p: Piece) => solved.starts.get(p.id)!;
+  // Packed (item 9): a piece unplaced, late, or out of its said window. Zen-placed pieces in its way with a later due (or none) can give way.
+  const short = pieces.filter((q) => at(q) < 0 ? cells(q, now).length > 0
+    : (q.task.deadline !== undefined && at(q) + dur(q) > q.task.deadline) || (!!q.ask && (at(q) + dur(q) > q.ask.to || (q.ask.from !== undefined && at(q) < q.ask.from))));
+  // Only what a due or a said window can use counts: an unplaced piece with no due gains nothing from a bump, so it does not decide one.
+  const urgent = short.filter((q) => q.task.deadline !== undefined || q.ask !== undefined);
+  // Only new trouble bumps: a piece still short at its own old slot was short last plan too, and a replan with nothing new moves nothing.
+  const fresh = urgent.filter((q) => q.prior === undefined || at(q) !== q.prior);
+  let bump: string[] | undefined;
+  if (fresh.length && !opts.pull && !unlock) {
+    const dl = (x: Piece) => x.task.deadline ?? Infinity;
+    const cand = new Map<string, Piece>();
+    for (const q of fresh) for (const p of pieces) {
+      if (p === q || p.prior === undefined || dl(p) <= dl(q) || p.task.pinned || p.task.fixed || p.task.userEdited?.includes("start")) continue;
+      const inWin = !!q.ask && p.prior >= (q.ask.from ?? -Infinity) && p.prior < q.ask.to;
+      if (inWin || (q.task.deadline !== undefined && p.prior < q.task.deadline)) cand.set(p.id, p);
+    }
+    bump = [...cand.values()].sort((a, b) => (dl(a) === dl(b) ? a.prior! - b.prior! : dl(a) < dl(b) ? 1 : -1)).slice(0, EJECT_CAP).map((p) => p.id);
+  }
 
   // Busy time and every placed piece, sorted once per plan (not once per piece: that was O(P² log P)).
   const taken: (Busy & { by?: Piece })[] = [...allBusy, ...pieces.filter((q) => at(q) >= 0).map((q) => ({ start: at(q), end: at(q) + dur(q), by: q }))].sort((x, y) => x.start - y.start);
@@ -236,7 +267,7 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
     for (let i = 0; i < cs.length; i++) {
       const c = cs[i];
       while (j < spans.length && spans[j].end <= c) j++;
-      if (Math.abs(c - start) < HOUR || (j < spans.length && spans[j].start < c + dur(p))) continue;
+      if (Math.abs(c - start) < HOUR || !pullOk(p, c) || (j < spans.length && spans[j].start < c + dur(p))) continue;
       const v = startValue(p, c, now, u[i]);
       if (!top || v > top.v) top = { c, v };
     }
@@ -253,7 +284,7 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
     for (const b of allBusy) if (!(s < b.end && s + dur(p) > b.start) && s - HOUR < b.end && s + dur(p) + HOUR > b.start) { n++; who ??= b.title; }
     return { v: 0.1 * n * (p.effort / 30), who };
   };
-  const GROUPS: [ReasonKey, number, number][] = [["hour", 0, 1], ["weekend", 1, 2], ["busy", 2, 3], ["deadline", 3, 4], ["kind", 4, 9], ["after", 9, 14], ["energy", 14, 15], ["similar", 15, 16]];
+  const GROUPS: [ReasonKey, number, number][] = [["hour", 0, 1], ["weekend", 1, 2], ["busy", 2, 3], ["deadline", 3, 4], ["kind", 4, I_AFTER], ["after", I_AFTER, I_ENERGY], ["energy", I_ENERGY, I_SIM], ["similar", I_SIM, D]];
   const dot = (th: ArrayLike<number>, x: number[], k0 = 0, k1 = D) => { let v = 0; for (let k = k0; k < k1; k++) v += th[k] * x[k]; return v; };
   // No learned reason yet: say what is true from the task itself (its due, its length), never "I do not know you".
   // Facts a reason can name: how far ahead of the due, what it follows, which part of which day. The words stay loose (reasons.ts).
@@ -285,7 +316,7 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
     for (const [key, k0, k1] of GROUPS) {
       if (!known) break;
       const w = dot(ths, xs, k0, k1) - dot(thc, xc, k0, k1);
-      const ai = xs.slice(I_AFTER, I_AFTER + 5).indexOf(1), aj = ai >= 0 ? ai : xc.slice(I_AFTER, I_AFTER + 5).indexOf(1);
+      const ai = xs.slice(I_AFTER, I_AFTER + KINDS.length).indexOf(1), aj = ai >= 0 ? ai : xc.slice(I_AFTER, I_AFTER + KINDS.length).indexOf(1);
       put(key, w, key === "deadline" ? dueVars(p, s) ?? { due: "" }
         : key === "kind" ? { kind: p.task.kind } : key === "after" ? { prev: KINDS[aj] ?? "" }
         : key === "similar" ? { hour: Math.round(hourOf(s)), n: likeNear(p, s) } : key === "hour" ? { hour: Math.floor(hourOf(s)), n: doneNear(s) } : undefined);
@@ -357,7 +388,7 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
     if (from !== undefined && from !== s) diff.displaced.push({ id: p.id, from, to: s });
     if (changed) {
       const th = prep.theta[arm];
-      const ai = x.slice(I_AFTER, I_AFTER + 5).indexOf(1);
+      const ai = x.slice(I_AFTER, I_AFTER + KINDS.length).indexOf(1);
       const cands: [keyof typeof tpl, number, string?][] = [
         ["after", ai >= 0 ? th[I_AFTER + ai] : 0, ai >= 0 ? KINDS[ai] : undefined],
         ["similar", th[I_SIM] * x[I_SIM]],
@@ -369,7 +400,7 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
   for (const [id, v] of Object.entries(m.placed)) if (v.start < now - 30 * DAY) delete m.placed[id];
   if (top) diff.insight = {
     template: tpl[top.why][0], sub: tpl[top.why][1],
-    vars: { title: top.piece.task.title, kind: KIND_VI[top.piece.task.kind], prev: KIND_VI[top.prev ?? ""] ?? "", time: when(top.start, now) },
+    vars: { title: top.piece.task.title, what: top.piece.task.title.replace(/^\p{Lu}(?!\p{Lu})/u, (c) => c.toLocaleLowerCase("vi")), kind: KIND_VI[top.piece.task.kind], prev: (KIND_VI[top.prev ?? ""] ?? "").replace(/^./, (c) => c.toLocaleUpperCase("vi")), time: when(top.start, now).replace(/^Hôm nay /, "") }, // views/cascade: "dời sang 18:30" today, the day only when not
   };
 
   const byId = new Map(pieces.map((p) => [p.id, p]));
@@ -428,7 +459,7 @@ export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opt
     warn.push({ id, title: mine[0].task.title, deadline: dl, need, free, fixes: [...fixes.values()].sort((x, y) => y.len - x.len).slice(0, 2).map(({ len: _, ...f }) => f) });
   }
   if (warn.length) diff.warn = warn;
-  return { diff, model: m };
+  return { diff, model: m, bump: bump?.length ? bump : undefined, trouble: urgent.length };
 }
 
 const kernel = (a: number, h: number) => Math.exp(-(cdist(a, h) ** 2) / (2 * 0.75 ** 2));
@@ -487,7 +518,7 @@ export function learn(model: Model, ev: TaskEvent, task: Task, own = false): Mod
           m.doneHours = m.doneHours.slice(-200);
         }
         if (task.vec && task.start !== undefined && task.end !== undefined && ev.at >= task.start && ev.at <= task.end + 30 * MIN) {
-          m.efforts.push({ vec: Array.from(task.vec), minutes: Math.min(240, Math.max(15, (ev.at - task.start) / MIN)), at: ev.at });
+          m.efforts.push({ vec: Array.from(task.vec), minutes: Math.min(240, Math.max(15, (ev.at - task.start) / MIN)), at: ev.at, kind: task.kind });
           m.efforts = m.efforts.slice(-200);
         }
       }

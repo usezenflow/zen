@@ -10,7 +10,7 @@ import { t } from "@/lib/i18n";
 import { parse } from "@/lib/find";
 import { when } from "@/lib/when";
 import { useTheme } from "@/lib/theme";
-import { at, DAY, HOUR, lecture, NOW, task } from "../../test/factories";
+import { at, DAY, HOUR, lecture, NOW, TODAY, task } from "../../test/factories";
 
 // Gesture events take RNGH's JS path: the Reanimated mock has no native event bridge.
 jest.mock("react-native-gesture-handler/lib/module/handlers/gestures/reanimatedWrapper", () => ({ Reanimated: undefined, Worklets: undefined }));
@@ -180,10 +180,10 @@ describe("Row", () => {
     await fireEvent.press(screen.getByText("14:00"));
     const [h, m] = drums();
     expect(["00", "15", "30", "45"].every((x) => screen.getAllByText(x).length > 0)).toBe(true);
-    const h0 = new Date(NOW).getHours(); // today: the hours drum starts at now, the hours gone are not on it
-    expect(screen.queryByText(String(h0 - 1).padStart(2, "0"), { exact: true })).toBeNull();
+    const h0 = new Date(NOW).getHours(); // a time set by hand may be in the past: the hours gone are on the drum too
+    expect(screen.queryByText(String(h0 - 1).padStart(2, "0"), { exact: true })).toBeOnTheScreen();
     expect(screen.queryByText(String(h0).padStart(2, "0"), { exact: true })).toBeOnTheScreen();
-    await settle(h, 15 - h0);
+    await settle(h, 15); // the drum runs from 0:00
     expect(f.onTime).toHaveBeenLastCalledWith(new Date(at(15, 0)));
     await settle(m, 2);
     expect(f.onTime).toHaveBeenLastCalledWith(new Date(at(15, 30)));
@@ -213,6 +213,38 @@ describe("Row", () => {
     expect(screen.getByText(t("noPlan"))).toBeOnTheScreen();
   });
 
+  it("a timed row shows its end under the start; all-day and end-less rows show none", async () => {
+    await draw({ task: task({ start: at(14), end: at(15, 30) }) });
+    expect(screen.getByText("14:00")).toBeOnTheScreen();
+    expect(screen.getByText("15:30")).toBeOnTheScreen();
+    await draw({ allDay: true });
+    expect(screen.queryByText("15:00")).toBeNull(); // the default task ends at 15:00
+  });
+
+  it("the end is its own tap: same size as the start, regular and muted, and its dial saves the end", async () => {
+    const onEnd = jest.fn();
+    const f = await draw({ task: task({ start: at(14), end: at(15) }), onEnd });
+    const st = flat(screen.getByText("14:00")), en = flat(screen.getByText("15:00"));
+    expect(en.fontSize).toBe(st.fontSize);
+    expect(en.color).not.toBe(st.color);
+    await fireEvent.press(screen.getByText("15:00"));
+    const [h] = drums();
+    await settle(h, 16); // the end's drum runs from 0:00 too: an hour before the start would roll to the next day
+    expect(onEnd).toHaveBeenLastCalledWith(new Date(at(16, 0)));
+    expect(f.onTime).not.toHaveBeenCalled();
+  });
+
+  it("past midnight: the end carries +1 on its start day, the start -1 on the next day", async () => {
+    await draw({ task: task({ start: at(22), end: at(1, 0, TODAY + DAY) }) });
+    expect(screen.getByText("+1")).toBeOnTheScreen();
+    expect(screen.queryByText("-1")).toBeNull();
+    await draw({ task: task({ start: at(22), end: at(1, 0, TODAY + DAY) }), on: TODAY + DAY });
+    expect(screen.getByText("-1")).toBeOnTheScreen();
+    expect(screen.queryByText("+1")).toBeNull();
+    await draw({ task: task({ start: at(14), end: at(15) }) });
+    expect(screen.queryByText(/^[+-]\d$/)).toBeNull();
+  });
+
   it("an untimed row shows no time and opens no picker", async () => {
     await draw({ task: task({ start: undefined, end: undefined }) });
     expect(drums()).toHaveLength(0);
@@ -232,7 +264,7 @@ describe("Row", () => {
   it("a ghost has a dashed circle and no checkbox", async () => {
     await draw({ ghost: true });
     expect(screen.container.queryAll((n) => flat(n).borderStyle === "dashed")).toHaveLength(1);
-    expect(screen.container.queryAll((n) => n.props.hitSlop === 8 && typeof n.props.onResponderRelease === "function" && n !== rowEl())).toHaveLength(1); // only the time
+    expect(screen.container.queryAll((n) => n.props.hitSlop?.left === 8 && typeof n.props.onResponderRelease === "function" && n !== rowEl())).toHaveLength(2); // only the start and the end
   });
 
   it("a search query tints the matched words", async () => {

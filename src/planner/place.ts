@@ -1,6 +1,6 @@
 import type { Kind, Task } from "../lib/types";
 import { DAY, HOUR, MIN, dayStart } from "./features";
-import { type Piece, dur, startValue } from "./value";
+import { type Piece, dur, pullOk, startValue } from "./value";
 
 export interface Busy { start: number; end: number }
 export type End = { kind: Kind; end: number };
@@ -21,7 +21,7 @@ const HALO = 60 * MIN;
 const TAIL = 6 * HOUR; // a block this far past a day's end can still halo an item that spills over midnight
 const W_GAP = 0.05; // per SLOT: the same weight per hour as 0.1 per 30 min
 const SPREAD = 1;
-const T0 = 0.5, T1 = 0.005, CAP_MS = 40, LOG_CAP = 40;
+const T0 = 0.5, T1 = 0.005, CAP_MS = 150, LOG_CAP = 40; // CAP_MS: a safety net only, the iteration budget is what bounds a solve
 const MISS = -1e6; // an unplaced piece: worse than any late placement, so a piece is left out only when no cell is free
 export const EJECT_CAP = 12;
 
@@ -39,7 +39,7 @@ interface Iv { start: number; end: number }
 export function cells(p: Piece, now: number): number[] {
   if (p.lock) return [p.prior!];
   const t = p.task;
-  const lo = ceil(Math.max(now, t.notBefore ?? now));
+  let lo = ceil(Math.max(now, t.notBefore ?? now));
   // The planning horizon is 30 days: a piece that starts past it is not tried at all (no solver work). A portal/LMS deadline (source dlu) and an exam's prep (forId, due at the synced exam) are anchored outside, so they keep their reach.
   const cap = t.source === "dlu" || t.forId !== undefined ? Infinity : now + 30 * DAY;
   if (lo >= cap) return [];
@@ -51,6 +51,8 @@ export function cells(p: Piece, now: number): number[] {
   if (t.rrule && t.deadline !== undefined) hi = Math.min(hi, t.deadline);
   // The whole task ends by notAfter; a window already gone is dropped, so the task takes the next free slot, not a forced one at `now`.
   if (t.notAfter !== undefined && t.notAfter - dur(p) + 1 > lo) hi = Math.min(hi, t.notAfter - dur(p) + 1);
+  // A pull: its prior stays a cell (the solver takes it only if it cannot move into the gap, see pullOk).
+  if (p.gap && p.prior !== undefined) hi = Math.max(hi, p.prior + 1);
   const out: number[] = [];
   for (let c = lo; c < hi; c += STEP) out.push(c);
   return out;
@@ -148,7 +150,7 @@ export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
     let top = { c: -1, v: -Infinity }; // -1: nowhere fits
     for (let k = 0; k < cs[i].length; k++) {
       const c = cs[i][k], day = ds[i][k], items = bk.get(day) ?? [], e = c + du[i];
-      if (!awake(p, c, day) || clash(bz.get(day) ?? [], c, e) || (!lax && clash(items, c, e))) continue;
+      if (!pullOk(p, c) || !awake(p, c, day) || clash(bz.get(day) ?? [], c, e) || (!lax && clash(items, c, e))) continue;
       let b0 = base.get(day);
       if (b0 === undefined) base.set(day, (b0 = dayCost(day, items, lax)));
       const v = startValue(p, c, now, u ? u[k] : env.util(p, c, ends)) - (dayCost(day, [...items, { start: c, end: c + du[i] }], lax) - b0);
@@ -184,8 +186,10 @@ export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
   };
 
   const log: LogEntry[] = [];
+  // One-cell pieces (kept where they are) go first, so a movable piece never takes their time; then deadline; then unscheduled before placed.
   const order = pieces.map((_, i) => i).sort((a, b) =>
-    (pieces[a].task.deadline ?? Infinity) - (pieces[b].task.deadline ?? Infinity) || (pieces[a].id < pieces[b].id ? -1 : 1));
+    (cs[a].length > 1 ? 1 : 0) - (cs[b].length > 1 ? 1 : 0) || (pieces[a].task.deadline ?? Infinity) - (pieces[b].task.deadline ?? Infinity)
+    || (pieces[a].prior === undefined ? 0 : 1) - (pieces[b].prior === undefined ? 0 : 1) || (pieces[a].id < pieces[b].id ? -1 : 1));
   const rank: number[] = []; order.forEach((i, r) => (rank[i] = r));
   for (const i of order) {
     const m = evalMove([[i, best(i, [])]]);
@@ -198,10 +202,12 @@ export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
   const rand = () => { rng = (rng + 0x6d2b79f5) >>> 0; let t = Math.imul(rng ^ (rng >>> 15), 1 | rng); t ^= t + Math.imul(t ^ (t >>> 7), 61 | t); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
   // Only pieces with a choice are searched: a held piece has one cell, so a small change stays a small, repeatable search.
   const free = pieces.map((_, i) => i).filter((i) => cs[i].length > 1), nf = free.length;
-  const iters = Math.min(3000, 80 * nf);
+  // A fixed budget, not a clock: the same pieces always get the same search, so a replan with nothing new moves nothing
+  // on any phone. ~1000 steps is ~20 ms on a laptop for 40 tasks.
+  const iters = Math.min(1000, 40 * nf);
   let bestS = S, bestScore = cur;
   for (let it = 0; it < iters; it++) {
-    if (Date.now() - t0 > CAP_MS) break; // a wall-clock cap: the greedy pass is already clash-free, search only polishes it
+    if (Date.now() - t0 > CAP_MS) break; // a stalled device only: the greedy pass is already clash-free, search only polishes it
     const T = T0 * (T1 / T0) ** (it / iters), r = rand(), i = free[Math.floor(rand() * nf)];
     let mv: Mv = [], kind: LogEntry["kind"] = "reinsert", day: number | undefined;
     if (r < 0.3) {
@@ -210,7 +216,7 @@ export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
     } else if (r < 0.5) {
       const j = free[Math.floor(rand() * nf)];
       // a swap must stay inside both pieces' horizons and windows
-      if (i !== j && S[i] !== S[j] && inDom(i, S[j]) && inDom(j, S[i])) { mv = [[i, S[j]], [j, S[i]]]; kind = "swap"; }
+      if (i !== j && S[i] !== S[j] && inDom(i, S[j]) && inDom(j, S[i]) && pullOk(pieces[i], S[j]) && pullOk(pieces[j], S[i])) { mv = [[i, S[j]], [j, S[i]]]; kind = "swap"; }
     } else if (r < 0.8) {
       const a = best(i, [], true);
       mv = [[i, a]];
@@ -247,6 +253,16 @@ export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
     const prior = pieces[i].prior!;
     if (inDom(i, prior) && fits(i, prior, view([], i))) { S = view([[i, prior]]); extra--; }
   }
+  // A move that buys nothing goes back: when the old slot is free and the plan scores no worse with it, the piece stays.
+  // Keeps a replan with nothing new from shuffling, however much search the time cap allowed (a slow phone, a busy test run).
+  for (const i of moved) {
+    const prior = pieces[i].prior!;
+    if (S[i] === prior || !inDom(i, prior) || !fits(i, prior, view([], i))) continue;
+    const back = view([[i, prior]]);
+    if (full(back) >= full(S) - 1e-6) S = back;
+  }
+  // A pull piece that found no cell keeps its prior slot when that is still free: a pull never leaves a placed task unplaced.
+  for (let i = 0; i < n; i++) if (S[i] < 0 && pieces[i].gap && pieces[i].prior !== undefined && fits(i, pieces[i].prior!, S)) S[i] = pieces[i].prior!;
   return { starts: new Map(pieces.map((p, i) => [p.id, S[i]])), score: full(S), greedyScore, log };
 }
 

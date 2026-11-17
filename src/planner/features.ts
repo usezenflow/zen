@@ -1,11 +1,11 @@
 import type { Kind, Task } from "../lib/types";
+import { D, KINDS } from "./linucb";
 
-export const KINDS: Kind[] = ["study", "exercise", "chores", "social", "other"];
-export { D } from "./linucb";
+export { D, KINDS };
 export const MIN = 60000;
 export const HOUR = 3600000;
 export const DAY = 86400000;
-export const I_AFTER = 9, I_ENERGY = 14, I_SIM = 15;
+export const I_AFTER = 4 + KINDS.length, I_ENERGY = I_AFTER + KINDS.length, I_SIM = I_ENERGY + 1;
 
 export const hourOf = (t: number) => { const d = new Date(t); return d.getHours() + d.getMinutes() / 60; };
 export const dayStart = (t: number) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
@@ -29,9 +29,9 @@ export const simAt = (nb: Nb[], h: number) => {
   return w ? s / w : 0;
 };
 
-// x = [1, weekend, busy, due, kind(5), after(5), energy, similar]
+// x = [1, weekend, busy, due, kind(K), after(K), energy, similar], D wide
 export function features(t: Task, start: number, c: FeatCtx): number[] {
-  const x = new Array(16).fill(0);
+  const x = new Array(D).fill(0);
   const d = new Date(start);
   const h = hourOf(start);
   x[0] = 1;

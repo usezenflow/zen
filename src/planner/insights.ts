@@ -1,5 +1,5 @@
 // The model's weights as things a friend would notice. Pure; the rhythm page, memory page and Sunday card read it.
-import { KIND_VI } from "../lib/reasons";
+import { KIND_VI, kindW } from "../lib/reasons";
 import type { Kind } from "../lib/types";
 import { D, DAY, energy, hourOf, I_AFTER, I_ENERGY, KINDS } from "./features";
 import { peakHour, slipOf } from "./habits";
@@ -35,8 +35,8 @@ export function insights(m: Model, now: number): Insights {
   const learned = m.arms.some((arm, a) => arm.A.some((v, i) => Math.abs(v - cold[a].A[i]) > 1e-6));
   const p = prepare(m.arms);
   const peak = peakHour(m, now);
-  // An hour's quality counts what was learned for any kind too: a moved task teaches its kind's columns, never the intercept.
-  const raw = range(0, 24).map((h) => p.theta[h][0] + mean(KC.map((c) => p.theta[h][c])) + p.theta[h][I_ENERGY] * energy(h + 0.5, peak));
+  // An hour's quality counts what was learned for the kind that fits it best: a moved task teaches its kind's columns, never the intercept. (A mean over kinds dilutes one kind's evidence as kinds are added.)
+  const raw = range(0, 24).map((h) => p.theta[h][0] + Math.max(...KC.map((c) => p.theta[h][c])) + p.theta[h][I_ENERGY] * energy(h + 0.5, peak));
   const lo = Math.min(...raw), hi = Math.max(...raw);
   const hours = raw.map((v) => (hi > lo ? (v - lo) / (hi - lo) : 0));
   // How little is known about an hour: the best-known of its intercept and kind columns, against the cold prior.
@@ -106,14 +106,14 @@ export function insights(m: Model, now: number): Insights {
     const sure = clamp(1 - mean(hs.map((h) => Math.sqrt(p.inv[h][c * D + c])))); // against the bare ridge, not the prior's mass
     if (top - avg > 0.1 && sure >= 0.5) {
       out.byKind.push({ kind, from, to: from + 3, sure });
-      out.guesses.push({ text: `Bạn ${KIND_VI[kind]} hợp nhất lúc ${from}h-${from + 3}h`, sure });
-      weekly.push({ text: `Bạn ${KIND_VI[kind]} hợp nhất lúc ${from}h`, sure });
+      out.guesses.push({ text: `${kindW(kind, true)} hợp nhất lúc ${from}h-${from + 3}h`, sure });
+      weekly.push({ text: `${kindW(kind, true)} hợp nhất lúc ${from}h`, sure });
     }
   });
 
   out.slip = KINDS.filter((k) => m.slip[k].placed >= 3 && slipOf(m, k) >= 0.25)
     .map((kind) => ({ kind, rate: slipOf(m, kind) })).sort((a, b) => b.rate - a.rate);
-  for (const e of out.slip) out.guesses.push({ text: `Việc ${KIND_VI[e.kind]} hay bị dời`, sure: clamp(m.slip[e.kind].placed / 10) });
+  for (const e of out.slip) out.guesses.push({ text: `${kindW(e.kind, true)} hay bị dời`, sure: clamp(m.slip[e.kind].placed / 10) });
 
   let worst = -1;
   for (let from = 7; from <= 20; from++) {

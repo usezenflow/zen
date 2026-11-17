@@ -1,3 +1,4 @@
+import { BlurView } from "expo-blur";
 import { Image } from "expo-image";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
 import { scheduleOnRN } from "react-native-worklets";
@@ -18,10 +19,11 @@ const MIC_Y = 93;
 /** capture.html .veil: a glow of the page colour rising from the mic, so the day steps back while you choose. */
 export function Veil({ onPress, z }: { onPress?: () => void; z?: number }) {
   const { bg } = useTheme();
-  // shortcut: no 3px backdrop blur (RN has no backdrop-filter), add expo-blur if the gradient alone reads too busy.
   const style = [StyleSheet.absoluteFill, { zIndex: z, backgroundImage: `radial-gradient(130% 75% at 50% 100%, ${bg} 30%, ${bg}c7 60%, ${bg}6b 100%)` }];
   return (
     <Animated.View entering={fadeIn} exiting={fadeOut} style={style} pointerEvents={onPress ? "auto" : "none"}>
+      {/* .veil backdrop-filter: blur(3px) */}
+      <BlurView intensity={5} style={StyleSheet.absoluteFill} pointerEvents="none" />
       {onPress && <Pressable style={StyleSheet.absoluteFill} onPress={onPress} accessibilityRole="button" accessibilityLabel={t("close")} />}
     </Animated.View>
   );
@@ -150,8 +152,8 @@ const s = StyleSheet.create({
   pad: { flex: 1, paddingHorizontal: space.gutter, paddingTop: 6 },
   mid: { flex: 1, alignItems: "center", justifyContent: "center", paddingBottom: 90 }, // centred in the space above the mic
   shot: { borderRadius: 22, overflow: "hidden", backgroundColor: "#e9e5da", transform: [{ rotate: "-1.2deg" }], boxShadow: "0 18px 34px -20px rgba(0,0,0,0.45)" },
-  paperBox: { backgroundColor: "#e9e5da", padding: 22, overflow: "hidden" },
-  paper: { color: "#3b3a36", fontSize: 17, lineHeight: 28, fontFamily: ff("500") }, // big enough to read at arm's length
+  paperBox: { backgroundColor: "#e9e5da", paddingVertical: 22, paddingHorizontal: 20, overflow: "hidden" }, // .shot: 22px 20px
+  paper: { color: "#3b3a36", fontSize: 15, lineHeight: 25.5, fontFamily: ff("500") }, // .shot: 15px, line-height 1.7
   mark: { backgroundColor: "rgba(217,67,43,0.18)" }, // .shot mark: inherits weight; shortcut: RN nested text takes no radius 3 / padding 0 2, fine as flat highlight
   page: { backgroundColor: "#fff", transform: [], paddingHorizontal: 20, paddingVertical: 22 },
   pdfText: { color: "#2b2a27", fontSize: 15, lineHeight: 25.5, fontFamily: ff("500") }, // capture.html .shot: 15px, line-height 1.7
