@@ -192,7 +192,7 @@ body { font-family: 'Be Vietnam Pro', system-ui, sans-serif; background: var(--p
 .dscrim { position: absolute; inset: 0; z-index: 25; background: rgba(0,0,0,.38); }
 .dlg { position: absolute; left: 20px; right: 20px; top: 50%; transform: translateY(-50%); z-index: 26; padding: 24px 22px 18px; border-radius: 28px; background: var(--bg); box-shadow: 0 24px 48px -20px rgba(0,0,0,.5); max-height: calc(100% - 150px); display: flex; flex-direction: column; }
 .dlg .h { font-size: 24px; margin-top: 4px; }
-.dlg ul { margin: 14px 0 0; padding: 0 0 0 18px; min-height: 0; overflow-y: auto; font-size: 15px; line-height: 1.45; color: var(--ink); }
+.dlg ul { margin: 14px -22px 0; padding: 0 22px 0 40px; /* scrollbar on the dialog's edge, text where it was */ min-height: 0; overflow-y: auto; font-size: 15px; line-height: 1.45; color: var(--ink); }
 .dlg li + li { margin-top: 6px; }
 .dlg .btn { margin-top: 22px; }
 .dlg .ghost { margin-top: 12px; text-align: center; font-size: 15px; font-weight: 600; color: var(--muted); }

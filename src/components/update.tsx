@@ -28,7 +28,7 @@ export function UpdateDialog({ d, onClose }: { d: Dlg; onClose: () => void }) {
         <View style={[s.dlg, { backgroundColor: th.bg }]} accessibilityViewIsModal>
           <Text style={[s.lab, { color: th.muted }]}>{t(up ? "newVersion" : "whatsNew")}</Text>
           <Text style={[s.h, { color: th.ink }]}>zen {up ? d.update.version : d.version}</Text>
-          <ScrollView style={s.list} showsVerticalScrollIndicator>
+          <ScrollView style={s.list} contentContainerStyle={s.listIn} showsVerticalScrollIndicator>
             {(up ? d.update.notes : d.notes).map((n, i) => (
               <View key={i} style={s.li}><Text style={[s.note, { color: th.ink }]}>•</Text><Text style={[s.note, { color: th.ink, flex: 1 }]}>{n}</Text></View>
             ))}
@@ -92,7 +92,8 @@ export function UpdatePrompt() {
 const s = StyleSheet.create({
   scrim: { flex: 1, justifyContent: "center", paddingHorizontal: 20, backgroundColor: "rgba(0,0,0,.38)" },
   dlg: { maxHeight: "100%", borderRadius: 28, paddingTop: 24, paddingHorizontal: 22, paddingBottom: 18, boxShadow: "0 24px 48px -20px rgba(0,0,0,0.5)" }, // ui.css .dlg
-  list: { flexGrow: 0, flexShrink: 1 },
+  list: { flexGrow: 0, flexShrink: 1, marginHorizontal: -22 }, // out to the dialog's edge: the scrollbar sits there, not 22 in
+  listIn: { paddingHorizontal: 22 },
   lab: { fontSize: 15, fontFamily: ff("500") },
   h: { marginTop: 4, marginBottom: 8, fontSize: 24, lineHeight: 28.8, fontFamily: ff("600"), letterSpacing: -0.6 },
   li: { flexDirection: "row", gap: 8, marginTop: 6 },
