@@ -8,22 +8,21 @@ import type { Drag } from "@/components/row";
 import { useTheme, font, ff } from "@/lib/theme";
 import type { Task } from "@/lib/types";
 
-const EDGE = 28; // a finger this close to the screen's side pages the grid
-const WAIT = 450, EVERY = 750; // first page after resting at the edge, then one more page per beat while it stays
+const EDGE = 24; // before the grid is measured: a finger this close to the screen's side pages it
+const WAIT = 400, EVERY = 700; // first page after resting at the edge, then one more page per beat while it stays
 
 /**
  * Week and month: hold a row, move it onto a day of the grid, let go. Resting at the left or right edge pages the grid (not the
- * selected day, so the list and the row being dragged stay put). Past days take nothing. `onDrop` gets the task and the day.
+ * selected day, so the list and the row being dragged stay put), past weeks and months too. `onDrop` gets the task and the day.
  */
-export function useDragDay(view: "week" | "month" | undefined, sel: number, now: number, onDrop: (x: Task, day: number) => void) {
+export function useDragDay(view: "week" | "month" | undefined, sel: number, onDrop: (x: Task, day: number) => void) {
   const th = useTheme();
   const { width } = useWindowDimensions();
-  const x = useSharedValue(0), y = useSharedValue(0);
+  const x = useSharedValue(0), y = useSharedValue(0), cw = useSharedValue(0);
   const gridRef = useRef<Box>(null), originRef = useRef<Box>(null);
   const [task, setTask] = useState<Task>();
   const [hover, setHover] = useState<number>();
   const [peek, setPeek] = useState(0);
-  const today = startOfDay(now);
   // What the grid shows now, read from callbacks that outlive the render that made them.
   const grid = view === "week" ? { start: addDays(mondayOf(sel), 7 * peek), rows: 1, first: addDays(mondayOf(sel), 7 * peek) } : (() => {
     const d = new Date(sel), g = monthGrid(new Date(d.getFullYear(), d.getMonth() + peek, 1).getTime());
@@ -36,21 +35,17 @@ export function useDragDay(view: "week" | "month" | undefined, sel: number, now:
     const s = st.current, r = s.rect;
     s.fx = fx; s.fy = fy;
     // The grid only slides sideways while paging, so its first rect holds; a month of more or fewer weeks only changes its height.
-    let d = r ? dayAt({ ...r, h: s.rowH * s.grid.rows }, s.grid.start, s.grid.rows, fx, fy) : undefined;
-    if (d !== undefined && d < today) d = undefined;
+    const d = r ? dayAt({ ...r, h: s.rowH * s.grid.rows }, s.grid.start, s.grid.rows, fx, fy) : undefined;
     if (d !== s.hover) { s.hover = d; setHover(d); if (d !== undefined) Haptics.selectionAsync().catch(() => {}); }
   };
   const stopEdge = () => { clearTimeout(st.current.timer); st.current.timer = undefined; st.current.edge = 0; };
   const page = (side: -1 | 1) => {
     const s = st.current;
-    // never back past the week or month holding today: nothing there can take the task
-    const home = view === "week" ? mondayOf(today) : monthGrid(today).first;
-    if (side < 0 && s.grid.first <= home) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     setPeek((p) => p + side);
     s.timer = setTimeout(() => page(side), EVERY);
   };
-  useEffect(() => { if (st.current.task) look(st.current.fx, st.current.fy); }, [peek]); // eslint-disable-line react-hooks/exhaustive-deps -- the new page under a resting finger
+  useEffect(() => { if (st.current.task) look(st.current.fx, st.current.fy); }, [peek]); // the new page under a resting finger
 
   const drag: Drag | undefined = useMemo(() => view && ({
     x, y,
@@ -63,7 +58,9 @@ export function useDragDay(view: "week" | "month" | undefined, sel: number, now:
     },
     move: (fx: number, fy: number) => {
       look(fx, fy);
-      const side = fx < EDGE ? -1 : fx > width - EDGE ? 1 : 0;
+      // Past the grid's own sides (the gutter), so a finger over Mon or Sun never pages away from them.
+      const r = st.current.rect, l = r ? r.x : EDGE, rt = r ? r.x + r.w : width - EDGE;
+      const side = fx < l ? -1 : fx > rt ? 1 : 0;
       if (side === st.current.edge) return;
       stopEdge();
       st.current.edge = side;
@@ -81,12 +78,12 @@ export function useDragDay(view: "week" | "month" | undefined, sel: number, now:
   }), [view, width]); // eslint-disable-line react-hooks/exhaustive-deps -- the rest is read through st
   useEffect(() => () => clearTimeout(st.current.timer), []);
 
-  // The chip rides above the finger, so the finger never hides which task it carries.
-  const chip = useAnimatedStyle(() => ({ transform: [{ translateX: x.get() - st.current.origin.x - 24 }, { translateY: y.get() - st.current.origin.y - 64 }] }));
+  // The chip rides centred above the finger, so the finger never hides which task it carries and each edge is as near as the other.
+  const chip = useAnimatedStyle(() => ({ transform: [{ translateX: x.get() - st.current.origin.x - cw.get() / 2 }, { translateY: y.get() - st.current.origin.y - 64 }] }));
   const ghost = (
     <View ref={originRef} collapsable={false} pointerEvents="none" style={StyleSheet.absoluteFill}>
       {task && (
-        <Reanimated.View entering={FadeIn.duration(120)} exiting={FadeOut.duration(120)} style={[s.chip, { backgroundColor: th.ink }, chip]}>
+        <Reanimated.View entering={FadeIn.duration(120)} exiting={FadeOut.duration(120)} onLayout={(e) => cw.set(e.nativeEvent.layout.width)} style={[s.chip, { backgroundColor: th.ink }, chip]}>
           <Text numberOfLines={1} style={[s.t, { color: th.bg }]}>{task.title}</Text>
         </Reanimated.View>
       )}

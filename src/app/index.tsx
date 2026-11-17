@@ -631,7 +631,7 @@ export default function Home() {
     setSel(d);
     apply([{ op: "edit", target: x.id, when: new Date(start).toISOString() }]).then((r) => { say(r.toast, r); refresh(); }, failed);
   };
-  const dd = useDragDay(view === "week" || view === "month" ? view : undefined, sel, now, dropOn);
+  const dd = useDragDay(view === "week" || view === "month" ? view : undefined, sel, dropOn);
   const sun = addDays(mon, 6), sm = new Date(mon), em = new Date(sun);
   const head = view === "day"
     ? { hello: weekday(sel), h: longDate(sel), n: count(sel, addDays(sel, 1)) || dayDone(sel) }

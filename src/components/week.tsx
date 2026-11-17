@@ -128,7 +128,7 @@ export function Week({ tasks, hols, monday, selected, now, onSelect, onStep, rul
           }
           return (
             <Tap key={day} style={s.c} scale={0.97} onPress={() => onSelect(day)}>
-              <View style={[s.d, { borderColor: day === selected && !on ? th.ink : th.line }, on && { backgroundColor: th.ink, borderColor: th.ink }, day === hover && { backgroundColor: th.seal, borderColor: th.seal, transform: [{ scale: 1.08 }] }]}>
+              <View style={[s.d, { borderColor: day === selected && !on ? th.ink : th.line }, on && { backgroundColor: th.ink, borderColor: th.ink }, day === hover && { backgroundColor: th.seal, borderColor: th.seal }]}>
                 <Text style={[s.dl, { color: on || day === hover ? th.bg : th.muted }]}>{d}</Text>
                 <Text style={[s.dn, { color: on || day === hover ? th.bg : th.ink }]}>{new Date(day).getDate()}</Text>
               </View>

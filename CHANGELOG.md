@@ -7,6 +7,11 @@
 - Widget không còn hiện khung xám sau khi thêm hay dời nhiều việc; vẫn giữ ảnh nền như cũ
 - Thêm, sửa, dời việc không còn bị khựng khi có nhiều việc lặp
 - Gõ tên, ghi chú, địa điểm trong chi tiết việc không còn bị khựng
+- Tuần và tháng: kéo việc sang tuần, tháng khác nhanh và dễ hơn
+    - Chỉ cần kéo ra lề trái, phải là sang trang; kéo qua T2, CN không còn bị lật trang
+    - Về được cả tuần, tháng đã qua
+    - Thẻ việc đang kéo nằm giữa, ngay trên ngón tay
+    - Ô T2, CN không còn bị cắt khi kéo qua
 
 ## 26.0.6
 
