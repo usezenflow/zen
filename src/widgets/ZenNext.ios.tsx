@@ -56,7 +56,7 @@ const ZenNext = (p: WidgetData, env: WidgetEnvironment) => {
   }
 
   const pal = PAL[n.type] ?? PAL.plan;
-  const art = p.art?.[n.type]?.square;
+  const art = p.art && `${p.art}${n.type}.png`;
   const h = Math.max(0, Math.min(1, n.fill)) * 41.25;
   return (
     <ZStack
@@ -97,10 +97,7 @@ const SAMPLE: WidgetData = {
   },
   rows: [], doneLabel: "Xong (2)", tomorrow: "Mai: Cấu trúc dữ liệu 07:00",
   ahead: [], more: [], aheadHead: "", aheadCount: "", doneCount: "", dayName: "T2 16",
-  art: {
-    plan: { square: "", wide: "" }, lecture: { square: "", wide: "" }, exam: { square: "", wide: "" },
-    assignment: { square: "", wide: "" }, busy: { square: "", wide: "" },
-  },
+  art: "",
   ticked: [], home: "zen:///", listen: "zen:///?listen=1",
 };
 

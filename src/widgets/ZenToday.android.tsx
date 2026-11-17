@@ -44,7 +44,7 @@ function ZenToday(p0: WidgetData, env: WidgetEnvironment) {
   });
   const lead = (r: WRow) => {
     if (!r.check) {
-      const src = p.art[r.type]?.square;
+      const src = p.art && `${p.art}${r.type}.png`;
       return (
         <Box modifiers={[size(23.6, 23.6), cornerRadius(11.8), background(mid[r.type] ?? mid.plan)]}>
           {src ? <Image source={{ uri: src }} contentScale="crop" contentDescription={null} modifiers={[size(23.6, 23.6)]} /> : null}
@@ -101,7 +101,7 @@ function ZenToday(p0: WidgetData, env: WidgetEnvironment) {
   );
   // Sand card on the left: the next thing, or on a free day the nearest exam (mockups/widgets.html `examCard`).
   const sand = (type: WRow["type"], lab: string, title: string, foot: JSX.Element) => {
-    const src = p.art[type]?.square;
+    const src = p.art && `${p.art}${type}.png`;
     return (
       <Box modifiers={[fillMaxSize(), cornerRadius(18.3), background(mid[type] ?? mid.plan)]}>
         {src ? <Image source={{ uri: src }} contentScale="crop" contentDescription={null} modifiers={[fillMaxSize()]} /> : null}

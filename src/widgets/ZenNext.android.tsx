@@ -73,7 +73,7 @@ function ZenNext(p0: WidgetData, env: WidgetEnvironment) {
       </Button>
     );
   }
-  const art = p.art[n.type]?.square;
+  const art = p.art && `${p.art}${n.type}.png`;
   return (
     <Button {...tap(n.url)} modifiers={[fillMaxSize()]}>
       <Box modifiers={[fillMaxSize(), cornerRadius(28), background(mid[n.type] ?? mid.plan)]}>
@@ -106,7 +106,7 @@ export const SAMPLE: WidgetData = {
   ahead: [], more: [], aheadHead: "", aheadCount: "", doneCount: "", dayName: "T2 16",
   exam: { id: "s6", title: "Giải tích 2", big: "11 ngày", small: "T6 27/11 08:00", fill: 0.6, inline: "Thi GT2 còn 11 ngày", n: "11", unit: "ngày nữa", url: "zen:///" },
   // Empty art falls back to the type's flat colour until the app has copied the PNGs.
-  art: { plan: { square: "", wide: "" }, lecture: { square: "", wide: "" }, exam: { square: "", wide: "" }, assignment: { square: "", wide: "" }, busy: { square: "", wide: "" } },
+  art: "",
   ticked: [], home: "zen:///", listen: "zen:///?listen=1",
 };
 

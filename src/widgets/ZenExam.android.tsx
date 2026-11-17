@@ -64,7 +64,7 @@ function ZenExam(p0: WidgetData, env: WidgetEnvironment) {
       </Button>
     );
   }
-  const art = p.art.exam?.square;
+  const art = p.art && `${p.art}exam.png`;
   return (
     <Button {...tap(e.url)} modifiers={[fillMaxSize()]}>
       <Box modifiers={[fillMaxSize(), cornerRadius(28), background("#d9432b")]}>

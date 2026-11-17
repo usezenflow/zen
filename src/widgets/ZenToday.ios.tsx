@@ -53,7 +53,7 @@ const ZenToday = (p: WidgetData, env: WidgetEnvironment) => {
     if (!r.check) {
       return (
         <ZStack modifiers={[frame({ width: 22.5, height: 22.5 }), background(grad(r.type)), clipShape("circle")]}>
-          {art(p.art?.[r.type]?.square)}
+          {art(p.art && `${p.art}${r.type}.png`)}
         </ZStack>
       );
     }
@@ -139,7 +139,7 @@ const ZenToday = (p: WidgetData, env: WidgetEnvironment) => {
   const sand = (type: string, url: string, lab: string, title: string, fill: number, big: string, small: string) => (
     <Link destination={url}>
       <ZStack alignment="topLeading" modifiers={[frame({ width: 120 }), frame({ maxHeight: Infinity }), background(grad(type)), ...card]}>
-        {art(p.art?.[type as keyof typeof p.art]?.square)}
+        {art(p.art && `${p.art}${type}.png`)}
         <VStack alignment="leading" spacing={0} modifiers={[padding({ vertical: 12.5, horizontal: 15 }), frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: "topLeading" })]}>
           <Text modifiers={[f(13.125, "medium"), foregroundStyle(W), opacity(0.85)]}>{lab}</Text>
           <Text modifiers={[f(16.25, "semibold"), foregroundStyle(W), kerning(-0.325), lineHeight(19.5), lineLimit(2), truncationMode("tail"), fixedSize({ horizontal: false, vertical: true }), layoutPriority(1), padding({ top: 5 })]}>{title}</Text>
@@ -196,7 +196,6 @@ const ZenToday = (p: WidgetData, env: WidgetEnvironment) => {
   );
 };
 
-const none = { square: "", wide: "" };
 const SAMPLE: WidgetData = {
   weekday: "T2", date: "16/11", short: "T2 16", summary: "5 việc, 1 tiết học", count: "5 việc",
   next: {
@@ -211,7 +210,7 @@ const SAMPLE: WidgetData = {
   ],
   doneLabel: "Xong (2)", tomorrow: "Mai: Cấu trúc dữ liệu 07:00",
   ahead: [], more: [], aheadHead: "", aheadCount: "", doneCount: "", dayName: "T2 16",
-  art: { plan: none, lecture: none, exam: none, assignment: none, busy: none },
+  art: "",
   ticked: [], home: "zen:///", listen: "zen:///?listen=1",
 };
 

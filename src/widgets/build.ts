@@ -1,5 +1,5 @@
 // Relative imports: vitest has no "@/" alias.
-import { addDays, hhmm, mondayOf, onDay, short, shown, startOfDay, weekday } from "../components/cal";
+import { addDays, hhmm, mondayOf, short, shown, startOfDay, weekday } from "../components/cal";
 import { t } from "../lib/i18n";
 import type { Task } from "../lib/types";
 import { when } from "../lib/when";
@@ -9,14 +9,18 @@ import type { ArtType, WidgetData, WidgetName, WRow } from "./data";
 const MIN = 60_000, DAY = 86_400_000, ROWS = 3;
 const url = (id: string) => `zen:///task/${id}`;
 
+// A timeline calls widgetData ~150 times on one task list; shown() and its sort ran ~10 times per call over every row (seconds on Hermes).
+const memo = new WeakMap<Task[], Task[]>();
+const sorted = (tasks: Task[]) => { let s = memo.get(tasks); if (!s) memo.set(tasks, (s = shown(tasks).sort((a, b) => a.start! - b.start!))); return s; };
+// onDay over the sorted shown list: same rows, same order.
+const onDay = (sh: Task[], day: number) => { const e = addDays(day, 1); return sh.filter((x) => x.start! < e && x.end! > day); };
+
 /** Widget props at time `now`; pure so a timeline can be built from future instants. */
 export function widgetData(tasks: Task[], now: number, art: WidgetData["art"], ticked: string[] = []): WidgetData {
   const day = startOfDay(now), d = new Date(now);
-  const today = onDay(tasks, day);
-  const lec = today.filter((x) => typeOf(x) === "lecture").length;
-  const n = today.length - lec;
-  const sh = shown(tasks); // same pick as apply.pickNow, without pulling sqlite into tests
-  const nx = sh.find((x) => x.start! <= now && now < x.end!) ?? sh.filter((x) => x.start! > now).sort((a, b) => a.start! - b.start!)[0];
+  const sh = sorted(tasks); // same pick as apply.pickNow, without pulling sqlite into tests
+  const today = onDay(sh, day);
+  const nx = sh.find((x) => x.start! <= now && now < x.end!) ?? sh.find((x) => x.start! > now);
   const nextToday = nx && nx.start! < addDays(day, 1) ? nx : undefined;
   let next: WidgetData["next"];
   if (nextToday) {
@@ -38,15 +42,15 @@ export function widgetData(tasks: Task[], now: number, art: WidgetData["art"], t
   // Every layout lists three rows at most; a day of daily series once sent twelve per entry and the timeline outgrew the widget (skeletons).
   const rows = today.filter((x) => x.id !== nextToday?.id && x.end! > now).slice(0, ROWS).map(toRow);
   let aheadDay = 0, ahead: Task[] = [];
-  for (let i = 1; i <= 7 && !ahead.length; i++) { aheadDay = addDays(day, i); ahead = onDay(tasks, aheadDay); }
+  for (let i = 1; i <= 7 && !ahead.length; i++) { aheadDay = addDays(day, i); ahead = onDay(sh, aheadDay); }
   // A quiet week: reach to the first day past it that has anything, so the widget never shows a blank half.
-  const far = ahead.length ? undefined : shown(tasks).filter((x) => x.start! >= addDays(day, 8)).sort((a, b) => a.start! - b.start!)[0];
-  if (far) { aheadDay = startOfDay(far.start!); ahead = onDay(tasks, aheadDay); }
+  const far = ahead.length ? undefined : sh.find((x) => x.start! >= addDays(day, 8));
+  if (far) { aheadDay = startOfDay(far.start!); ahead = onDay(sh, aheadDay); }
   const tm = ahead[0];
   // Next-up to top the medium list up to three: what starts after the day it shows (today while rows remain, else the ahead day).
   const after = addDays(rows.length ? day : aheadDay || day, 1);
   const listed = rows.length || Math.min(ROWS, ahead.length); // the layout lists today's rows, else the ahead day's
-  const more = sh.filter((x) => x.start! >= after).sort((a, b) => a.start! - b.start!).slice(0, ROWS - listed)
+  const more = sh.filter((x) => x.start! >= after).slice(0, ROWS - listed)
     .map((x) => ({ ...toRow(x), time: upTag(x.start!, now) }));
   const doneN = tasks.filter((x) => x.doneAt && !x.deletedAt && x.start !== undefined && x.start >= day && x.start < addDays(day, 1)).length;
   const ex = tasks.filter((x) => typeOf(x) === "exam" && !x.doneAt && !x.deletedAt && x.start !== undefined && x.start > now).sort((a, b) => a.start! - b.start!)[0];
@@ -110,7 +114,8 @@ export function abbr(title: string): string {
 export function instants(tasks: Task[], now: number): number[] {
   const near = now + 6 * 3600_000, mid = addDays(startOfDay(now), 1), end = addDays(mid, 1), set = new Set<number>([now, mid, end]);
   for (let x = Math.ceil(now / (5 * MIN)) * 5 * MIN; x < end; x += (x < near ? 5 : x < mid ? 30 : 60) * MIN) set.add(x);
-  for (const k of tasks) for (const v of [k.start, k.end]) if (v !== undefined && v > now && v <= end) set.add(v);
+  // Only what the widgets can show: deleted/done rows (every reschedule leaves some) once added hundreds of entries and the widget went to skeleton.
+  for (const k of sorted(tasks)) for (const v of [k.start, k.end]) if (v !== undefined && v > now && v <= end) set.add(v);
   return [...set].sort((a, b) => a - b);
 }
 

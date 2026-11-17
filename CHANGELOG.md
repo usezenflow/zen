@@ -1,5 +1,12 @@
 # zen
 
+## 26.0.7
+
+### Patch Changes
+
+- Widget không còn hiện khung xám sau khi thêm hay dời nhiều việc; vẫn giữ ảnh nền như cũ
+- Thêm, sửa, dời việc không còn bị khựng khi có nhiều việc lặp
+
 ## 26.0.6
 
 ### Patch Changes

@@ -2,7 +2,7 @@ import { Asset } from "expo-asset";
 import { File } from "expo-file-system";
 import { requireOptionalNativeModule } from "expo";
 import { Platform } from "react-native";
-import { DONE, type ArtType, type WidgetData, type WidgetName } from "@/widgets/data";
+import { DONE, type ArtType, type WidgetName } from "@/widgets/data";
 import { USES, instants, slim, widgetData } from "@/widgets/build";
 import { swipeDone } from "./apply";
 import { allTasks } from "./store";
@@ -12,33 +12,30 @@ const has = Platform.OS !== "web" && !!requireOptionalNativeModule("ExpoWidgets"
 const W: typeof import("expo-widgets") | undefined = has ? require("expo-widgets") : undefined; // eslint-disable-line @typescript-eslint/no-require-imports
 const widgets: typeof import("@/widgets").widgets = has ? require("@/widgets").widgets : {}; // eslint-disable-line @typescript-eslint/no-require-imports
 
-const ART: Record<ArtType, { square: number; wide: number }> = {
-  plan: { square: require("../../assets/widgets/plan-square.png"), wide: require("../../assets/widgets/plan-wide.png") },
-  lecture: { square: require("../../assets/widgets/lecture-square.png"), wide: require("../../assets/widgets/lecture-wide.png") },
-  exam: { square: require("../../assets/widgets/exam-square.png"), wide: require("../../assets/widgets/exam-wide.png") },
-  assignment: { square: require("../../assets/widgets/assignment-square.png"), wide: require("../../assets/widgets/assignment-wide.png") },
-  busy: { square: require("../../assets/widgets/busy-square.png"), wide: require("../../assets/widgets/busy-wide.png") },
+// Only the square art is drawn; `wide` never rode to a layout.
+const ART: Record<ArtType, number> = {
+  plan: require("../../assets/widgets/plan-square.png"),
+  lecture: require("../../assets/widgets/lecture-square.png"),
+  exam: require("../../assets/widgets/exam-square.png"),
+  assignment: require("../../assets/widgets/assignment-square.png"),
+  busy: require("../../assets/widgets/busy-square.png"),
 };
 
-let art: Promise<WidgetData["art"]> | undefined;
-// Widgets can't read the app bundle, so the sand PNGs are copied once into the shared directory.
+let art: Promise<string> | undefined;
+// Widgets can't read the app bundle, so the sand PNGs are copied once into the shared directory as `<type>.png`;
+// the widgets get only that directory, not five full paths per timeline entry.
 const copyArt = () =>
   (art ??= (async () => {
-    const out = {} as WidgetData["art"];
-    for (const [type, shapes] of Object.entries(ART) as [ArtType, { square: number; wide: number }][]) {
-      // No layout draws `wide`; its path rode in every timeline entry, about a third of a busy day's timeline.
-      const pair = { square: "", wide: "" };
-      for (const shape of ["square"] as const) {
-        const dest = new File(W!.widgetsDirectory, `${type}-${shape}.png`);
-        if (!dest.exists) {
-          const a = await Asset.fromModule(shapes[shape]).downloadAsync();
-          new File(a.localUri!).copy(dest);
-        }
-        pair[shape] = dest.uri;
+    let dir = "";
+    for (const [type, mod] of Object.entries(ART) as [ArtType, number][]) {
+      const dest = new File(W!.widgetsDirectory, `${type}.png`);
+      if (!dest.exists) {
+        const a = await Asset.fromModule(mod).downloadAsync();
+        new File(a.localUri!).copy(dest);
       }
-      out[type] = pair;
+      dir = dest.uri.slice(0, dest.uri.lastIndexOf("/") + 1);
     }
-    return out;
+    return dir;
   })());
 
 let timer: ReturnType<typeof setTimeout> | undefined, onTicked: (() => void) | undefined;

@@ -55,7 +55,6 @@ const ZenLock = (p: WidgetData, env: WidgetEnvironment) => {
   );
 };
 
-const none = { square: "", wide: "" };
 const SAMPLE: WidgetData = {
   weekday: "T2", date: "16/11", short: "T2 16", summary: "5 việc, 1 tiết học", count: "5 việc",
   next: {
@@ -68,7 +67,7 @@ const SAMPLE: WidgetData = {
     id: "e1", title: "Giải tích 2", big: "11 ngày", small: "T6 27/11 08:00", fill: 0.6, inline: "Thi GT2 còn 11 ngày", n: "11", unit: "ngày nữa",
     url: "zen:///task/e1",
   },
-  art: { plan: none, lecture: none, exam: none, assignment: none, busy: none },
+  art: "",
   ticked: [], home: "zen:///", listen: "zen:///?listen=1",
 };
 

@@ -5,7 +5,7 @@ import { USES, abbr, instants, slim, widgetData } from "./build";
 const at = (h: number, m = 0, d = 16) => new Date(2026, 10, d, h, m).getTime();
 const task = (id: string, title: string, s: number, e: number, x: Partial<Task> = {}): Task =>
   ({ id, title, kind: "study", source: "user", effort: (e - s) / 60000, start: s, end: e, createdAt: 0, ...x });
-const art = Object.fromEntries(["plan", "lecture", "exam", "assignment", "busy"].map((k) => [k, { square: k, wide: k }])) as never;
+const art = "file:///w/";
 const tasks = [
   task("a", "Ôn Giải tích", at(14, 20), at(14, 30)),
   task("b", "Báo cáo nhóm", at(16), at(17), { deadline: at(23, 59) }),

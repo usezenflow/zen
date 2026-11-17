@@ -57,7 +57,9 @@ export interface WidgetData {
   doneCount: string; // "5 việc xong", "" when none: all done; else a free day
   dayName: string; // "T7 14", the free day's ink card
   exam?: WExam;
-  art: Record<ArtType, { square: string; wide: string }>; // file:// PNGs in the shared widgets directory
+  // The shared widgets directory ("file:///…/ExpoWidgets/"), "" until the PNGs are copied; a layout reads `${art}${type}.png`.
+  // One prefix, not five full paths: those were most of every timeline entry.
+  art: string;
   ticked: string[]; // ids ticked on the widget, not yet seen by the app
   home: string; // "zen:///"
   listen: string; // "zen:///?listen=1"

@@ -50,10 +50,7 @@ export const SAMPLE: WidgetData = {
   weekday: "T2", date: "16/11", short: "T2 16", summary: "5 việc, 1 tiết học", count: "5 việc",
   rows: [], doneLabel: "", tomorrow: "",
   ahead: [], more: [], aheadHead: "", aheadCount: "", doneCount: "", dayName: "T2 16",
-  art: {
-    plan: { square: "", wide: "" }, lecture: { square: "", wide: "" }, exam: { square: "", wide: "" },
-    assignment: { square: "", wide: "" }, busy: { square: "", wide: "" },
-  },
+  art: "",
   ticked: [], home: "zen:///", listen: "zen:///?listen=1",
 };
 
