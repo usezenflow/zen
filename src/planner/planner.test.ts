@@ -70,7 +70,7 @@ describe("split and deadline", () => {
       const r = run(guessed, [{ start: at(1, 7) + 30 * MIN, end: at(1, 9) }]);
       expect([r.start, r.len]).toEqual([at(1, 9), 120]);
       expect(r.why).toBe("Sáng mai trống 2 tiếng");
-      expect(r.long).toBe("Bạn chưa nói làm bao lâu, sáng mai trống chừng 2 tiếng nên làm trước chừng đó");
+      expect(r.long).toBe("Sáng mai trống chừng 2 tiếng, làm trước chừng đó");
     });
     it("only a crumb free: study never shrinks under 1h30, it runs on later that day", () => {
       const r = run(guessed, [{ start: at(1, 7) + 30 * MIN, end: at(1, 11) }]);
@@ -177,16 +177,16 @@ describe("reasons follow the time", () => {
     expect(s0.start).not.toBe(mine);
     expect(p1.model.placed.r.start).toBe(mine);
     expect(p1.model.placed.r.why?.[0].key).toBe("chose");
-    expect(reasonText(p1.model.placed.r.why![0], true)).toBe("Bạn chọn giờ này, mình giữ nguyên");
+    expect(reasonText(p1.model.placed.r.why![0], true)).toBe("Bạn chọn giờ này, mình giữ");
   });
   it("says facts in loose words, and old stored reasons still read", () => {
     expect(reasonText({ key: "deadline", w: 1, vars: { due: "T6 23:59", left: 3 * 1440 + 20 } })).toBe("Còn 3 ngày tới hạn, làm dần");
     expect(reasonText({ key: "deadline", w: 1, vars: { due: "hôm nay 23:59", left: 40 } }, true)).toBe("Hạn hôm nay 23:59, giờ này là vừa kịp");
     expect(reasonText({ key: "deadline", w: 1, vars: { due: "T6 23:59" } })).toBe("Hạn T6 23:59, làm sớm");
     expect(reasonText({ key: "guess", w: 1, vars: { m: 60, part: "Tối nay", after: "Giải tích 2" } })).toBe("Rảnh sau Giải tích 2");
-    expect(reasonText({ key: "guess", w: 1, vars: { m: 60, part: "Tối nay" } }, true)).toBe("Tối nay còn trống, vừa đủ cho việc này");
+    expect(reasonText({ key: "guess", w: 1, vars: { m: 60, part: "Tối nay" } }, true)).toBe("Tối nay còn trống, vừa cho việc này");
     expect(reasonText({ key: "hour", w: 1, vars: { hour: 20, n: 3 } }, true)).toBe("Mấy lần gần đây bạn xong việc quanh 20h");
-    expect(reasonText({ key: "hour", w: 1, vars: { hour: 20, n: 1 } }, true)).toBe("Giờ này bạn hay làm xong việc");
+    expect(reasonText({ key: "hour", w: 1, vars: { hour: 20, n: 1 } }, true)).toBe("Giờ này bạn hay xong việc");
     expect(reasonText({ key: "kind", w: 1, vars: { kind: "chores" } })).toBe("Hợp việc nhà");
     expect(reasonText({ key: "kind", w: 1, vars: { kind: "work" } })).toBe("Hợp công việc");
   });
@@ -744,7 +744,7 @@ describe("scheduler behaviour", () => {
   });
 
   it("negative reasons are comparisons", () => {
-    expect(reasonText({ key: "hour", w: -1 })).toBe("Giờ khác hợp hơn một chút");
+    expect(reasonText({ key: "hour", w: -1 })).toBe("Giờ khác hợp hơn");
     expect(reasonText({ key: "after", w: 1, vars: { prev: "study" } })).toBe("Sau giờ học, như mọi khi");
   });
 });

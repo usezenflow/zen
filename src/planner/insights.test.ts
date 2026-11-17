@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { D, I_AFTER, I_ENERGY, energy } from "./features";
 import { insights } from "./insights";
 import { update } from "./linucb";
-import { newModel, plan } from "./index";
+import { learn, newModel, plan } from "./index";
 
 const now = new Date(2026, 10, 16, 8, 0).getTime();
 
@@ -13,11 +13,14 @@ describe("insights", () => {
     m.doneHours.push({ hour: 20.3, at: at(20) });
     m.hist.push({ vec: [], hour: 9, r: -1, at: at(9) }); // moved away from 9h: seen, not a good hour
     expect(insights(m, now).seen).toBe(2); expect(insights(m, now).early).toBeUndefined();
-    m.placed.x = { arm: 21, x: [], start: at(21), at: at(8), moved: true }; // dragged to 21h
+    m.moved!.push({ hour: 21.3, at: at(21) }); // dragged to 21h
     m.doneHours.push({ hour: 21.5, at: at(21) });
     const i = insights(m, now);
-    expect(i).toMatchObject({ seen: 3, early: { from: 20, to: 22, n: 3 } });
-    expect(i.guesses).toContainEqual({ text: "Bạn hay làm việc lúc 20h-22h", sure: 0.3 });
+    expect(i).toMatchObject({ seen: 3, golden: { from: 20, to: 22 } }); // three in one stretch is already the range
+    expect(i.guesses[0].text).toBe("Giờ vàng 20h-22h");
+    const two = newModel(now); two.doneHours.push({ hour: 20.3, at: at(20) }, { hour: 21.5, at: at(21) });
+    expect(insights(two, now).early).toMatchObject({ from: 20, to: 22, n: 2 }); // two name the stretch, as a guess
+    expect(insights(two, now).guesses).toContainEqual({ text: "Bạn hay làm việc lúc 20h-22h", sure: 0.3 });
     // two weeks old says nothing; scattered hours name no range
     expect(insights(m, now + 20 * 86400000).seen).toBe(0); expect(insights(m, now + 20 * 86400000).early).toBeUndefined();
     const s = newModel(now);
@@ -31,12 +34,13 @@ describe("insights", () => {
     for (let n = 0; n < 50; n++) m.hist.push({ vec: [], hour: 10, r: -1, at: at(0, 10), miss: true });
     const i = insights(m, now);
     expect(i.seen).toBe(6);
-    expect(i.golden).toEqual({ from: 20, to: 22, sure: 0.5 });
+    expect(i.golden).toMatchObject({ from: 20, to: 22 });
+    expect(i.golden!.sure).toBeGreaterThan(0.5);
     expect(i.early).toBeUndefined();
-    expect(i.guesses[0]).toEqual({ text: "Giờ vàng 20h-22h", sure: 0.5 });
+    expect(i.guesses[0].text).toBe("Giờ vàng 20h-22h");
     expect(i.weekly).toBe("Bạn làm việc hợp nhất lúc 20h-22h");
     for (let d = 5; d < 13; d++) m.doneHours.push({ hour: 21, at: at(d % 13, 21) });
-    expect(insights(m, now).golden!.sure).toBeGreaterThanOrEqual(0.7);
+    expect(insights(m, now).golden!.sure).toBeGreaterThanOrEqual(0.6); // week-old evidence counts for less
   });
   it("says nothing when cold", () => {
     const i = insights(newModel(now), now);
@@ -100,5 +104,23 @@ describe("insights from moves", () => {
     expect(g.from).toBeLessThanOrEqual(9);
     expect(g.to).toBeGreaterThan(9);
     expect(g.sure!).toBeLessThan(0.75);
+  });
+  it("drags of tasks the planner never placed (pinned, user-timed) still move the rhythm", () => {
+    const m0 = newModel(now), at = (h: number) => new Date(2026, 10, 15, h, 20).getTime();
+    for (const h of [8, 8, 9]) m0.doneHours.push({ hour: h + 0.3, at: at(h) });
+    let m = m0;
+    for (let n = 0; n < 6; n++) {
+      const task = { id: `u${n}`, title: "x", kind: "work" as const, source: "user" as const, effort: 60, createdAt: now, start: at(9), end: at(10), pinned: true };
+      m = learn(m, { id: `e${n}`, taskId: task.id, type: "drag", at: now, data: { fromStart: at(9), toStart: at(15) } } as never, task);
+    }
+    const i = insights(m, now);
+    expect(i.golden ?? i.early).toMatchObject({ from: 14, to: 16 });
+    // what you did today outweighs older mornings: three drags flip a settled morning range
+    const old = newModel(now);
+    for (let d = 0; d < 5; d++) old.doneHours.push({ hour: 8.4, at: new Date(2026, 10, 15 - d, 8, 20).getTime() });
+    expect(insights(old, now).golden ?? insights(old, now).early).toMatchObject({ to: 9 });
+    for (let n = 0; n < 4; n++) old.moved!.push({ hour: 15.3, at: now - n * 3600_000 });
+    expect(insights(old, now).golden ?? insights(old, now).early).toMatchObject({ from: 14 });
+  
   });
 });

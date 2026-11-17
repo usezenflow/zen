@@ -2,6 +2,7 @@ import type { Diff, Placement, Reason, ReasonKey, Step, Task, TaskEvent, TaskTyp
 import { DAY, HOUR, I_AFTER, I_ENERGY, I_SIM, KINDS, MIN, type FeatCtx, cdist, dayStart, dueOf, features, hourOf } from "./features";
 import { effort, neighbors, peakHour, slipOf } from "./habits";
 import { ALPHA, D, LAMBDA, N0, type Primed, decayArms, prepare, primeBatch, ucb, ucbAt, update } from "./linucb";
+import { grounded } from "./grounded";
 import { type Model, newModel } from "./model";
 import { type Busy, type End, type Util, EJECT_CAP, SLOT, STEP, WAKE_FROM, WAKE_TO, awake, cells, dayGone, fixedHours, gap, solve } from "./place";
 import { day, dayLabel, when } from "../lib/when";
@@ -378,6 +379,8 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
       if (old) update(m.arms[old.arm], old.x, -0.4);
       if (p.task.vec) { m.hist.push({ vec: Array.from(p.task.vec), hour: hourOf(old?.start ?? p.missed), r: -1, at: now, miss: true }); m.hist = m.hist.slice(-300); }
     }
+    r.why = grounded(r.why, { task: p.task, start: s, rules: m.rules ?? [] }); // only what is true of the task is said
+    if (!r.why.length) r.why = [guessOf(p, s)];
     const known = m.placed[p.id];
     // a held piece keeps the reasons it was placed for; one moved by hand learns its new hour, so a tick credits the hour it really ran
     if (!changed && known) { if (!p.lock || known.start !== s) Object.assign(known, { why: r.why, alt, explore: r.explore, start: s, arm: Math.floor(hourOf(s)), x: xz(p, s, ends) }); continue; }
@@ -541,7 +544,11 @@ export function learn(model: Model, ev: TaskEvent, task: Task, own = false): Mod
       break;
     case "drag": {
       const from = Number(ev.data?.fromStart ?? start), to = Number(ev.data?.toStart);
-      if (!Number.isFinite(from) || !Number.isFinite(to) || !pl) break;
+      if (!Number.isFinite(from) || !Number.isFinite(to)) break;
+      // Where you put it counts even when the planner never placed it (a time you set pins the task): the rhythm reads this list.
+      (m.moved ??= []).push({ hour: hourOf(to), at: ev.at });
+      m.moved = m.moved.slice(-200);
+      if (!pl) break;
       const r = clampR(-Math.min(1, Math.abs(to - from) / MIN / 240) * boost(pl, ev.at));
       const h = hourOf(from);
       // Away from `from` is a penalty; where they dragged it to is the mirror reward (x is the placed context, close enough at the new hour).

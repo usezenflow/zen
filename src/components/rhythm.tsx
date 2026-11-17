@@ -1,12 +1,14 @@
 import { StyleSheet, Text, View } from "react-native";
-import Animated from "react-native-reanimated";
+import { useEffect, useRef } from "react";
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withTiming } from "react-native-reanimated";
+import { Count } from "@/components/count";
 import { TypeArt } from "@/components/art";
 import { Meter } from "@/components/meter";
 import { SwipeDelete } from "@/components/row";
 import { fadeIn } from "@/components/tap";
 import { t } from "@/lib/i18n";
 import { KIND_VI, kindW } from "@/lib/reasons";
-import { useTheme, font, ff } from "@/lib/theme";
+import { useTheme, font, ff, motion } from "@/lib/theme";
 import type { Kind, Rule } from "@/lib/types";
 import { EARLY, PROMOTE, type Insights } from "@/planner";
 
@@ -19,11 +21,11 @@ const ruleSub = (r: Rule) => {
   return tm ? `${d} · ${tm}` : d;
 };
 const sureWord = (v: number) => t(v >= 0.75 ? "sureHigh" : v >= 0.5 ? "sureMid" : "sureLow");
-const Card = ({ title, sub, children }: { title: string; sub: string; children?: React.ReactNode }) => {
+const Card = ({ title, sub, children }: { title: React.ReactNode; sub: string; children?: React.ReactNode }) => {
   const th = useTheme();
   return (
     <Animated.View entering={fadeIn} style={[s.ins, { backgroundColor: th.chip }]}>
-      <Text style={[s.b, { color: th.ink }]}>{title}</Text>
+      {typeof title === "string" ? <Text style={[s.b, { color: th.ink }]}>{title}</Text> : title}
       <Text style={[s.small, { color: th.muted, marginTop: 4 }]}>{sub}</Text>
       {children ? <View style={s.viz}>{children}</View> : null}
     </Animated.View>
@@ -45,11 +47,25 @@ const Empty = ({ title, sub }: { title: string; sub: string }) => {
   return <View style={[s.set, { borderColor: th.line }]}><View style={s.tx}><Text style={[s.b, { color: th.ink }]}>{title}</Text><Text style={[s.small2, { color: th.muted }]}>{sub}</Text></View></View>;
 };
 
-/** The Nhịp headline: learned golden hours, else the early guess from what you did, else how much it has seen. */
-export const rhythmHead = (i: Insights) =>
-  i.golden ? t("goldenRange", { a: i.golden.from, b: i.golden.to })
-  : i.early ? t("earlyRange", { a: i.early.from, b: i.early.to })
-  : i.seen ? t("seenN", { n: i.seen }) : t("stillLearning");
+/** The Nhịp headline as a line key and its numbers: learned golden hours, else the early guess from what you did, else how much it has seen. */
+const headOf = (i: Insights): { k: "goldenRange" | "earlyRange" | "seenN" | "stillLearning"; vars: Record<string, number> } =>
+  i.golden ? { k: "goldenRange", vars: { a: i.golden.from, b: i.golden.to } }
+  : i.early ? { k: "earlyRange", vars: { a: i.early.from, b: i.early.to } }
+  : i.seen ? { k: "seenN", vars: { n: i.seen } } : { k: "stillLearning", vars: {} };
+export const rhythmHead = (i: Insights) => { const h = headOf(i); return t(h.k, h.vars); };
+
+// One hour of the strip: grows from nothing on first paint (a little later for each hour), then eases to every new height and tint.
+function Bar({ v, i, lit }: { v: number; i: number; lit: boolean }) {
+  const h = useSharedValue(0), o = useSharedValue(lit ? 1 : 0.45), first = useRef(true);
+  useEffect(() => {
+    const go = withTiming(10 + v * 90, { duration: motion.progress, easing: Easing.out(Easing.cubic) });
+    h.set(first.current ? withDelay(i * 14, go) : go);
+    o.set(withTiming(lit ? 1 : 0.45, { duration: motion.progress }));
+    first.current = false;
+  }, [v, lit, i, h, o]);
+  const st = useAnimatedStyle(() => ({ height: `${h.get()}%`, opacity: o.get() }));
+  return <Animated.View style={[s.bar, st]} />;
+}
 
 export function Rhythm({ i, rules, onForget }: { i: Insights; rules: Rule[]; onForget: (r: Rule) => void }) {
   const th = useTheme();
@@ -60,15 +76,15 @@ export function Rhythm({ i, rules, onForget }: { i: Insights; rules: Rule[]; onF
       <View style={s.art}>
         <View style={StyleSheet.absoluteFill}><TypeArt type="plan" w={264} h={170} seed={5} /></View>
         <Text style={s.lab}>{t("goldenHours")}</Text>
-        <Text style={s.title}>{rhythmHead(i)}</Text>
+        <Count style={s.title} k={headOf(i).k} vars={headOf(i).vars} />
         {/* Before any evidence the bars are the cold prior (linucb curve), all dim: a guess, not a golden range. */}
         <View style={s.strip} accessibilityLabel={rhythmHead(i)}>
-          {i.hours.map((v, h) => { const w = g ?? e; return <View key={h} style={[s.bar, { height: `${10 + v * 90}%` }, w && h >= w.from && h < w.to && { opacity: 1 }]} />; })}
+          {i.hours.map((v, h) => { const w = g ?? e; return <Bar key={h} v={v} i={h} lit={!!w && h >= w.from && h < w.to} />; })}
         </View>
         <View style={s.hrs}>{[0, 6, 12, 18, 24].map((h) => <Text key={h} style={s.hr}>{h}</Text>)}</View>
       </View>
-      {!g && (e ? <Card title={t("earlyTitle", { a: e.from, b: e.to })} sub={t("earlySub", { n: Math.max(1, PROMOTE - e.n) })} />
-        : i.seen ? <Card title={t("moreN", { n: Math.max(1, EARLY - i.seen) })} sub={t("seenSub")} />
+      {!g && (e ? <Card title={<Count k="earlyTitle" vars={{ a: e.from, b: e.to }} style={[s.b, { color: th.ink }]} />} sub={t("earlySub", { n: Math.max(1, PROMOTE - e.n) })} />
+        : i.seen ? <Card title={<Count k="moreN" vars={{ n: Math.max(1, EARLY - i.seen) }} style={[s.b, { color: th.ink }]} />} sub={t("seenSub")} />
         : <Card title={t("learningT")} sub={t("learningSub")} />)}
       {pair && <Card title={t("pairTitle", { k: KIND_VI[pair.before] })} sub={t("pairSub")}><Chip kind={pair.before} /></Card>}
       {kind && <Card title={t("kindTitle", { k: kindW(kind.kind, true), a: kind.from, b: kind.to })} sub={t("kindSub")}><Chip kind={kind.kind} /><Meter v={kind.sure} /></Card>}

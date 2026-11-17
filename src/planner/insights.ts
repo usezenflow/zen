@@ -1,7 +1,7 @@
 // The model's weights as things a friend would notice. Pure; the rhythm page, memory page and Sunday card read it.
 import { KIND_VI, kindW } from "../lib/reasons";
 import type { Kind } from "../lib/types";
-import { D, DAY, energy, hourOf, I_AFTER, I_ENERGY, KINDS } from "./features";
+import { D, DAY, energy, I_AFTER, I_ENERGY, KINDS } from "./features";
 import { peakHour, slipOf } from "./habits";
 import { coldArms, prepare } from "./linucb";
 import type { Model } from "./model";
@@ -19,8 +19,9 @@ export interface Insights {
   early?: { from: number; to: number; n: number }; // with EARLY of them and no golden yet: the two hours where you finished or dragged work most
 }
 
-export const EARLY = 3;
-export const PROMOTE = 5;
+export const EARLY = 2; // trust early: two things you did already name a stretch
+export const PROMOTE = 3; // three in one stretch make it the golden range
+const FRESH = 4 * DAY; // evidence halves every 4 days: what you did today outweighs last week
 
 const COLD = prepare(coldArms());
 const U0 = Math.sqrt(COLD.inv[0][0]); // uncertainty of an arm with no evidence
@@ -45,19 +46,24 @@ export function insights(m: Model, now: number): Insights {
   const wake = range(7, 23);
   // What you did, counted straight: ticks (the hour it happened), moves away, and the hours you dragged work to.
   const recent = (at?: number) => at !== undefined && now - at <= 14 * DAY;
-  const done = m.doneHours.filter((d) => recent(d.at)).map((d) => d.hour);
-  const dragged = Object.values(m.placed).filter((x) => x.moved && recent(x.at)).map((x) => hourOf(x.start));
+  const age = (at: number) => 0.5 ** (Math.max(0, now - at) / FRESH);
+  const done = m.doneHours.filter((d) => recent(d.at));
+  const dragged = (m.moved ?? []).filter((d) => recent(d.at));
   const out: Insights = { hours, pairs: [], slip: [], byKind: [], guesses: [], seen: done.length + m.hist.filter((x) => x.r < 0 && !x.miss && recent(x.at)).length };
   const weekly: { text: string; sure: number }[] = [];
-  const good = [...done, ...dragged].map(Math.floor);
-  let top = 0;
+  const good = [...done, ...dragged].map((d) => ({ h: Math.floor(d.hour), w: age(d.at) }));
+  const total = good.reduce((n, g) => n + g.w, 0);
+  let top = 0; // weighted: recent evidence leads
   if (out.seen >= EARLY && good.length >= 2) {
-    for (let f = 6; f <= 22; f++) { const n = good.filter((h) => h === f || h === f + 1).length; if (n > top) { top = n; out.early = { from: f, to: f + 2, n }; } }
-    if (top < 2) out.early = undefined; // scattered: no two in one stretch yet
+    for (let f = 6; f <= 22; f++) {
+      const hit = good.filter((g) => g.h === f || g.h === f + 1), w = hit.reduce((n, g) => n + g.w, 0);
+      if (w > top) { top = w; out.early = { from: f, to: f + 2, n: hit.length }; }
+    }
+    if (out.early && out.early.n < 2) out.early = undefined; // scattered: no two in one stretch yet
   }
-  // Counted evidence is the fast path: PROMOTE ticks or drags in one stretch, holding most of your work, are the golden range, sure grows with each one.
+  // Counted evidence is the fast path: PROMOTE ticks or drags in one stretch, holding most of your recent work, are the golden range, sure grows with each one.
   // The bandit's own golden needs dozens of rewards per hour; it only wins once it is surer than the count.
-  const counted = out.early && top >= PROMOTE && top / good.length >= 0.4 ? clamp(top / (top + PROMOTE)) : 0;
+  const counted = out.early && top >= PROMOTE * 0.8 && top / total >= 0.4 ? clamp(top / (top + PROMOTE)) : 0;
   const say = () => {
     if (counted && counted >= (out.golden?.sure ?? 0)) {
       const { from, to } = out.early!, text = `Giờ vàng ${from}h-${to}h`;

@@ -12,6 +12,7 @@ export interface Model {
   slip: Record<Kind, { later: number; placed: number }>;
   hist: Hist[];
   doneHours: { hour: number; at: number }[];
+  moved?: { hour: number; at: number }[]; // hours you dragged work to, whether or not the planner had placed it
   efforts: { vec: number[]; minutes: number; at: number; kind?: Kind }[];
   placed: Record<string, Placed>;
   prior?: number; // cold-prior version; see upgradePrior
@@ -24,7 +25,7 @@ export function newModel(now: number): Model {
   for (const k of KINDS) slip[k] = { later: 0, placed: 0 };
   return {
     at: now, arms: coldArms(), slip,
-    hist: [], doneHours: [], efforts: [], placed: {}, mix: 1, rules: [], prior: 2,
+    hist: [], doneHours: [], moved: [], efforts: [], placed: {}, mix: 1, rules: [], prior: 2,
   };
 }
 
@@ -32,6 +33,7 @@ export function newModel(now: number): Model {
 export function migrateModel(m: Model): Model {
   m.arms = fitArms(m.arms);
   for (const k of KINDS) m.slip[k] ??= { later: 0, placed: 0 };
+  m.moved ??= [];
   for (const p of Object.values(m.placed)) {
     if (p.x.length === D) continue;
     const k0 = (p.x.length - 6) / 2, x = new Array(D).fill(0);

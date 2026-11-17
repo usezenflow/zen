@@ -13,12 +13,15 @@ export function Fill({ p }: { p: number }) {
   return <Animated.View style={[s.capFill, st]} />;
 }
 
-/** Hairline meter (mockups .meterh): solid when sure, dashed and muted when only a guess. */
+/** Hairline meter (mockups .meterh): solid when sure, dashed and muted when only a guess. Eases to each new value. */
 export function Meter({ v, guess, width }: { v: number; guess?: boolean; width?: number }) {
   const th = useTheme();
+  const w = useSharedValue(0), p = Math.max(0, Math.min(1, v || 0));
+  useEffect(() => { w.set(withTiming(p, { duration: motion.progress, easing: Easing.out(Easing.cubic) })); }, [p, w]);
+  const st = useAnimatedStyle(() => ({ width: `${Math.round(w.get() * 100)}%` }));
   return (
     <View style={[s.track, width ? { width, flex: undefined } : null, guess ? { borderWidth: 1.5, borderStyle: "dashed", borderColor: th.line } : { backgroundColor: th.line }]}>
-      <View style={[s.fill, { width: `${Math.round(Math.max(0, Math.min(1, v || 0)) * 100)}%`, backgroundColor: guess ? th.muted : th.ink }]} />
+      <Animated.View style={[s.fill, st, { backgroundColor: guess ? th.muted : th.ink }]} />
     </View>
   );
 }

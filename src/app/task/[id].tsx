@@ -20,9 +20,9 @@ import { leftSaved, openedOnDay, setFlash } from "@/lib/flash";
 import { allTasks, loadModel } from "@/lib/store";
 import { KIND_VI, reasonText } from "@/lib/reasons";
 import { useTheme, type TypeName, font, space, ff } from "@/lib/theme";
-import { typeOf } from "@/planner";
+import { grounded, typeOf } from "@/planner";
 import type { Placed } from "@/planner/model";
-import type { Kind, Task } from "@/lib/types";
+import type { Kind, Rule, Task } from "@/lib/types";
 import { day, dayLabel, endAt, startDay, when } from "@/lib/when";
 
 type Scope = "this" | "following" | "all";
@@ -39,6 +39,7 @@ export default function Detail() {
   const [sits, setSits] = useState<Task[]>([]); // the sittings this one belongs to (a sitting: it and its siblings; a split task: its own), in time order
   const [now, setNow] = useState(0);
   const [plc, setPlc] = useState<Placed>();
+  const [rules, setRules] = useState<Rule[]>([]);
   const [title, setTitle] = useState("");
   const [note, setNote] = useState("");
   const [ed, setEd] = useState<"time" | "due" | "place">();
@@ -69,7 +70,9 @@ export default function Detail() {
     const all = await allTasks();
     const x = all.find((y) => y.id === id);
     const n = Date.now();
-    setPlc(id ? (await loadModel(n)).placed[id] : undefined);
+    const mdl = id ? await loadModel(n) : undefined;
+    setPlc(id ? mdl?.placed[id] : undefined);
+    setRules(mdl?.rules ?? []);
     if (!x || x.deletedAt) { // opened from a stale widget or notification, or synced away
       // only while on top: a screen under another popping itself took the top one (or nothing) with it
       if (nav.isFocused()) { if (router.canGoBack()) router.back(); else router.replace("/"); }
@@ -268,7 +271,7 @@ export default function Detail() {
   const still = lastMore(sits.length ? sits : task.rrule ? [] : [task], now); // an unsplit task is its own last sitting
   const addMore = async () => { if (!still) return; setAdded(await stillMore(still)); void load(); };
   const undoMore = async () => { const r = added; setAdded(undefined); await r?.undo(); void load(); };
-  const why =!task.fixed ? plc?.why?.flatMap((r) => (r.key !== "pace" ? [r] : open.length > 1 ? [{ ...r, vars: { k: open.findIndex((k) => k.id === task.id) + 1, n: open.length } }] : [])).slice(0, 4) : undefined;
+  const why =!task.fixed ? grounded(plc?.why, { task, start: task.start ?? 0, rules }).flatMap((r) => (r.key !== "pace" ? [r] : open.length > 1 ? [{ ...r, vars: { k: open.findIndex((k) => k.id === task.id) + 1, n: open.length } }] : [])).slice(0, 4) : undefined;
   const me = split ? tt?.id : task.id;
   // "Cũng hợp" only for a real other time: one the planner found, not the current one, not already gone
   const alt = plc?.alt !== undefined && plc.alt !== task.start && plc.alt > now ? plc.alt : undefined;

@@ -50,7 +50,7 @@ import { listenWidgets, pushWidgets } from "@/lib/widgets";
 import { useTheme, font, space, ff } from "@/lib/theme";
 import type { Move, Notice, Rule, Step, Task, Warn } from "@/lib/types";
 import { dayLabel, day as dayName, endAt, when } from "@/lib/when";
-import { insights, suggest, typeOf, type Insights } from "@/planner";
+import { grounded, insights, suggest, typeOf, type Insights } from "@/planner";
 
 type View_ = "day" | "week" | "month" | "rhythm"; // rhythm sits apart on the right of the tabs, outside the swipe cycle
 const VIEWS: View_[] = ["day", "week", "month"];
@@ -133,7 +133,7 @@ export default function Home() {
       const p = model.placed[x.id];
       if (!p || x.doneAt || x.deletedAt || x.start === undefined) continue;
       if (p.alt !== undefined && p.alt !== x.start) alts[x.id] = p.alt;
-      let why = p.explore ? { key: "explore" as const, w: 1 } : topReason(p.why?.filter((r) => ROW.has(r.key)));
+      let why = p.explore ? { key: "explore" as const, w: 1 } : topReason(grounded(p.why, { task: x, start: x.start, rules: model.rules ?? [] }).filter((r) => ROW.has(r.key)));
       // "Buổi k/n" is the plan's count from when it was made; after a delete it renumbers from the sittings left, and a lone one drops it.
       if (why?.key === "pace" && x.parentId) {
         const left = all.filter((c) => c.parentId === x.parentId && !c.doneAt && !c.deletedAt).sort((a, b) => (a.start ?? Infinity) - (b.start ?? Infinity));

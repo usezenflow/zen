@@ -5,6 +5,14 @@
 ### Patch Changes
 
 - Kéo giờ bắt đầu về quá khứ khi việc vẫn chưa kết thúc: các việc linh hoạt bị đè, kể cả việc đang làm, được xếp lại
+- Nhịp: phản ứng nhanh hơn, bớt cứng nhắc
+    - Việc bạn kéo hay tự đặt giờ giờ cũng được học, không còn bị bỏ qua
+    - Hai việc là đã đoán được khung giờ, ba việc là thành giờ vàng
+    - Việc mới làm hôm nay nặng hơn việc cũ vài hôm
+    - Cột giờ, con số và thanh đo có chuyển động mượt
+- Lý do xếp giờ luôn đúng sự thật: "trong hôm nay" không còn bị ghi là "đúng buổi bạn nói"; không còn nhắc lời dặn đã xoá hay việc đã bỏ ghim
+- Lý do và các dòng trong tab Nhịp ngắn gọn hơn
+- Danh sách không còn dòng lý do dưới tên việc; chỉ hiện phòng, môn, hạn hoặc để trống
 
 ## 26.0.7
 
