@@ -6,6 +6,7 @@
 
 - Widget không còn hiện khung xám sau khi thêm hay dời nhiều việc; vẫn giữ ảnh nền như cũ
 - Thêm, sửa, dời việc không còn bị khựng khi có nhiều việc lặp
+- Gõ tên, ghi chú, địa điểm trong chi tiết việc không còn bị khựng
 
 ## 26.0.6
 

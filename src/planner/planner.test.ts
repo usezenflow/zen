@@ -251,6 +251,8 @@ describe("policy and events", () => {
     expect(JSON.parse(JSON.stringify(m3))).toEqual(m3);
     const m4 = learn(model, { id: "e3", taskId: "a", type: "drag", at: p.start - HOUR, data: { fromStart: p.start, toStart: p.start + 4 * HOUR } }, placed);
     expect(m4.placed.a.start).toBe(p.start + 4 * HOUR);
+    // a rename/note/place edit teaches nothing: the same model, so apply skips rewriting it
+    expect(learn(model, { id: "e4", taskId: "a", type: "edit", at: p.end }, placed)).toBe(model);
   });
 
   it("later moves a task off its current span", () => {

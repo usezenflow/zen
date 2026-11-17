@@ -461,6 +461,8 @@ export function outcome(model: Model, ev: TaskEvent, task: Task): { arm: number;
 
 /** `own`: the caller already holds its own copy of `model` (a loop of learns), so it is updated in place instead of copied again. */
 export function learn(model: Model, ev: TaskEvent, task: Task, own = false): Model {
+  // Teaches nothing: the same model back, so a title/note/place edit doesn't clone and rewrite ~500 KB (decay catches up on the next event).
+  if (!["kept", "done", "later", "delete", "drag"].includes(ev.type)) return model;
   const m = own ? model : clone(model);
   decay(m, ev.at);
   const pl = m.placed[task.id];
