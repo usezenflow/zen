@@ -15,12 +15,6 @@
 .say + .say { margin-top: 8px; }
 .say svg { flex-shrink: 0; color: var(--ink); }
 .say b { color: var(--ink); font-weight: 600; }
-/* Moves zen made that you have not looked at: one pill under the header in every view, kept until tapped or swiped. */
-.mvp { margin-top: 14px; height: 48px; padding: 0 6px 0 16px; border-radius: 99px; background: var(--chip); display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; }
-.mvp .dt { width: 8px; height: 8px; border-radius: 99px; background: var(--seal); flex: none; }
-.mvp .sp { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mvp .sp small { color: var(--muted); font-weight: 500; }
-.mvp .x { height: 36px; padding: 0 12px; border-radius: 99px; background: var(--ink); color: var(--bg); display: flex; align-items: center; font-size: 14px; }
 /* A moved block in a week column: the same vermilion dot as the row trail, on its top right corner. */
 .wk .b.mv { position: relative; }
 .wk .b.mv::after { content: ""; position: absolute; top: 3px; right: 3px; width: 7px; height: 7px; border-radius: 99px; background: var(--seal); box-shadow: 0 0 0 2px var(--bg); }
@@ -142,14 +136,20 @@ const row = (tm, title, type, st = "", sub = "") => {
   const box = type === "plan" || type === "assignment" ? `<span class="ck ${st}">${on ? ic(I.check, 16, 2.4) : ""}</span>` : swatch(type);
   return `<div class="r ${on ? "done" : st} ${type === "busy" ? "busy" : ""}">${box}<div class="tx"><b>${title}</b>${sub ? `<small>${sub}</small>` : ""}</div><span class="tm">${tm.includes("|") ? `<span>${tm.split("|")[0]}</span><small>${tm.split("|")[1]}</small>` : `<span>${tm}</span>`}</span></div>`;
 };
-const next = (type, title, big, small, p) => `<div class="art" style="margin-top:16px;height:220px;padding:20px 20px 18px">${art(type, { w: 264, h: 220, seed: 4, cls: "bgart" })}
-  <div class="lab" style="color:#fff;opacity:.85">Tiếp theo</div><div class="t" style="margin-top:10px">${title}</div>
-  <div style="position:absolute;left:20px;right:16px;bottom:16px;display:flex;align-items:flex-end;justify-content:space-between"><div class="meter"><span class="cap2" style="--p:${p}"><i></i></span><div><div class="big">${big}</div><div class="small">${small}</div></div></div><span class="glass solid">${ic(I.check, 22, 2.2)}</span></div></div>`;
+// The now card: a running block says "Đang làm" and its check marks it done; the next block today says "Tiếp theo",
+// and a flexible one also offers "Làm luôn" (that sitting moves to now). No suggestions: a free gap is not news.
+const next = (type, title, big, small, p, early = false) => `<div class="art" style="margin-top:16px;height:220px;padding:20px 20px 18px">${art(type, { w: 264, h: 220, seed: 4, cls: "bgart" })}
+  <div class="lab" style="color:#fff;opacity:.85">${early ? "Tiếp theo" : "Đang làm"}</div><div class="t" style="margin-top:10px">${title}</div>
+  <div style="position:absolute;left:20px;right:16px;bottom:16px;display:flex;align-items:flex-end;justify-content:space-between"><div class="meter"><span class="cap2" style="--p:${p}"><i></i></span><div><div class="big">${big}</div><div class="small">${small}</div></div></div><span style="display:flex;gap:8px;align-items:center">${early ? '<span class="glass" style="width:auto;height:52px;padding:0 18px;border-radius:99px;font:700 15px/1 inherit">Làm luôn</span>' : ""}<span class="glass solid">${ic(I.check, 22, 2.2)}</span></span></div></div>`;
 const day = (st) => `${head("T2", "16/11", "5 việc, 1 tiết học")}${tabs("Ngày")}
   ${next("plan", "Ôn Giải tích", "10p", "đến 14:30", "35%")}
   <div class="lab" style="margin-top:28px">Sau đó</div>
   <div class="list" style="margin-top:6px">${row("14:30|15:30", "Ôn Giải tích", "plan", st)}${row("16:00", "Báo cáo nhóm", "assignment", "", "Hạn 23:59")}${row("17:30|19:00", "Cơ sở dữ liệu", "lecture", "", "A2.104")}${row("19:00", "Ăn tối với Minh", "busy")}</div>
   <div class="lab" style="margin-top:20px">Xong (2) ${ic(I.down, 14)}</div>`;
+const dayNext = `${head("T2", "16/11", "5 việc, 1 tiết học")}${tabs("Ngày")}
+  ${next("plan", "Ôn Giải tích", "16:00", "60p", "0%", true)}
+  <div class="lab" style="margin-top:28px">Sau đó</div>
+  <div class="list" style="margin-top:6px">${row("17:30|19:00", "Cơ sở dữ liệu", "lecture", "", "A2.104")}${row("19:00", "Ăn tối với Minh", "busy")}</div>`;
 const edit = `${head("T2", "16/11", "5 việc, 1 tiết học")}${tabs("Ngày")}
   <div class="lab" style="margin-top:28px">Hôm nay</div>
   <div class="list" style="margin-top:6px">${row("14:30", "Ôn Giải tích", "plan")}
@@ -271,12 +271,13 @@ const weekDrag = `${head("Tuần này", "16 - 22/11", "14 việc, 1 bài thi")}$
   <div class="list" style="margin-top:6px"><div style="opacity:.45">${row("8:00", "Ôn thi", "plan", "", "Buổi 2/2 · Xác suất")}</div>${row("13:30", "Thi Xác suất", "exam", "", "Trắc nghiệm, B1.201")}</div>
   <div style="position:absolute;left:236px;top:268px;height:40px;padding:0 16px;border-radius:99px;background:var(--ink);color:var(--bg);display:flex;align-items:center;font:700 15px/1 inherit;box-shadow:0 14px 30px -10px rgba(0,0,0,.45)">Ôn thi</div>`;
 // Moves you have not looked at: one pill under the header, in week and day view alike, until tapped or swiped; moved blocks carry the dot.
-const mvp = (n) => `<div class="mvp"><span class="dt"></span><span class="sp">Xếp lại ${n} việc <small>· Ôn Giải tích sang T5 9:00</small></span><span class="x">Xem</span></div>`;
+const mvp = (n) => `<div class="mvp"><span class="dt"></span><span class="sp">Xếp lại ${n} việc<small><b>Ôn Giải tích</b> sang T5 9:00</small></span><span class="x">Xem</span></div>`;
 const weekMoved = `${head("Tuần này", "16 - 22/11", "14 việc, 1 bài thi")}${tabs("Tuần")}${mvp(2)}${wk(W).split('<div class="c">').map((c, i) => (i === 4 || i === 6 ? c.replace('<span class="b"', '<span class="b mv"') : c)).join('<div class="c">')}${wkList}`;
 const dayMoved = `${head("T2", "16/11", "5 việc, 1 tiết học")}${tabs("Ngày")}
   ${next("plan", "Ôn Giải tích", "10p", "đến 14:30", "35%")}${mvp(2)}
   <div class="lab" style="margin-top:22px">Sau đó</div>
   <div class="list" style="margin-top:6px">${row("16:00", "Báo cáo nhóm", "assignment", "", "Hạn 23:59")}${row("17:30|19:00", "Cơ sở dữ liệu", "lecture", "", "A2.104")}${row("19:00", "Ăn tối với Minh", "busy")}</div>`;
+const monthMoved = month.replace(`${tabs("Tháng")}`, `${tabs("Tháng")}${mvp(3)}`);
 const weekPacked = `${head("Tuần này", "16 - 22/11", "31 việc, 1 bài thi")}${tabs("Tuần")}${wk(WP)}${wkList}`;
 const pick = (d) => [[], ["plan"], ["lecture", "plan"], ["lecture", "plan", "assignment"], ["exam"], ["plan", "plan"], []][d % 7];
 const month = `${head("Năm 2026", "Tháng 11", "42 việc, 3 bài thi", 1)}${tabs("Tháng")}
@@ -314,7 +315,7 @@ const dayDone = `${head("T2", "16/11", "5 việc, xong hết")}${tabs("Ngày")}
   <div class="lab" style="margin-top:28px">Xong (5) ${ic(I.down, 14)}</div>`;
 // After 20:00 and past the day's last block: the day is over, so tomorrow may show.
 const dayNight = `${head("T2", "16/11", "5 việc, xong hết")}${tabs("Ngày")}
-  ${rest("Hôm nay", "Hôm nay xong rồi", "Mai 8:00, Ôn thi", "color")}
+  ${rest("Hôm nay", "Hôm nay xong rồi", "Mai 8:00, <b>Ôn thi</b>", "color")}
   <div class="lab" style="margin-top:28px">Ngày mai</div>
   <div class="list" style="margin-top:6px">${row("8:00", "Ôn thi", "plan", "", "Buổi 2/6 · Xác suất")}${row("13:30", "Thi Xác suất", "exam", "", "B1.201")}</div>
   <div class="lab" style="margin-top:20px">Xong (5) ${ic(I.down, 14)}</div>`;
@@ -402,7 +403,8 @@ const dayFold = `${head("T3", "17/11", "14 việc")}${tabs("Ngày")}
   <div class="lab" style="margin-top:20px">T3, 1/12</div>
   <div class="list" style="margin-top:6px"><div class="fold"><span>+16 buổi · đến 16/12</span></div></div>`;
 mount([
-  { tag: "Day", sub: "Next up is the art card; its meter fills continuously as the block runs, not in steps. Its circle marks it done. Below, the rest of today.", html: chrome(day("")) },
+  { tag: "Day", sub: "The block running now is the art card, \u201cĐang làm\u201d; its meter fills continuously as the block runs, not in steps. Its circle marks it done. Below, the rest of today.", html: chrome(day("")) },
+  { tag: "Day, next up", sub: "Nothing running: the next block of today, \u201cTiếp theo\u201d, with its start time. Làm luôn moves that sitting to now (its old slot is freed for what waits); the circle marks it done. A class or an exam has no Làm luôn. Never a suggestion for a free gap, and never a task of another day.", html: chrome(dayNext) },
   { tag: "Day, empty", sub: "No blank screen. The rest card takes the art card's slot, with the leaf in outline. Below it, what's coming in the next days, so the screen is still useful.", html: chrome(dayFree) },
   { tag: "Day, all done", sub: "Everything ticked before the evening. The leaf fills in and done rows collapse. Nothing from tomorrow and no gap card: the rest of the day is yours.", html: chrome(dayDone) },
   { tag: "Day, all done, night", sub: "From 20:00, once the day's last block has ended, the day is over: the rest card names tomorrow's first task and tomorrow's rows show under it.", html: chrome(dayNight) },
@@ -412,7 +414,7 @@ mount([
   { tag: "Day, listening, a pause", sub: "Between words the bars settle back to five dots and the middle one breathes, so a quiet moment still reads as listening. The words stay.", html: chrome(`<div class="words">Mai nhắc mình nộp báo cáo nhóm</div>${VIZ("silent")}`, { dock: "live" }) },
   { tag: "Day, listening, long", sub: "A long take never scrolls: past four lines the oldest line fades out at the top and the newest stays where your eye is.", html: chrome(`<div class="words long">Thứ hai 7 giờ học Cấu trúc dữ liệu, chiều 3 giờ họp nhóm ở thư viện, tối ăn với Minh, thứ ba nộp báo cáo thực hành trước 11 giờ đêm,<em> nhớ</em></div>${VIZ("speak", [0.6, 0.5, 0.9, 0.7, 0.3])}`, { dock: "live" }) },
   { tag: "Day, thinking", sub: "Let go: the words settle to ink, the bars fall to dots and one lit dot sweeps side to side while Zen places it. The leaf rocks on the button.", html: chrome(`<div class="words">Mai nhắc mình nộp báo cáo nhóm</div>${VIZ("think", undefined, 1)}`, { dock: "think" }) },
-  { tag: "Done", sub: "Tap a circle: it fills black and pops, the row strikes through, haptic success, Undo.", html: chrome(toast("Ôn Giải tích xong", "Còn 3 việc hôm nay", [["Hoàn tác"]]) + day("pop")) },
+  { tag: "Done", sub: "Tap a circle: it fills black and pops, the row strikes through, haptic success, Undo.", html: chrome(toast("<b>Ôn Giải tích</b> xong", "Còn 3 việc hôm nay", [["Hoàn tác"]]) + day("pop")) },
   { tag: "Day, past midnight", sub: "An end before its start runs into the next day. The end carries a small vermilion +1. On the next day the same task shows its start with -1, so both days read at a glance. A task covering whole days in between shows Cả ngày there.", html: chrome(`${head("T3", "17/11", "2 việc")}${tabs("Ngày")}<div class="lab" style="margin-top:28px">Hôm nay</div><div class="list" style="margin-top:6px">${row("19:00|20:00", "Ăn tối với Minh", "busy")}${row("22:00|1:00<sup>+1</sup>", "Chạy bản build", "plan")}</div><div class="lab" style="margin-top:28px">Mai</div><div class="list" style="margin-top:6px">${row("22:00<sup>-1</sup>|1:00", "Chạy bản build", "plan")}</div>`) },
   { tag: "Day, missed", sub: "A task whose time has passed without a tick keeps its place, with a vermilion circle and time. No strike-through: it is not done, just late. Tick it, or leave it: the next time you open the app Zen has rolled it forward (Magic, 15).", html: chrome(`${head("T2", "16/11", "5 việc, 1 tiết học")}${tabs("Ngày")}<div class="lab" style="margin-top:28px">Hôm nay</div><div class="list" style="margin-top:6px">${row("9:00", "Đọc chương 2", "plan", "late")}${row("11:00", "Nộp phiếu khảo sát", "assignment", "late", "Hạn 12:00")}${row("16:00", "Báo cáo nhóm", "assignment", "", "Hạn 23:59")}${row("17:30|19:00", "Cơ sở dữ liệu", "lecture", "", "A2.104")}</div>`, { time: "14:20" }) },
   { tag: "Created", sub: "No confirmation. One Undo button; the other good slot is an outline pill left of Undo; title and sub may wrap to two lines. Dates follow the week rule: weekday only this week, plus day/month otherwise.", html: chrome(toast("Báo cáo nhóm", when("2026-11-20", "14:00"), [[when("2026-11-21", "9:00"), 1], ["Hoàn tác"]]) + day(""), { dock: "think" }) },
@@ -474,6 +476,7 @@ mount([
   { tag: "Week, drag to another day", sub: "Hold a row and move it: a chip with its title rides above the finger and the day under it turns vermilion. Rest at the left or right edge to page to the previous or next week (month view the same, by month). Let go on a day: the task moves there at the same time of day, the list shows that day, and the toast has Undo. Let go anywhere else, or on a past day: nothing moves. Hold without moving still opens the hold menu.", html: chrome(weekDrag) },
   { tag: "Week, empty", sub: "Columns keep their height as dashed slots, so the grid reads as room, not as missing. A short inline note, then what's left of this week.", html: chrome(weekFree) },
   { tag: "Week, packed", sub: "Columns never grow. T3 compresses proportionally; T5 has too many for even the minimum height, so it shows what fits and a +n chip.", html: chrome(weekPacked) },
+  { tag: "Month, moved", sub: "The same moves pill as day and week, under the tabs, until opened or swiped. Month cells carry no dots for moves: the pill and the story say what moved.", dark: true, html: chrome(monthMoved) },
   { tag: "Month", sub: "Today in black, selected outlined, up to three dots. Swipe sideways for the previous or next month.", dark: true, html: chrome(month) },
   { tag: "Month, empty day", sub: "Tap a day with nothing: a small inline note in place of rows, pointing to the nearest thing after it.", html: chrome(monthFree) },
   { tag: "Week, holiday", sub: "A holiday or all-day busy day is shaded with diagonal stripes and a label. Nothing gets planned there.", html: chrome(weekHol) },

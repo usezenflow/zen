@@ -201,3 +201,11 @@ body { font-family: 'Be Vietnam Pro', system-ui, sans-serif; background: var(--p
 .dlg li + li { margin-top: 6px; }
 .dlg .btn { margin-top: 22px; }
 .dlg .ghost { margin-top: 12px; text-align: center; font-size: 15px; font-weight: 600; color: var(--muted); }
+/* Moves zen made that you have not looked at: one pill under the header in every view, kept until tapped or swiped. */
+.mvp { margin-top: 14px; min-height: 60px; padding: 10px 10px 10px 16px; border-radius: 22px; background: var(--chip); display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; }
+.mvp .dt { width: 8px; height: 8px; border-radius: 99px; background: var(--seal); flex: none; }
+.mvp .sp { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mvp .sp small { display: block; margin-top: 2px; font-size: 14px; color: var(--muted); font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
+.mvp .sp small b, .toast b, .rest .s b { color: var(--ink); font-weight: 700; }
+.toast b { color: inherit; font-weight: 800; }
+.mvp .x { height: 36px; padding: 0 12px; border-radius: 99px; background: var(--ink); color: var(--bg); display: flex; align-items: center; font-size: 14px; }

@@ -120,13 +120,12 @@ const CAUSE = "Vì trường thêm Tiết bù Mạng máy tính 13:30";
 
 // 1. Brief: only for changes made while you were away (a campus sync). One sentence: the trigger, the biggest move, its reason.
 const brief = `${head("T3", "17/11", "3 việc, 1 tiết học")}${tabs("Ngày")}
-  <div class="brief"><span class="lab">Sáng nay</span><span class="lf">${LOGO(30, "line")}</span>
-    <div class="t">Xếp lại 2 việc</div><div class="s">${CAUSE}, nên <b>Gym</b> sang <b class="tn">T4 7:00</b>. Giờ này hợp với việc tập thể dục.</div></div>
+  <div class="mvp"><span class="dt"></span><span class="sp">Xếp lại 2 việc<small><b>Gym</b> sang T4 7:00</small></span><span class="x">Xem</span></div>
   <div class="lab" style="margin-top:26px">Hôm nay</div>
   <div class="list" style="margin-top:6px">${row("13:30", "Tiết bù Mạng máy tính", "lecture", "B1.201")}${row("15:00", "Gym", "plan", "Sang T4 7:00", "ghost")}${row("16:30", "Ôn Giải tích", "plan", moved("T3 14:00"))}${row("20:00", "Đọc sách mỗi tối", "plan", "Buổi tối")}</div>`;
 
 // 1b. The brief swiped sideways: it flicks away like the now-card, and does not come back.
-const briefOut = brief.replace('<div class="brief">', '<div class="brief out">');
+const briefOut = brief.replace('<div class="mvp">', '<div class="mvp" style="transform:translateX(150px);opacity:.6">');
 
 // 2. Brief opened in place: the trigger as a heading, then each move with its old time struck, its new time and one reason.
 const story = `${head("T3", "17/11", "3 việc, 1 tiết học")}${tabs("Ngày")}
@@ -182,11 +181,11 @@ function storyOf(knock = true) {
 const homeList = `${head("T3", "17/11", "4 việc, 1 tiết học")}${tabs("Ngày")}
   <div class="lab" style="margin-top:28px">Hôm nay</div>
   <div class="list" style="margin-top:6px">${row("13:30", "Cơ sở dữ liệu", "lecture", "A2.104")}${row("15:00", "Gym", "plan")}${row("16:30", "Ôn Giải tích", "plan", moved("T3 15:00"))}${row("17:30", "Đọc sách", "plan", moved("T3 16:30"))}</div>`;
-const setToast = toast("Đã dời Gym sang 15:00", "", [["Xem", true, true], ["Hoàn tác"]]) + homeList;
+const setToast = toast("Đã dời <b>Gym</b> sang 15:00", "", [["Xem", true, true], ["Hoàn tác"]]) + homeList;
 const setHome = `${head("T3", "17/11", "4 việc, 1 tiết học")}${tabs("Ngày")}
   ${storyOf()}`;
 // 7i: a done frees time; later tasks move up into it (earlier only), and the toast says where.
-const pullIn = toast("Xong. Tốt lắm.", "Đọc sách có giờ: T3 16:00", [["Hoàn tác"]]) + `${head("T3", "17/11", "3 việc, 1 tiết học")}${tabs("Ngày")}
+const pullIn = toast("Xong. Tốt lắm.", "<b>Đọc sách</b> có giờ: T3 16:00", [["Hoàn tác"]]) + `${head("T3", "17/11", "3 việc, 1 tiết học")}${tabs("Ngày")}
   <div class="lab" style="margin-top:28px">Hôm nay</div>
   <div class="list" style="margin-top:6px">${row("13:30", "Cơ sở dữ liệu", "lecture", "A2.104")}${row("16:00", "Đọc sách", "plan")}${row("17:30", "Ôn Giải tích", "plan")}</div>`;
 const pullMany = toast("Xong. Tốt lắm.", "Đã dời sớm 2 việc", [["Hoàn tác"]]) + `${head("T3", "17/11", "3 việc, 1 tiết học")}${tabs("Ngày")}
@@ -198,7 +197,7 @@ const setPreview = youSet(chips(1) + pv("Sẽ dời Ôn Giải tích sang 16:30"
 const setStory = youSet(ml("clock", "Làm T3 15:00 - 16:00"), `
   ${storyOf()}`);
 const setLost = youSet(ml("clock", "Làm T3 15:00 - 16:00"), `
-  <div style="margin-top:18px;font-size:15px;font-weight:400;line-height:21px;color:var(--seal)">Đọc sách chưa có giờ trống</div>
+  <div style="margin-top:18px;font-size:15px;font-weight:400;line-height:21px;color:var(--seal)"><b>Đọc sách</b> chưa có giờ trống</div>
   ${storyOf(false)}`);
 const setClash = youSet(ml("clock", "Làm T3 13:30 - 14:30"), `
   <div class="warn" style="margin-top:22px"><b>Trùng giờ</b><small>Cơ sở dữ liệu cũng lúc này.</small>
@@ -228,7 +227,7 @@ const heads = `${head("T4", "18/11", "3 việc, 1 tiết học")}${tabs("Ngày")
   <div class="list" style="margin-top:6px">${row("14:00", "Báo cáo nhóm", "assignment", "Buổi 1/4")}${row("17:30", "Cơ sở dữ liệu", "lecture", "A2.104")}${row("20:00", "Báo cáo nhóm", "assignment", "Buổi 2/4")}</div>`;
 
 // 10. A rule, said once: Zen repeats it in its own words and names what it moved to keep it.
-const rule = toast("Mình sẽ giữ Tối T6 để trống", "Đọc sách sang T7 20:00", [["Hoàn tác"]]) + `${head("Tuần này", "16 - 22/11", "9 việc, 5 tiết học")}${tabs("Tuần")}
+const rule = toast("Mình sẽ giữ Tối T6 để trống", "<b>Đọc sách</b> sang T7 20:00", [["Hoàn tác"]]) + `${head("Tuần này", "16 - 22/11", "9 việc, 5 tiết học")}${tabs("Tuần")}
   <div class="wk" style="margin-top:20px">${[["T2", 16, 0], ["T3", 17, 0], ["T4", 18, 0], ["T5", 19, 0], ["T6", 20, 1], ["T7", 21, 0], ["CN", 22, 0]].map(([d, n, f], i) => `<div class="c"><span class="d ${i === 0 ? "on" : ""}">${d}<i>${n}</i></span>${f ? `<div class="bs"><span class="b" style="--h:46px">${art("lecture", { w: 40, h: 46, seed: 2 })}</span><span class="hb" style="height:52px"></span></div>` : `<div class="bs">${[["plan", 30], ["lecture", 40]].slice(0, 1 + (i % 2)).map(([t, h], j) => `<span class="b" style="--h:${h}px">${art(t, { w: 40, h, seed: i + j })}</span>`).join("")}</div>`}</div>`).join("")}</div>
   <div class="lab" style="margin-top:28px">T6, 20/11</div>
   <div class="list" style="margin-top:6px">${row("7:00", "Cơ sở dữ liệu", "lecture", "A2.104")}</div>
@@ -441,7 +440,7 @@ const need = `${head("T4", "18/11", "3 việc, 1 tiết học")}${tabs("Ngày")}
   <div class="lab" style="margin-top:28px">Hôm nay</div>
   <div class="list" style="margin-top:6px">${row("7:00", "Cấu trúc dữ liệu", "lecture", "A2.301")}${row("19:00", "Luyện đề", "plan", `Buổi 5/10 · ${GT}`, "lift")}${row("21:00", "Đọc sách mỗi tối", "plan")}</div>
   ${menu([["Cần thêm một buổi"], ["Bớt một buổi"], ["Đừng dời việc này nữa"], ...DEL], 300, "c")}`;
-const needDone = toast("Thêm một buổi Luyện đề", "T6 14:00", [["Hoàn tác"]]) + prepDay.replace(`Buổi 5/10 · ${GT}`, `Buổi 5/11 · ${GT}`);
+const needDone = toast("Thêm một buổi <b>Luyện đề</b>", "T6 14:00", [["Hoàn tác"]]) + prepDay.replace(`Buổi 5/10 · ${GT}`, `Buổi 5/11 · ${GT}`);
 const less = toast("Ôn ít hơn: 9h, 8 buổi", GTX, [["Hoàn tác"]]) + prepDetail("9h, 8 buổi");
 // 31b-c. Còn nữa: a guessed split task whose last sitting (18/11) is under way. A small text button under the sittings, no sheet; the result stays here with Hoàn tác.
 const stillSits = [si(when("2026-11-16"), "Luyện đề", "60p", "done"), si(when("2026-11-17"), "Luyện đề", "90p", "done"), si(when("2026-11-18"), "Luyện đề", "60p", "me")].join("");
@@ -493,9 +492,9 @@ const farToast = toast("Lên lịch 30 ngày tới · hạn 15/3", "", [["Hoàn 
   <div class="lab" style="margin-top:28px">Hôm nay</div>
   <div class="list" style="margin-top:6px">${row("13:30", "Cơ sở dữ liệu", "lecture", "A2.104")}${row("20:00", "Đọc sách mỗi tối", "plan", "Buổi tối")}</div>`;
 mount([
-  { tag: "1. Brief, while you were away", sub: "Only for changes made when you were not looking: the school added or moved a class or an exam, or changed a due date. One sentence: the trigger, the biggest move, its reason. Moved rows carry a vermilion dot and their old time; a row that left the day stays as a dashed ghost saying where it went. Knock-ons of your own drag or done count too: you saw one row move, not the others it pushed. When a block is running, or in week view, the brief shrinks to a pill under the header (views: Day, moved; Week, moved). It is shown once: the first time you open the app after the change. It stays across views and launches until you open it or swipe it away (1b); the trail dots stay until you look.", html: chrome(brief) },
-  { tag: "1b. Brief, swiped away", sub: "Swipe the brief sideways and it flicks off, as the now-card does; past a short distance it springs back. Gone for good: it never returns for those moves, and the trail dots stay until you look.", html: chrome(briefOut) },
-  { tag: "2. Brief, opened", sub: "Tap the brief: the list becomes the story, in place, no sheet. The heading is the trigger: “Vì trường thêm … 13:30”, “Vì trường dời … sang T5 9:00” or “Vì hạn … đổi sang T5 23:59”. Only tasks whose own time stopped working move; nothing else is touched. Each move: old time struck, new time, one reason. The button marks them seen and clears the dots.", html: chrome(story, { dock: null }) },
+  { tag: "1. Moves, one pill", sub: "Whatever moved and you have not looked at, for any cause (the school, a due, your own drag or done): one pill under the tabs, the same in day, week and month. It names how many and the biggest move. Moved rows carry a vermilion dot and their old time; a row that left the day stays as a dashed ghost saying where it went. It never takes the now card\u2019s place, and it stays across views and launches until you open it or swipe it away (1b); the dots stay until you look.", html: chrome(brief) },
+  { tag: "1b. Moves, swiped away", sub: "Swipe the pill sideways and it slides off; past a short distance it springs back. Gone for good: it never returns for those moves, and the trail dots stay until you look.", html: chrome(briefOut) },
+  { tag: "2. Moves, opened", sub: "Tap the pill: the list becomes the story, in place, no sheet. The heading is the trigger: “Vì trường thêm … 13:30”, “Vì trường dời … sang T5 9:00” or “Vì hạn … đổi sang T5 23:59”. Only tasks whose own time stopped working move; nothing else is touched. Each move: old time struck, new time, one reason. The button marks them seen and clears the dots.", html: chrome(story, { dock: null }) },
   { tag: "3. Motion is the diff", sub: "When the plan changes in front of you, the rows move one at a time: a moved row glides to its new time and lifts for a moment. A row that left for another day cannot travel across lists, so its old slot keeps a dashed ghost. In the week view the block travels from one day's column to the other.", html: chrome(glide) },
   { tag: "4. Thinking out loud", sub: "“Tuần này thêm Gym ba buổi.” The list stays on screen, on the day of the first new task, behind the page-colour veil Capture uses while dragging, so the lines read clearly. Up to four lines appear, one per task that was placed or moved, and each line's row lands as the line appears. Nothing is listed that did not change.", html: chrome(think, { dock: "think" }) },
   { tag: "5. What you say stands", sub: "“6 giờ chiều thứ 4 đi gym.” An exact time is a busy block: grey, no circle to tick, never moved, and the rest is planned around it. Said with “hàng tuần” it repeats. A part of the day (“tối thứ 5 học toán”) stays a flexible plan, kept inside that evening.", html: chrome(said, { dock: "think" }) },
