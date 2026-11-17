@@ -695,7 +695,6 @@ describe("adding and dropping a sitting", () => {
 });
 
 describe("Còn nữa on a guessed split task's last sitting", () => {
-  const H = 3600_000;
   const sit = (o: Partial<Task>) => ({ id: "p#1", title: "Code x", kind: "study", source: "user", effort: 60, effortGuessed: true, cls: "code", guessMin: 120, maxSitting: 60, parentId: "p", start: NOW - 3 * H, end: NOW - 2 * H, createdAt: NOW, ...o }) as Task;
 
   it("shows only on the last sitting once it is done or under way; a said length never", () => {
@@ -755,4 +754,26 @@ it("a name, place or note set on one of a repeat reaches every one that still sh
   await apply([{ op: "edit", target: b.id, title: "Gym lưng", location: "Phòng C" }], NOW + 5);
   expect([by(a.id).title, by(b.id).title, by(c.id).title]).toEqual(["Chạy", "Gym lưng", "Gym tay"]);
   expect([by(a.id).location, by(b.id).location, by(c.id).location]).toEqual(["Phòng C", "Phòng C", "Phòng C"]);
+});
+
+it("a time dragged to start in the past, end ahead, still moves what it clashes with", async () => {
+  // flexible planned task across [NOW+10m, NOW+40m); a hand-set one reaching [NOW-30m, NOW+30m)
+  db.tasks.set("f", { id: "f", title: "Flex", kind: "study", effortMinutes: 30, start: NOW + 10 * 60_000, end: NOW + 40 * 60_000 });
+  await apply([{ op: "create", title: "Mine", kind: "study", effortMinutes: 60 }], NOW);
+  const id = live().find((x: Task) => x.title === "Mine")!.id;
+  await apply([{ op: "edit", target: id, when: new Date(NOW - 30 * 60_000).toISOString() }], NOW + 1000);
+  const mine = db.tasks.get(id), f = db.tasks.get("f");
+  expect(mine.start).toBe(NOW - 30 * 60_000);
+  expect(f.start >= mine.end || f.end <= mine.start).toBe(true);
+});
+
+it("a time dragged to start in the past, end ahead, also moves flexible blocks already running or pinned under it", async () => {
+  const M = 60_000;
+  db.tasks.set("r", { id: "r", title: "Run", kind: "study", effortMinutes: 30, start: NOW - 10 * M, end: NOW + 20 * M });
+  db.tasks.set("p", { id: "p", title: "Pin", kind: "study", effortMinutes: 30, start: NOW + 25 * M, end: NOW + 55 * M, pinned: true, userEdited: ["start"] });
+  await apply([{ op: "create", title: "Mine", kind: "study", effortMinutes: 60 }], NOW);
+  const id = live().find((x: Task) => x.title === "Mine")!.id;
+  await apply([{ op: "edit", target: id, when: new Date(NOW - 30 * M).toISOString() }], NOW + 1000);
+  const mine = db.tasks.get(id);
+  for (const k of ["r", "p"]) { const f = db.tasks.get(k); expect(f.start >= mine.end || f.end <= mine.start, k).toBe(true); }
 });

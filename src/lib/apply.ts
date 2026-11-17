@@ -390,7 +390,9 @@ async function transactNow(now: number, mutate: (w: Work) => Promise<void> | voi
   if ((o.replan === true || o.replan === undefined || pullGap) && (!past || pullGap)) {
     // The newest time set by hand wins: an older hand-set flexible task under it gives way and is planned again (not one already running).
     for (const a of set) for (const x of [...w.tasks.values()]) {
-      if (x.id === a.id || !x.pinned || x.fixed || !span(x) || x.start! <= now || !(x.start! < a.end! && a.start! < x.end!)) continue;
+      if (x.id === a.id || x.fixed || !span(x) || !(x.start! < a.end! && a.start! < x.end!)) continue;
+      if (!x.pinned) { if (x.start! <= now && now < x.end!) w.tasks.set(x.id, { ...x, start: undefined, end: undefined }); continue; } // a running flexible block is busy to the planner: free it so it is planned again
+      if (x.start! <= now) continue;
       w.tasks.set(x.id, { ...x, pinned: false, notBefore: x.notBefore === x.start ? undefined : x.notBefore, userEdited: x.userEdited?.filter((f) => f !== "start") });
     }
     const r = plan([...w.tasks.values()], [], w.model, now, pullGap ? { ...o.plan, pull: pullGap } : o.plan);
