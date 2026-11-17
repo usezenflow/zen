@@ -55,6 +55,7 @@
         {
           "ios": {
             "enabled": true,
+            "appGroupId": "group.com.alpha.zen",
             "activationRule": { "supportsText": true, "supportsWebUrlWithMaxCount": 1, "supportsImageWithMaxCount": 1, "supportsFileWithMaxCount": 1 }
           },
           "android": {
@@ -102,6 +103,7 @@
       [
         "expo-widgets",
         {
+          "groupIdentifier": "group.com.alpha.zen",
           "enableAndroid": true,
           "widgets": [
             {
