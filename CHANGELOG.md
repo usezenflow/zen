@@ -1,23 +1,32 @@
 # zen
 
-## 26.0.10
-
-### Patch Changes
-
-- Thẻ trên cùng gọn và đúng hơn
-    - Việc đang làm ghi "Đang làm"; việc tiếp theo hôm nay ghi "Tiếp theo", có nút "Làm luôn" để dời đúng buổi đó về bây giờ
-    - Bỏ thẻ "...p trống, hợp làm ...": không còn gợi ý việc ngày khác, chạm dấu xong không còn làm kẹt buổi ở mấy hôm sau
-    - Bỏ thẻ lớn "Sáng nay"; việc bị dời chỉ hiện ở một dòng nhỏ dưới thanh chọn, giống nhau ở ngày, tuần và tháng
-- Dòng "Xếp lại 2 việc" có hai hàng: số việc, rồi việc dời nhiều nhất ("**Gym** sang T4 7:00") ở hàng dưới
-- Tên việc in đậm khi nằm giữa câu: "**Đọc sách** chưa có giờ trống", "Đã dời **Gym** sang 15:00"...
-- "Các buổi": thêm hay bỏ một buổi là chia lại các buổi còn lại cho đều; bỏ đúng buổi bạn chạm
-- Độ dài tự đoán: việc nhỏ 15p, còn lại tròn nửa giờ hay một giờ; không còn 45p, 1h15p
-- Buổi ôn thi đã có được chia lại theo cách mới ngay lần đầu mở app sau khi cập nhật; buổi đã xong, đang làm hay bạn tự đặt giờ thì giữ nguyên
-
 ## 26.0.9
 
 ### Patch Changes
 
+- Zen hiểu bạn nhanh hơn mà vẫn yên
+    - Xong một việc zen chưa xếp giờ (giờ bạn tự đặt, hay làm ngay) cũng dạy zen giờ bạn hay làm
+    - Hoàn tác là zen quên luôn điều vừa học
+    - Mỗi ngày zen thử giờ mới nhiều nhất một lần
+    - Giờ thức và các buổi theo đúng những gì bạn làm: hay làm tới khuya thì tối, đêm rộng ra tới 24:00; không bao giờ hẹp lại
+    - Độ dài tự đoán học từ cả những lần bạn làm lâu hơn một chút
+    - Dời một việc khỏi giờ nào là zen hiểu ngay: "Đã hiểu · ít xếp 7:30"; Nhịp có mục "Bạn tránh", vuốt để zen quên giờ đó
+- Việc lặp hằng ngày, hằng tuần bỏ qua ngày lễ; việc hằng tháng, hằng năm (tiền nhà, sinh nhật) giữ đúng ngày
+- "tối nay" nói khi buổi tối đã kín thì xếp đêm nay; bạn hay dời việc khỏi đêm thì xếp tối mai
+- Lỡ việc nhẹ nhàng hơn
+    - Một lần lỡ chỉ tính một lần, đúng giờ đã lỡ
+    - Lỡ 3 lần thì "Lỡ 3 lần, đổi giờ"; việc chưa có hạn và tự đoán độ dài thì ngắn bớt nửa giờ (không dưới 15p), độ dài bạn nói thì giữ nguyên
+- Việc có hạn chừa chút thời gian trước hạn, không còn xếp kết thúc đúng giờ hạn
+- Ngày nhẹ hơn khi cần
+    - Ngày Tết, ngày lễ xếp nửa việc thường ngày: "Để nhẹ ngày Tết"
+    - Hôm trước thi bớt việc khác, buổi ôn cho bài thi đó giữ nguyên: "Để nhẹ hôm trước thi"
+- Sau giờ học, giờ thi chừa thời gian nghỉ theo nhịp của bạn (mặc định 15p, tối đa 1h)
+- Việc vặt và trả tiền cùng ngày xếp liền nhau, đi một lần là xong: "Gộp với **Đi chợ**"
+- Nhắc việc đúng lúc hơn
+    - Vừa mở app thì không nhắc lại việc sắp tới
+    - Việc zen xếp nhắc trước bao lâu theo thói quen mở app của bạn (5 tới 30p)
+    - Tiết học, giờ thi, việc ghim và giờ bạn tự đặt vẫn luôn nhắc trước 10p
+- Thẻ Chủ nhật ghi tuần này bạn giữ bao nhiêu giờ zen xếp so với tuần trước: "Giữ 86% giờ Zen xếp, +9%"
 - Thẻ trên cùng gọn và đúng hơn
     - Việc đang làm ghi "Đang làm"; việc tiếp theo hôm nay ghi "Tiếp theo", có nút "Làm luôn" để dời đúng buổi đó về bây giờ
     - Thẻ "30p trống, hợp làm **Giặt đồ**" chỉ hiện khi hôm nay hết việc của bạn và bạn chưa làm đủ: gợi ý một việc ngày khác vừa chỗ trống trước tiết học kế tiếp hoặc 22:00, việc gần hạn trước; chạm vòng tròn để làm ngay, vuốt đi thì hôm nay không gợi ý nữa
