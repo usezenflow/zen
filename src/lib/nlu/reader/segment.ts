@@ -5,6 +5,47 @@ import { findMentions } from "./mentions";
 import { PART_WORD } from "./parts";
 import { andCuts } from "./order";
 
+/** Folded words that carry no task: time cues and courtesy. */
+const TIME_CUE_WORDS = /(?<![a-z])(?:truoc|trc|han|han chot|luc|vao|den|toi|tu|het|trong|sau|cham nhat|muon nhat|deadline|dl|khoang|tam|ngay|nhe|nha|nhe|giup|minh|voi|di|la|thi|nhu|moi|buoi|lan)(?![a-z])/g;
+const VALUE_KINDS = new Set(["date", "time", "dur"]);
+
+/**
+ * "nộp báo cáo, trước thứ 6", "mai, mua sữa", "họp nhóm, 9h sáng mai, 2 tiếng": a comma piece of time words only is no item;
+ * its cut goes, so it joins the piece before it (else after), when that piece has no value of the same kind
+ * ("họp 9h, 14h" stays two meetings).
+ */
+/** The date, clock and length kinds a piece holds. */
+export const valueKinds = (t: string) => new Set(findMentions(t).filter((m) => VALUE_KINDS.has(m.kind)).map((m) => m.kind));
+/** A piece of time words only: a date, clock or length and nothing that names a task ("trước thứ 6", "9h sáng mai"). */
+export function timeOnly(t: string): boolean {
+  const ms = findMentions(t).filter((m) => m.kind !== "place");
+  // a length alone has its own comma rule ("Học bài, 90 phút" sizes the task): only a date or a clock is a piece's time
+  if (!ms.some((m) => m.kind === "date" || m.kind === "time")) return false;
+  let rest = t;
+  for (const m of [...ms].sort((a, b) => b.start - a.start)) rest = rest.slice(0, m.start) + " " + rest.slice(m.end);
+  return !/[a-z]/.test(fold(rest).text.replace(TIME_CUE_WORDS, " "));
+}
+
+function mergeTimeOnly(rawLn: string, cuts: { at: number; next: number; comma?: boolean }[]) {
+  const kinds = valueKinds;
+  const bare = timeOnly;
+  for (let changed = true; changed && cuts.length; ) {
+    changed = false;
+    const starts = [0, ...cuts.map((c) => c.next)];
+    const ends = [...cuts.map((c) => c.at), rawLn.length];
+    for (let i = 0; i < starts.length && !changed; i++) {
+      const seg = rawLn.slice(starts[i], ends[i]);
+      if (!bare(seg)) continue;
+      const mine = kinds(seg);
+      const fits = (k: number) => k >= 0 && k < starts.length && ![...kinds(rawLn.slice(starts[k], ends[k]))].some((x) => mine.has(x));
+      if (i > 0 && cuts[i - 1].comma && fits(i - 1)) cuts.splice(i - 1, 1);
+      else if (i < cuts.length && cuts[i].comma && fits(i + 1)) cuts.splice(i, 1);
+      else continue;
+      changed = true;
+    }
+  }
+}
+
 export type LabelKind = "time" | "place" | "content";
 
 export interface Clause {
@@ -238,6 +279,7 @@ export function segment(text: string): Clause[] {
     // "học toán và đọc sách": an "và" join between tasks cuts like a comma
     for (const j of andCuts(rawLn)) cuts.push({ at: j.at, next: j.end });
     cuts.sort((a, b) => a.at - b.at);
+    mergeTimeOnly(rawLn, cuts);
     const starts = [0, ...cuts.map((c) => c.next)];
     const ends = [...cuts.map((c) => c.at), rawLn.length];
     for (let i = 0; i < starts.length; i++) {
@@ -439,6 +481,8 @@ function splitTrailing(list: Clause[], text: string): Clause[] {
     if (cut <= 0 || c.text.slice(cut + 1, d.start).trim() === "") return [c];
     // a part of day alone before the date is its modifier: "học toán, sáng mai" is one task
     if (PART_ONLY.test(fold(c.text.slice(cut + 1, d.start).trim()).text)) return [c];
+    // "nộp báo cáo, trước thứ 6": a piece of time words only is the due of the task before it
+    if (timeOnly(c.text.slice(cut + 1))) return [c];
     if (fold(c.text.slice(0, cut)).text.split(/\s+/).length < 2) return [c];
     if (findMentions(c.text.slice(0, cut)).length) return [c];
     // a part of day in the tasks before the comma is theirs: "ôn bài sáng, tối mai" keeps its part on "ôn bài"

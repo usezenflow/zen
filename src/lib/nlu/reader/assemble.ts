@@ -37,7 +37,7 @@ import { holidayOf, isHolidayDate, nextLunar } from "./holidays";
 import { roleOf, withinDays } from "./roles";
 import { every, exceptSpans, ruleBase, thisWeekCount, weekSessions, withBounds } from "./rules";
 import type { CalDay } from "./daypick";
-import { bareTitle, partLeads, type Clause } from "./segment";
+import { bareTitle, partLeads, timeOnly, valueKinds, type Clause } from "./segment";
 import {
   IN_PART,
   PART,
@@ -166,12 +166,34 @@ const CUES = new Set([
   "khuya",
 ]);
 /** The raw spellings of a cue whose folded form other words share. */
-const CUE_SPELLING: Record<string, string[]> = { de: ["để", "de"], ban: ["bạn", "ban"], thu: ["thứ", "thu"], han: ["hạn", "han"], minh: ["mình"] };
+// A cue that shares its folded form with a real word lists its own spellings, so the other word stays ("đèn" is no "đến", "túi" no "tui",
+// "nhẹ" no "nhé"); a cue with no such twin ("trước", "trưa") leaves in any spelling, a wrong tone too.
+const CUE_SPELLING: Record<string, string[]> = {
+  de: ["để", "de"], ban: ["bạn", "ban"], thu: ["thứ", "thu"], han: ["hạn", "han"], minh: ["mình"],
+  nho: ["nhớ"], long: ["lòng", "long"], phai: ["phải", "phai"], se: ["sẽ", "se"], da: ["đã", "da"], tranh: ["tránh"],
+  thoi: ["thời", "thoi"], vien: ["viên", "vien"], den: ["đến", "den"], het: ["hết", "het"], luc: ["lúc", "luc"],
+  chieu: ["chiều", "chieu"], sang: ["sáng", "sang"], dem: ["đêm", "dem"], ngay: ["ngày", "ngay"], trong: ["trong"], la: ["là", "la"],
+  hom: ["hôm", "hom"], nay: ["nay", "này"], can: ["cần", "can"], toi: ["tôi", "tối", "tới", "toi"], tui: ["tui"], nhe: ["nhé", "nhe"],
+  roi: ["rồi", "roi"], sau: ["sau"], tu: ["từ", "tu"], rang: ["rằng", "rang"],
+};
 /** Folded words that make "từ" part of a compound (từ vựng, từ điển), not a cue. */
 const TU_WORDS = new Set(["vung", "dien", "khoa"]);
 /** Folded word pairs whose cue word is part of a name. */
 // "bạn" after a verb is the object, not the pronoun: "gặp bạn", "hẹn bạn"
 const KEEP_PAIRS = new Set([
+  "kham da",
+  "sang tay",
+  // "em" after a verb is the person: "đón em", "chở em"; "giao ban" is the briefing; "đi đến" the going
+  "don em",
+  "cho em",
+  "dua em",
+  "goi em",
+  "gap em",
+  "day em",
+  "kem em",
+  "tham em",
+  "giao ban",
+  "di den",
   "sinh nhat",
   "kham rang",
   "gap ban",
@@ -191,12 +213,12 @@ const OTHER =
 const OPTIONAL = /\b(neu|co the|quan tam|tuy)\b/;
 const MODAL = /\b(bat buoc|phai|vui long|de nghi|can|han chot|luu y)\b/;
 const DUE =
-  /\b(truoc|han|deadline|dl|ddl|den het|chot|cham nhat|muon nhat|tre nhat|kip|trc|het\s+(?:tuan|thang)|(?<!ngay\s)trong\s+tuan|hoan thanh|hoan thien|by|before|due)\b/;
+  /\b(truoc|han|deadline|dl|ddl|den het|chot|cham nhat|muon nhat|tre nhat|kip|trc|het(?=\s+(?:hom|ngay|mai|mot|thu|chu|cn|t[2-7]|tuan|thang|nam|\d|noel|tet|giang sinh|le))|(?<!ngay\s)trong\s+tuan|hoan thanh|hoan thien|by|before|due)\b/;
 const ASSIGN =
   /\b(bai\s*tap|bt|btl|bai\s*tap\s*lon|(?<!phong\s+)lab|bai\s*lab|assignment|asm|homework|hw|tieu\s*luan|tl|do\s*an|khoa\s*luan|kltn|datn)\b|(?:\b(?:bao\s*cao|bc)\s+(?:mon|hoc\s*phan|lab|thuc\s*tap)\b)|(?:\b(?:nop|submit)\s+(?:bai|bai\s*tap|bt|lab|bao\s*cao|bc|slide|do\s*an|tieu\s*luan|khoa\s*luan|kltn|form|ho\s*so|don)\b)|(?:\b(?:lam|viet)\s+(?:bai\s*tap|bt|lab|bc\s+mon|bao\s*cao\s+mon|tieu\s*luan|do\s*an|khoa\s*luan|kltn)\b)|(?:\b(?:gui|hoan\s*thien)\s+(?:bao\s*cao|bc)\b.*?\bgv(?:pb|hd)?\b)|(?:\b(?:bao\s*cao|bc)\s+(?!toan\s+(?:van|bo|dien|cuc)\b)(?:vat\s*ly|toan|hoa|tin|sinh|su|dia|van|triet|kinh\s*te|web|csdl|mang|cntt)\b)|(?:\b(?:dien\s+(?:vao\s+)?form|nop\s+form)\b)|(?:\ble\s*phi\b)/i;
 // "kiểm tra" is an exam only with a course, a part-term, a period or a number ("kiểm tra lại app" is a task)
 const EXAM =
-  /\b(thi|ktra|van dap|trac nghiem)\b|\bkiem tra\b(?=.*\b(mon|giua ky|cuoi ky|phut|tiet)\b|.*\d)|\d.*\bkiem tra\b/;
+  /(?<!\bsieu\s)\b(thi(?!\s+(?:truong|xa|tran|luc|giac|hieu|nghiem|hanh)\b)|ktra|van dap|trac nghiem)\b|\bkiem tra\b(?=.*\b(mon|giua ky|cuoi ky|phut|tiet)\b|.*\d)|\d.*\bkiem tra\b/;
 // "3 tiết" is a length, not a class
 const LECT =
   /\b(buoi hoc|buoi cuoi|hoc mon|(?<!\d\s?)tiet|lop hoc|lich hoc|hoc bu|lop bu|day bu)\b/;
@@ -252,7 +274,7 @@ const TRUOC_NGAY =
 /** Cues that make a part of the day the deadline's clock before it. */
 const BEFORE_CUE = /\b(truoc|trc|cham nhat|muon nhat|tre nhat|kip)\b/;
 const PHRASE_CUE =
-  /\b(trong gio hanh chinh|ngoai gio hoc|dau tien (?=(?:moi |hang |cua )?thang)|cuoi cung (?=(?:moi |hang |cua )?thang)|cham nhat|muon nhat|tre nhat|kip|(?<!(?:kham|danh|nho|nieng|tram|lam|tay|chua|boc|nhuc|dau) )rang sang|sang som|buoi trua|giua trua|(?<!(?:rua|lai|sua|dat|di) )xe chieu|cuoi gio chieu|chieu toi|nua dem|trong (?:vong |khoang )?\d{1,3} ?(?:ngay|tuan|thang)|\d{1,3} (?:buoi|lan)|bat dau|keo dai|ket thuc(?=\s*:|\s+\d)|mat(?=\s+(?:khoang\s+|hon\s+|gan\s+|tam\s+)?\d)|tong cong|tong(?=\s+(?:khoang\s+|hon\s+|gan\s+|tam\s+)?\d)|in total|sau (?:bua|an) (?:trua|toi)|truoc khi ngu|sau khi thuc day|viec dau tien)\b/g;
+  /\b(trong gio hanh chinh|ngoai gio hoc|dau tien (?=(?:moi |hang |cua )?thang)|cuoi cung (?=(?:moi |hang |cua )?thang)|cham nhat|muon nhat|tre nhat|kip|(?<!(?:kham|danh|nho|nieng|tram|lam|tay|chua|boc|nhuc|dau) )rang sang|sang som|buoi trua|giua trua|(?<!(?:rua|lai|sua|dat|di) )xe chieu|cuoi gio chieu|dau gio (?:sang|chieu)|chieu toi|nua dem|trong (?:vong |khoang )?\d{1,3} ?(?:ngay|tuan|thang)|\d{1,3} (?:buoi|lan)|bat dau|keo dai|ket thuc(?=\s*:|\s+\d)|mat(?=\s+(?:khoang\s+|hon\s+|gan\s+|tam\s+)?\d)|tong cong|tong(?=\s+(?:khoang\s+|hon\s+|gan\s+|tam\s+)?\d)|in total|sau (?:bua|an) (?:trua|toi)|truoc khi ngu|sau khi thuc day|viec dau tien)\b/g;
 /** Raw spans of the deadline cues and multi-word parts of the day in `text`: they are cues, not title words. */
 function phraseCueSpans(text: string): [number, number][] {
   // a list of parts ("sáng/tối", "sáng hoặc tối") is a cue too, separators included
@@ -279,7 +301,7 @@ const TASK_WORD = /\b(nho|nhac|chuan bi|mua|nop|lam|viet|gui|soan|on bai)\b/;
 
 /**
  * A clock typed alone, read as its next occurrence: 1–6 as PM, 7–11 as AM unless PM is still
- * before 21:00 (23:00 after "ngủ"), 12 as noon, 0 as the day's last minute. `evening` (an evening
+ * before 21:00, 12 as noon, any of 1–11 as PM after "ngủ" (bedtime), 0 as the day's last minute. `evening` (an evening
  * activity) reads 7–11 as PM too. `off` is the day offset.
  */
 export function nextClock(
@@ -289,6 +311,7 @@ export function nextClock(
   sleep: boolean,
   evening = false,
   until = false,
+  wake = false,
 ): { h: number; mi: number; part?: string; off: number } {
   const now = (ref.h ?? 0) * 60 + (ref.mi ?? 0);
   const later = (hh: number) => (hh * 60 + mi > now ? 0 : 1);
@@ -296,8 +319,11 @@ export function nextClock(
   // "chơi game tới 1h": staying up until a small hour is after midnight, not 13:00
   if (until && h >= 1 && h <= 4) return { h, mi, off: later(h) };
   if (h === 12) return { h, mi, part: "trua", off: later(12) };
+  // "ngủ dậy lúc 6h", "báo thức 5h": waking is in the morning
+  if (wake && h >= 1 && h <= 11) return { h, mi, part: "sang", off: later(h) };
   if (h === 0 || h > 12) return { h, mi, off: later(h) };
-  if (h <= 6 || evening)
+  // "đi ngủ lúc 11h" is bedtime, never 11:00 in the morning
+  if (h <= 6 || evening || sleep)
     return { h: h + 12, mi, part: "toi", off: later(h + 12) };
   if (later(h) === 0) return { h, mi, part: "sang", off: 0 };
   const pm = h + 12;
@@ -1000,18 +1026,23 @@ export function spanOf(
         from: { y: ref.y + 1, m: 1, d: 1 },
         to: { y: ref.y + 1, m: 1, d: 10 },
       };
+    case "nam_sau":
+      return { from: { y: ref.y + 1, m: 1, d: 1 }, to: { y: ref.y + 1, m: 12, d: 31 } };
     case "cuoi_nam_sau":
       return {
         from: { y: ref.y + 1, m: 12, d: 21 },
         to: { y: ref.y + 1, m: 12, d: 31 },
       };
     default: {
-      // "đầu/giữa/cuối tháng 12", "quý 1": the days of that part, from today when it has started
-      const part = /^(dau|giua|cuoi)_thang_(\d{1,2})$/.exec(v.key);
+      // "đầu/giữa/cuối/trong tháng 12", "quý 1": the days of that part, from today when it has started
+      // "trong tháng 12": the whole month
+      const part = /^(dau|giua|cuoi|trong)_thang_(\d{1,2})$/.exec(v.key);
       if (part) {
         const m = +part[2];
         const [d1, d2] =
-          part[1] === "dau"
+          part[1] === "trong"
+            ? [1, 31]
+            : part[1] === "dau"
             ? [1, 10]
             : part[1] === "giua"
               ? [11, 20]
@@ -1577,6 +1608,22 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
   }
   bounds.push(blank.length + 1);
   bounds.sort((x, y) => x - y);
+  // "nộp báo cáo, trước thứ 6": a comma piece of time words only joins the piece beside it, as in segment (mergeTimeOnly)
+  // a labelled field ("Thời gian: …, ngày 28/10") keeps its own pieces
+  for (let changed = !c.label; changed && bounds.length > 2; ) {
+    changed = false;
+    for (let p = 0; p + 1 < bounds.length && !changed; p++) {
+      const seg = (k: number) => blank.slice(bounds[k], bounds[k + 1] - 1);
+      if (!timeOnly(seg(p))) continue;
+      const mine = valueKinds(seg(p));
+      const fits = (k: number) => k >= 0 && k + 1 < bounds.length && ![...valueKinds(seg(k))].some((x) => mine.has(x));
+      if (p > 0 && blank[bounds[p] - 1] === "," && fits(p - 1)) bounds.splice(p, 1);
+      else if (p + 2 < bounds.length && blank[bounds[p + 1] - 1] === "," && fits(p + 1)) bounds.splice(p + 1, 1);
+      else continue;
+      changed = true;
+    }
+  }
+
 
   const clauseSpans = [
     ...all
@@ -1711,7 +1758,8 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
     if (joined.has(pi)) continue;
     const pieceText = blank.slice(a, b);
     // "tạo lịch học tiếng Anh …", "lên lịch thi …": the opening command names no class timetable and no exam schedule
-    const fpiece = fold(pieceText).text.replace(
+    // "siêu thị", "thì", "thí nghiệm": only an untoned "thi" is the exam, so the toned ones are blanked for the cues (same length)
+    const fpiece = fold(pieceText.replace(/(?<!\p{L})(th)[ịìíỉĩ](?!\p{L})/giu, "$1y")).text.replace(
       /^(\s*)(?:tao|dat|len|xep|lap)\s+lich(?=\s)/,
       (m) => " ".repeat(m.length),
     );
@@ -1769,7 +1817,9 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
     // no date, no part of day: a bare clock is its next occurrence ("8h" at 19:09 is 20:00 today)
     const pieceUndated = !pieceDates.length && !recur && !datedPieces.length;
     const firstTime = piece.find((m) => m.kind === "time");
-    const sleepy = /(?<![a-z])ngu(?![a-z])/.test(fpiece);
+    // going to bed: "ngủ dậy", "thức dậy" and the nap "ngủ trưa" are not
+    const sleepy = /(?<![a-z])ngu(?![a-z])(?!\s+(?:day|trua)(?![a-z]))/.test(fpiece);
+    const wake = /(?<![a-z])(?:ngu day|thuc day|bao thuc|day som)(?![a-z])/.test(fpiece);
     const eveningAct = activityPm(fpiece);
     // one clock after "đến/tới" is where the item ends
     const untilClock =
@@ -1790,13 +1840,13 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
       !rangeHead &&
       firstTime?.v.k === "time" &&
       !firstTime.v.part
-        ? nextClock(firstTime.v.h, firstTime.v.mi, ctx.ref, sleepy, eveningAct, untilClock)
+        ? nextClock(firstTime.v.h, firstTime.v.mi, ctx.ref, sleepy, eveningAct, untilClock, wake)
         : undefined;
     const clocks = piece.filter((m) => m.kind === "time");
     const pTimes = clocks
       .map((m, k) => {
         if (bareNc && m.v.k === "time" && !m.v.part) {
-          let nc = nextClock(m.v.h, m.v.mi, ctx.ref, sleepy, eveningAct, untilClock);
+          let nc = nextClock(m.v.h, m.v.mi, ctx.ref, sleepy, eveningAct, untilClock, wake);
           // a bare end clock of a range reads after its start: "9h đến 11h" from 21:00 ends at 23:00
           const startMin = bareNc.h * 60 + bareNc.mi;
           if (k === 1 && nc.h < 12 && nc.h * 60 + nc.mi <= startMin) {
@@ -1995,7 +2045,8 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
     // "tới 20/11" is until a date; "tối" is the evening, and so is the "toi" of "ngày/hôm tối"
     const fpart = pieceFold.replace(
       /\b(?:sang\s+)?(?:tuan|thang)(?:\s+(?:nay|sau\s+nua|sau|toi|truoc))?\b|\b(?:ngay|hom|bua)\s+toi\b|\btoi(?=\s+\d{1,2}[/.-]\d)/g,
-      " ",
+      // a toned "tối" before a date is the evening of it ("tối 20/11"): only "tới" or a toneless "toi" is until
+      (m) => (m === "toi" && /(?<!\p{L})tối\s+\d{1,2}[/.-]\d/iu.test(pieceText) && !/(?<!\p{L})tới\s+\d/iu.test(pieceText) ? m : " "),
     );
     // a list of parts ("sáng/tối", "sáng hoặc tối") is one item in any of them; the earliest part sets the start, the latest the deadline
     const partRun = partRuns(fpart)[0];
@@ -3019,10 +3070,17 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
 function edgeTrimmed(text: string): string {
   const toks = text.split(/\s+/).filter(Boolean);
   const keys = toks.map((w) => fold(w).text.replace(/[^a-z0-9]/g, ""));
-  const body = toks.slice(timeFillerEnd(keys, 0)).join(" ");
+  const from = timeFillerEnd(keys, 0);
+  // "nhắc tôi uống nước", "nhớ mua bánh mì", "đừng quên gọi Lan": the reminder words are not the task, when a task follows
+  const lead = /^(?:(?:nhac|nho|ghi nho)(?: (?:toi|minh|em|tui|anh|chi))?(?: (?:la|phai))?|dung quen(?: (?:la|phai))?) /.exec(`${keys.slice(from).join(" ")} `);
+  const n = lead && from + lead[0].trim().split(" ").length < toks.length ? lead[0].trim().split(" ").length : 0;
+  const body = toks.slice(from + n).join(" ");
   const t = edgesOf(body.split(/\s+/).filter(Boolean)).replace(/[^\p{L}\d]+$/u, "");
   return t || text;
 }
+
+/** A first letter up, unless the first word has a capital of its own ("iOS", "TikTok"), as the reader's titles. */
+const capFirst = (t: string) => (/\p{Lu}/u.test(t.split(" ")[0].slice(1)) ? t : t.charAt(0).toUpperCase() + t.slice(1));
 
 export function fallbackTask(raw: string): ReaderItem {
   const text = raw.trim();
@@ -3030,7 +3088,7 @@ export function fallbackTask(raw: string): ReaderItem {
     type: "PLAN",
     // the terms still take their display form: "nâng cấp ram" is "nâng cấp RAM"
     // (not "ram" beside a lunar word: "cúng ram" is the full moon)
-    title: canonPhrases(edgeTrimmed(text).split(" ").map((w) => (LUNAR_CONTEXT.test(fold(text).text) ? w : canonToken(w))).join(" ")).slice(0, 120),
+    title: capFirst(canonPhrases(edgeTrimmed(text).split(" ").map((w) => (LUNAR_CONTEXT.test(fold(text).text) ? w : canonToken(w))).join(" ")).slice(0, 120)),
     confidence: 0,
     inferred: [],
     flags: [],

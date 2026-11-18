@@ -111,7 +111,7 @@ describe("table", () => {
 });
 
 describe("assemble helpers", () => {
-  it("fallbackTask keeps the text as the title", () => expect(fallbackTask("làm gì đó").title).toBe("làm gì đó"));
+  it("fallbackTask keeps the text as the title", () => expect(fallbackTask("làm gì đó").title).toBe("Làm gì đó"));
   it("recognises boilerplate titles", () => {
     expect(isBoilerplateTitle("Kính gửi các em")).toBe(true);
     expect(isBoilerplateTitle("họp nhóm")).toBe(false);

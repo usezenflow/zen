@@ -72,6 +72,15 @@ const words = (s: string) => fold(s).text.split(/[^a-z]+/);
 /** Whether a text names a task verb: the words that make a clause a task, not a time or a note. */
 export const hasTaskWord = (s: string) =>
   words(s).some((w) => TASK_WORDS.has(w));
+/** Time and repeat words: a side with only these and a date names no task ("thứ 5 hàng tuần", "mỗi ngày trừ thứ 7"). */
+const TIME_WORDS =
+  /(?<![a-z])(?:moi|hang|hang tuan|tuan|thang|nam|ngay|tru|ca|bat dau|ket thuc|keo dai|khoang|tam|dung|cuoi|dau|giua|thu|buoi|truoc|trc|han|luc|vao|den|toi|tu|het|trong|sau|tai|o|mat|tieng|phut|buoi|lan|nay|mai|sang|trua|chieu|dem|khuya)(?![a-z])/g;
+/** Words of a side that are not time words, with its date, clock and place spans blanked. */
+const titleWords = (s: string): number => {
+  let t = s;
+  for (const m of findMentions(s).reverse()) t = t.slice(0, m.start) + " ".repeat(m.end - m.start) + t.slice(m.end);
+  return (fold(t).text.replace(TIME_WORDS, " ").match(/[a-z]{2,}/g) ?? []).length;
+};
 /** Words of a side with its date, clock and place spans blanked. */
 const bareWords = (s: string): number => {
   let t = s;
@@ -197,6 +206,21 @@ export function joinConnectors(clauses: Clause[]): Clause[] {
 export function andCuts(text: string): { at: number; end: number }[] {
   // a correction's cue keeps its clause whole: chainOf cuts it
   if (fold(text).text.search(CORRECTION) >= 0) return [];
+  // each comma clause joins on its own: a clock in "họp 9h mai, nộp báo cáo và gọi mẹ" is no side of the "và"
+  // every comma piece must still be a task or a dated item ("Theo thông báo của Nhà trường, …" is prose)
+  if (/[,;]/.test(text) && text.split(new RegExp(LIST_SEP.source, "i")).every((s) => hasTaskWord(s) || hasClock(s))) {
+    const out: { at: number; end: number }[] = [];
+    let from = 0;
+    for (const part of text.split(/(?<=[,;])/)) {
+      for (const j of andCutsIn(part)) out.push({ at: j.at + from, end: j.end + from });
+      from += part.length;
+    }
+    return out;
+  }
+  return andCutsIn(text);
+}
+
+function andCutsIn(text: string): { at: number; end: number }[] {
   const joins = [...text.matchAll(new RegExp(LIST_SEP.source, "gi"))]
     .filter((m) => /\p{L}/u.test(m[0]))
     .map((m) => {
@@ -205,6 +229,10 @@ export function andCuts(text: string): { at: number; end: number }[] {
     });
   if (!joins.length) return [];
   const sides = text.split(new RegExp(LIST_SEP.source, "i"));
+  // "họp nhóm 9h mai và nộp báo cáo trước thứ 6": sides that each carry their own date or clock and words are items too
+  // a side that opens with its date continues a list ("thứ 3 và thứ 5 hàng tuần"): no cut
+  const opensDated = (s: string) => findMentions(s.trimStart()).some((m) => m.start === 0 && (m.kind === "date" || m.kind === "time"));
+  if (sides.length > 1 && sides.every((s, k) => hasClock(s) && titleWords(s) > 0 && (k === 0 || !opensDated(s)))) return joins;
   return sides.every((s) => hasTaskWord(s) && !hasFixed(s)) ? joins : [];
 }
 

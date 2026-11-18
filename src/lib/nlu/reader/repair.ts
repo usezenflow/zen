@@ -2,6 +2,7 @@
 // `map[i]` is the raw index of repaired char i, so every span found later maps back to the input.
 import { fold } from "./fold";
 import { findMentions } from "./mentions";
+import { timeOnly } from "./segment";
 import { isSyllable } from "./syllables";
 import { isFrequentSyllable } from "./vifreq";
 import { spokenEdits } from "./spoken";
@@ -52,7 +53,8 @@ function allCaps(s: string): boolean {
   return letters.filter((c) => UPPER.test(c)).length / letters.length >= 0.7;
 }
 
-const CONNECTOR_END = /(?:ngày|môn|tại|ở|lúc|vào|[–\-,])$/i;
+// "ngày" wraps onto its date ("ngày\n20/11"); "mỗi ngày", "hàng ngày" end their own line
+const CONNECTOR_END = /(?:(?<!(?:mỗi|hàng|hằng|cả|trong|nửa|moi|hang|ca)\s)ngày|môn|tại|ở|lúc|vào|[–\-,])$/i;
 const SENTENCE_END = /[.!?]$/;
 const LIST_OR_HEADER =
   /^([-+*•▪●○]|\d{1,2}[.)]\s|\d{1,2}[.)](?=\d{1,2}[/.-]\d{1,2}\b)|\p{Lu}{2,})/u;
@@ -90,6 +92,8 @@ function titleHead(line: string): boolean {
   return f.split(/\s+/).length >= 2 && !LINK_WORD.test(f) && !LINK_END.test(f) && !/[,;:.!?]$/.test(f);
 }
 const LINK_END = /(?:^|\s)(?:va|roi|cua|cho|de|voi)$/;
+/** A line that stops on a cue waiting for its value: "nộp báo cáo trước", "họp lúc". */
+const hangs = (t: string) => /(?:^|\s)(?:truoc|trc|han|luc|vao|den|toi|tu|sau|het|trong|ngay|thu|sang|chieu|toi|trua|dem)$/.test(fold(t).text.trim());
 const LINK_WORD = /^(?:va|roi|cua|cho|de|voi)\s/;
 
 /** A hard line break inside a sentence: the line before is unterminated and the next is not a marker or heading. */
@@ -122,6 +126,13 @@ function joins(text: string, nl: number, typed: boolean): boolean {
     (timedMention(prev) || bareTitle(prev) || PART_END_OR_START.test(fold(prev).text))
   )
     return false;
+  // typed: a line break between two lines that each carry their own date or clock is the next item, however long
+  // Telex or VNI typed with the IME off is read decoded ("ngayf kia" is "ngày kia"): the join runs before the decode
+  const decoded = (t: string) => t.replace(/[\p{L}\d]+/gu, (w) => (/\p{L}/u.test(w) ? (decodeTyped(w) ?? w) : w));
+  const dated = (t: string) => [t, decoded(t)].some((x) => findMentions(x).some((m) => m.kind === "date" || m.kind === "time"));
+  // the item the break falls between: the last comma piece of the line before, the first of the next ("…, Viết báo cáo\nđồ án trước 20/11" is one wrapped item)
+  const tail = prev.split(/[,;]|[.!?](?=\s)/).pop() ?? prev, head = next.split(/[,;]|[.!?](?=\s)/)[0];
+  if (typed && !CONNECTOR_END.test(prev) && !LINK_WORD.test(fold(next).text) && dated(tail) && dated(head) && !timeOnly(decoded(tail)) && !timeOnly(decoded(head)) && !hangs(decoded(prev))) return false;
   if (CONNECTOR_END.test(prev)) return true;
   if (SENTENCE_END.test(prev)) return false;
   // two short task lines that each carry their own date or clock are a list: "b-tree code mai" / "lsm code mai", "mai học toán" / "thứ 6 đi khám"
@@ -850,6 +861,19 @@ function repeats(): [RegExp, (m: RegExpExecArray) => string][] {
     ],
     // "đến hết tháng 12": the month's last day ("31/11" reads as 30/11), where "hết tháng" alone is this month's
     [re(`${L}(?:(${P("đến")}|${P("cho đến")})\\s+)?${P("hết")}\\s+${P("tháng")}\\s+(1[0-2]|0?[1-9])${R}(?![/.]\\d)`), (m) => (m[1] ? `${m[1]} 31/${+m[2]}` : `hết 31/${+m[2]}`)],
+    // "trước tháng 12", "trc đầu tháng 12": by the last day of the month before ("31/11" reads as 30/11); January's is the year before's December
+    [
+      re(`${L}(${P("trước")}|trc)\\s+(?:${P("đầu")}\\s+)?${P("tháng")}\\s+(1[0-2]|0?[1-9])${R}(?![/.]\\d)(?:\\s+${P("năm")}\\s+(\\d{4})${R})?`),
+      (m) => `trước 31/${+m[2] === 1 ? 12 : +m[2] - 1}${m[3] ? `/${+m[2] === 1 ? +m[3] - 1 : m[3]}` : ""}`,
+    ],
+    // "đến tháng 12" is until it begins, as "trước"; "sau tháng 12" is from the day after its last
+    [
+      re(`${L}(${P("đến")}|${P("tới")}|${P("cho đến")})\\s+${P("tháng")}\\s+(1[0-2]|0?[1-9])${R}(?![/.]\\d)(?!\\s+${P("năm")})`),
+      (m) => `trước 31/${+m[2] === 1 ? 12 : +m[2] - 1}`,
+    ],
+    [re(`${L}${P("sau")}\\s+${P("tháng")}\\s+(1[0-2]|0?[1-9])${R}(?![/.]\\d)(?!\\s+${P("năm")})`), (m) => `sau 31/${+m[1]}`],
+    // "hết tuần sau nữa": the end of the week after next, as "tuần sau nữa" alone
+    [re(`${L}${P("hết")}\\s+(${P("tuần")}\\s+(?:${P("sau")}|${P("tới")})\\s+${P("nữa")})${R}`), (m) => m[1]],
     // "tới 31/12", "tới ngày 31/12": until, never the evening "tối"
     [/(?<!\p{L})([Tt])ới(?=\s+(?:ngày\s+)?\d{1,2}[/.]\d{1,2}(?![\d:]))/gu, (m) => `${m[1] === "T" ? "Đ" : "đ"}ến`],
     // English
@@ -997,6 +1021,8 @@ const VOICE_FILLERS: [RegExp, (m: RegExpExecArray) => string][] = [
   [/(?<!\p{L})(?:ừm|ờm|ừ|ờ|uh|um)(?!\p{L})/giu, () => ""],
   [/(?<!\p{L})(?:là kiểu|nói chung)(?!\p{L})/giu, () => ""],
   [/(?<!\p{L})à\s*,\s*/giu, () => ""],
+  // "à thì họp nhóm…": an opening "à" or "ừ" before "thì" is a filler, "thì" with it
+  [/(?:^|(?<=[.,;!?\n]\s*))(?:à|ừ|ờ|ừm|thì)\s+thì\s+/gimu, () => ""],
   [/(^|[.,;!?\n])\s*thì\s+/gimu, (m) => m[1]],
 ];
 
@@ -1076,6 +1102,12 @@ const SPOKEN_EN: [RegExp, (m: RegExpExecArray) => string, (text: string, s: numb
     (t, s, e) => cued(DEV_CUE)(t) && !/^\s*truyen(?!\p{L})/u.test(fold(t.slice(e)).text),
   ],
   [new RegExp(`(?<!\\p{L})ph${VI}t${SEP}b${VA}ch?(?!\\p{L})`, "giu"), () => "feedback", () => true],
+  // "den", "gien", "denflow": Zen as a recognizer writes it ("đen", "đến" keep their "đ"); "gien" stays the gene beside a biology word
+  [
+    /(?<!\p{L})(?:d|gi)[eê]n([\s-]*flow)?(?!\p{L})/giu,
+    (m) => (m[1] ? "zenflow" : "zen"),
+    (t, s) => !/^gi/i.test(t.slice(s)) || (!/^gien\s+(?:troi|lan)(?![a-z])/.test(fold(t.slice(s)).text) && !/(?<![a-z])(?:di truyen|dot bien|bien doi|ban do|sinh hoc|adn|dna|te bao|nhiem sac)(?![a-z])/.test(fold(t).text)),
+  ],
 ];
 
 const ASR_CONFUSIONS: [
@@ -1315,8 +1347,8 @@ function decodeTypedCore(word: string): string | undefined {
       .replace(/d9/g, "đ");
   } else {
     const key = TONE_TELEX[s.slice(-1)];
-    // a tone key typed before a closing glide: "nafy" is "này"
-    const glide = s.match(/^([a-z]*[aeo])([sfrxj])([iy])$/);
+    // a tone key typed before a closing glide or final consonant: "nafy" is "này", "hojp" "họp", "lafm" "làm"
+    const glide = s.match(/^([a-z]*[aeo])([sfrxj])([iy])$/) ?? s.match(/^([a-z]*[aeiouy]w?)([sfrxj])(ch|ng|nh|[cmnpt])$/);
     if (glide && TONE_TELEX[glide[2]]) {
       tone = TONE_TELEX[glide[2]];
       body = glide[1] + glide[3];
@@ -1737,6 +1769,12 @@ export function repair(raw: string, source: ReaderSource): Repaired {
   // a closing "nha" is a particle, not the task: "họp nhóm 8h30 nha". In text typed with no marks at all it is "nhà", and stays.
   if (/\p{M}/u.test(r.text.normalize("NFD")))
     r = sub(r, / +nha(?=[ .!]*$)/giu, () => "");
+  // "3 buổi, mỗi buổi 2 tiếng": the length of one sitting, said as a plain length ("mỗi" is no title word, the comma no new item)
+  r = sub(r, /\s*,?\s*(?<!\p{L})(?:mỗi|moi)\s+(?:buổi|buoi|lần|lan)\s+(?=(?:\d|một|hai|ba|bốn|năm|nửa|mot|nua)[^,.;\n]*?(?:tiếng|tieng|giờ|gio|phút|phut|p|h)(?!\p{L}))/giu, () => " ");
+  // "2 giờ đồng hồ": a length, never the clock 2:00
+  r = sub(r, /(?<![\p{L}\d])(\d{1,2}|một|hai|ba|bốn|năm|sáu)\s+(?:giờ|tiếng)\s+đồng\s+hồ(?!\p{L})/giu, (m) => `${m[1]} tiếng`);
+  // ", giúp mình", ", nhé": a closing courtesy after a comma is no item of its own
+  r = sub(r, /\s*,\s*(?=(?:giúp|giùm|dùm|hộ|giup|gium|dum)(?:\s+(?:mình|tôi|tui|em|anh|chị|với|minh|toi|voi))?(?:\s+(?:nhé|nha|nhá|với|nhe|voi))?[ .!]*(?:\n|$)|(?:nhé|nha|nhá|nhe|ạ|nhen|nghen)[ .!]*(?:\n|$))/giu, () => " ");
   if (source === "paste") r = chatFillers(mailFillers(r));
   if (source === "voice") r = voiceWords(r);
   // typed in one go, "đá bóng mai 3h chiều rồi 8h tối học tiếng Anh" is two items too, where the second opens with its clock

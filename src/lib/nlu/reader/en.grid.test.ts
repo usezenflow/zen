@@ -60,7 +60,7 @@ it("every canon term reads as its display form: as typed, lowercase, upper-cased
 
 it("the words that are Vietnamese, or English words of their own, are never canonized", () => {
   const keep: [string, string][] = [
-    ["gặp ai đó", "ai"], ["gặp ba mẹ", "ba"], ["ớt cho bữa tối", "ớt"], ["ăn bánh mì", "mì"], ["mua be cho bé", "be"],
+    ["gặp ai đó", "ai"], ["gặp ba mẹ", "ba"], ["ớt cho bữa tối", "Ớt"], ["ăn bánh mì", "mì"], ["mua be cho bé", "be"],
     ["Web đẹp", "Web"], ["đi sọt rác", "sọt rác"], ["viết cốt truyện", "cốt truyện"], ["viết phây cho team", "phây"],
     ["đọc memo của sếp", "memo"], ["xem store app", "store"],
   ];

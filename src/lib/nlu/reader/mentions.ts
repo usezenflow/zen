@@ -56,10 +56,17 @@ function tomorrowRead(
   const fe = fs + m[0].length;
   const word = raw.slice(f.map[fe - 3], f.map[fe - 1] + 1);
   if (/[\u0300-\u036f]/.test(word.normalize("NFD"))) return null;
+  // a text in capitals throughout ("HỌP 3 GIỜ CHIỀU MAI") has no names by case
+  const capital = /^\p{Lu}/u.test(word) && /\p{Ll}/u.test(raw);
+  // "gặp Mai 3h chiều mai": a capital with a plain "mai" later is the name, that one the day
+  if (capital && /(?<![a-z])mai(?![a-z])/.test(f.text.slice(fe))) return null;
   // a clock after it ("gặp chị Mai lúc 9h") makes the day word, whatever the case
   if (/^\s*(?:luc|vao|\d)/.test(f.text.slice(fe)))
     return { k: "rel" as const, off: 1 };
-  if (/^\p{Lu}/u.test(word) && fs > 0) return null;
+  // right after a part of the day or a clock ("3 giờ chiều Mai"): no name stands there
+  if (/(?:sang|trua|chieu|toi|dem|\d\s*(?:h|g|gio)(?:\s*\d{1,2})?|:\d\d)\s*$/.test(f.text.slice(0, fs)))
+    return { k: "rel" as const, off: 1 };
+  if (capital && fs > 0) return null;
   // "học tiếng Anh mai": the language, then tomorrow
   if (
     /(?:^|\s)(?:anh|chi|ban|em|co|be|ong|ba|bac|thay)\s*$/.test(
@@ -736,7 +743,8 @@ const RULES: Rule[] = [
         .normalize("NFC")
         .toLowerCase();
       // "thử hai", "thư 2": another word with a tone on "thu", only "thứ" is the weekday
-      if (/(?:^|\s)(?:thử|thư|thú|thụ)(?=\s|\d)/.test(word)) return null;
+      // after a time cue ("trước thú 6", "hạn thủ 2") it is the weekday with a tone slip
+      if (/(?:^|\s)(?:thử|thư|thú|thụ|thủ|thù|thũ)(?=\s|\d)/.test(word) && !/(?<![a-z])(?:truoc|trc|han|vao|den|toi|tu|sang|chieu|trua|dem|ngay)\s*$/.test(f.text.slice(0, fs))) return null;
       const bw =
         g.bw === "nay"
           ? "nay"
@@ -786,7 +794,7 @@ const RULES: Rule[] = [
   ["date", /(?<![a-z])(?:chu nhat|cn)(?![a-z])/g, () => ({ k: "dow", dow: 0 })],
   [
     "date",
-    /(?<![a-z])(?:(?:noi\s+)?trong\s+(?:hom\s+)?nay|trong\s+ngay(?!\s+(?:mai|\d))|hom nay|ngay nay|(?<!\d\s*(?:h\d{0,2}|gio|g\d{0,2}|[:.]\d{2})\s*(?:\d{1,2}\s*)?)(?:sang\s+som|sang|trua|chieu|toi|dem)\s+nay)(?![a-z])/g,
+    /(?<![a-z])(?:(?:noi\s+)?trong\s+(?:hom\s+)?nay|trong\s+ngay(?!\s+(?:mai|kia|kìa|mot|\d))|hom nay|ngay nay|(?<!\d\s*(?:h\d{0,2}|gio|g\d{0,2}|[:.]\d{2})\s*(?:\d{1,2}\s*)?)(?:sang\s+som|sang|trua|chieu|toi|dem)\s+nay)(?![a-z])/g,
     () => ({ k: "rel", off: 0 }),
   ],
   // "3h chiều nay": the clock takes its part, the day is "nay"
@@ -889,7 +897,7 @@ const RULES: Rule[] = [
   ],
   [
     "date",
-    /(?<![a-z])het\s+thang\s+sau(?![a-z])/g,
+    /(?<![a-z])het\s+thang\s+(?:sau|toi)(?![a-z])/g,
     () => ({ k: "month_end_next" }),
   ],
   [
@@ -909,8 +917,20 @@ const RULES: Rule[] = [
   ],
   [
     "date",
-    /(?<![a-z])(dau|giua|cuoi)\s+thang\s+(\d{1,2})(?!\d)(?![/.:-]\d)(?!\s*nam\s*\d{4})(?![a-z])/g,
+    /(?<![a-z])(dau|giua|cuoi|trong)\s+thang\s+(\d{1,2})(?!\d)(?![/.:-]\d)(?!\s*nam\s*\d{4})(?![a-z])/g,
     (m) => (+m[2] >= 1 && +m[2] <= 12 ? { k: "span", key: `${m[1]}_thang_${+m[2]}` } : null),
+  ],
+  // "năm sau", "năm tới": the whole next year; never "5 năm sau" (a count) or "năm sau nữa"
+  [
+    "date",
+    /(?<!\d\s*)(?<![a-z\d])nam\s+(?:sau|toi)(?!\s+nua)(?![a-z])/g,
+    () => ({ k: "span", key: "nam_sau" }),
+  ],
+  // "đi Đà Lạt tháng 12", "vào tháng 12": the whole month; "báo cáo tháng 12", "lương tháng 11" name the document, a day or count beside it is read elsewhere
+  [
+    "date",
+    /(?<!(?:\d|ngay|mung|ram|cua|dau|giua|cuoi|trong|het|truoc|trc|bao cao|bc|luong|hoa don|tien|ke hoach|lich|doanh thu|thue|phi|tong ket|chi tieu|ngan sach|bang|so|ky|dot|quy|hop|tap chi|ban tin)\s*)(?<![a-z])thang\s+(1[0-2]|0?[1-9])(?![\d/.:-])(?!\s*(?:nam|am|lan|buoi|ngay|tuan|tieng|gio|h|phut|toi|sau|nay)(?![a-z]))(?![a-z])/g,
+    (m) => ({ k: "span", key: `trong_thang_${+m[1]}` }),
   ],
   [
     "date",
@@ -1096,7 +1116,8 @@ const RULES: Rule[] = [
     "time",
     /(?<=(?<![a-z])(?:luc|vao|tu|den|toi|hen|bat dau)\s+|(?:\d\s*(?:h|g|gio)\s*\d{0,2}|:\d\d)\s*-\s*)(trua|nua dem)(?![a-z])|(?<=(?<![a-z])(?:truoc|han)\s+)(nua dem)(?![a-z])/g,
     // "trước nửa đêm" is the day's last minute: as 0:00 the before-rule would end the day before
-    (m) => (m[1] === "trua" ? timeVal(12, 0, "trua") : m[2] ? timeVal(23, 59, "dem") : timeVal(0, 0, "dem")),
+    // "đến nửa đêm", "tới nửa đêm": until tonight's last minute too
+    (m) => (m[1] === "trua" ? timeVal(12, 0, "trua") : m[2] || /(?:den|toi)\s+$/.test(m.input.slice(0, m.index)) ? timeVal(23, 59, "dem") : timeVal(0, 0, "dem")),
   ],
   [
     "time",
