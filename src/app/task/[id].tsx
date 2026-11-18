@@ -353,8 +353,8 @@ export default function Detail() {
                   const done = !!k.doneAt, on = k.id === me, dim = { color: th.muted, textDecorationLine: done ? "line-through" : "none" } as const;
                   return (
                     <View key={k.id} style={s.sirow}>
-                      {/* push, not replace: back returns to this one */}
-                      <Tap variant="row" disabled={k.id === task.id} onPress={() => router.push(`/task/${k.id}`)} accessibilityRole="button" style={[s.si, { flex: 1 }]}>
+                      {/* push, not replace: back returns to this one; encoded, as a sitting id holds "#" */}
+                      <Tap variant="row" disabled={k.id === task.id} onPress={() => router.push(`/task/${encodeURIComponent(k.id)}`)} accessibilityRole="button" style={[s.si, { flex: 1 }]}>
                         <Text style={[s.sd, dim, on && !done && { color: th.ink, fontFamily: ff("600") }]}>{k.start !== undefined ? day(k.start, now) : "—"}</Text>
                         <Text style={[s.sp, { color: th.ink }, done && dim, on && !done && { fontFamily: ff("700") }]} numberOfLines={1}>{k.title}</Text>
                         <Text style={[s.sm, { color: th.muted }]}>{t("minutes", { n: k.effort })}</Text>

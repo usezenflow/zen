@@ -7,7 +7,7 @@ import { typeOf } from "../planner/policy";
 import type { ArtType, WidgetData, WidgetName, WRow } from "./data";
 
 const MIN = 60_000, DAY = 86_400_000, ROWS = 3;
-const url = (id: string) => `zen:///task/${id}`;
+const url = (id: string) => `zen:///task/${encodeURIComponent(id)}`; // a sitting id holds "#", a fragment if left bare
 
 // A timeline calls widgetData ~150 times on one task list; shown() and its sort ran ~10 times per call over every row (seconds on Hermes).
 const memo = new WeakMap<Task[], Task[]>();

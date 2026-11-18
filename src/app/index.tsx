@@ -394,7 +394,7 @@ export default function Home() {
       if (titles.length > 1) { // bulk: count, the shared end if all share one, one Undo for all, no alt
         say(t("addedN", { n: titles.length }), r, { sub: [stuck.length ? t("noRoomN", { n: stuck.length }) : sized, r.sub, notes.sub, farSub].filter(Boolean).join(" · ") || undefined });
       } else if (titles.length === 1 && stuck.length) {
-        say(t("added", { title: titles[0] }), r, { sub: [t("noRoom"), r.sub].filter(Boolean).join(" · "), alt: { label: t("pickTime"), run: async () => router.push(`/task/${stuck[0].id}`) } });
+        say(t("added", { title: titles[0] }), r, { sub: [t("noRoom"), r.sub].filter(Boolean).join(" · "), alt: { label: t("pickTime"), run: async () => router.push(`/task/${encodeURIComponent(stuck[0].id)}`) } });
       } else if (titles.length === 1) {
         // The reader's own ask ("3 giờ": 15:00 or 03:00) takes the chip; else the planner's other slot.
         const alt = notes.alt && { alt: { label: notes.alt.label, run: async () => { await r.undo(); await run(notes.alt!.text, via); } } };
@@ -627,7 +627,7 @@ export default function Home() {
       setTasks((p) => p.map((y) => (y.id === x.id ? { ...y, end, pinned: true } : y)));
       retime(x.id, x.start, Math.round((end - x.start) / 60_000)).then((r) => { if (r) { say(r.toast, r); refresh(); } }, failed);
     },
-    onOpen: (x: Task) => router.push(`/task/${x.id}`),
+    onOpen: (x: Task) => router.push(`/task/${encodeURIComponent(x.id)}`),
     // Swipe right: a plain task is deleted at once; a series opens the scope dropdown under the row.
     onSwipeDelete: (x: Task, bottom?: number, top = bottom) => (bottom === undefined ? del(x, "this") : setMenu({ task: x, ...menuAt(bottom, top!, seriesItems(x)) })),
     onHold: (x: Task, bottom: number, top: number) => setMenu({ task: x, ...menuAt(bottom, top, itemsFor(x)) }), lifted: menu?.task.id,
