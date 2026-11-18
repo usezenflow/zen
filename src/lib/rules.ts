@@ -35,6 +35,7 @@ const DAYS: [RegExp, number[]][] = ([
 ] as const).map(([w, d]) => [new RegExp(`(?<![\\p{L}\\d])(?:${w})(?![\\p{L}\\d])`, "u"), [...d]]);
 const EVERY = /mỗi ngày|hằng ngày|hàng ngày|ngày nào|(?:sáng|trưa|chiều|tối|đêm) nào|mọi ngày/;
 const DAY_RANGE = new RegExp(`(${DAY_WORD})\\s*(?:đến|tới|-)\\s*(${DAY_WORD})`);
+// Wider than lib/parts.ts on purpose: a blocked rule ("bỏ trống tối") must cover the whole part, not only the planned window.
 const PARTS: [RegExp, number, number, string][] = [[/sáng/, 300, 720, "sáng"], [/trưa/, 690, 810, "trưa"], [/chiều/, 720, 1080, "chiều"], [/tối/, 1080, 1440, "tối"], [/đêm|khuya/, 1320, 1440, "đêm"]];
 // a clock: digits, an optional minute, then maybe its part of day ("11 giờ đêm", "7h30 sáng")
 const CLOCK = /(\d{1,2})(?:\s*(?:giờ|h|g|:)\s*(\d{1,2})?)?(?:\s*(sáng|trưa|chiều|tối|đêm|khuya))?/g;

@@ -72,6 +72,7 @@ it("swipe done marks the task and undo reverts", async () => {
   await vi.waitFor(() => expect(JSON.parse(db.kv.get("stats.queue") ?? "[]")).toMatchObject([{ reward: 0.5, kind: "study", zeroEdit: true }]));
   await r.undo();
   expect(db.tasks.get(t0.id).doneAt).toBeUndefined();
+  expect(JSON.parse(db.kv.get("stats.queue") ?? "[]")).toHaveLength(0); // the undone done's stat row is gone too
 });
 
 it("pickNow prefers the running task, else the next one", () => {
@@ -820,4 +821,15 @@ it("an exam prep's sitting done longer than planned teaches its class, measured 
   for (let i = 0; i < 4; i++) { db.tasks.set(s(i).id, s(i)); await swipeDone(s(i).id, s(i).start! + 90 * 60_000); }
   const m = (await loadClassMult()).exam_review;
   expect(m).toBeGreaterThan(1); // 90 of 60 planned, not 90 of the whole 600
+});
+
+it("a drag then undo restores the learned model to what it was before the drag", async () => {
+  await apply([{ op: "create", title: "Read", kind: "study", effortMinutes: 30 }], NOW);
+  const id = live()[0].id;
+  const before = structuredClone(db.model);
+  const r = await putBack(id, NOW + 3600_000, NOW + 2000);
+  expect(db.model.arms.map((a: { b: number[] }) => a.b)).not.toEqual(before.arms.map((a: { b: number[] }) => a.b)); // the drag taught something
+  await r.undo();
+  expect(db.model.arms.map((a: { b: number[] }) => a.b)).toEqual(before.arms.map((a: { b: number[] }) => a.b));
+  expect(db.model.hist.length).toBe(before.hist.length);
 });

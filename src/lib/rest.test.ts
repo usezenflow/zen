@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { REST_BASE, gapPick, restLine, worked } from "./rest";
+import { REST_BASE, capOf, gapPick, restLine, worked } from "./rest";
+import { lunarToSolar } from "./nlu/shared";
 import type { Task } from "./types";
 
 const at = (d: string) => new Date(`2026-11-16T${d}:00`).getTime(), M = 60_000, H = 60 * M;
@@ -58,5 +59,30 @@ describe("gapPick", () => {
   });
   it("nothing runs past 22:00", () => {
     expect(gapPick([tk({ start: tomorrow("09:00"), end: tomorrow("09:30") })], at("21:50"))).toBeUndefined();
+  });
+});
+
+describe("capOf", () => {
+  const day = (iso: string) => new Date(`${iso}T00:00:00`).getTime();
+  it("a normal day equals restLine", () => {
+    expect(capOf([], DAY0, at("12:00"))).toEqual({ ms: restLine([], at("12:00")) });
+  });
+  it("1/1 is halved", () => {
+    const d = day("2027-01-01");
+    expect(capOf([], d, d + 12 * H)).toEqual({ ms: REST_BASE / 2, why: { key: "holiday", title: "Tết Dương lịch" } });
+  });
+  it("a Tết day is halved", () => {
+    const iso = lunarToSolar({ year: 2027, month: 1, day: 1, leap: false });
+    expect(iso).not.toBeNull();
+    const d = day(iso!);
+    expect(capOf([], d, d + 12 * H)).toEqual({ ms: REST_BASE / 2, why: { key: "holiday", title: "Tết Nguyên đán" } });
+  });
+  it("the day before an exam is ×0.75; a deleted exam does not count", () => {
+    const ex = lecture("09:00", "11:00", "2026-11-17");
+    expect(capOf([{ ...ex, fixed: "exam" }], DAY0, at("12:00"))).toEqual({ ms: REST_BASE * 0.75, why: { key: "exam" } });
+    expect(capOf([{ ...ex, fixed: "exam", deletedAt: 1 }], DAY0, at("12:00"))).toEqual({ ms: REST_BASE });
+  });
+  it("never under 1 h", () => {
+    expect(capOf([], DAY0, at("12:00"), -5 * H).ms).toBe(H);
   });
 });

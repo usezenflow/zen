@@ -7,6 +7,7 @@ import { examMonth, feeMonth, marksOpen, resolveTerm, termMondays, vnMidnight } 
 import { plain, t } from "./i18n";
 import { digestNotices, marksNotice, type Digest } from "./dlu/materialize";
 import { pushWidgetsNow } from "./widgets";
+import { pushReminders, recordOpen } from "./reminders";
 import { ingest, keepSweep, loadClassMult, loadGone, replan, topUp, waiting, type Result } from "./apply";
 import type { Notice, Task } from "./types";
 import type { ParsedMarks } from "./dlu/parse/student";
@@ -285,6 +286,7 @@ export function onForeground(now = Date.now()): Promise<Synced | undefined> {
 async function foregroundNow(now: number): Promise<Synced | undefined> {
   let out: Synced | undefined;
   const wrap = (r: Result): Synced => ({ ...r, notices: [] });
+  await recordOpen(now).catch(() => {}); // before the reminders are pushed below, so they skip what the user is looking at
   const day = new Date(now).toDateString();
   if ((await store.kvGet("morning.day")) !== day) {
     await store.kvSet("morning.day", day);
@@ -304,6 +306,7 @@ async function foregroundNow(now: number): Promise<Synced | undefined> {
   const made = await backfill(now); // before the sync, which an auto refresh may skip
   if (made?.changed) out = wrap(made);
   await schedule(now);
+  pushReminders(); // debounced; a drain's replan after this is not pushed here
   void drain(); // its result reaches the day view through onSynced
   if (STATS_URL) await stats.flush(kvStorage, STATS_URL, now).catch(() => 0);
   return out;

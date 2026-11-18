@@ -41,6 +41,7 @@ export default function Detail() {
   const [now, setNow] = useState(0);
   const [plc, setPlc] = useState<Placed>();
   const [rules, setRules] = useState<Rule[]>([]);
+  const [pool, setPool] = useState<Task[]>([]); // every task: a batch reason's neighbour and an exam reason's exam
   const [title, setTitle] = useState("");
   const [note, setNote] = useState("");
   const [ed, setEd] = useState<"time" | "due" | "place">();
@@ -81,7 +82,7 @@ export default function Detail() {
     }
     const on = x.start ?? x.deadline;
     if (on !== undefined) openedOnDay(on);
-    setNow(n); setTask(x); setExam(x?.forId ? all.find((y) => y.id === x.forId) : undefined);
+    setNow(n); setTask(x); setPool(all); setExam(x?.forId ? all.find((y) => y.id === x.forId) : undefined);
     setSits(all.filter((y) => y.parentId === (x.parentId ?? x.id) && !y.deletedAt).sort((a, b) => (a.start ?? Infinity) - (b.start ?? Infinity)));
     // A reload after a save must not wipe what is still being typed in another field: only untouched fields take the stored value.
     const p = pend.current, first = !p.task;
@@ -276,7 +277,7 @@ export default function Detail() {
   const dropOne = async (id: string) => { setAdded(await dropSitting(task.parentId ?? task.id, undefined, id)); void load(); };
   const addOne = async () => { setAdded(await addSitting(task.parentId ?? task.id)); void load(); };
   const undoMore = async () => { const r = added; setAdded(undefined); await r?.undo(); void load(); };
-  const why =!task.fixed ? grounded(plc?.why, { task, start: task.start ?? 0, rules }).flatMap((r) => (r.key !== "pace" ? [r] : open.length > 1 ? [{ ...r, vars: { k: open.findIndex((k) => k.id === task.id) + 1, n: open.length } }] : [])).slice(0, 4) : undefined;
+  const why =!task.fixed ? grounded(plc?.why, { task, start: task.start ?? 0, rules, tasks: pool }).flatMap((r) => (r.key !== "pace" ? [r] : open.length > 1 ? [{ ...r, vars: { k: open.findIndex((k) => k.id === task.id) + 1, n: open.length } }] : [])).slice(0, 4) : undefined;
   const me = split ? tt?.id : task.id;
   // "Cũng hợp" only for a real other time: one the planner found, not the current one, not already gone
   const alt = plc?.alt !== undefined && plc.alt !== task.start && plc.alt > now ? plc.alt : undefined;

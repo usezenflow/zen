@@ -1,26 +1,28 @@
 import type { Kind, Task } from "../lib/types";
 import { DAY, HOUR, MIN, dayStart } from "./features";
+import { PARTS, WAKE_FROM, WAKE_TO } from "../lib/parts";
+import { type Bounds, DEFAULT_BOUNDS } from "./bounds";
 import { type Piece, dur, pullOk, startValue } from "./value";
 
 export interface Busy { start: number; end: number }
 export type End = { kind: Kind; end: number };
 export type Util = (p: Piece, start: number, ends: End[]) => number;
 // utilAll scores every cell of cells(p, now) at once, index-aligned; util stays for off-grid starts.
-export interface Env { busy: Busy[]; fixedEnds: End[]; now: number; util: Util; utilAll?: (p: Piece, ends: End[]) => ArrayLike<number> }
+export interface Env { busy: Busy[]; fixedEnds: End[]; now: number; util: Util; utilAll?: (p: Piece, ends: End[]) => ArrayLike<number>; bounds?: Bounds; rest?: Rest; cap?: (day: number) => number /* hours a day may carry before the load hinge; 6 when absent */; exempt?: (p: Piece, day: number) => boolean /* prep for an exam the next day: scored cold, not capped */ }
+/** Lecture and exam ends, and the rest (ms) own work leaves after each (afterBuffer, learned). */
+export interface Rest { classEnds: number[]; buffer: number }
 /** An accepted search move that raised the best score; policy.ts turns these into narrated Steps. */
 export interface LogEntry { kind: "place" | "swap" | "reinsert" | "chain" | "day"; ids: string[]; gain: number; day?: number }
 export interface Solved { starts: Map<string, number>; score: number; greedyScore: number; log: LogEntry[] }
 
 export const SLOT = 15 * MIN; // the grid start times are searched on (:00, :15, :30, :45), the shortest gap offered, the errand size
 export const STEP = SLOT;
-export const WAKE_FROM = 7 * 60, WAKE_TO = 22 * 60;
-/** The parts of a day as minutes (adapt.ts FROM/END): sáng, trưa, chiều, tối, đêm. */
-export const PARTS: [number, number][] = [[300, 660], [660, 780], [780, 1080], [1080, 1320], [1320, 1440]];
+export { PARTS, WAKE_FROM, WAKE_TO };
 /** Where flexible work may end: 22:00, or the end of a said part that runs later (đêm). */
-export const wakeEnd = (tods?: [number, number][]) => Math.max(WAKE_TO, ...(tods ?? []).map((x) => x[1]));
+export const wakeEnd = (tods?: [number, number][], b: Bounds = DEFAULT_BOUNDS) => Math.max(b.to, ...(tods ?? []).map((x) => x[1]));
 /** A repeat's occurrence whose own day has no room left in its part of the day ("mỗi sáng", made at 11:00): it is missed, never moved to another day. */
-export const dayGone = (t: Task, now: number) =>
-  !!t.rrule && t.deadline !== undefined && dayStart(t.deadline - 1) + ((t.tods?.length ? Math.max(...t.tods.map((x) => x[1])) : WAKE_TO) - t.effort) * MIN < now;
+export const dayGone = (t: Task, now: number, to = DEFAULT_BOUNDS.to) =>
+  !!t.rrule && t.deadline !== undefined && dayStart(t.deadline - 1) + ((t.tods?.length ? Math.max(...t.tods.map((x) => x[1])) : to) - t.effort) * MIN < now;
 const HALO = 60 * MIN;
 const TAIL = 6 * HOUR; // a block this far past a day's end can still halo an item that spills over midnight
 const W_GAP = 0.05; // per SLOT: the same weight per hour as 0.1 per 30 min
@@ -28,6 +30,8 @@ const SPREAD = 1;
 const T0 = 0.5, T1 = 0.005, CAP_MS = 150, LOG_CAP = 40; // CAP_MS: a safety net only, the iteration budget is what bounds a solve
 const MISS = -1e6; // an unplaced piece: worse than any late placement, so a piece is left out only when no cell is free
 export const EJECT_CAP = 12;
+// Day load per hour: W_SOFT above cap-2, W_HARD above the cap (dayCost; policy.ts mirrors it). Both 0.3 and 1.0 before the sweep.
+export const W_SOFT = 1 / 3, W_HARD = 1;
 
 // about a move's cost: a sitting takes another day when one is free, and shares a day when the due leaves no room
 const TWIN = 1.5;
@@ -40,9 +44,24 @@ export function fixedHours(busy: Busy[], day: number): number {
   return ms / HOUR;
 }
 
-interface Iv { start: number; end: number; g?: string } // g: the split parent, to keep its sittings on separate days
+interface Iv { start: number; end: number; g?: string; k?: Kind; ex?: boolean } // g: the split parent, to keep its sittings on separate days; k: its kind; ex: exempt from the day's cap
 
-export function cells(p: Piece, now: number): number[] {
+// Kind grouping: two errands or finance pieces back to back (one outing) earn W_BATCH. A plain kind-switch cost was tried and dropped:
+// at 0.01 it fails the doubt focus keepRate gate, and at 0 the batch win is unchanged.
+export const W_BATCH = 0.2;
+export const BATCH_GAP = 15 * MIN; // back to back: at most this far apart
+export const batchKind = (k?: Kind) => k === "errand" || k === "finance";
+/** a's end and b's start, in order, within BATCH_GAP: one outing. */
+export const backToBack = (a: { start: number; end: number }, b: { start: number; end: number }) => {
+  const [x, y] = a.start <= b.start ? [a, b] : [b, a];
+  return y.start - x.end >= 0 && y.start - x.end <= BATCH_GAP;
+};
+
+/** Hard: own flexible work does not start within the rest after a lecture or exam ends. A piece the user set by hand, or held, is not held back. */
+export const afterClass = (p: Piece, s: number, rest?: Rest) =>
+  !!rest && rest.buffer > 0 && !p.lock && !p.task.userEdited?.includes("start") && rest.classEnds.some((e) => s >= e && s < e + rest.buffer);
+
+export function cells(p: Piece, now: number, rest?: Rest): number[] {
   if (p.lock) return [p.prior!];
   const t = p.task;
   let lo = ceil(Math.max(now, t.notBefore ?? now));
@@ -60,39 +79,40 @@ export function cells(p: Piece, now: number): number[] {
   // A pull: its prior stays a cell (the solver takes it only if it cannot move into the gap, see pullOk).
   if (p.gap && p.prior !== undefined) hi = Math.max(hi, p.prior + 1);
   const out: number[] = [];
-  for (let c = lo; c < hi; c += STEP) out.push(c);
+  for (let c = lo; c < hi; c += STEP) if (!afterClass(p, c, rest)) out.push(c);
   return out;
 }
 
 /** Flexible work starts from 7:00 and ends by 22:00; a clock the user said ("6 giờ sáng chạy bộ") stands, but nothing crosses midnight.
  *  Cells stay contiguous (index = offset / STEP), so the solver skips the rest. `day` is dayStart(c) when the caller has it. */
-export function awake(p: Piece, c: number, day = dayStart(c)): boolean {
+export function awake(p: Piece, c: number, day = dayStart(c), b: Bounds = DEFAULT_BOUNDS): boolean {
   const nb = p.task.notBefore, m = (c - day) / MIN;
   // said parts of the day ("sáng hoặc tối"): the whole sitting inside one of them
   const tods = p.task.tods;
   if (tods?.length && !tods.some(([a, b]) => m >= a && m + p.effort <= b)) return false;
   if (nb !== undefined && nb !== dayStart(nb) && c === ceil(nb)) return m + p.effort <= 24 * 60;
-  return m >= WAKE_FROM && m + p.effort <= (p.over ? 24 * 60 : wakeEnd(tods));
+  return m >= b.from && m + p.effort <= (p.over ? 24 * 60 : wakeEnd(tods, b));
 }
 
 type Mv = [number, number][]; // piece index -> new start (-1 = unplaced)
 
 export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
   // Pieces with no cell (past the horizon) are left out of the search: they stay unplaced (-1), so the solver's cost follows the 30 days, not the 120.
-  const open = pieces.filter((p) => cells(p, env.now).length > 0);
+  const open = pieces.filter((p) => cells(p, env.now, env.rest).length > 0);
   if (open.length < pieces.length) {
     const r = solve(open, env, seed);
     for (const p of pieces) if (!r.starts.has(p.id)) r.starts.set(p.id, -1);
     return r;
   }
-  const t0 = Date.now(), { now } = env, n = pieces.length;
-  const cs = pieces.map((p) => cells(p, now));
+  const t0 = Date.now(), { now } = env, n = pieces.length, B = env.bounds ?? DEFAULT_BOUNDS;
+  const cs = pieces.map((p) => cells(p, now, env.rest));
   // dayStart is slow (Date): once per day of each piece's cells, which ascend
   const ds = cs.map((c) => {
     let d = -Infinity, nx = -Infinity;
     return c.map((x) => { if (x >= nx) { d = dayStart(x); nx = dayStart(d + 1.5 * DAY); } return d; });
   });
   const du = pieces.map(dur);
+  const exempt = (p: Piece, d: number) => !!env.exempt?.(p, d);
   const inDom = (i: number, s: number) => s >= cs[i][0] && s <= cs[i][cs[i].length - 1];
 
   const bz = new Map<number, Busy[]>(); // busy blocks that can touch a day, halo included
@@ -105,7 +125,7 @@ export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
   const clash = (ivs: Iv[], s: number, e: number) => ivs.some((b) => s < b.end && e > b.start);
   const fits = (i: number, s: number, x: number[]) => {
     const e = s + du[i];
-    if (!awake(pieces[i], s) || clash(bz.get(dayStart(s)) ?? [], s, e)) return false;
+    if (!awake(pieces[i], s, undefined, B) || clash(bz.get(dayStart(s)) ?? [], s, e) || afterClass(pieces[i], s, env.rest)) return false;
     for (let j = 0; j < n; j++) if (j !== i && x[j] >= 0 && s < x[j] + du[j] && e > x[j]) return false;
     return true;
   };
@@ -115,11 +135,22 @@ export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
     const N = items.length;
     if (!N) return 0;
     const bs = bz.get(day) ?? [];
-    const L = fh(day) + items.reduce((s, i) => s + (i.end - i.start), 0) / HOUR;
-    const load = 0.3 * Math.max(0, L - 4) + 1.0 * Math.max(0, L - 6);
+    // The day's cap (rest.ts capOf, 6 h cold) hinges the other work; an exempt prep (for an exam the next day) keeps the cold hinge, as today.
+    const C = env.cap?.(day) ?? 6;
+    const hinge = (x: number, c: number) => W_SOFT * Math.max(0, x - (c - 2)) + W_HARD * Math.max(0, x - c);
+    const all = fh(day) + items.reduce((s, i) => s + (i.end - i.start), 0) / HOUR;
+    const own = fh(day) + items.reduce((s, i) => s + (i.ex ? 0 : i.end - i.start), 0) / HOUR;
+    const load = hinge(own, C) + hinge(all, 6) - hinge(own, 6);
     const big = items.filter((i) => i.end - i.start > SLOT).length; // errands of one slot or less do not count
     const count = big > 2 ? 0.5 * (2 ** (big - 2) - 1) : 0;
     const gs = items.map((i) => i.g).filter(Boolean), twins = gs.length - new Set(gs).size; // a second sitting of one task the same day
+    // neighbours in start order: a batchable pair back to back earns
+    const byStart = items.slice().sort((a, b) => a.start - b.start);
+    let bt = 0;
+    for (let i = 0; i + 1 < N; i++) {
+      const a = byStart[i], b = byStart[i + 1];
+      if (batchKind(a.k) && batchKind(b.k) && backToBack(a, b)) bt++;
+    }
     let halo = 0, over = 0;
     for (let i = 0; i < N; i++) {
       const a = items[i];
@@ -130,7 +161,7 @@ export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
       }
       if (!lax) for (let j = i + 1; j < N; j++) over += 500 * (ov(a.start, a.end, items[j].start, items[j].end) / HOUR);
     }
-    return SPREAD * (load + count) + TWIN * twins + halo + over;
+    return SPREAD * (load + count) + TWIN * twins + halo + over - W_BATCH * bt;
   };
 
   let S: number[] = Array(n).fill(-1); // current starts
@@ -146,7 +177,7 @@ export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
   };
   const listsOf = (x: number[]) => {
     const m = new Map<number, Iv[]>();
-    for (let i = 0; i < n; i++) if (x[i] >= 0) { const d = dayStart(x[i]); (m.get(d) ?? m.set(d, []).get(d)!).push({ start: x[i], end: x[i] + du[i], g: pieces[i].task.parentId }); }
+    for (let i = 0; i < n; i++) if (x[i] >= 0) { const d = dayStart(x[i]); (m.get(d) ?? m.set(d, []).get(d)!).push({ start: x[i], end: x[i] + du[i], g: pieces[i].task.parentId, k: pieces[i].task.kind, ex: exempt(pieces[i], d) }); }
     return m;
   };
 
@@ -157,10 +188,10 @@ export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
     let top = { c: -1, v: -Infinity }; // -1: nowhere fits
     for (let k = 0; k < cs[i].length; k++) {
       const c = cs[i][k], day = ds[i][k], items = bk.get(day) ?? [], e = c + du[i];
-      if (!pullOk(p, c) || !awake(p, c, day) || clash(bz.get(day) ?? [], c, e) || (!lax && clash(items, c, e))) continue;
+      if (!pullOk(p, c) || !awake(p, c, day, B) || clash(bz.get(day) ?? [], c, e) || (!lax && clash(items, c, e))) continue;
       let b0 = base.get(day);
       if (b0 === undefined) base.set(day, (b0 = dayCost(day, items, lax)));
-      const v = startValue(p, c, now, u ? u[k] : env.util(p, c, ends)) - (dayCost(day, [...items, { start: c, end: c + du[i], g: p.task.parentId }], lax) - b0);
+      const v = startValue(p, c, now, u ? u[k] : env.util(p, c, ends)) - (dayCost(day, [...items, { start: c, end: c + du[i], g: p.task.parentId, k: p.task.kind, ex: exempt(p, day) }], lax) - b0);
       if (v > top.v) top = { c, v };
     }
     return top.c;

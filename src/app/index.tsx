@@ -137,7 +137,7 @@ export default function Home() {
       const p = model.placed[x.id];
       if (!p || x.doneAt || x.deletedAt || x.start === undefined) continue;
       if (p.alt !== undefined && p.alt !== x.start) alts[x.id] = p.alt;
-      let why = p.explore ? { key: "explore" as const, w: 1 } : topReason(grounded(p.why, { task: x, start: x.start, rules: model.rules ?? [] }).filter((r) => ROW.has(r.key)));
+      let why = p.explore ? { key: "explore" as const, w: 1 } : topReason(grounded(p.why, { task: x, start: x.start, rules: model.rules ?? [], tasks: all }).filter((r) => ROW.has(r.key)));
       // "Buổi k/n" is the plan's count from when it was made; after a delete it renumbers from the sittings left, and a lone one drops it.
       if (why?.key === "pace" && x.parentId) {
         const left = all.filter((c) => c.parentId === x.parentId && !c.doneAt && !c.deletedAt).sort((a, b) => (a.start ?? Infinity) - (b.start ?? Infinity));
@@ -151,7 +151,8 @@ export default function Home() {
     // A saved card outlives its task until the next re-plan: drop it once the task is gone or ticked, or it was never short of time.
     const open = (id: string) => all.some((x) => x.id === id && !x.doneAt && !x.deletedAt);
     setMoves(unseen); setWarns(wn.filter((w) => open(w.id) && (w.deadline <= now || w.free < w.need))); setMaps({ trail, froms, reason, alts });
-    setWk(w ? { title: w, sub: t("sundaySub", { done: all.filter((x) => x.doneAt && x.doneAt >= wkAgo).length, moved: mv.filter((m) => m.at >= wkAgo).length }) } : undefined);
+    const k = ins.keep;
+    setWk(w ? { title: w, sub: k ? t("sundayKeep", { pct: k.pct, delta: `${k.delta > 0 ? "+" : ""}${k.delta}%` }) : t("sundaySub", { done: all.filter((x) => x.doneAt && x.doneAt >= wkAgo).length, moved: mv.filter((m) => m.at >= wkAgo).length }) } : undefined);
     const cur = pickNow(all, now);
     if (cur && cur.start! <= now) { setRest(undefined); return setCard({ task: cur, start: cur.start, end: cur.end }); }
     // views.html "Day, all done": a task of another day is not today's art card; the rest card takes its slot and names tomorrow.

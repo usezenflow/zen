@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { flush, record, setOptOut, installId, type Storage } from "./stats";
+import { flush, forget, record, setOptOut, installId, type Storage } from "./stats";
 
 const mem = (): Storage => { const m = new Map<string, string>(); return { get: async (k) => m.get(k) ?? null, set: async (k, v) => void m.set(k, v) }; };
 const r = { policy: "linucb", arm: 1, x: [1], reward: 1, kind: "task", zeroEdit: true };
@@ -29,4 +29,13 @@ it("concurrent records keep every row", async () => {
   const s: Storage = { get: async (k) => (await tick(), m.get(k) ?? null), set: async (k, v) => { await tick(); m.set(k, v); } };
   await Promise.all(Array.from({ length: 10 }, () => record(s, r)));
   expect(JSON.parse(m.get("stats.queue")!)).toHaveLength(10);
+});
+it("forget drops only the rows tagged with the undone events, and the tag is never sent", async () => {
+  const s = mem(), sent: unknown[] = [];
+  await record(s, { ...r, ev: "e1" }); await record(s, { ...r, ev: "e2" }); await record(s, r);
+  await forget(s, ["e1"]);
+  expect(JSON.parse((await s.get("stats.queue"))!).map((x: { ev?: string }) => x.ev)).toEqual(["e2", undefined]);
+  await flush(s, "http://x", 1e12, (async (_u: string, o: { body: string }) => (sent.push(...JSON.parse(o.body)), { ok: true, status: 200 })) as unknown as typeof fetch);
+  expect(sent).toHaveLength(2);
+  for (const row of sent as object[]) expect(Object.keys(row)).not.toContain("ev");
 });

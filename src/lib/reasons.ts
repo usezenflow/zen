@@ -27,12 +27,16 @@ const R: Record<ReasonKey, W> = {
   explore: { short: ["Thử giờ mới"], long: ["Chưa rõ giờ này hợp không, thử một lần"] },
   rule: { short: ["Theo lời bạn dặn"], long: ["Bạn dặn: {text}"] },
   missed: { short: ["Lỡ {time}, không sao"], long: ["Lúc {time} chưa làm được, dời sang đây"] },
+  missed3: { short: ["Lỡ {n} lần, đổi giờ"], long: ["Lỡ {n} lần buổi {part}, thử giờ khác"] },
   pinned: { short: ["Bạn đã ghim"], long: ["Bạn ghim giờ này, mình giữ"] },
   chose: { short: ["Giờ bạn chọn"], long: ["Bạn chọn giờ này, mình giữ"] },
   said: { short: ["Đúng buổi bạn nói"], long: ["Bạn nói làm buổi này"] },
   packed: { short: ["{was} kín, dời sang {to}"], long: ["{was} kín, nên dời sang {to}"] },
-  fit: { short: ["Hạn {due}, làm {lenW}", "{part} trống {lenW}", "Làm trước {lenW}"], long: ["Hạn {due} gần, xếp {lenW} trước, làm thêm nếu còn sức", "{part} trống chừng {lenW}, làm trước chừng đó", "Xếp {lenW} trước"] },
+  fit: { short: ["Hạn {due}, làm {lenW}", "{part} trống {lenW}", "Làm trước {lenW}"], long: ["Hạn {due} gần, {slow}, xếp {lenW} trước", "Hạn {due} gần, xếp {lenW} trước, làm thêm nếu còn sức", "{part} trống chừng {lenW}, làm trước chừng đó", "Xếp {lenW} trước"] },
   over: { short: ["Hôm nay dồn, hơi muộn"], long: ["Hôm nay nhiều việc, nên làm muộn hơn chút"] },
+  batch: { short: ["Gộp với {title}"], long: ["Làm liền với {title} cho gọn"] },
+  holiday: { short: ["Để nhẹ ngày {title}"], long: ["Ngày {title} mình xếp nhẹ, nên dời sang đây"] }, // said on the day it moved to, not the holiday
+  exam: { short: ["Để nhẹ hôm trước thi"], long: ["Hôm trước thi mình xếp nhẹ, nên dời sang đây"] },
   guess: { short: ["Rảnh sau {after}", "{part} còn trống", "Trống vừa {m}p"], long: ["Sau {after} bạn rảnh, vừa cho việc này", "{part} còn trống, vừa cho việc này", "Khoảng trống vừa {m}p, không đụng lịch"] },
 };
 
@@ -47,6 +51,7 @@ const vars = (r: Reason) => {
     v.ahead = d >= 2 ? `Còn ${d} ngày tới hạn, làm dần` : v.left >= 180 ? "Xong sớm, còn dư giờ" : "Vừa kịp hạn";
     v.aheadLong = d >= 2 ? `làm từ giờ là còn ${d} ngày thong thả` : v.left >= 180 ? "làm giờ này là còn dư thời gian" : "giờ này là vừa kịp";
   }
+  if (typeof v.slow === "number") v.slow = "bạn hay cần lâu hơn dự kiến"; // the ratio is never said as a number
   if (typeof v.len === "number") { const h = Math.floor(v.len / 60), r = v.len % 60; v.lenW = h ? `${h} tiếng${r >= 30 ? " rưỡi" : ""}` : v.len === 30 ? "nửa tiếng" : `${v.len} phút`; }
   if (typeof v.n === "number" && v.n >= 2) { v.often = v.n >= 5 ? "Bạn hay" : "Mấy lần gần đây"; v.oft = v.n >= 3 ? "hay" : "từng"; }
   return v;

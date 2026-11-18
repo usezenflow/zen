@@ -40,6 +40,7 @@ export interface Task {
   doneAt?: number;
   deletedAt?: number;
   userEdited?: string[]; // fields the user changed, upstream never overwrites; "deleted" = user removed it, never revived
+  misses?: number; // blocks that passed unfinished and were replanned (one per distinct missed start, apply.ts)
   pinned?: boolean; // "Đừng dời việc này nữa": the planner treats it as busy at start..end
   createdAt: number;
 }
@@ -107,10 +108,12 @@ export interface Placement {
 export type ReasonKey =
   | "hour" | "after" | "similar" | "energy" | "weekend" | "busy" | "kind" // linucb features
   | "deadline" | "pace" | "load" | "gap" | "stable" | "late" // solver terms (value.ts, place.ts dayCost)
-  | "explore" | "rule" | "missed" | "pinned"
+  | "explore" | "rule" | "missed" | "missed3" | "pinned"
   | "chose" // the user set this time by hand: zen keeps it
   | "said" // placed inside the window the user said
   | "packed" | "fit" | "over" // what came of what was asked: the window was full, the guessed length shrunk, the day ran past 22:00
+  | "batch" // an errand or finance piece back to back with a named neighbour: one outing
+  | "holiday" | "exam" // the day a task was pushed off is a holiday, or the day before an exam: kept light (rest.ts capOf); vars.day names it
   | "guess"; // nothing learned yet speaks for this time: an honest default
 export interface Reason { key: ReasonKey; w: number; vars?: Record<string, string | number> }
 

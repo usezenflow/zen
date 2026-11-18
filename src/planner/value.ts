@@ -17,6 +17,8 @@ export interface Piece {
   cut?: number; // the guessed length, when it was shrunk to fit what is free
   gap?: { from: number; to: number }; // a pull: the freed time it may take, and only earlier than its prior (unscheduled: a start inside it)
   avoid?: { from: number; to: number }[]; // slots the user just set a task off by hand: a start over one costs more (moveCost)
+  slow?: number; // a guessed length ran past the guess for this kind (fallacy, habits.ts): the length is said so, never a number
+  aim?: number; // where in the window this kind is aimed, learned (aimOf, habits.ts); SOFT_AIM when cold
 }
 
 export const dur = (p: Piece) => p.effort * MIN;
@@ -36,7 +38,7 @@ export function bell(p: Piece, now: number, start: number): number {
   const slip = 0.3 * p.slip;
   let centre: number;
   if (hi - lo < DAY) centre = 0; // under a day: aim at the start
-  else if (due - now <= 30 * DAY) centre = Math.max(0, Math.min(1, (SOFT_AIM * p.k) / Math.max(1, p.n) * (due - lo) / (hi - lo)) - slip);
+  else if (due - now <= 30 * DAY) centre = Math.max(0, Math.min(1, ((p.aim ?? SOFT_AIM) * p.k) / Math.max(1, p.n) * (due - lo) / (hi - lo)) - slip);
   else centre = Math.max(0, p.k / (p.n + 1) - slip);
   return Math.exp(-((pos - centre) ** 2) / (2 * 0.2 ** 2));
 }
@@ -50,11 +52,22 @@ const inGap = (p: Piece, start: number) => !!p.gap && start >= p.gap.from && sta
 export const pullOk = (p: Piece, start: number) => !p.gap || p.prior === undefined || start === p.prior || inGap(p, start);
 // Soft: a start over a slot the user just left costs 2; an earlier move than its prior costs 0.5 more (drags teach the hour, this keeps the day).
 export const moveCost = (p: Piece, start: number, _now: number) => {
-  const hit = (p.avoid ?? []).some((v) => start < v.to && start + dur(p) > v.from) ? 2 : 0;
+  const hit = ((p.avoid ?? []).some((v) => start < v.to && start + dur(p) > v.from) ? 2 : 0);
   if (p.gap && p.prior === undefined) return (inGap(p, start) ? 0 : 1) + hit;
   if (inGap(p, start)) return hit;
   if (p.prior === undefined || p.prior === start) return (p.gap ? 1 : 0) + hit;
   return 1 + hit + (0.5 * Math.min(Math.abs(start - p.prior), 7 * DAY)) / DAY + (start < p.prior ? 0.5 : 0);
+};
+
+// A dated sitting that ends inside the margin before its due pays EDGE.w (0.5) per hour of margin it uses: a soft preference for room to spare.
+// Soft: never refuses a start, so an edge slot is still taken when nothing earlier is free. Exempt: a prep (its 22:00 cap is the margin)
+// and a piece that cannot move earlier anyway (notBefore at or after due minus length).
+export const EDGE = { w: 0.5 }; // a mutable holder so a test can switch the margin off (w: 0)
+export const edgeCost = (p: Piece, start: number) => {
+  const due = dueOf(p.task);
+  if (due === undefined || p.task.forId || (p.task.notBefore ?? -Infinity) >= due - dur(p)) return 0;
+  const margin = Math.max(30 * MIN, 0.25 * dur(p)), end = start + dur(p);
+  return (EDGE.w * Math.max(0, Math.min(end, due) - Math.max(start, due - margin))) / HOUR;
 };
 
 export const lateH = (p: Piece, start: number) => (p.task.deadline === undefined ? 0 : Math.max(0, start + dur(p) - p.task.deadline) / HOUR);
@@ -62,5 +75,5 @@ export const lateH = (p: Piece, start: number) => (p.task.deadline === undefined
 // util is the policy part (UCB minus bell). W_LEARN: learned util is small next to the move and bell costs, so it is scaled up to decide.
 export const W_LEARN = 4;
 export function startValue(p: Piece, start: number, now: number, util: number): number {
-  return W_LEARN * util + bell(p, now, start) - 1e-4 * Math.max(0, (start - now) / DAY) - 100 * lateH(p, start) - moveCost(p, start, now);
+  return W_LEARN * util + bell(p, now, start) - 1e-4 * Math.max(0, (start - now) / DAY) - 100 * lateH(p, start) - moveCost(p, start, now) - edgeCost(p, start);
 }

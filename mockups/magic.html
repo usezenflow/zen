@@ -259,6 +259,8 @@ const mem = `${head("Mình hiểu bạn", "Nhịp của bạn", "8h-11h")}${tabs
   <div>${[["Tối T6 để trống", "T6 · Từ 18:00"], ["Sáng cuối tuần để trống", "T7, CN · 5:00 - 11:00"]].map(([t, s]) => `<div class="set"><div class="tx">${t}<small>${s}</small></div></div>`).join("")}</div>
   <div class="lab" style="margin-top:22px">Mình đoán</div>
   <div>${[["Giờ vàng 8h-11h", "Chắc lắm"], ["Việc tập thể dục hợp nhất lúc 7h-10h", "Chắc lắm"], ["Sau giờ học, bạn làm tiếp tốt", "Khá chắc"], ["Việc học hay bị dời", "Đang đoán"]].map(([t, s]) => `<div class="set"><div class="tx">${t}<small>${s}</small></div></div>`).join("")}</div>
+  <div class="lab" style="margin-top:22px">Bạn tránh</div>
+  <div>${[["7:00 - 8:00", "Dời đi 3 lần"], ["22:00 - 23:00", "Dời đi 1 lần"]].map(([t, s]) => `<div class="set"><div class="tx">${t}<small>${s}</small></div></div>`).join("")}</div>
   <div class="lab" style="margin-top:16px;font-size:14px">Vuốt để mình quên.</div>`;
 
 // 13. Nhịp before there is evidence: it says so. The bars are the default guess, all dim.
@@ -296,7 +298,7 @@ const sunday = `${head("CN", "22/11", "1 việc")}${tabs("Ngày")}
   <div class="art" style="margin-top:16px;height:220px;padding:20px">${art("lecture", { w: 264, h: 220, seed: 8, cls: "bgart" })}
     <div class="lab" style="color:#fff;opacity:.85">Tuần này mình hiểu thêm</div>
     <div class="t" style="margin-top:10px">Việc tập thể dục hợp nhất lúc 7h</div>
-    <div style="position:absolute;left:20px;right:16px;bottom:16px;display:flex;align-items:flex-end;justify-content:space-between"><div class="small" style="font-weight:600">12 việc xong, 2 lần dời</div><span class="glass">${ic(I.right, 22, 2.2)}</span></div></div>
+    <div style="position:absolute;left:20px;right:16px;bottom:16px;display:flex;align-items:flex-end;justify-content:space-between"><div class="small" style="font-weight:600">Giữ 86% giờ Zen xếp, +9%</div><span class="glass">${ic(I.right, 22, 2.2)}</span></div></div>
   <div class="lab" style="margin-top:28px">Hôm nay</div>
   <div class="list" style="margin-top:6px">${row("20:00", "Đọc sách mỗi tối", "plan", "Buổi tối")}</div>`;
 
@@ -506,6 +508,35 @@ const farDay = `${head("T5", "17/12", "1 việc")}${tabs("Ngày")}
 const farToast = toast("Lên lịch 30 ngày tới · hạn 15/3", "", [["Hoàn tác"]]) + `${head("T2", "16/11", "2 việc, 1 tiết học")}${tabs("Ngày")}
   <div class="lab" style="margin-top:28px">Hôm nay</div>
   <div class="list" style="margin-top:6px">${row("13:30", "Cơ sở dữ liệu", "lecture", "A2.104")}${row("20:00", "Đọc sách mỗi tối", "plan", "Buổi tối")}</div>`;
+// 7k: a drag teaches at once: the toast's second line says what Zen learned, for every kind of task. Tap opens Nhịp.
+const learned = toast("Đã dời <b>Đọc sách</b> sang 9:00", "Đã hiểu · ít xếp 7:30", [["Hoàn tác"]]) + `${head("T3", "17/11", "3 việc, 1 tiết học")}${tabs("Ngày")}
+  <div class="lab" style="margin-top:28px">Hôm nay</div>
+  <div class="list" style="margin-top:6px">${row("9:00", "Đọc sách", "plan")}${row("10:30", "Giặt đồ", "plan", moved("T3 9:00"))}${row("13:30", "Cơ sở dữ liệu", "lecture", "A2.104")}</div>`;
+// 7l: what you set pushes the rest later; the slot you left stays empty.
+const leftEmpty = `${head("T3", "17/11", "3 việc, 1 tiết học")}${tabs("Ngày")}
+  <div class="lab" style="margin-top:22px">Vì Đọc sách T3 9:00</div>
+  <div style="margin-top:2px">${mv("Giặt đồ", "T3 9:00", "T3 10:30", "Giờ này bạn hay làm xong việc")}</div>
+  <div class="pills" style="margin-top:14px"><span class="pl sm on">Xong, mình thấy rồi</span><span class="pl sm">Hoàn tác</span></div>`;
+// 41: "tối nay" said at 21:20 with the evening gone: the next part of the same night, never next week.
+const lateNight = toast("Học tiếng Anh", "Tối kín · xếp đêm 21:30", [["Hoàn tác"]]) + `${head("T3", "17/11", "1 việc")}${tabs("Ngày")}
+  <div class="lab" style="margin-top:28px">Tối nay</div>
+  <div class="list" style="margin-top:6px">${row("21:30", "Học tiếng Anh", "plan", "Tối kín, xếp đêm nay")}</div>`;
+// 41b: a user who keeps moving work out of the night gets tomorrow evening instead.
+const tomorrowEve = toast("Học tiếng Anh", "Tối nay kín · tối mai 19:00", [["Hoàn tác"]]) + `${head("T4", "18/11", "1 việc")}${tabs("Ngày")}
+  <div class="lab" style="margin-top:28px">T4, 18/11</div>
+  <div class="list" style="margin-top:6px">${row("19:00", "Học tiếng Anh", "plan", "Bạn hay dời khỏi đêm")}</div>`;
+// 42: a task missed three times at the same hour stops going back there; a guessed length shrinks one step.
+const missed3 = `${head("T6", "20/11", "2 việc")}${tabs("Ngày")}
+  <div class="lab" style="margin-top:28px">Hôm nay</div>
+  <div class="list" style="margin-top:6px">${row("16:00", "Trả tiền điện", "plan", "Lỡ 3 lần, đổi giờ")}${row("20:00", "Đọc sách mỗi tối", "plan", "Buổi tối")}</div>`;
+// 43: a holiday and an exam eve take less of your own work; the work that moved says where it came from.
+const lighter = `${head("T4", "10/2", "3 việc")}${tabs("Ngày")}
+  <div class="lab" style="margin-top:28px">Hôm nay</div>
+  <div class="list" style="margin-top:6px">${row("9:00", "Làm báo cáo", "plan", "Để nhẹ ngày Tết")}${row("14:00", "Giặt đồ", "plan", "Để nhẹ hôm trước thi")}${row("20:00", "Ôn Giải tích", "plan", "Buổi 2/3")}</div>`;
+// 44: errands sit back to back, one trip out.
+const batched = `${head("T7", "21/11", "3 việc")}${tabs("Ngày")}
+  <div class="lab" style="margin-top:28px">Hôm nay</div>
+  <div class="list" style="margin-top:6px">${row("17:00", "Đi chợ", "plan", "Giờ bạn hay làm")}${row("17:45", "Trả tiền điện", "plan", "Gộp với Đi chợ")}${row("20:00", "Đọc sách mỗi tối", "plan", "Buổi tối")}</div>`;
 mount([
   { tag: "1. Moves, one pill", sub: "Whatever moved and you have not looked at, for any cause (the school, a due, your own drag or done): one pill under the tabs, the same in day, week and month. It names how many and the biggest move. Moved rows carry a vermilion dot and their old time; a row that left the day stays as a dashed ghost saying where it went. It never takes the now card\u2019s place, and it stays across views and launches until you open it or swipe it away (1b); the dots stay until you look.", html: chrome(brief) },
   { tag: "1b. Moves, swiped away", sub: "Swipe the pill sideways and it slides off; past a short distance it springs back. Gone for good: it never returns for those moves, and the trail dots stay until you look.", html: chrome(briefOut) },
@@ -524,15 +555,17 @@ mount([
   { tag: "7h. Set from the list: the story", sub: "Xem opens the same story on today, in the art card’s slot: the list and the dock step aside until Xong or Hoàn tác.", html: chrome(setHome, { dock: null }) },
   { tag: "7i. A done frees time", sub: "Finishing or deleting frees its time: a later task moves up into it, never later, and the toast says where it went. A task that was set by hand, or pinned, never moves.", html: chrome(pullIn) },
   { tag: "7j. Several move up", sub: "When more than one task moves up into the freed time, the toast counts them and Hoàn tác undoes them all at once.", html: chrome(pullMany) },
+  { tag: "7k. A drag teaches", sub: "Move a task by hand and the toast's second line says what Zen learned, at once: “Đã hiểu · ít xếp 7:30”. It counts for every kind of task, not just this one, and the next new task avoids that hour. A user who moves work into an early hour gets early hours.", html: chrome(learned) },
+  { tag: "7l. The slot you left stays empty", sub: "What you set pushes overlapping flexible tasks later, after it; nothing moves into the time you just left. On a full day the slot may still be used.", html: chrome(leftEmpty, { dock: null }) },
   { tag: "8. Put it back", sub: "Long-press a moved row. Back to the old time, the other good time, or pin it. The first two teach the model, the same as changing the time by hand; pinning just holds it.", html: chrome(back) },
   { tag: "9. Heads up", sub: "After a re-plan, a due date that cannot be met in free time shows on today's list: how much work is left and how much time is free. Each pill pushes one other flexible task to after that due date, longest first; each pill is a full-width block, the task name on the left (one too long ends in an ellipsis) and its day on the right, so every pill shares both edges. One tap applies. Tapping the words opens the task. The card shows only while it is true: real shortfall, the task still open; a task late by its own pin with time to spare raises none.", html: chrome(heads) },
   { tag: "10. A rule, said once", sub: "“Tối thứ sáu để trống nhé.” Zen repeats it in its own words and names the first task it moved to keep it. The week shows the kept evening as a striped block; the day shows it with its words and hours.", html: chrome(rule) },
   { tag: "11. Nhịp", sub: "The pill right of Tháng. Golden hours: each hour's learned value. One card each, only with evidence: what goes well after a kind of task, the best three hours for a kind, the kind you push later most, and the hours it knows least.", html: chrome(rhythm()) },
-  { tag: "12. Nhịp, scrolled", sub: "What you said is a hard rule; swipe it to forget. What it guessed shows how sure it is in three words. Guesses cannot be forgotten one by one.", html: chrome(mem) },
+  { tag: "12. Nhịp, scrolled", sub: "What you said is a hard rule; swipe it to forget. What it guessed shows how sure it is in three words. Bạn tránh: hours you dragged work away from, from the first drag, for every kind; swipe one to forget it. Guesses cannot be forgotten one by one.", html: chrome(mem) },
   { tag: "13. Nhịp, first days", sub: "Before Zen has seen enough it says so. The bars are its default guess, all dim; time passing alone never turns into a claim about you.", html: chrome(cold) },
   { tag: "13b. Nhịp, first ticks", sub: "From the first done or moved task it counts what it has seen and how many more it needs, so learning shows before it can claim anything.", html: chrome(seen) },
   { tag: "13c. Nhịp, an early guess", sub: "After three, the two hours where you most often finished work or dragged it to, marked Đang đoán. Learned golden hours replace it once the model is sure.", html: chrome(earlyGuess) },
-  { tag: "14. Sunday", sub: "Sundays only, and only when the model is at least fairly sure of something: one sentence, with the week's done and moved counts. Tap through to Nhịp.", html: chrome(sunday) },
+  { tag: "14. Sunday", sub: "Sundays only, and only when the model is at least fairly sure of something: one sentence. The line under it is the share of Zen's placements kept this week and the change from last week, once the week had 10+ placements and the change is 5 points or more; otherwise it reads “12 việc xong, 2 lần dời”. Tap through to Nhịp.", html: chrome(sunday) },
   { tag: "15. Missed, no nag", sub: "A block that passed undone turns vermilion in place. The next time you open the app it has moved to the next good time within two days, and the row says so. That hour counts a little against itself.", html: chrome(missed) },
   { tag: "16. Trying something", sub: "Once Zen knows you a little, it may try an hour it is unsure about, and the row says it is a try. Only a new task without a due date, at most one per re-plan.", html: chrome(explore) },
   { tag: "17. A free gap", sub: "Today is empty from now on and your work so far is under your baseline: the card offers the open flexible task, from a later day, that fits the gap before the next class or 22:00. Due soonest first (a prep by its exam), then the earliest planned. Never a repeat, a task with its own time window, or one you placed. The circle takes it now; swiping it away means no gap card again today.", html: chrome(gap) },
@@ -572,6 +605,11 @@ mount([
   { tag: "39. A daily series, every day", sub: "A repeat is on every one of its days up front. 15/12 is inside the 30-day plan, so it has its time.", html: chrome(daily) },
   { tag: "39b. A day past the plan", sub: "Past the plan (17/12): the day still has the task, muted under “Chưa xếp giờ”; it gets a time once that day is within 30 days.", html: chrome(farDay) },
   { tag: "40. A far deadline, said", sub: "A deadline 30 days out is scheduled now: the toast names the span and the date.", html: chrome(farToast) },
+  { tag: "41. Tonight, late", sub: "“tối nay học tiếng Anh 1 tiếng” at 21:20: the evening has 30 minutes left, so the task moves to the next part of the same night (đêm, up to 24:00), and the toast says so. A full part of the day moves to its neighbour on the same day first (sáng → trưa → chiều → tối → đêm), then to the same part tomorrow. It never goes past tomorrow and never to a part you did not say nearby.", html: chrome(lateNight) },
+  { tag: "41b. Tonight, for a non-night owl", sub: "A user who has dragged work out of late hours gets tomorrow evening instead of đêm; the row says why.", html: chrome(tomorrowEve) },
+  { tag: "42. Missed three times", sub: "A task whose time passed untouched three times at about the same hour is not put back there: it gets another hour, and a guessed length shrinks one step (a said length never does). Other tasks of the same kind are not affected.", html: chrome(missed3) },
+  { tag: "43. Lighter days", sub: "A holiday or Tết takes half the usual own work, and the day before an exam three quarters (that exam\u2019s prep is not cut). Work moved off such a day says so on its new day.", html: chrome(lighter) },
+  { tag: "44. Errands together", sub: "Errands and payments on the same day sit back to back, so one trip covers them; the second row names the first.", html: chrome(batched) },
 ]);
 </script>
 </body>

@@ -2,6 +2,7 @@ import type { Action, Fixed, Kind } from "../types";
 import { kindOf as kindOfTitle } from "./kind";
 import { read, readBest } from "./reader/reader";
 import { t, type Key } from "../i18n";
+import { WINDOW_END, WINDOW_FROM } from "../parts";
 import { day } from "../when";
 import type { ReadOpts } from "./reader/reader";
 import type { ReaderItem, ReaderItemType, ReaderResult, ReaderSource, ReaderWC, ReaderWindow } from "./shared";
@@ -17,16 +18,7 @@ const START: Record<ReaderWindow, string> = {
   EARLY_MORNING: "05:00", DAWN: "05:00", MORNING: "08:00", NOON: "11:30",
   AFTERNOON: "14:00", EVENING: "18:00", NIGHT: "20:00", MIDNIGHT: "23:00",
 };
-// Where a said part of the day ends (the reader's own bounds in reader/parts.ts); a task of that part stays inside it.
-/** Where a part of the day opens for the planner, as people say the hours: 1-10 giờ sáng, 11-12 giờ trưa, 1-5 giờ chiều, 6-9 giờ tối, 10-12 giờ đêm. */
-const FROM: Record<ReaderWindow, string> = {
-  EARLY_MORNING: "05:00", DAWN: "04:00", MORNING: "05:00", NOON: "11:00",
-  AFTERNOON: "13:00", EVENING: "18:00", NIGHT: "18:00", MIDNIGHT: "22:00",
-};
-const END: Record<ReaderWindow, string> = {
-  EARLY_MORNING: "08:00", DAWN: "08:00", MORNING: "11:00", NOON: "13:00",
-  AFTERNOON: "18:00", EVENING: "22:00", NIGHT: "22:00", MIDNIGHT: "23:59",
-};
+const FROM = WINDOW_FROM, END = WINDOW_END;
 const KIND: Partial<Record<ReaderItemType, Kind>> = { EXAM: "study", ASSIGNMENT: "study", LECTURE: "study" };
 /** The kind of a task from its type, else from the words of its title. */
 export const kindOf = (type: ReaderItemType, title: string): Kind | undefined => KIND[type] ?? kindOfTitle(title);

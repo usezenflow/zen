@@ -681,7 +681,7 @@ describe("scheduler behaviour", () => {
     const late = learn(m, { id: "e", taskId: "a", type: "done", at: placed.end + 20 * HOUR }, placed);
     expect(late.efforts).toHaveLength(0);
     expect(late.doneHours).toHaveLength(0);
-    expect(late.arms[m.placed.a.arm].A[0]).toBe(m.arms[m.placed.a.arm].A[0]);
+    expect(late.arms[m.placed.a.arm].b[0]).toBeLessThan(m.arms[m.placed.a.arm].b[0]); // a late tick: a small doubt on the planned hour, not a credit
     const tick = new Date(placed.start - 4 * HOUR).setMinutes(0, 0, 0), ah = Math.floor(hourOf(tick));
     const early = learn(m, { id: "e", taskId: "a", type: "done", at: tick }, placed);
     expect(early.arms[ah].A[0]).toBeGreaterThan(m.arms[ah].A[0]);

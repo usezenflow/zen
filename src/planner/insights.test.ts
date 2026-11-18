@@ -124,3 +124,38 @@ describe("insights from moves", () => {
   
   });
 });
+
+describe("keep share for the Sunday line", () => {
+  const DAY_MS = 86400000;
+  // r > 0 is a tick on time; a later, a drag, a delete or a miss is r < 0. Written on a cold model too (it returns early).
+  const week = (m: ReturnType<typeof newModel>, days: number, ticks: number, fromDay: number) => {
+    for (let i = 0; i < days; i++) m.hist.push({ vec: [], hour: 9, r: i < ticks ? 1 : -1, at: now - fromDay * DAY_MS - (i + 1) * 60_000 });
+  };
+  it("shows this week's share and the change from last week, with 10 placements each side", () => {
+    const m = newModel(now);
+    week(m, 10, 9, 1); // this week: 9 of 10 kept (90%)
+    week(m, 10, 8, 8); // last week: 8 of 10 (80%)
+    expect(insights(m, now).keep).toEqual({ pct: 90, delta: 10 });
+  });
+  it("shows a drop as a negative change", () => {
+    const m = newModel(now);
+    week(m, 10, 7, 1); // 70%
+    week(m, 10, 8, 8); // 80%
+    expect(insights(m, now).keep).toEqual({ pct: 70, delta: -10 });
+  });
+  it("counts a placement left where Zen put it as kept, though it never reached hist", () => {
+    const m = newModel(now);
+    week(m, 4, 2, 1); // this week: 2 ticks on time, 2 moved...
+    m.kept = Array.from({ length: 6 }, (_, i) => now - DAY_MS - i * 60_000); // ...and 6 silent keeps: 8 of 10
+    week(m, 10, 6, 8); // last week: 60%
+    expect(insights(m, now).keep).toEqual({ pct: 80, delta: 20 });
+  });
+  it("stays silent under 10 placements this week, under a 5-point change, or with no last week", () => {
+    const few = newModel(now); week(few, 9, 9, 1); week(few, 10, 2, 8);
+    expect(insights(few, now).keep).toBeUndefined();
+    const flat = newModel(now); week(flat, 10, 9, 1); week(flat, 19, 17, 8); // 90% against 89%
+    expect(insights(flat, now).keep).toBeUndefined();
+    const none = newModel(now); week(none, 10, 9, 1);
+    expect(insights(none, now).keep).toBeUndefined();
+  });
+});

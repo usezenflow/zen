@@ -15,6 +15,7 @@ export interface Insights {
   guesses: { text: string; sure: number }[]; // sentences for "Mình đoán", sure in 0..1
   byKind: { kind: Kind; from: number; to: number; sure: number }[]; // best 3-hour window per kind, only when clearly better than its average
   weekly?: string; // one sentence for the Sunday card
+  keep?: { pct: number; delta: number }; // the Sunday card's keep line: this week's share of Zen's placements kept, and the change from last week (points)
   seen: number; // done or moved tasks in the last two weeks: the first days show these, never a bare "still learning"
   avoid: { hour: number; n: number }[]; // hours you dragged work away from in the last two weeks, most first: one drag shows it
   early?: { from: number; to: number; n: number }; // with EARLY of them and no golden yet: the two hours where you finished or dragged work most
@@ -54,6 +55,14 @@ export function insights(m: Model, now: number): Insights {
   for (const d of m.left ?? []) if (recent(d.at)) left.set(Math.floor(d.hour), (left.get(Math.floor(d.hour)) ?? 0) + 1);
   const out: Insights = { hours, pairs: [], slip: [], byKind: [], guesses: [], avoid: [...left].map(([hour, n]) => ({ hour, n })).sort((a, b) => b.n - a.n || a.hour - b.hour).slice(0, 3), seen: done.length + m.hist.filter((x) => x.r < 0 && !x.miss && recent(x.at)).length };
   const weekly: { text: string; sure: number }[] = [];
+  // Keep share: a silent keep or a tick on time is kept; a later, a drag, a delete or a miss is not (written to hist as r < 0).
+  const share = (from: number, to: number) => {
+    const xs = m.hist.filter((x) => x.at > from && x.at <= to), ks = (m.kept ?? []).filter((at) => at > from && at <= to).length;
+    const n = xs.length + ks;
+    return { n, pct: Math.round((100 * (xs.filter((x) => x.r > 0).length + ks)) / (n || 1)) };
+  };
+  const cur = share(now - 7 * DAY, now), prev = share(now - 14 * DAY, now - 7 * DAY);
+  if (cur.n >= 10 && prev.n > 0 && Math.abs(cur.pct - prev.pct) >= 5) out.keep = { pct: cur.pct, delta: cur.pct - prev.pct };
   const good = [...done, ...dragged].map((d) => ({ h: Math.floor(d.hour), w: age(d.at) }));
   const total = good.reduce((n, g) => n + g.w, 0);
   let top = 0; // weighted: recent evidence leads

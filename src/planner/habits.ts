@@ -25,7 +25,15 @@ export function peakHour(m: Model, now: number): number {
   return h.length ? median(h) : 15;
 }
 
-// A said length stands. A guessed one gives way to the median of 2+ alike tasks the user finished (half hours); with fewer it stands.
+// How far the user's finished guessed tasks of this kind ran past their guesses: median of actual / guess over the last 20, clamped
+// 0.7–1.8. 1 until 5 samples, so a cold model guesses as before.
+export function fallacy(m: Model, k: Kind): number {
+  const r = m.efforts.filter((e) => e.kind === k && e.guess).slice(-20).map((e) => e.minutes / e.guess!);
+  return r.length < 5 ? 1 : Math.min(1.8, Math.max(0.7, median(r)));
+}
+
+// A said length stands. A guessed one gives way to the median of 2+ alike tasks the user finished (half hours); with fewer it stands,
+// scaled by this kind's fallacy (fallacy()).
 export function effort(t: Task, m: Model): number {
   const guessed = !!t.effortGuessed && t.effort > 0;
   if (t.effort > 0 && !guessed) return t.effort;
@@ -37,7 +45,26 @@ export function effort(t: Task, m: Model): number {
     if (guessed && near.length >= 2) return snapGuess(median(near.map((n) => n.m)));
     if (!guessed && near.length) return snapGuess(median(near.map((n) => n.m))); // no length said at all: a guess: 15, else half hours
   }
-  return guessed ? t.effort : KIND_EFFORT[t.kind];
+  if (!guessed) return KIND_EFFORT[t.kind];
+  const f = fallacy(m, t.kind);
+  return f === 1 ? t.effort : snapGuess(t.effort * f);
+}
+
+// Where a dated sitting of this kind is aimed in its window: 1 minus the median share of the window left when you finished, kept
+// 0.4–0.9 so a last-minute finisher is never aimed at the edge. Undefined until 4 samples (bell then keeps SOFT_AIM).
+// A kind with too few of its own samples borrows every kind's pool, so a rare kind still gets an aim once 4 finishes exist.
+export function aimOf(m: Model, k: Kind): number | undefined {
+  const own = m.lead?.[k] ?? [], s = own.length >= 4 ? own : Object.values(m.lead ?? {}).flat();
+  return s.length >= 4 ? Math.min(0.9, Math.max(0.4, 1 - median(s))) : undefined;
+}
+
+// One lead sample: the share of a dated task's window still open at its finish (a tick, or the end of a placement the user kept).
+export function leadSample(m: Model, task: Task, finish: number): void {
+  if (task.deadline === undefined) return;
+  const lo = Math.max(task.createdAt, task.notBefore ?? task.createdAt), span = task.deadline - lo;
+  if (span <= 0) return;
+  const l = (m.lead ??= {}), s = [...(l[task.kind] ?? []), Math.min(1, Math.max(0, (task.deadline - finish) / span))];
+  l[task.kind] = s.slice(-20);
 }
 
 // Share of placements of this kind the user pushed later.

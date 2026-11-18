@@ -75,7 +75,8 @@
     "e2e": "maestro test e2e",
     "eval": "EVAL=1 vitest run src/lib/nlu/reader/eval/scorecard.spec.ts",
     "eval:write": "EVAL=write vitest run src/lib/nlu/reader/eval/scorecard.spec.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "bench": "BENCH_WRITE=1 vitest run src/planner/bench"
   },
   "private": true,
   "license": "SEE LICENSE IN LICENSE"

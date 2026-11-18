@@ -1,5 +1,5 @@
 import { embed } from "./nlu/embed";
-import { learn, outcome, plan, type Model, type Opts } from "../planner";
+import { learn, missedReplan, outcome, plan, type Model, type Opts } from "../planner";
 import { dayGone } from "../planner/place";
 import { coldArms } from "../planner/linucb";
 import { cosine, effort } from "../planner/habits";
@@ -19,7 +19,7 @@ let seq = 0;
 /** Queues the anonymous stat row for an outcome the model learns from. */
 function stat(m: Model, ev: TaskEvent, task: Task) {
   const o = outcome(m, ev, task);
-  if (o) void stats.record(kv, { ...o, kind: task.kind, zeroEdit: ev.type === "kept" || ev.type === "done", at: Math.floor(ev.at / 1000) }).catch(() => {});
+  if (o) void stats.record(kv, { ...o, kind: task.kind, zeroEdit: ev.type === "kept" || ev.type === "done", at: Math.floor(ev.at / 1000), ev: ev.id }).catch(() => {});
 }
 const uid = () => `${Date.now().toString(36)}${(seq++).toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const dayStart = (ms: number) => new Date(new Date(ms).setHours(0, 0, 0, 0)).getTime();
@@ -376,7 +376,9 @@ async function transactNow(now: number, mutate: (w: Work) => Promise<void> | voi
       const ev: TaskEvent = { id: uid(), taskId: task.id, type, at: now, data };
       w.events.push(ev);
       stat(w.model, ev, task);
-      w.model = learn(w.model, ev, task);
+      // a tick learns the rest it took after a lecture or exam: the day's class ends come from the same tasks (see learn)
+      const classEnds = type !== "done" ? [] : [...w.tasks.values()].filter((x) => (x.fixed === "lecture" || x.fixed === "exam") && x.end !== undefined).map((x) => x.end!);
+      w.model = learn(w.model, ev, task, false, classEnds);
     },
   };
   const kv0 = { moves: await store.kvGet("moves"), warn: await store.kvGet("warn") };
@@ -454,7 +456,8 @@ async function transactNow(now: number, mutate: (w: Work) => Promise<void> | voi
     for (const pl of diff.placed) {
       const task = w.tasks.get(pl.id) ?? sitting(pl.id);
       if (!task || owned(task)) continue;
-      w.tasks.set(pl.id, { ...task, start: pl.start, end: pl.end, effort: Math.round((pl.end - pl.start) / 60_000) });
+      const mis = missedReplan(task, pl, now), shrunk = mis?.effort !== undefined;
+      w.tasks.set(pl.id, { ...task, start: pl.start, end: shrunk ? pl.start + mis.effort! * 60_000 : pl.end, effort: shrunk ? mis.effort! : Math.round((pl.end - pl.start) / 60_000), ...(mis ? { misses: mis.misses } : {}) });
       if (pullGap && (pl.from === undefined || pl.from > pl.start)) pulled.push(pl.id);
       if (pl.from !== undefined && pl.from !== pl.start && !dragged.has(pl.id)) w.moves.push({ id: pl.id, title: task.title, from: pl.from, to: pl.start, why: pl.why, cause: causeOf(task, pl.from, pl.from + pl.end - pl.start), at: now, ...(o.self === false ? {} : { self: true }) });
       w.events.push({ id: uid(), taskId: pl.id, type: "placed", at: now, data: { policy: pl.policy, arm: pl.arm, x: pl.x } });
@@ -501,6 +504,7 @@ async function transactNow(now: number, mutate: (w: Work) => Promise<void> | voi
       await store.removeTasks(gone.map((x) => x.id));
       await store.putTasks(restored);
       await store.removeEvents(w.events.map((e) => e.id));
+      await stats.forget(kv, w.events.map((e) => e.id));
       await store.saveModel(model0);
       for (const k of ["moves", "warn"] as const) await store.kvSet(k, kv0[k] ?? "[]");
     }),

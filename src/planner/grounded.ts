@@ -1,8 +1,13 @@
 // A reason may only be said while the fact its wording asserts is true of the task now. One predicate per key: adding a ReasonKey
 // without one fails to compile, so no emitter can state a claim nothing checks. Written once in the planner, read again on screen.
+import { examOn, holidayOn } from "../lib/rest";
 import type { Reason, ReasonKey, Rule, Task } from "../lib/types";
+import { MIN } from "./features";
+import { backToBack, batchKind } from "./place";
 
-export interface Facts { task: Task; start: number; rules: Rule[] }
+// tasks: every task, with planned starts and ends: batch reads the neighbour it names, and the exam check a fixed exam the day after the
+// reason's day. A holiday or exam reason names its day in vars.day.
+export interface Facts { task: Task; start: number; rules: Rule[]; tasks?: Task[] }
 
 const vnum = (r: Reason, k: string) => (typeof r.vars?.[k] === "number" ? (r.vars[k] as number) : undefined);
 const has = (r: Reason, k: string) => r.vars?.[k] !== undefined && r.vars[k] !== "";
@@ -22,13 +27,19 @@ export const HOLDS: Record<ReasonKey, (r: Reason, f: Facts) => boolean> = {
   deadline: (r) => has(r, "due") || has(r, "left"),
   late: (r) => has(r, "due") || has(r, "left"),
   load: (r) => has(r, "h"),
+  holiday: (r) => { const d = vnum(r, "day"); return d !== undefined && holidayOn(d) !== undefined; },
+  exam: (r, f) => { const d = vnum(r, "day"); return d !== undefined && !!f.tasks && examOn(f.tasks, d); },
   missed: (r) => has(r, "time"),
+  missed3: (_, f) => (f.task.misses ?? 0) >= 3,
   packed: (r) => has(r, "was") && has(r, "to"),
-  fit: (r) => has(r, "len"),
+  fit: (r) => has(r, "len") && (!has(r, "slow") || (vnum(r, "slow") ?? 0) > 1), // "bạn hay cần lâu hơn" only with a learned ratio above 1
   over: () => true,
   explore: () => true,
   energy: () => true, weekend: () => true, busy: () => true, gap: () => true, stable: () => true,
   guess: () => true, // the honest default
+  // a named neighbour is an errand or finance piece back to back with this one, in the same outing
+  batch: (r, f) => batchKind(f.task.kind) && (f.tasks ?? []).some((n) => n.title === r.vars?.title && n.id !== f.task.id && n.start !== undefined && n.end !== undefined && batchKind(n.kind)
+    && backToBack({ start: f.start, end: f.start + f.task.effort * MIN }, { start: n.start, end: n.end })),
 };
 
 /** The reasons that are still true of this task at `start`; none left means say nothing. */

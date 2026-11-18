@@ -1,5 +1,6 @@
 // magic.html 17-17c: a free gap is offered only while today's work is under a soft, learned line; past it the day rests.
 import { addDays, startOfDay } from "../components/cal";
+import { holidays } from "./holidays";
 import type { Task } from "./types";
 
 const MIN = 60_000, H = 60 * MIN;
@@ -51,4 +52,20 @@ export function gapPick(tasks: Task[], now: number, until = Infinity): { task: T
     .map((x) => ({ task: x, len: x.start !== undefined && x.end !== undefined ? x.end - x.start : x.effort * MIN, free }))
     .filter((c) => c.len > 0 && c.len <= free && !(c.task.deadline !== undefined && c.task.deadline < now + c.len))
     .sort((a, b) => due(a.task) - due(b.task) || (a.task.start ?? Infinity) - (b.task.start ?? Infinity))[0];
+}
+
+/** The holiday (or Tết) title on a local day, or undefined. */
+export const holidayOn = (day0: number) => { const d0 = startOfDay(day0); return holidays(d0, addDays(d0, 1)).get(d0); };
+/** A fixed exam starts on the day after `day0`. */
+export const examOn = (tasks: Task[], day0: number) => {
+  const next = addDays(startOfDay(day0), 1);
+  return tasks.some((x) => !x.deletedAt && x.fixed === "exam" && x.start !== undefined && x.start >= next && x.start < addDays(next, 1));
+};
+
+// Today's cap: the learned line (or the 6 h base when `learned` is false), halved on a holiday (or Tết), × 0.75 the day before an exam. Never under 1 h.
+export function capOf(tasks: Task[], day0: number, now: number, more = 0, learned = true): { ms: number; why?: { key: "holiday"; title: string } | { key: "exam" } } {
+  const d0 = startOfDay(day0), base = learned ? restLine(tasks, now, more) : REST_BASE + more;
+  const hol = holidayOn(d0);
+  if (hol !== undefined) return { ms: Math.max(H, base * 0.5), why: { key: "holiday", title: hol } };
+  return examOn(tasks, d0) ? { ms: Math.max(H, base * 0.75), why: { key: "exam" } } : { ms: Math.max(H, base) };
 }

@@ -319,6 +319,7 @@ const S = {
   minsN: "{n}p",
   sundayLab: "Tuần này mình hiểu thêm",
   sundaySub: "{done} việc xong, {moved} lần dời",
+  sundayKeep: "Giữ {pct}% giờ Zen xếp, {delta}",
   whyNow: "Vì sao lúc này",
   alsoFits: "Cũng hợp",
   rhythm: "Nhịp của bạn",

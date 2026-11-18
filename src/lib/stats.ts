@@ -2,6 +2,7 @@
 export type StatRow = {
   install: string; at: number; policy: string; arm: number;
   x: number[]; theta?: number[]; reward: number; kind: string; zeroEdit: boolean;
+  ev?: string; // queue tag: the event that made the row, so an undo can drop it. Never sent (see flushNow).
 };
 
 export interface Storage {
@@ -34,6 +35,12 @@ const serial = <T>(fn: () => Promise<T>): Promise<T> => { const r = chain.then(f
 
 export const record = (s: Storage, r: Omit<StatRow, "install" | "at"> & { at?: number }) => serial(() => recordNow(s, r));
 
+/** Drops the queued rows of these events (an undone change). Rows already sent stay sent. */
+export const forget = (s: Storage, evs: string[]) => serial(async () => {
+  const gone = new Set(evs), q: StatRow[] = JSON.parse((await s.get(Q)) ?? "[]");
+  if (q.some((r) => r.ev && gone.has(r.ev))) await s.set(Q, JSON.stringify(q.filter((r) => !r.ev || !gone.has(r.ev))));
+});
+
 async function recordNow(s: Storage, r: Omit<StatRow, "install" | "at"> & { at?: number }) {
   if (await isOptedOut(s)) return;
   const q: StatRow[] = JSON.parse((await s.get(Q)) ?? "[]");
@@ -50,7 +57,7 @@ async function flushNow(s: Storage, url: string, now: number, post: typeof fetch
   let q: StatRow[] = JSON.parse((await s.get(Q)) ?? "[]");
   let sent = 0;
   while (q.length) {
-    const batch = q.slice(0, BATCH);
+    const batch = q.slice(0, BATCH).map((r) => ({ ...r, ev: undefined })); // JSON.stringify drops the undefined tag: the sink sees only its 9 keys
     try {
       const res = await post(url.replace(/\/$/, "") + "/e", {
         method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(batch),

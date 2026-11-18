@@ -10,7 +10,7 @@ vi.mock("expo-notifications", () => ({
   scheduleNotificationAsync: async (n: { identifier: string }) => { await slow(); st.sched.set(n.identifier, n); },
 }));
 vi.mock("react-native", () => ({ Platform: { OS: "ios" } }));
-vi.mock("./store", () => ({ allTasks: async () => st.tasks }));
+vi.mock("./store", () => ({ allTasks: async () => st.tasks, kvGet: async () => null, kvSet: async () => {} }));
 import { pushReminders } from "./reminders";
 
 it("the latest push wins over a slower older one", async () => {
