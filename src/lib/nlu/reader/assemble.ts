@@ -846,6 +846,13 @@ export interface Requirements {
   window: boolean;
 }
 
+/** The requirements of a whole input, its artifacts counted only from this clause and the pieces with no date or clock of their own. */
+function ownReq(all: Requirements, full: string | undefined, raw: string, ref: ReaderWC): Requirements {
+  if (!full) return all;
+  const pieces = full.split(/\s*[,;\n]\s*|\s+(?:và|va|and)\s+/i).filter((x) => x && (raw.includes(x) || new RegExp(TRUOC_NGAY.source).test(fold(x).text) || !findMentions(x).some((m) => m.kind === "date" || m.kind === "time")));
+  return { ...all, art: detectArtifacts(pieces.join(", ") || raw) };
+}
+
 export function requirementsOf(full: string, ref: ReaderWC): Requirements {
   const dues = [...fold(full).text.matchAll(TRUOC_NGAY)]
     .map((m) => ({
@@ -2959,7 +2966,8 @@ function clauseItemsOne(c: Clause, ctx: Ctx): Out {
                 day: res.wc,
               },
               ctx.ref,
-              reqOf(ctx),
+              // a sibling item with its own date ("nộp báo cáo trước thứ 6") is its own task, not this exam's report
+              ownReq(reqOf(ctx), ctx.fullText, raw, ctx.ref),
               ctx.affinity,
             ),
           );

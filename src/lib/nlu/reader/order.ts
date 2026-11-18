@@ -228,11 +228,13 @@ function andCutsIn(text: string): { at: number; end: number }[] {
       return { at, end: at + m[0].trim().length };
     });
   if (!joins.length) return [];
-  const sides = text.split(new RegExp(LIST_SEP.source, "i"));
+  const sides = text.split(new RegExp(LIST_SEP.source, "i")).filter((x) => x.trim());
   // "họp nhóm 9h mai và nộp báo cáo trước thứ 6": sides that each carry their own date or clock and words are items too
   // a side that opens with its date continues a list ("thứ 3 và thứ 5 hàng tuần"): no cut
   const opensDated = (s: string) => findMentions(s.trimStart()).some((m) => m.start === 0 && (m.kind === "date" || m.kind === "time"));
   if (sides.length > 1 && sides.every((s, k) => hasClock(s) && titleWords(s) > 0 && (k === 0 || !opensDated(s)))) return joins;
+  // "đọc sách 30 phút mỗi tối và họp nhóm 9h mai": every side names its task, one with a date or clock of its own
+  if (sides.length > 1 && sides.some((s) => /\d/.test(s) && hasClock(s)) && sides.some(hasTaskWord) && sides.every((s, k) => (hasClock(s) || /(?<![a-z])(?:moi|hang)\s/.test(fold(s).text)) && titleWords(s) > 0 && (k === 0 || !opensDated(s)))) return joins;
   return sides.every((s) => hasTaskWord(s) && !hasFixed(s)) ? joins : [];
 }
 

@@ -93,7 +93,8 @@ function titleHead(line: string): boolean {
 }
 const LINK_END = /(?:^|\s)(?:va|roi|cua|cho|de|voi)$/;
 /** A line that stops on a cue waiting for its value: "nộp báo cáo trước", "họp lúc". */
-const hangs = (t: string) => /(?:^|\s)(?:truoc|trc|han|luc|vao|den|toi|tu|sau|het|trong|ngay|thu|sang|chieu|toi|trua|dem)$/.test(fold(t).text.trim());
+// "mỗi ngày", "mỗi tối" end a complete repeat: they wait for nothing
+const hangs = (t: string) => /(?:^|\s)(?:truoc|trc|han|luc|vao|den|toi|tu|sau|het|trong|ngay|thu|sang|chieu|toi|trua|dem)$/.test(fold(t).text.trim().replace(/(?:moi|hang|ca)\s+\S+$/, ""));
 const LINK_WORD = /^(?:va|roi|cua|cho|de|voi)\s/;
 
 /** A hard line break inside a sentence: the line before is unterminated and the next is not a marker or heading. */
@@ -129,7 +130,7 @@ function joins(text: string, nl: number, typed: boolean): boolean {
   // typed: a line break between two lines that each carry their own date or clock is the next item, however long
   // Telex or VNI typed with the IME off is read decoded ("ngayf kia" is "ngày kia"): the join runs before the decode
   const decoded = (t: string) => t.replace(/[\p{L}\d]+/gu, (w) => (/\p{L}/u.test(w) ? (decodeTyped(w) ?? w) : w));
-  const dated = (t: string) => [t, decoded(t)].some((x) => findMentions(x).some((m) => m.kind === "date" || m.kind === "time"));
+  const dated = (t: string) => [t, decoded(t)].some((x) => findMentions(x).some((m) => m.kind === "date" || m.kind === "time" || m.kind === "recur"));
   // the item the break falls between: the last comma piece of the line before, the first of the next ("…, Viết báo cáo\nđồ án trước 20/11" is one wrapped item)
   const tail = prev.split(/[,;]|[.!?](?=\s)/).pop() ?? prev, head = next.split(/[,;]|[.!?](?=\s)/)[0];
   if (typed && !CONNECTOR_END.test(prev) && !LINK_WORD.test(fold(next).text) && dated(tail) && dated(head) && !timeOnly(decoded(tail)) && !timeOnly(decoded(head)) && !hangs(decoded(prev))) return false;
