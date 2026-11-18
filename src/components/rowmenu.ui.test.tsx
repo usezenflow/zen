@@ -48,8 +48,10 @@ describe("sitting items", () => {
   const on = { more: jest.fn(), less: jest.fn() };
   const labels = (x: Task, ts: Task[]) => sittingItems(x, ts, on).map((i) => i.label);
 
-  it("a plain task has none", () => {
-    expect(labels(T({ id: "p" }), [T({ id: "p" })])).toEqual([]);
+  it("a plain task offers more only; a repeat or a done task none", () => {
+    expect(labels(T({ id: "p" }), [T({ id: "p" })])).toEqual(["Cần thêm một buổi"]);
+    expect(labels(T({ id: "p", rrule: "FREQ=DAILY" }), [])).toEqual([]);
+    expect(labels(T({ id: "p", doneAt: 1 }), [])).toEqual([]);
   });
   it("one open sitting: more only", () => {
     const ts = [T({ id: "p" }), T({ id: "p#1", parentId: "p" })];

@@ -1,5 +1,12 @@
 # zen
 
+## 26.0.11
+
+### Patch Changes
+
+- Việc chỉ có một lần cũng thêm được buổi: nhấn giữ việc, chọn "Cần thêm một buổi"
+- Zen xếp giờ bắt đầu vào :00 hoặc :30, tránh :15 và :45 (giờ bạn tự nói vẫn giữ nguyên)
+
 ## 26.0.10
 
 ### Patch Changes

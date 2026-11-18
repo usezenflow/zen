@@ -31,7 +31,7 @@ describe("rest after a lecture or exam", () => {
 
   it("a piece the user set by hand is not held back by the rest", () => {
     const rest = { classEnds: [at(11)], buffer: 40 * MIN };
-    expect(cells(piece(flex({ userEdited: ["start"] })), now, rest)).toContain(at(11, 15));
+    expect(cells(piece(flex({ userEdited: ["start"] })), now, rest)).toContain(at(11, 30));
   });
 
   it("five ticks of 40 min teach a 40 min rest; fewer than five say the 15 min default", () => {

@@ -8,11 +8,12 @@ import { useTheme, font, ff } from "@/lib/theme";
 import { t } from "@/lib/i18n";
 import type { Task } from "@/lib/types";
 
-/** A sitting or a split task's items: one sitting more; one less only while two are open. Nothing for a plain task. */
+/** A sitting or a split task's items: one sitting more; one less only while two are open. A plain open task gets "more" only. */
 export function sittingItems(x: Task, tasks: Task[], on: { more: (parent: Task) => void; less: (parent: Task) => void }): Item[] {
   if (x.doneAt || x.deletedAt) return [];
   const parentId = x.parentId ?? x.id, open = tasks.filter((c) => c.parentId === parentId && !c.doneAt && !c.deletedAt);
-  if (!open.length) return [];
+  // A single-instance task (no repeat, no section) is split on the first "more": addSitting makes it its own first sitting.
+  if (!open.length && (x.parentId || x.rrule || x.seriesId || x.section)) return [];
   const parent = tasks.find((p) => p.id === parentId) ?? x;
   return [
     { label: t("itemMore"), icon: "clock", onPress: () => on.more(parent) },

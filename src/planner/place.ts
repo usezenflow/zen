@@ -15,8 +15,8 @@ export interface Rest { classEnds: number[]; buffer: number }
 export interface LogEntry { kind: "place" | "swap" | "reinsert" | "chain" | "day"; ids: string[]; gain: number; day?: number }
 export interface Solved { starts: Map<string, number>; score: number; greedyScore: number; log: LogEntry[] }
 
-export const SLOT = 15 * MIN; // the grid start times are searched on (:00, :15, :30, :45), the shortest gap offered, the errand size
-export const STEP = SLOT;
+export const SLOT = 15 * MIN; // the grid start times are searched on (a quarter hour), the shortest gap offered, the errand size
+export const STEP = 2 * SLOT; // flexible starts sit on :00 and :30, never :15 or :45 (a said clock keeps its minute)
 export { PARTS, WAKE_FROM, WAKE_TO };
 /** Where flexible work may end: 22:00, or the end of a said part that runs later (đêm). */
 export const wakeEnd = (tods?: [number, number][], b: Bounds = DEFAULT_BOUNDS) => Math.max(b.to, ...(tods ?? []).map((x) => x[1]));

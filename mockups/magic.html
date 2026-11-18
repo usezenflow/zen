@@ -536,7 +536,7 @@ const lighter = `${head("T4", "10/2", "3 việc")}${tabs("Ngày")}
 // 44: errands sit back to back, one trip out.
 const batched = `${head("T7", "21/11", "3 việc")}${tabs("Ngày")}
   <div class="lab" style="margin-top:28px">Hôm nay</div>
-  <div class="list" style="margin-top:6px">${row("17:00", "Đi chợ", "plan", "Giờ bạn hay làm")}${row("17:45", "Trả tiền điện", "plan", "Gộp với Đi chợ")}${row("20:00", "Đọc sách mỗi tối", "plan", "Buổi tối")}</div>`;
+  <div class="list" style="margin-top:6px">${row("17:00", "Đi chợ", "plan", "Giờ bạn hay làm")}${row("17:30", "Trả tiền điện", "plan", "Gộp với Đi chợ")}${row("20:00", "Đọc sách mỗi tối", "plan", "Buổi tối")}</div>`;
 mount([
   { tag: "1. Moves, one pill", sub: "Whatever moved and you have not looked at, for any cause (the school, a due, your own drag or done): one pill under the tabs, the same in day, week and month. It names how many and the biggest move. Moved rows carry a vermilion dot and their old time; a row that left the day stays as a dashed ghost saying where it went. It never takes the now card\u2019s place, and it stays across views and launches until you open it or swipe it away (1b); the dots stay until you look.", html: chrome(brief) },
   { tag: "1b. Moves, swiped away", sub: "Swipe the pill sideways and it slides off; past a short distance it springs back. Gone for good: it never returns for those moves, and the trail dots stay until you look.", html: chrome(briefOut) },
@@ -588,7 +588,7 @@ mount([
   { tag: "28. A thesis", sub: "“Khoá luận”, “đồ án tốt nghiệp” or “luận văn” in the exam title: 30 hours, 90-minute sittings, up to four weeks ahead; Tập bảo vệ when it has a defense.", html: chrome(thesis, { dock: null }) },
   { tag: "29. Thinking out loud", sub: "When the school adds exams, one line per prep says how it was sized, then the first sitting lands (as 4).", html: chrome(prepThink, { dock: "think" }) },
   { tag: "30. Done early", sub: "Ticked a sitting 15+ minutes before its end: half the time saved comes off the far sittings (none under 60 minutes; one that would is removed). It also teaches your pace.", html: chrome(early) },
-  { tag: "31. Need more, or less", sub: "Long-press a sitting: “Cần thêm một buổi” adds one of the same step and length after the rest; “Bớt một buổi” removes the last open one.", html: chrome(need) },
+  { tag: "31. Need more, or less", sub: "Long-press a sitting, or a single (non-repeating) task: “Cần thêm một buổi” adds one of the same step and length after the rest (a single task becomes its own first sitting); “Bớt một buổi” removes the last open one.", html: chrome(need) },
   { tag: "Need more, added", sub: "The toast names it and where it went; Hoàn tác removes it.", html: chrome(needDone) },
   { tag: "31b. Còn nữa, on the last sitting", sub: "A guessed split task whose last sitting is done or under way (here 18/11): one text button under the sittings, in place, no sheet. It is not shown on an earlier sitting, a task whose length was said, or while the last sitting is still to come. Tapping it adds one sitting of the same length after the last, and teaches the class that the guess needed one more.", html: chrome(stillSet, { dock: null }) },
   { tag: "31c. Còn nữa, added", sub: "The new sitting joins the list with its dot; the line says what was added, and Hoàn tác beside it undoes the sitting. If the user never taps it, the guess stands.", html: chrome(stillAdded, { dock: null }) },

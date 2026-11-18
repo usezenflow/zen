@@ -45,7 +45,7 @@ describe("split and deadline", () => {
     const { diff } = plan([task("zf", { effort: 180, deadline: at(0, 23) + 59 * MIN })], [], newModel(n), n);
     expect(diff.split).toHaveLength(0);
     expect(diff.unplaced ?? []).toHaveLength(0);
-    expect(diff.placed.map((p) => [p.start, p.end])).toEqual([[new Date(2026, 10, 16, 19, 15).getTime(), new Date(2026, 10, 16, 22, 15).getTime()]]);
+    expect(diff.placed.map((p) => [p.start, p.end])).toEqual([[new Date(2026, 10, 16, 19, 30).getTime(), new Date(2026, 10, 16, 22, 30).getTime()]]);
   });
 
   it("a 3 h task said for today (a window to 23:59, no due) at 19:45 is one sitting past 22:00, nothing unplaced", () => {
@@ -54,7 +54,7 @@ describe("split and deadline", () => {
     expect(diff.split).toHaveLength(0);
     expect(diff.unplaced ?? []).toHaveLength(0);
     expect(diff.warn).toBeUndefined();
-    expect(diff.placed.map((p) => [p.start, p.end])).toEqual([[n, n + 3 * HOUR]]);
+    expect(diff.placed.map((p) => [p.start, p.end])).toEqual([[n + 15 * MIN, n + 15 * MIN + 3 * HOUR]]); // 19:45 waits for 20:00
   });
 
   describe("a window too packed for what was asked: the task still gets a time, and says why", () => {
