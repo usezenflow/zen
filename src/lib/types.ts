@@ -60,6 +60,7 @@ export interface Action {
   target?: string;
   title?: string;
   when?: string; // ISO
+  from?: { start?: number; end?: number }; // edit: where the task was before a live edit's held values (what the move teaches)
   effortMinutes?: number;
   effortGuessed?: boolean; // the length is a guess (inferred), not said
   cls?: string; // the frame class of a guessed length

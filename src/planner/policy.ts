@@ -1,10 +1,10 @@
 import type { Diff, Placement, Reason, ReasonKey, Step, Task, TaskEvent, TaskType, Warn } from "../lib/types";
 import { DAY, HOUR, I_AFTER, I_ENERGY, I_SIM, KINDS, MIN, type FeatCtx, cdist, dayStart, dueOf, features, hourOf } from "./features";
 import { effort, neighbors, peakHour, slipOf } from "./habits";
-import { ALPHA, D, LAMBDA, N0, type Primed, decayArms, prepare, primeBatch, ucb, ucbAt, update } from "./linucb";
+import { ALPHA, D, LAMBDA, N0, type Primed, coldArms, decayArms, prepare, primeBatch, ucb, ucbAt, update } from "./linucb";
 import { grounded } from "./grounded";
 import { type Model, newModel } from "./model";
-import { type Busy, type End, type Util, EJECT_CAP, SLOT, STEP, WAKE_FROM, WAKE_TO, awake, cells, dayGone, fixedHours, solve } from "./place";
+import { type Busy, type End, type Util, EJECT_CAP, PARTS, SLOT, STEP, WAKE_FROM, WAKE_TO, awake, cells, dayGone, fixedHours, solve, wakeEnd } from "./place";
 import { day, dayLabel, when } from "../lib/when";
 import { minSitting, split } from "./split";
 import { type Piece, bell, dur, lateH, moveCost, pullOk, startValue } from "./value";
@@ -12,7 +12,7 @@ import { snapGuess } from "../lib/nlu/size";
 
 const LONG_SITTING = 180; // near a deadline sittings merge up to this; longer work still splits
 
-export interface Opts { later?: string; hourOnly?: boolean; pull?: { from: number; to: number } } // pull: time freed by a done or delete, from its start (or now) to its end
+export interface Opts { later?: string; hourOnly?: boolean; pull?: { from: number; to: number }; avoid?: { from: number; to: number }[] } // pull: time freed by a done or delete, from its start (or now) to its end; avoid: slots the user just left by hand
 
 const HALF = 21 * DAY;
 const COLD_A0 = LAMBDA + N0;
@@ -74,7 +74,7 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
   // A said window's end ("trong hôm nay", notAfter) bounds the work as a due does; a repeat's window is per day, not an end.
   const endOf = (t: Task) => t.deadline ?? (t.rrule ? undefined : t.notAfter);
   const mk = (task: Task, eff: number, k: number, n: number, prior?: number, missed?: number): Piece => ({
-    id: task.id, task, effort: eff, k, n, slip: dueOf(task) === undefined ? 0 : slipOf(m, task.kind),
+    id: task.id, task, effort: eff, k, n, slip: dueOf(task) === undefined ? 0 : slipOf(m, task.kind), avoid: opts.avoid,
     prior: prior !== undefined && prior >= now ? prior : undefined, missed, soon: missed !== undefined || (opts.later !== undefined && (opts.later === task.id || opts.later === task.parentId)), // no "later": undefined === undefined made every unsplit piece "soon" (2-day reach)
   });
   // Longest free, awake stretch inside a window that lies within one day; undefined for anything wider.
@@ -83,7 +83,7 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
     if (e === undefined || t.rrule || t.notBefore === undefined || dayStart(t.notBefore) !== dayStart(e - 1)) return undefined;
     const d = dayStart(e - 1);
     let s = Math.max(t.notBefore, d + WAKE_FROM * MIN, Math.ceil(now / STEP) * STEP), best = 0;
-    const end = d === dayStart(now) ? e : Math.min(e, d + WAKE_TO * MIN); // tonight's work may run on to midnight (`over` below)
+    const end = d === dayStart(now) ? e : Math.min(e, d + wakeEnd(t.tods) * MIN); // tonight's work may run on to midnight (`over` below)
     for (const b of allBusy) {
       if (b.end <= s) continue;
       if (b.start >= end) break;
@@ -124,9 +124,19 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
     const ask = t.notAfter !== undefined && t.deadline === undefined && !t.rrule ? { from: t.notBefore, to: t.notAfter } : undefined;
     let gapMin = widest(t);
     if (ask && gapMin !== undefined && gapMin < need) {
-      t = { ...t, notAfter: Math.max(ask.to, dayStart(ask.to - 1) + WAKE_TO * MIN), tods: undefined };
+      // The said part, then its neighbours: today's later part (tối → đêm), the same part tomorrow, tomorrow's later part, today's earlier one.
+      // Parts already past are skipped; the first that fits is taken. A step into the evening (tối → đêm) also keeps tomorrow's said part open, never past its end.
+      const D = dayStart(ask.from!), sm = (ask.from! - D) / MIN, i = PARTS.findIndex(([a, b]) => sm >= a && sm < b);
+      // today's later part joins on to what is left of the said one (21:20 "tối": 21:30, not 22:00)
+      const part = (off: number, j: number): Task => { const a = PARTS[off === 0 && j === i + 1 ? i : j][0]; return { ...t, tods: [[a, PARTS[j][1]]], notBefore: D + off * DAY + a * MIN, notAfter: D + off * DAY + PARTS[j][1] * MIN }; };
+      const order: [number, number][] = i < 0 ? [] : [[0, i + 1], [1, i], [1, i + 1], [0, i - 1]];
+      const hit = order.find(([off, j]) => PARTS[j] && D + off * DAY + PARTS[j][1] * MIN > now && (widest(part(off, j)) ?? -1) >= need);
+      if (hit) {
+        // a late hour may move to tomorrow's said part, but only once the user has dragged work off it (learned below the cold prior); the solver picks by value
+        const [off, j] = hit, late = off === 0 && j > i && PARTS[j][0] >= 18 * 60 && [22, 23].some((h) => m.arms[h].b[0] < coldArms()[h].b[0]);
+        t = late ? { ...t, tods: [[PARTS[i][0], PARTS[j][1]]], notBefore: D + PARTS[i][0] * MIN, notAfter: D + DAY + PARTS[i][1] * MIN } : part(off, j);
+      } else t = { ...t, notBefore: dayStart(now) + DAY, notAfter: dayStart(now) + 2 * DAY }; // nothing fits: the rest of tomorrow, still in the said parts
       gapMin = widest(t);
-      if (gapMin !== undefined && gapMin < need) { t = { ...t, notAfter: undefined }; gapMin = undefined; }
     }
     // shrunk to the gap on the same grid: half hours, or 15 for minor work when only 15 to 29 minutes are free
     const fitGap = (g: number) => (g >= 30 ? Math.floor(g / 30) * 30 : g >= 15 ? 15 : 0);
@@ -501,7 +511,7 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
   return { diff, model: m, bump: bump?.length ? bump : undefined, trouble: urgent.length };
 }
 
-const kernel = (a: number, h: number) => Math.exp(-(cdist(a, h) ** 2) / (2 * 0.75 ** 2));
+const kernel = (a: number, h: number, sigma = 0.75) => Math.exp(-(cdist(a, h) ** 2) / (2 * sigma ** 2));
 
 const FIRST_MOVE_BOOST = 1;
 const FIRST_MOVE_TAU = 30;
@@ -524,7 +534,7 @@ export function outcome(model: Model, ev: TaskEvent, task: Task): { arm: number;
   else if (ev.type === "delete" && ev.at < start) reward = R.delete;
   else if (ev.type === "drag") {
     const from = Number(ev.data?.fromStart ?? start), to = Number(ev.data?.toStart);
-    if (Number.isFinite(from) && Number.isFinite(to)) reward = clampR(-Math.min(1, Math.abs(to - from) / MIN / 240) * boost(pl, ev.at));
+    if (Number.isFinite(from) && Number.isFinite(to)) reward = -1; // flat, however far: as learn
   }
   return reward === undefined ? undefined : { arm: pl.arm, x: pl.x, policy: pl.policy ?? "linucb", reward };
 }
@@ -584,14 +594,16 @@ export function learn(model: Model, ev: TaskEvent, task: Task, own = false): Mod
       // Where you put it counts even when the planner never placed it (a time you set pins the task): the rhythm reads this list.
       (m.moved ??= []).push({ hour: hourOf(to), at: ev.at });
       m.moved = m.moved.slice(-200);
-      if (!pl) break;
-      const r = clampR(-Math.min(1, Math.abs(to - from) / MIN / 240) * boost(pl, ev.at));
-      const h = hourOf(from);
-      // Away from `from` is a penalty; where they dragged it to is the mirror reward (x is the placed context, close enough at the new hour).
-      const x = pl.x.map((v, i) => (i ? v : 0)); // no intercept: one drag teaches this kind, not every kind
-      for (let a = 0; a < m.arms.length; a++) { update(m.arms[a], x, r, kernel(a + 0.5, h)); update(m.arms[a], x, -r, kernel(a + 0.5, hourOf(to))); }
+      (m.left ??= []).push({ hour: hourOf(from), at: ev.at }); // where you took it off: the slot not to fill again
+      m.left = m.left.slice(-200);
+      // Flat -1 where it was taken from, +0.5 where it went, each as 3 outcomes on a narrow kernel. Not placed by the planner: its kind alone teaches.
+      const x = new Array(D).fill(0);
+      if (pl) pl.x.forEach((v, i) => { x[i] = v; });
+      else x[4 + KINDS.indexOf(task.kind)] = 1;
+      x[0] = 0.5; // the intercept at half weight: the hour's curve, not every kind's
+      for (let a = 0; a < m.arms.length; a++) { update(m.arms[a], x, -1, 3 * kernel(a + 0.5, hourOf(from), 0.5)); update(m.arms[a], x, 0.5, 3 * kernel(a + 0.5, hourOf(to), 0.5)); }
       hist(from, -1);
-      m.placed[task.id] = { ...pl, start: to, arm: Math.floor(hourOf(to)), moved: true };
+      if (pl) m.placed[task.id] = { ...pl, start: to, arm: Math.floor(hourOf(to)), moved: true };
       break;
     }
     default:

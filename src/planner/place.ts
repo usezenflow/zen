@@ -14,6 +14,10 @@ export interface Solved { starts: Map<string, number>; score: number; greedyScor
 export const SLOT = 15 * MIN; // the grid start times are searched on (:00, :15, :30, :45), the shortest gap offered, the errand size
 export const STEP = SLOT;
 export const WAKE_FROM = 7 * 60, WAKE_TO = 22 * 60;
+/** The parts of a day as minutes (adapt.ts FROM/END): sáng, trưa, chiều, tối, đêm. */
+export const PARTS: [number, number][] = [[300, 660], [660, 780], [780, 1080], [1080, 1320], [1320, 1440]];
+/** Where flexible work may end: 22:00, or the end of a said part that runs later (đêm). */
+export const wakeEnd = (tods?: [number, number][]) => Math.max(WAKE_TO, ...(tods ?? []).map((x) => x[1]));
 /** A repeat's occurrence whose own day has no room left in its part of the day ("mỗi sáng", made at 11:00): it is missed, never moved to another day. */
 export const dayGone = (t: Task, now: number) =>
   !!t.rrule && t.deadline !== undefined && dayStart(t.deadline - 1) + ((t.tods?.length ? Math.max(...t.tods.map((x) => x[1])) : WAKE_TO) - t.effort) * MIN < now;
@@ -68,7 +72,7 @@ export function awake(p: Piece, c: number, day = dayStart(c)): boolean {
   const tods = p.task.tods;
   if (tods?.length && !tods.some(([a, b]) => m >= a && m + p.effort <= b)) return false;
   if (nb !== undefined && nb !== dayStart(nb) && c === ceil(nb)) return m + p.effort <= 24 * 60;
-  return m >= WAKE_FROM && m + p.effort <= (p.over ? 24 * 60 : WAKE_TO);
+  return m >= WAKE_FROM && m + p.effort <= (p.over ? 24 * 60 : wakeEnd(tods));
 }
 
 type Mv = [number, number][]; // piece index -> new start (-1 = unplaced)

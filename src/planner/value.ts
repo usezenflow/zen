@@ -16,6 +16,7 @@ export interface Piece {
   ask?: { from?: number; to: number }; // the window said, when it was too packed and the task ran on past it
   cut?: number; // the guessed length, when it was shrunk to fit what is free
   gap?: { from: number; to: number }; // a pull: the freed time it may take, and only earlier than its prior (unscheduled: a start inside it)
+  avoid?: { from: number; to: number }[]; // slots the user just set a task off by hand: a start over one costs more (moveCost)
 }
 
 export const dur = (p: Piece) => p.effort * MIN;
@@ -47,16 +48,19 @@ export function bell(p: Piece, now: number, start: number): number {
 // with the gap as a bonus. A start inside the gap is the cause itself, so free; staying put costs one, as a move would.
 const inGap = (p: Piece, start: number) => !!p.gap && start >= p.gap.from && start + dur(p) <= p.gap.to;
 export const pullOk = (p: Piece, start: number) => !p.gap || p.prior === undefined || start === p.prior || inGap(p, start);
+// Soft: a start over a slot the user just left costs 2; an earlier move than its prior costs 0.5 more (drags teach the hour, this keeps the day).
 export const moveCost = (p: Piece, start: number, _now: number) => {
-  if (p.gap && p.prior === undefined) return inGap(p, start) ? 0 : 1;
-  if (inGap(p, start)) return 0;
-  if (p.prior === undefined || p.prior === start) return p.gap ? 1 : 0;
-  return 1 + (0.5 * Math.min(Math.abs(start - p.prior), 7 * DAY)) / DAY;
+  const hit = (p.avoid ?? []).some((v) => start < v.to && start + dur(p) > v.from) ? 2 : 0;
+  if (p.gap && p.prior === undefined) return (inGap(p, start) ? 0 : 1) + hit;
+  if (inGap(p, start)) return hit;
+  if (p.prior === undefined || p.prior === start) return (p.gap ? 1 : 0) + hit;
+  return 1 + hit + (0.5 * Math.min(Math.abs(start - p.prior), 7 * DAY)) / DAY + (start < p.prior ? 0.5 : 0);
 };
 
 export const lateH = (p: Piece, start: number) => (p.task.deadline === undefined ? 0 : Math.max(0, start + dur(p) - p.task.deadline) / HOUR);
 
-// util is the policy part (UCB minus bell).
+// util is the policy part (UCB minus bell). W_LEARN: learned util is small next to the move and bell costs, so it is scaled up to decide.
+export const W_LEARN = 4;
 export function startValue(p: Piece, start: number, now: number, util: number): number {
-  return util + bell(p, now, start) - 1e-4 * Math.max(0, (start - now) / DAY) - 100 * lateH(p, start) - moveCost(p, start, now);
+  return W_LEARN * util + bell(p, now, start) - 1e-4 * Math.max(0, (start - now) / DAY) - 100 * lateH(p, start) - moveCost(p, start, now);
 }

@@ -1,10 +1,12 @@
 import { embed } from "./nlu/embed";
 import { learn, outcome, plan, type Model, type Opts } from "../planner";
 import { dayGone } from "../planner/place";
+import { coldArms } from "../planner/linucb";
 import { cosine, effort } from "../planner/habits";
 import { addClassLog, classLogsOf, classMults } from "./nlu/context";
 import { fill, t } from "./i18n";
-import { when as at12 } from "./when";
+import { hm, when as at12 } from "./when";
+import { holidays } from "./holidays";
 import * as stats from "./stats";
 import * as store from "./store";
 import { recordMoves, saveWarn, seeMoves } from "./moves";
@@ -64,10 +66,12 @@ function ruleDays(p: Record<string, string | undefined>, d0: number, now: number
   const end = upTo ?? addDays(d0, span - 1), out: number[] = [];
   const lo = Math.max(d0, dayStart(now)), wd = daysOf(p);
   let seen = 0; // occurrences from d0 on, for COUNT
+  // a daily or weekly routine skips public holidays (still counted for COUNT); a monthly or yearly date (rent, a birthday) keeps its day
+  const off = monthly || yearly ? undefined : holidays(lo, addDays(end, 1));
   const push = (d: number) => {
     if (d < d0 || d > end || (until !== undefined && d > until) || (want !== undefined && seen >= want)) return;
     seen++;
-    if (d >= lo && out.length < cap) out.push(d);
+    if (d >= lo && out.length < cap && !off?.has(d)) out.push(d);
   };
   if (monthly || yearly) {
     const b = new Date(d0);
@@ -328,7 +332,12 @@ async function act(w: Work, a: Action) {
         next.pinned = true; // a time you set stays: notBefore only bounds the planner, which would pick another slot (and never a past one)
         edited.add("start");
         next.end = when + (next.effort || 30) * 60_000; // next.effort: the length may be edited in the same action
-        w.log("drag", tk, { fromStart: tk.start, toStart: when });
+        // From where it was before the wheel's held values (a.from), else a settled move would teach from its own new time.
+        const from = a.from?.start !== undefined ? a.from : { start: tk.start, end: tk.end };
+        if (from.start !== undefined && from.start !== when) {
+          w.log("drag", tk, { fromStart: from.start, fromEnd: from.end, toStart: when });
+          w.sub = t("learnedAvoid", { time: hm(from.start) });
+        }
         w.toast = t("moved", { title: next.title, time: at12(when, now) });
       }
       next.userEdited = [...edited];
@@ -404,7 +413,9 @@ async function transactNow(now: number, mutate: (w: Work) => Promise<void> | voi
       if (x.start! <= now) continue;
       w.tasks.set(x.id, { ...x, pinned: false, notBefore: x.notBefore === x.start ? undefined : x.notBefore, userEdited: x.userEdited?.filter((f) => f !== "start") });
     }
-    const r = plan([...w.tasks.values()], [], w.model, now, pullGap ? { ...o.plan, pull: pullGap } : o.plan);
+    // The slots the user just set tasks off: a flexible task is not knocked back into one (soft, see value.ts moveCost).
+    const avoid = w.events.filter((e) => e.type === "drag" && e.data?.fromStart !== undefined && e.data?.fromEnd !== undefined).map((e) => ({ from: Number(e.data!.fromStart), to: Number(e.data!.fromEnd) }));
+    const r = plan([...w.tasks.values()], [], w.model, now, { ...o.plan, avoid, ...(pullGap ? { pull: pullGap } : {}) });
     diff = r.diff;
     w.model = r.model;
     // What changed under the plan this time: new or moved fixed/pinned items, and new rules. A move's cause is the one over its old slot.
@@ -525,22 +536,22 @@ export const toAction = (id: string, e: LiveEdit): Action => ({ op: "edit", targ
 // Once the edits rest for `rest` ms, one replan moves what the new value now clashes with. Edits within 30 s are one session:
 // that replan first undoes the session's last one, so tasks knocked aside by a value passed over go back.
 // shortcut: the undo skips tasks changed since (see canon), so a sync landing mid-session keeps its writes; fine for a wheel.
-const sessions = new Map<string, { last?: Promise<Result | undefined>; at: number; timer?: ReturnType<typeof setTimeout>; drop?: () => void }>();
+const sessions = new Map<string, { last?: Promise<Result | undefined>; at: number; from?: { start?: number; end?: number }; timer?: ReturnType<typeof setTimeout>; drop?: () => void }>();
 /** Resolves with the replan's Result once the edits rest, or undefined when a later edit took over. */
 export function liveEdit(id: string, e: LiveEdit, now = Date.now(), rest = 500): Promise<Result | undefined> {
   const ss = sessions.get(id) ?? { at: 0 };
   sessions.set(id, ss);
-  if (now - ss.at >= 30_000) ss.last = undefined;
+  if (now - ss.at >= 30_000) { ss.last = undefined; ss.from = undefined; } // a new session: its first held write records where the task was
   ss.at = now;
   clearTimeout(ss.timer);
   ss.drop?.();
-  const held = transact(now, (w) => act(w, toAction(id, e)), { replan: false, quiet: true });
+  const held = transact(now, (w) => { const tk = w.tasks.get(id); ss.from ??= { start: tk?.start, end: tk?.end }; return act(w, toAction(id, e)); }, { replan: false, quiet: true });
   return new Promise((done, fail) => {
     ss.drop = () => done(undefined);
     ss.timer = setTimeout(() => {
       ss.drop = undefined;
       const prev = ss.last;
-      const r = held.then(() => (prev ?? Promise.resolve(undefined)).catch(() => undefined)).then(async (p) => { await p?.undo(); return apply([toAction(id, e)], now); });
+      const r = held.then(() => (prev ?? Promise.resolve(undefined)).catch(() => undefined)).then(async (p) => { await p?.undo(); return apply([{ ...toAction(id, e), from: ss.from }], now); });
       ss.last = r.catch(() => undefined);
       r.then(done, fail);
     }, rest);
@@ -601,6 +612,14 @@ export const removeRule = (id: string | string[], now = Date.now()) =>
     w.model = { ...w.model, rules: w.model.rules!.filter((x) => !ids.includes(x.id)) };
     w.toast = t("ruleGone", { text: [...new Set(gone.map((x) => x.text))].join(", ") });
   });
+
+/** Forget an hour you dragged work away from: its drags and that hour's learned weights go back to the cold prior. */
+export const forgetHour = (hour: number, now = Date.now()) =>
+  transact(now, (w) => {
+    const cold = coldArms();
+    w.model = { ...w.model, left: (w.model.left ?? []).filter((x) => Math.floor(x.hour) !== hour), arms: w.model.arms.map((a, i) => (i === hour ? cold[i] : a)) };
+    w.toast = t("avoidGone", { a: hour });
+  }, { replan: false });
 
 export function replan(now = Date.now(), toast?: (d: Diff) => string | undefined) {
   return transact(now, () => {}, { self: false, text: (d) => (d && toast ? toast(d) : undefined) });

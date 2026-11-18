@@ -31,7 +31,7 @@ import { fadeIn, fadeOut, glide, popIn, settle, Tap, EASE } from "@/components/t
 import { Sweep, useSweep } from "@/components/sweep";
 import { Toast } from "@/components/toast";
 import { Swipe, Week } from "@/components/week";
-import { apply, retime, makeRoom, moveMine, pickNow, addRule, addSitting, dropSitting, loadClassMult, needMore, pin, putBack, removeRule, removeScope, scopeIds, swipeDone, swipeLater, take, type Result } from "@/lib/apply";
+import { apply, retime, forgetHour, makeRoom, moveMine, pickNow, addRule, addSitting, dropSitting, loadClassMult, needMore, pin, putBack, removeRule, removeScope, scopeIds, swipeDone, swipeLater, take, type Result } from "@/lib/apply";
 import { briefMoves, loadMoves, loadWarn, seeMoves } from "@/lib/moves";
 import { reasonText, stepText, topReason } from "@/lib/reasons";
 import { holidays } from "@/lib/holidays";
@@ -850,7 +850,7 @@ export default function Home() {
           {(view === "day" || view === "month") && pillOn && (story
             ? <Story moves={fresh} now={now} onClose={closeStory} />
             : <MovesPill moves={fresh} now={now} onOpen={() => setStory(true)} onDismiss={dismissBrief} />)}
-          {view === "rhythm" && mind && <Rhythm i={mind.i} rules={mind.rules} onForget={async (x) => { const r = await removeRule(x.id); say(r.toast, r); refresh(); }} />}
+          {view === "rhythm" && mind && <Rhythm i={mind.i} rules={mind.rules} onForget={async (x) => { const r = await removeRule(x.id); say(r.toast, r); refresh(); }} onForgetHour={async (h) => { const r = await forgetHour(h); say(r.toast, r); refresh(); }} />}
           {(view === "week" || view === "month") && (
             <Reanimated.View key={view} entering={fadeIn}>
               {view === "week"

@@ -63,6 +63,21 @@ describe("set a time onto another task", () => {
       });
 });
 
+// A set time leaves the slot it was in: the flexible task it clashes with goes after it, never back into the slot just left.
+describe("a time set by hand leaves its old slot free", () => {
+  const T0 = new Date("2026-11-17T07:30:00").getTime(), T9 = new Date("2026-11-17T09:00:00").getTime();
+  for (const kind of ["study", "chores", "exercise", "self", "work"] as const)
+    for (const len of [30, 60, 90])
+      it(`${kind}, ${len} min: the clashing task starts after A's new end, nothing flexible starts 07:30 to 09:00`, async () => {
+        for (const x of [flex("A", T0, 90), flex("B", T9, len, { kind })]) db.tasks.set(x.id, x);
+        await apply([{ op: "edit", target: "A", when: new Date(T9).toISOString() }], NOW);
+        const a = db.tasks.get("A") as Task, b = db.tasks.get("B") as Task;
+        expect(a.start).toBe(T9);
+        expect(b.start!).toBeGreaterThanOrEqual(a.end!);
+        for (const x of db.tasks.values()) if (!x.fixed && !x.pinned && !x.userEdited?.includes("start") && x.start !== undefined) expect(x.start >= T0 && x.start < T9).toBe(false);
+      });
+});
+
 describe("freed time: later tasks move into it, earlier only", () => {
   const frees: Record<string, (id: string) => Promise<unknown>> = { done: (id) => swipeDone(id, NOW), delete: (id) => removeScope(id, "this", NOW) };
   const starts = () => Object.fromEntries([...db.tasks.values()].map((x) => [x.id, x.start]));

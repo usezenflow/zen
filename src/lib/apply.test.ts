@@ -28,7 +28,9 @@ vi.mock("../planner", async (orig) => {
 
 import { addRule, addSitting, apply, dropSitting, ingest, lastMore, liveEdit, loadClassMult, needMore, pickNow, pin, putBack, removeRule, retime, scopeIds, stillMore, swipeDone } from "./apply";
 import { loadMoves } from "./moves";
-import { preps } from "../planner/prep";import { plain } from "./i18n";
+import { preps } from "../planner/prep";import { plain, t } from "./i18n";
+import { hm } from "./when";
+import { holidays } from "./holidays";
 
 
 const NOW = new Date("2026-11-13T10:00:00").getTime();
@@ -296,13 +298,15 @@ it("a repeat puts each occurrence on its own day, with the said clock and due ti
   const day0 = d0.getTime(), at = (d: number, h: number, m = 0) => day0 + d * DAYMS + (h * 60 + m) * 60_000;
   await apply([{ op: "create", title: "Đọc", repeat: "FREQ=DAILY", when: new Date(at(1, 20)).toISOString() }], NOW);
   const reads = live().filter((x: Task) => x.title === "Đọc").sort((a: Task, b: Task) => a.notBefore! - b.notBefore!);
-  expect(reads).toHaveLength(120); // the whole 120 days, not a first week
+  expect(reads).toHaveLength(114); // the whole 120 days, not a first week, less 1/1 and Giao thừa + Tết mùng 1-4 2027
+  const hols = holidays(day0, at(121, 0));
+  expect(reads.some((x: Task) => hols.has(new Date(x.notBefore!).setHours(0, 0, 0, 0)))).toBe(false); // a daily routine skips public holidays
   expect(reads.at(-1).deadline).toBeGreaterThanOrEqual(at(120, 0)); // occurrences exist out to day 120; the planner places only the first 30
   expect(reads.slice(0, 7).map((x: Task) => x.notBefore)).toEqual(Array.from({ length: 7 }, (_, i) => at(1 + i, 20)));
   expect(reads.slice(0, 7).map((x: Task) => x.deadline)).toEqual(Array.from({ length: 7 }, (_, i) => at(2 + i, 0)));
   await apply([{ op: "create", title: "Yoga", repeat: "FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR,SA", deadline: new Date(at(0, 23, 59)).toISOString() }], NOW);
   const yoga = live().filter((x: Task) => x.title === "Yoga");
-  expect(yoga.length).toBeGreaterThan(100);
+  expect(yoga.length).toBeGreaterThan(95); // six days a week, less holidays
   expect(yoga.every((x: Task) => new Date(x.deadline!).getDay() !== 0 && new Date(x.deadline!).getHours() === 23)).toBe(true);
   expect(new Set(yoga.map((x: Task) => new Date(x.deadline!).toDateString())).size).toBe(yoga.length);
 });
@@ -322,7 +326,7 @@ describe("repeat shapes", () => {
   it("INTERVAL: every other day", async () => {
     const { days } = await make("FREQ=DAILY;INTERVAL=2");
     expect(days.slice(0, 4)).toEqual(["2026-11-13", "2026-11-15", "2026-11-17", "2026-11-19"]);
-    expect(days).toHaveLength(60);
+    expect(days).toHaveLength(57); // 60, less the three holidays it lands on
   });
   it("UNTIL stops the series on that day", async () => {
     const { days, r } = await make("FREQ=WEEKLY;BYDAY=MO,WE,FR;UNTIL=20261120T235959");
@@ -617,6 +621,15 @@ it("liveEdit saves the value at once with nothing else moved, and replans once i
   expect(db.tasks.get("b").start).toBe(NOW + 2 * H);
 });
 
+it("liveEdit teaches from where the task was before the wheel, and the toast says what it learned", async () => {
+  db.tasks.set("z", plan("z", NOW + 6 * H, 60));
+  void liveEdit("z", { when: NOW + 7 * H }, NOW, 50); // passes over 7h on the way
+  const r = await liveEdit("z", { when: NOW + 8 * H }, NOW + 20, 50);
+  const left = (db.model?.left ?? []).map((x: { hour: number }) => x.hour);
+  expect(left).toEqual([new Date(NOW + 6 * H).getHours() + new Date(NOW + 6 * H).getMinutes() / 60]); // one drag, from the start, not the held 7h
+  expect(r?.sub).toContain(t("learnedAvoid", { time: hm(NOW + 6 * H) }));
+});
+
 it("liveEdit holds a due date at once and clears it with ''", async () => {
   db.tasks.set("a", plan("a", NOW + 6 * H, 60));
   const d = new Date("2026-11-20T23:00:00").getTime();
@@ -636,7 +649,7 @@ it("a part-of-day repeat skips a gone today, spans 120 days, and keeps each occu
   const day = (ms: number) => { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); };
   await apply([{ op: "create", title: "Tập", kind: "exercise", effortMinutes: 60, repeat: "FREQ=DAILY", notBefore: new Date(d0.getTime()).toISOString(), tods: [[300, 660]] }], now);
   const xs = live().filter((x: Task) => x.title === "Tập");
-  expect(xs.length).toBeGreaterThanOrEqual(119);
+  expect(xs.length).toBeGreaterThanOrEqual(113); // 119, less six holidays
   expect(xs.some((x: Task) => day(x.deadline! - 1) === d0.getTime())).toBe(false);
   expect(new Set(xs.map((x: Task) => day(x.deadline! - 1))).size).toBe(xs.length);
   for (const x of xs.filter((x: Task) => x.start !== undefined)) {

@@ -13,6 +13,7 @@ export interface Model {
   hist: Hist[];
   doneHours: { hour: number; at: number }[];
   moved?: { hour: number; at: number }[]; // hours you dragged work to, whether or not the planner had placed it
+  left?: { hour: number; at: number }[]; // hours you dragged work away from: the slots not to fill again
   efforts: { vec: number[]; minutes: number; at: number; kind?: Kind }[];
   placed: Record<string, Placed>;
   prior?: number; // cold-prior version; see upgradePrior

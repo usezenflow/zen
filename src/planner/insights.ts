@@ -16,6 +16,7 @@ export interface Insights {
   byKind: { kind: Kind; from: number; to: number; sure: number }[]; // best 3-hour window per kind, only when clearly better than its average
   weekly?: string; // one sentence for the Sunday card
   seen: number; // done or moved tasks in the last two weeks: the first days show these, never a bare "still learning"
+  avoid: { hour: number; n: number }[]; // hours you dragged work away from in the last two weeks, most first: one drag shows it
   early?: { from: number; to: number; n: number }; // with EARLY of them and no golden yet: the two hours where you finished or dragged work most
 }
 
@@ -49,7 +50,9 @@ export function insights(m: Model, now: number): Insights {
   const age = (at: number) => 0.5 ** (Math.max(0, now - at) / FRESH);
   const done = m.doneHours.filter((d) => recent(d.at));
   const dragged = (m.moved ?? []).filter((d) => recent(d.at));
-  const out: Insights = { hours, pairs: [], slip: [], byKind: [], guesses: [], seen: done.length + m.hist.filter((x) => x.r < 0 && !x.miss && recent(x.at)).length };
+  const left = new Map<number, number>();
+  for (const d of m.left ?? []) if (recent(d.at)) left.set(Math.floor(d.hour), (left.get(Math.floor(d.hour)) ?? 0) + 1);
+  const out: Insights = { hours, pairs: [], slip: [], byKind: [], guesses: [], avoid: [...left].map(([hour, n]) => ({ hour, n })).sort((a, b) => b.n - a.n || a.hour - b.hour).slice(0, 3), seen: done.length + m.hist.filter((x) => x.r < 0 && !x.miss && recent(x.at)).length };
   const weekly: { text: string; sure: number }[] = [];
   const good = [...done, ...dragged].map((d) => ({ h: Math.floor(d.hour), w: age(d.at) }));
   const total = good.reduce((n, g) => n + g.w, 0);

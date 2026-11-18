@@ -7,7 +7,7 @@ import { plain } from "../lib/i18n";
 import { learn, newModel, outcome, plan, typeOf } from "./index";
 import { awake, solve } from "./place";
 import { split } from "./split";
-import type { Piece } from "./value";
+import { type Piece, moveCost } from "./value";
 import { simulate } from "./sim";
 
 const now = new Date(2026, 10, 16, 8, 0).getTime(); // Monday 08:00
@@ -73,10 +73,11 @@ describe("split and deadline", () => {
       expect(r.why).toBe("Sáng mai trống 2 tiếng");
       expect(r.long).toBe("Sáng mai trống chừng 2 tiếng, làm trước chừng đó");
     });
-    it("only a crumb free: study never shrinks under 1h30, it runs on later that day", () => {
+    it("only a crumb free: study never shrinks under 1h30, it runs on to the next part of the day", () => {
       const r = run(guessed, [{ start: at(1, 7) + 30 * MIN, end: at(1, 11) }]);
       expect(dayStart(r.start)).toBe(at(1, 0));
       expect(r.start).toBeGreaterThanOrEqual(at(1, 11));
+      expect(r.start).toBeLessThan(at(1, 13)); // the next part (trưa), before any other day
       expect(r.len).toBeGreaterThanOrEqual(90);
       expect(r.why).toMatch(/^Sáng mai kín, dời sang (trưa|chiều|tối) mai$/);
     });
@@ -424,9 +425,9 @@ describe("first move, maxSitting, typeOf, alt", () => {
     expect(outcome(m2, later(now), t)?.reward).toBe(-0.5);
   });
 
-  it("clamps a boosted drag to -2..0", () => {
+  it("a drag is a flat -1 at the hour it left, however far it moved", () => {
     const r = outcome(placed(), { id: "e", taskId: "a", type: "drag", at: now, data: { toStart: placed().placed.a.start + 9 * HOUR } }, t)!.reward;
-    expect(r).toBeCloseTo(-2, 9);
+    expect(r).toBe(-1);
   });
 
   it("split honours maxSitting", () => {
@@ -603,6 +604,13 @@ describe("batched linucb", () => {
 });
 
 describe("drag teaches both ends", () => {
+  it("a start over a slot the user just left costs 2 more", () => {
+    const p: Piece = { id: "b", task: task("b"), effort: 60, k: 1, n: 1, slip: 0, prior: at(0, 9), avoid: [{ from: at(0, 7) + 30 * MIN, to: at(0, 9) }] };
+    const s = at(0, 7) + 30 * MIN;
+    expect(moveCost(p, s, now) - moveCost({ ...p, avoid: undefined }, s, now)).toBe(2);
+    expect(moveCost(p, at(0, 10), now) - moveCost({ ...p, avoid: undefined }, at(0, 10), now)).toBe(0);
+  });
+
   it("dragging 9:00 to 19:00 lowers arm 9 and raises arm 19", () => {
     const { model } = plan([task("a", { notBefore: at(0, 9) })], [], newModel(now), now);
     const pl = model.placed.a, from = pl.start, to = new Date(from).setHours(19, 0, 0, 0);
@@ -717,12 +725,12 @@ describe("scheduler behaviour", () => {
     expect(r.from).toBe(run.start);
   });
 
-  it("a drag leaves the intercept alone", () => {
+  it("a drag moves the intercept at half the weight of its kind", () => {
     const { model } = plan([task("a", { kind: "exercise", notBefore: at(0, 9) })], [], newModel(now), now);
     const from = model.placed.a.start, to = new Date(from).setHours(20, 0, 0, 0);
     const m2 = learn(model, { id: "e", taskId: "a", type: "drag", at: now, data: { fromStart: from, toStart: to } }, task("a"));
-    model.arms.forEach((a, i) => { expect(m2.arms[i].A[0]).toBe(a.A[0]); expect(m2.arms[i].b[0]).toBe(a.b[0]); });
-    expect(m2.arms.some((a, i) => a.b[4] !== model.arms[i].b[4] || a.b[5] !== model.arms[i].b[5])).toBe(true);
+    model.arms.forEach((a, i) => expect(m2.arms[i].b[0] - a.b[0]).toBeCloseTo((m2.arms[i].b[5] - a.b[5]) / 2, 9)); // kind is index 5 (exercise)
+    expect(m2.arms.some((a, i) => a.b[5] !== model.arms[i].b[5])).toBe(true);
   });
 
   it("alt is free of other pieces", () => {

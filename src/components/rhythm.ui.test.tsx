@@ -14,9 +14,9 @@ jest.mock("@/components/row", () => {
 });
 
 const hours = Array.from({ length: 24 }, (_, h) => (h >= 8 && h < 11 ? 0.9 : 0.3));
-const empty: Insights = { hours, pairs: [], slip: [], byKind: [], guesses: [], seen: 0 };
+const empty: Insights = { hours, pairs: [], slip: [], byKind: [], guesses: [], seen: 0, avoid: [] };
 const full: Insights = {
-  hours, seen: 40, golden: { from: 8, to: 11 }, pairs: [{ before: "exercise", w: 1 }], slip: [{ kind: "chores", rate: 0.62 }],
+  hours, seen: 40, avoid: [{ hour: 7, n: 3 }], golden: { from: 8, to: 11 }, pairs: [{ before: "exercise", w: 1 }], slip: [{ kind: "chores", rate: 0.62 }],
   byKind: [{ kind: "study", from: 8, to: 11, sure: 0.8 }], unsure: { from: 20, to: 22 },
   guesses: [{ text: "Bạn học tốt buổi sáng", sure: 0.8 }, { text: "Tối hay mệt", sure: 0.6 }, { text: "Cuối tuần rảnh", sure: 0.2 }],
 };
@@ -26,7 +26,7 @@ const opacities = (label: string) => (screen.getByLabelText(label).children as u
 const bars = () => opacities(t("goldenRange", { a: 8, b: 11 }));
 
 it("a golden range titles the strip, lights its hours, and shows each card", async () => {
-  await render(<Rhythm i={full} rules={[]} onForget={jest.fn()} />);
+  await render(<Rhythm i={full} rules={[]} onForgetHour={() => {}} onForget={jest.fn()} />);
   expect(screen.getAllByText(t("goldenRange", { a: 8, b: 11 })).length).toBeGreaterThan(0);
   expect(bars().map((o, h) => (o === 1 ? h : -1)).filter((h) => h >= 0)).toEqual([8, 9, 10]); // to is exclusive
   expect(screen.queryByText(t("learningT"))).toBeNull();
@@ -35,10 +35,12 @@ it("a golden range titles the strip, lights its hours, and shows each card", asy
   expect(screen.getByText(t("slipTitle", { k: kindW("chores", true) }))).toBeOnTheScreen();
   expect(screen.getByText(t("slipSub", { n: 6 }))).toBeOnTheScreen(); // 0.62 of 10, rounded
   expect(screen.getByText(t("unsureTitle", { a: 20, b: 22 }))).toBeOnTheScreen();
+  expect(screen.getByText(t("avoidRow", { a: 7, b: 8 }))).toBeOnTheScreen();
+  expect(screen.getByText(t("avoidSub", { n: 3 }))).toBeOnTheScreen();
 });
 
 it("without evidence: still learning, the learning card, every bar dim, no other cards", async () => {
-  await render(<Rhythm i={empty} rules={[]} onForget={jest.fn()} />);
+  await render(<Rhythm i={empty} rules={[]} onForgetHour={() => {}} onForget={jest.fn()} />);
   expect(screen.getAllByText(t("stillLearning")).length).toBeGreaterThan(0);
   expect(screen.getByText(t("learningT"))).toBeOnTheScreen();
   const dim = opacities(t("stillLearning"));
@@ -47,14 +49,14 @@ it("without evidence: still learning, the learning card, every bar dim, no other
 });
 
 it("first ticks: how many it has seen and how many more it needs", async () => {
-  await render(<Rhythm i={{ ...empty, seen: 2 }} rules={[]} onForget={jest.fn()} />);
+  await render(<Rhythm i={{ ...empty, seen: 2 }} rules={[]} onForgetHour={() => {}} onForget={jest.fn()} />);
   expect(screen.getByText(t("seenN", { n: 2 }))).toBeOnTheScreen();
   expect(screen.getByText(t("moreN", { n: 1 }))).toBeOnTheScreen();
   expect(screen.queryByText(t("learningT"))).toBeNull();
 });
 
 it("an early guess titles the strip and lights its two hours", async () => {
-  await render(<Rhythm i={{ ...empty, seen: 4, early: { from: 20, to: 22, n: 4 } }} rules={[]} onForget={jest.fn()} />);
+  await render(<Rhythm i={{ ...empty, seen: 4, early: { from: 20, to: 22, n: 4 } }} rules={[]} onForgetHour={() => {}} onForget={jest.fn()} />);
   expect(screen.getByText(t("earlyTitle", { a: 20, b: 22 }))).toBeOnTheScreen();
   expect(screen.getByText("Mấy hôm nay bạn hay xong việc giờ này. Xong thêm 1 việc giờ này nữa là mình chắc.")).toBeOnTheScreen(); // 4 in the stretch, 5 names it
   expect(opacities(t("earlyRange", { a: 20, b: 22 })).map((o, h) => (o === 1 ? h : -1)).filter((h) => h >= 0)).toEqual([20, 21]);
@@ -62,14 +64,14 @@ it("an early guess titles the strip and lights its two hours", async () => {
 
 it("a forgotten rule is passed back whole", async () => {
   const onForget = jest.fn(), r2 = rule({ id: "r2", text: "Sáng CN ngủ" });
-  await render(<Rhythm i={full} rules={[rule({}), r2]} onForget={onForget} />);
+  await render(<Rhythm i={full} rules={[rule({}), r2]} onForgetHour={() => {}} onForget={onForget} />);
   await fireEvent.press(screen.getAllByLabelText("swipe")[1]);
   expect(onForget).toHaveBeenCalledWith(r2);
   expect(screen.getByText(t("swipeForget"))).toBeOnTheScreen();
 });
 
 it("no rules: the placeholder and no swipe hint", async () => {
-  await render(<Rhythm i={full} rules={[]} onForget={jest.fn()} />);
+  await render(<Rhythm i={full} rules={[]} onForgetHour={() => {}} onForget={jest.fn()} />);
   expect(screen.getByText(t("noRulesT"))).toBeOnTheScreen();
   expect(screen.getByText(t("noRules"))).toBeOnTheScreen();
   expect(screen.queryByText(t("swipeForget"))).toBeNull();
@@ -78,7 +80,7 @@ it("no rules: the placeholder and no swipe hint", async () => {
 it("guesses say how sure, at 0.75 and 0.5", async () => {
   const at = (sure: number) => ({ ...empty, guesses: [{ text: "g", sure }] });
   for (const [sure, key] of [[0.75, "sureHigh"], [0.74, "sureMid"], [0.5, "sureMid"], [0.49, "sureLow"]] as const) {
-    await render(<Rhythm i={at(sure)} rules={[]} onForget={jest.fn()} />);
+    await render(<Rhythm i={at(sure)} rules={[]} onForgetHour={() => {}} onForget={jest.fn()} />);
     expect(screen.getByText(t(key))).toBeOnTheScreen();
   }
 });
@@ -89,6 +91,6 @@ it.each([
   [{ days: [6], from: 21 * 60, to: 1440 }, `T7 · ${t("fromTime", { t: "21:00" })}`],
   [{ days: [6], from: 0, to: 1440 }, "T7"], // the whole day: days only
 ])("describes rule %j as %s", async (over, sub) => {
-  await render(<Rhythm i={empty} rules={[rule(over)]} onForget={jest.fn()} />);
+  await render(<Rhythm i={empty} rules={[rule(over)]} onForgetHour={() => {}} onForget={jest.fn()} />);
   expect(screen.getByText(sub)).toBeOnTheScreen();
 });

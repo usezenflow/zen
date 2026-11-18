@@ -67,7 +67,7 @@ function Bar({ v, i, lit }: { v: number; i: number; lit: boolean }) {
   return <Animated.View style={[s.bar, st]} />;
 }
 
-export function Rhythm({ i, rules, onForget }: { i: Insights; rules: Rule[]; onForget: (r: Rule) => void }) {
+export function Rhythm({ i, rules, onForget, onForgetHour }: { i: Insights; rules: Rule[]; onForget: (r: Rule) => void; onForgetHour: (hour: number) => void }) {
   const th = useTheme();
   const g = i.golden, e = i.early, pair = i.pairs[0], slip = i.slip[0], kind = i.byKind[0], un = i.unsure;
   const line = [s.set, { borderColor: th.line }];
@@ -99,6 +99,14 @@ export function Rhythm({ i, rules, onForget }: { i: Insights; rules: Rule[]; onF
           </View>
         </SwipeDelete>
       )) : <Empty title={t("noRulesT")} sub={t("noRules")} />}
+      {i.avoid.length > 0 && <Text style={[s.lab2, { color: th.muted }]}>{t("avoidLab")}</Text>}
+      {i.avoid.map((x) => (
+        <SwipeDelete key={x.hour} onDelete={() => onForgetHour(x.hour)}>
+          <View style={line} accessibilityHint={t("swipeForget")}>
+            <View style={s.tx}><Text style={[s.b, { color: th.ink }]}>{t("avoidRow", { a: x.hour, b: x.hour + 1 })}</Text><Text style={[s.small2, { color: th.muted }]}>{t("avoidSub", { n: x.n })}</Text></View>
+          </View>
+        </SwipeDelete>
+      ))}
       <Text style={[s.lab2, { color: th.muted }]}>{t("myGuess")}</Text>
       {/* shortcut: guesses cannot be forgotten yet (no per-guess reset in the model); only rules swipe. Upgrade when the planner can zero a weight. */}
       {i.guesses.length ? i.guesses.map((x) => (
@@ -106,7 +114,7 @@ export function Rhythm({ i, rules, onForget }: { i: Insights; rules: Rule[]; onF
           <View style={s.tx}><Text style={[s.b, { color: th.ink }]}>{x.text}</Text><Text style={[s.small2, { color: th.muted }]}>{sureWord(x.sure)}</Text></View>
         </View>
       )) : <Empty title={t("noGuessesT")} sub={t("noGuesses")} />}
-      {rules.length > 0 && <Text style={[s.small, { color: th.muted, marginTop: 16, fontSize: 14 }]}>{t("swipeForget")}</Text>}
+      {(rules.length > 0 || i.avoid.length > 0) && <Text style={[s.small, { color: th.muted, marginTop: 16, fontSize: 14 }]}>{t("swipeForget")}</Text>}
     </Animated.View>
   );
 }
