@@ -1,0 +1,73 @@
+THÔNG BÁO
+Các mốc thời gian quan trọng đánh giá điểm quá trình
+ Học phần: Cơ sở dữ liệu
+ Lớp : CTK47A
+Nội dung 0. Hoàn thành 06 bài
+Lab (từ Lab02 đến
+Lab07)
+(đánh giá chuyên cần
+và thái độ học tập)
+Thời gian - địa điểm Thời gian:
+Buổi thực hành thứ 7 (chiều
+thứ ba, ngày 1/4/2025)
+Ghi chú
+- Tạo 1 thư mục có tên
+CSDL_CTK47A_MaSV
+HoTen
+_
+- Chép tất cả 6 bài lab vào thư mục
+trên
+- GV sẽ xem xét và đánh giá các bài
+Lab tại phòng máy.
+1. Kiểm tra thực hành
+Nội dung:
+- Đọc hiểu và tạo lập
+cơ sở dữ liệu theo
+một thiết kế CSDL
+cho trước (dùng
+lệnh).
+- Thủ tục + hàm
+- Cài đặt ràng buộc
+toàn vẹn
+- Truy vấn dữ liệu
+Thời gian: 13g00 Chiều thứ Ba,
+ngày 08/04/2025
+Địa điểm: A24.1 + A24Lau
+(SV sử dụng máy của nhà
+trường; KHÔNG được sử dụng
+tài liệu)
+- Mang theo bút (mực) để làm một
+phần đề kiểm tra.
+- Làm bài và nộp file (.sql) theo hướng
+dẫn tại phòng thực hành.
+2. Kiểm tra trắc
+nghiệm
+(Toàn bộ nội dung môn
+học)
+4. Báo cáo Bài tập
+nhóm
+Làm Bài tập 7 (trang
+89 - 90, Bài giảng tóm
+tắt Cơ sở dữ liệu,
+Trường ĐHĐL, 2009)
+& trình bày theo mẫu
+đính kèm.
+Thời gian: 14g00 Chiều thứ ba,
+ngày 22/04/2025
+Địa điểm: online
+Thời gian: 15g00 - 16g00
+Chiều thứ ba, ngày 22/04/2024
+Địa điểm: Phòng 3, Nhà A24
+- Check mail cá nhân (@dlu.edu.vn) để
+nhận đề kiểm tra.
+- Làm bài và nộp (submit) trong thời
+gian quy định.
+- Nộp Bản in báo cáo đã đóng tập.
+(Nhóm trưởng | Thư ký đại diện
+nhóm nộp trực tiếp cho giảng
+viên)
+Lâm Đồng, ngày 18 tháng 03 năm 2025
+Giảng viên
+Tạ Thị Thu Phượng
+
+

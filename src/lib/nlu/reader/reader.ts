@@ -33,6 +33,7 @@ import { bareTitle, segment, type Clause } from "./segment";
 import { findMentions as findDates } from "./mentions";
 import { sizeItems } from "./sizing";
 import { isMicro, defaultMinutes } from "../size";
+import { documentItems } from "./document";
 import { ocrSchedule } from "./table";
 /** Options of `read`. The controller maps `ReadRequest` onto it. */
 export interface ReadOpts {
@@ -120,10 +121,10 @@ export function read(raw: string, opts: ReadOpts): ReaderResult {
   const repairs = repairsOf(raw, rep).filter(
     (r) => !opts.rejected?.has(repairWord(raw, r)),
   );
-  // a pasted or OCR schedule: its cells are read as columns, not as sentences
+  // an official notice or plan (a PDF, a scan): read by its structure; a pasted or OCR schedule: its cells as columns
   const sched =
     opts.source === "ocr" || opts.source === "paste"
-      ? ocrSchedule(rep.text, opts.ref)
+      ? (documentItems(raw, opts.ref) ?? ocrSchedule(rep.text, opts.ref))
       : undefined;
   if (sched?.length) {
     for (const it of sched)
