@@ -1,5 +1,19 @@
 # zen
 
+## 26.0.10
+
+### Patch Changes
+
+- Zen đọc đúng hơn những gì bạn nói và gõ
+    - "ôn thi 4 buổi trước 25/11" xếp đúng 4 buổi, mỗi buổi một lần ngồi; "3 buổi một tuần" và "2 buổi sáng" không bị hiểu là số buổi
+    - Việc cần tập trung ngồi 90p một lần (ôn thi, đọc giáo trình, báo cáo, kế hoạch), không còn 60p
+    - "Mai" sau giờ hay buổi trong ngày ("3 giờ chiều Mai") là ngày mai, "gặp Mai 3h chiều mai" là tên người
+    - Hiểu thêm "năm sau", "tháng 12", "trong tháng 12", "hết tháng tới", "đầu giờ sáng", "đến nửa đêm"; "trước thú 6" gõ lệch dấu vẫn là thứ 6
+    - Công văn, thông báo, kế hoạch (PDF, ảnh chụp) được đọc theo cấu trúc: lịch theo ngày, các mục có "Thời gian:", một khoảng "từ … đến …"; phần chỉ dành cho cán bộ không thành việc
+    - "họp nhóm 9h mai, nộp báo cáo và gọi mẹ" và "nộp báo cáo, trước thứ 6" tách đúng việc, giờ hạn đi theo việc trước nó
+    - Gõ toàn chữ hoa vẫn đúng giờ, ngày; tên việc viết hoa chữ đầu
+- Chạm một buổi trong "Các buổi" hay widget mở đúng việc đó
+
 ## 26.0.9
 
 ### Patch Changes
