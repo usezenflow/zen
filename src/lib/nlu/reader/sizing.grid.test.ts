@@ -29,7 +29,7 @@ const PROJECTS: Row[] = [
   { titles: ["viết báo cáo mạng máy tính", "bao cao mang may tinh", "báo cáo mạng máy tính"], total: 270, per: 90, due: "2026-11-23" },
   { titles: ["tiểu luận triết học", "viết tiểu luận triết học", "triết học tiểu luận"], total: 1200, per: 90, due: "2026-11-30" },
   { titles: ["slide chương 3", "làm slide chương 3", "thuyết trình chương 3"], total: 90, per: 90, due: "2026-11-21" },
-  { titles: ["ôn thi giải tích", "ôn giải tích", "giải tích ôn thi"], total: 180, per: 60, due: "2026-11-26" },
+  { titles: ["ôn thi giải tích", "ôn giải tích", "giải tích ôn thi"], total: 180, per: 90, due: "2026-11-26" },
   { titles: ["làm bài tập đại số", "bài tập đại số", "đại số làm bài tập"], total: 90, per: 90, due: "2026-11-19" },
   { titles: ["khóa luận tốt nghiệp", "làm khóa luận tốt nghiệp", "khoa luan tot nghiep"], total: 6000, per: 120, due: "2027-01-15" },
 ];
@@ -157,7 +157,7 @@ describe("sizer: several objects, sittings and a due", () => {
   it("an exam prep is due the day before its exam, and the action names the exam", () => {
     const cal: CalDay[] = [{ date: "2026-12-04", classes: [], exams: [{ title: "Giải tích", start: 540 }] }];
     const a = acts("ôn giải tích", "typed", cal)[0];
-    expect(a).toMatchObject({ effortMinutes: 180, maxSitting: 60, anchor: "2026-12-04" });
+    expect(a).toMatchObject({ effortMinutes: 180, maxSitting: 90, anchor: "2026-12-04" });
     expect(a.deadline).toBe("2026-12-03T23:59:00");
   });
 });

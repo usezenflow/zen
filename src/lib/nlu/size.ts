@@ -33,6 +33,7 @@ interface Row {
   micro?: boolean;
 }
 
+// deep work sits 90 minutes at a time: a 60-minute block is over before the work gets going (user, 2026-11-18)
 export const T: Record<TaskClass, Row> = {
   code: { shape: "project", base: 180, per: 90, days: 7 },
   fix: { shape: "errand", base: 60, per: 0, days: 2 },
@@ -42,9 +43,9 @@ export const T: Record<TaskClass, Row> = {
   project: { shape: "project", base: 1800, per: 120, days: 14 },
   slides: { shape: "project", base: 90, per: 90, days: 5 },
   thesis: { shape: "project", base: 6000, per: 120, days: 60 },
-  exam_review: { shape: "project", base: 180, per: 60, days: 10 },
+  exam_review: { shape: "project", base: 180, per: 90, days: 10 },
   homework: { shape: "project", base: 90, per: 90, days: 3 },
-  read: { shape: "project", base: 60, per: 60, days: 7 },
+  read: { shape: "project", base: 60, per: 90, days: 7 },
   language: { shape: "practice", base: 30, per: 30, freq: 5 },
   skill: { shape: "practice", base: 60, per: 60, freq: 3 },
   workout_gym: { shape: "practice", base: 60, per: 60, freq: 3 },
@@ -66,16 +67,16 @@ export const T: Record<TaskClass, Row> = {
   email: { shape: "errand", base: 30, per: 0, days: 1 },
   meeting: { shape: "event", base: 60, per: 0 },
   appointment: { shape: "event", base: 120, per: 0 },
-  content: { shape: "project", base: 180, per: 60, days: 5 },
+  content: { shape: "project", base: 180, per: 90, days: 5 },
   design: { shape: "project", base: 360, per: 120, days: 7 },
   sales: { shape: "errand", base: 60, per: 0, days: 3 },
-  report: { shape: "project", base: 180, per: 60, days: 3 },
-  plan: { shape: "project", base: 180, per: 60, days: 7 },
+  report: { shape: "project", base: 180, per: 90, days: 3 },
+  plan: { shape: "project", base: 180, per: 90, days: 7 },
   interview: { shape: "event", base: 60, per: 0 },
   deploy: { shape: "errand", base: 60, per: 0, days: 2 },
   research: { shape: "project", base: 480, per: 120, days: 10 },
   spec: { shape: "project", base: 270, per: 90, days: 5 },
-  presentation: { shape: "project", base: 180, per: 60, days: 5 },
+  presentation: { shape: "project", base: 180, per: 90, days: 5 },
   admin_work: { shape: "errand", base: 60, per: 0, days: 3 },
   pet: { shape: "errand", base: 15, per: 0, days: 1, micro: true },
   plants: { shape: "errand", base: 15, per: 0, days: 3, micro: true },
@@ -95,7 +96,7 @@ export const T: Record<TaskClass, Row> = {
   trip: { shape: "project", base: 180, per: 60, days: 10 },
   event_plan: { shape: "project", base: 360, per: 90, days: 14 },
   declutter: { shape: "project", base: 180, per: 60, days: 7 },
-  invest_research: { shape: "project", base: 180, per: 60, days: 7 },
+  invest_research: { shape: "project", base: 180, per: 90, days: 7 },
   finance_paper: { shape: "project", base: 120, per: 60, days: 7 },
 };
 

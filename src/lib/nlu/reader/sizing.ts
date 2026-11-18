@@ -144,6 +144,30 @@ function sizeOne(it: ReaderItem, o: SizeOpts): ReaderItem {
   return it;
 }
 
+const SPOKEN_N: Record<string, number> = { hai: 2, ba: 3, bon: 4, nam: 5, sau: 6, bay: 7, tam: 8, chin: 9, muoi: 10 };
+/** "ôn thi 5 buổi": a count of sittings, never a rate ("3 buổi một tuần") or a part ("2 buổi sáng"). Folded. */
+const SIT_COUNT = /(?<![\d/.:a-z])(\d{1,2}|hai|ba|bon|nam|sau|bay|tam|chin|muoi) buoi(?![a-z])(?!\s*(?:\/|mot|moi|1)?\s*tuan)(?! (?:sang|trua|chieu|toi|dem)(?![a-z]))/;
+
+/**
+ * "ôn thi 5 buổi trước 25/11": one task in that many sittings, each the said length ("mỗi buổi 2 tiếng" reads as one
+ * sitting's length) or the class's sitting, 60 minutes when it has none. A repeat counts its own sessions.
+ */
+function sittings(it: ReaderItem): ReaderItem {
+  if (it.rrule) return it;
+  const m = SIT_COUNT.exec(fold(it.evidence).text);
+  const n = m ? (SPOKEN_N[m[1]] ?? +m[1]) : 0;
+  if (n < 2 || n > 30) return it;
+  // "tổng cộng 6 tiếng": a said total is shared out
+  const total = /(?<![a-z])tong(?: cong)?(?![a-z])/.test(fold(it.evidence).text);
+  const per = said(it) ? (total ? Math.max(15, Math.round(it.durationMinutes! / n / 15) * 15) : it.durationMinutes!) : (it.sittingMinutes ?? 60);
+  it.sittingMinutes = per;
+  it.durationMinutes = n * per;
+  // the count is said: the total stands, never shrunk to one free gap as a guess would be (policy.ts fitGap)
+  it.inferred = it.inferred.filter((k) => k !== "durationMinutes");
+  it.guessMin = undefined;
+  return it;
+}
+
 /**
  * Sizes the flexible items of a typed or spoken read. A project with several objects becomes one item per object,
  * unless an item is linked in an order chain (its links hold the item itself) or has a said length.
@@ -153,6 +177,6 @@ export function sizeItems(items: ReaderItem[], o: SizeOpts, linked: Set<ReaderIt
   return items.flatMap((it) => {
     if ((it.type !== "PLAN" && it.type !== "ASSIGNMENT") || it.startsAt || it.prep) return [it];
     const split = linked.has(it) ? undefined : objectItems(it, o);
-    return (split ?? [it]).map((x) => sizeOne(x, o));
+    return (split ?? [it]).map((x) => sittings(sizeOne(x, o)));
   });
 }

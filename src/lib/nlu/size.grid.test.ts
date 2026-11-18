@@ -17,16 +17,16 @@ describe("sizeOf projects", () => {
       shape: "project", total: 360, perSitting: 90, sittings: 4, dueInDays: 7, due: NOW + 7 * DAY,
     });
   });
-  it("ôn thi cuối kì giải tích: exam prep for a final, 60 a sitting, due in 10 days", () => {
+  it("ôn thi cuối kì giải tích: exam prep for a final, 90 a sitting, due in 10 days", () => {
     expect(size("ôn thi cuối kì giải tích")).toEqual({
-      shape: "project", total: 600, perSitting: 60, sittings: 10, dueInDays: 10, due: NOW + 10 * DAY,
+      shape: "project", total: 600, perSitting: 90, sittings: 7, dueInDays: 10, due: NOW + 10 * DAY,
     });
   });
   it("ôn thi giữa kì: 360 minutes", () => {
-    expect(size("ôn thi giữa kì giải tích")).toMatchObject({ total: 360, sittings: 6 });
+    expect(size("ôn thi giữa kì giải tích")).toMatchObject({ total: 360, sittings: 4 });
   });
   it("ôn thi with no stake: 180 minutes", () => {
-    expect(size("ôn thi giải tích")).toMatchObject({ total: 180, sittings: 3 });
+    expect(size("ôn thi giải tích")).toMatchObject({ total: 180, sittings: 2 });
   });
   it("ôn thi with a quiz: 120 minutes", () => {
     expect(size("ôn thi quiz Toán")).toMatchObject({ total: 120, sittings: 2 });
@@ -59,8 +59,8 @@ describe("sizeOf projects", () => {
   it("làm 5 bài: 90 + 5 × 15 = 165", () => {
     expect(size("làm 5 bài")).toMatchObject({ total: 180, sittings: 2 });
   });
-  it("đọc 3 chương giáo trình: 45 a chapter, 3 sittings", () => {
-    expect(size("đọc 3 chương giáo trình")).toMatchObject({ total: 180, perSitting: 60, sittings: 3, dueInDays: 7 });
+  it("đọc 3 chương giáo trình: 180 minutes in 90-minute sittings", () => {
+    expect(size("đọc 3 chương giáo trình")).toMatchObject({ total: 180, perSitting: 90, sittings: 2, dueInDays: 7 });
   });
   it("đọc giáo trình OS: one chapter of 45 minutes", () => {
     expect(size("đọc giáo trình OS")).toMatchObject({ total: 60, sittings: 1, dueInDays: 7 });
@@ -217,8 +217,8 @@ describe("sizeOf new classes, all phrasings", () => {
       expect(size(title)).toMatchObject({ shape: "errand", total: 15, sittings: 1 });
     });
   }
-  it("a real work task is 30-minute steps: report 180 minutes in 60s", () => {
-    expect(size("báo cáo tuần")).toMatchObject({ total: 180, sittings: 3, dueInDays: 3 });
+  it("a real work task is 30-minute steps: report 180 minutes in 90s", () => {
+    expect(size("báo cáo tuần")).toMatchObject({ total: 180, sittings: 2, dueInDays: 3 });
   });
 });
 
@@ -230,7 +230,7 @@ const NEW_ROWS: [TaskClass, string, number][] = [
   ["trip", "lên kế hoạch du lịch Đà Lạt", 3],
   ["event_plan", "tổ chức sinh nhật mẹ", 4],
   ["declutter", "dọn tủ quần áo", 3],
-  ["invest_research", "tìm hiểu chứng khoán", 3],
+  ["invest_research", "tìm hiểu chứng khoán", 2],
   ["finance_paper", "làm hồ sơ vay", 2],
 ];
 describe("sizeOf new keyword classes", () => {
@@ -267,11 +267,12 @@ describe("sizeOf class table", () => {
       expect(run(cls, 10, hard, group).total, cls).toBeGreaterThanOrEqual(run(cls, 3, hard, group).total);
     }
   });
-  it("a project of 5+ days with no quantity gets 3+ sittings", () => {
+  // deep work sits 90 minutes, so its 3 hours are 2 sittings; shorter sittings make 3+
+  it("a project of 5+ days with no quantity gets 3+ sittings, 2+ when it sits 90 minutes", () => {
     for (const cls of classes) {
       const r = T[cls];
       if (r.shape !== "project" || r.days === undefined || r.days < 5 || SHORT.has(cls)) continue;
-      expect(run(cls, undefined, false, false).sittings, cls).toBeGreaterThanOrEqual(3);
+      expect(run(cls, undefined, false, false).sittings, cls).toBeGreaterThanOrEqual(r.per >= 90 ? 2 : 3);
     }
   });
 });
