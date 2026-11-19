@@ -168,7 +168,8 @@ jobs:
             -Dorg.gradle.parallel=true -Dorg.gradle.caching=true
             -Dorg.gradle.jvmargs="-Xmx3g -XX:MaxMetaspaceSize=768m -XX:+UseParallelGC"
             -Pkotlin.daemon.jvm.options="-Xmx1g")
-          ./gradlew assembleRelease "${args[@]}"
+          # :app only: root assembleRelease also bundles library AARs, which moonshine.rn (local .aar dep) forbids.
+          ./gradlew :app:assembleRelease "${args[@]}"
       - name: Collect APK
         run: |
           mkdir -p dist
