@@ -6,6 +6,8 @@
 
 - Việc chỉ có một lần cũng thêm được buổi: nhấn giữ việc, chọn "Cần thêm một buổi"
 - Zen xếp giờ bắt đầu vào :00 hoặc :30, tránh :15 và :45 (giờ bạn tự nói vẫn giữ nguyên)
+- Thông báo có âm riêng: nhắc việc dùng âm nhắc, đổi mật khẩu và lịch thi dùng âm khẩn, còn lại âm mặc định (cần bản dựng mới)
+- Danh sách tải lại sau khi xếp giờ, và sang ngày mới zen xếp giờ cho việc còn chờ giờ
 
 ## 26.0.10
 

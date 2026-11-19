@@ -67,6 +67,20 @@
       ],
       "expo-background-task",
       [
+        "expo-build-properties",
+        { "android": { "minSdkVersion": 26 } }
+      ],
+      [
+        "@siteed/audio-studio",
+        {
+          "enablePhoneStateHandling": false,
+          "enableNotifications": false,
+          "enableBackgroundAudio": false,
+          "enableDeviceDetection": false,
+          "iosConfig": { "microphoneUsageDescription": "zen dùng micro để bạn nói lịch của mình." }
+        }
+      ],
+      [
         "expo-speech-recognition",
         {
           "microphonePermission": "zen dùng micro để bạn nói lịch của mình.",
@@ -79,7 +93,12 @@
       [
         "expo-notifications",
         {
-          "enableRemoteNotifications": false
+          "enableRemoteNotifications": false,
+          "sounds": [
+            "./assets/sounds/zenflow_default.wav",
+            "./assets/sounds/zenflow_reminder.wav",
+            "./assets/sounds/zenflow_urgent.wav"
+          ]
         }
       ],
       [

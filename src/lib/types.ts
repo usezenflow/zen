@@ -143,4 +143,4 @@ export interface Diff {
 export interface Gone { sections: Record<string, number>; series: Record<string, number> }
 
 /** A campus change to tell the student about; route is "/marks", "/task/<id>" or "day:<epoch ms>". */
-export interface Notice { title: string; sub?: string; route?: string }
+export interface Notice { title: string; sub?: string; route?: string; urgent?: boolean }

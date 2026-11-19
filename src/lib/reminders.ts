@@ -55,10 +55,20 @@ export async function recordOpen(now: number) {
   await kvSet("opens", JSON.stringify([...(await opensOf()), now].slice(-OPENS_KEEP)));
 }
 
+export type Tone = "default" | "reminder" | "urgent";
+/** iOS takes the sound per notification, Android per channel (and a channel's sound can never change, so these ids are new). */
+export const soundOf = (tone: Tone) => `zenflow_${tone}.wav`;
+const ensureChannels = async () => {
+  if (Platform.OS !== "android") return;
+  for (const tone of ["default", "reminder", "urgent"] as const)
+    await Notifications.setNotificationChannelAsync(`zen-${tone}`, { name: t("remindChannel"), importance: AndroidImportance.HIGH, sound: soundOf(tone) });
+};
+export { ensureChannels };
+
 /** Asks once for permission; Android 13 shows no prompt until a channel exists. */
 export async function askReminders() {
   if (Platform.OS === "web") return;
-  if (Platform.OS === "android") await Notifications.setNotificationChannelAsync("default", { name: t("remindChannel"), importance: AndroidImportance.HIGH });
+  await ensureChannels();
   await Notifications.requestPermissionsAsync();
 }
 
@@ -75,6 +85,7 @@ export function pushReminders() {
 /** `stale`: a newer run is queued, which cancels and reschedules everything itself. */
 export async function push(stale: () => boolean = () => false) {
   if (!(await Notifications.getPermissionsAsync()).granted) return;
+  await ensureChannels();
   for (const n of await Notifications.getAllScheduledNotificationsAsync())
     if (n.identifier.startsWith(PREFIX)) await Notifications.cancelScheduledNotificationAsync(n.identifier);
   const opens = await opensOf();
@@ -82,8 +93,8 @@ export async function push(stale: () => boolean = () => false) {
     if (stale()) return;
     await Notifications.scheduleNotificationAsync({
       identifier: PREFIX + r.id,
-      content: { title: plain(r.title), body: plain(r.body) }, // bold marks never reach the OS
-      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: r.at, ...(Platform.OS === "android" ? { channelId: "default" } : {}) },
+      content: { title: plain(r.title), body: plain(r.body), sound: soundOf("reminder") }, // bold marks never reach the OS
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: r.at, ...(Platform.OS === "android" ? { channelId: "zen-reminder" } : {}) },
     });
   }
 }

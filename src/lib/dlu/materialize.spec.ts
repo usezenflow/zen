@@ -270,7 +270,7 @@ describe("changes that now get a notice", () => {
   it("says an exam whose time moved, not one that stayed", () => {
     const old = stored(exam());
     const { digest } = materialize([exam(NOW + 6 * D)] as Fetched, [old], NOW);
-    expect(digestNotices(digest, NOW).map((n) => ({ ...n, title: plainText(n.title) }))).toEqual([{ title: "Lịch thi đổi: Môn mẫu", sub: expect.any(String), route: `/task/${old.id}` }]);
+    expect(digestNotices(digest, NOW).map((n) => ({ ...n, title: plainText(n.title) }))).toEqual([{ title: "Lịch thi đổi: Môn mẫu", sub: expect.any(String), route: `/task/${old.id}`, urgent: true }]);
     expect(materialize([exam()] as Fetched, [old], NOW).digest.moved).toEqual([]);
   });
 

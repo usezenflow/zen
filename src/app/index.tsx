@@ -230,7 +230,7 @@ export default function Home() {
   // A sync result: every notice gets its own toast with "Xem"; otherwise the plain result.
   const landed = useCallback((r?: Result & { notices?: Notice[] }) => {
     if (r?.notices?.length) setToasts((q) => [...q, ...r.notices!.map((n): ToastState => ({ text: n.title, sub: n.sub, action: n.route ? { label: t("view"), run: () => go(n.route!) } : undefined }))]);
-    else if (r) say(r.toast, r);
+    else if (r && r.toast !== t("nothing")) say(r.toast, r); // a sync that found nothing to do says nothing
     // a result nobody asked for (a sync, a series topped up 120 days out) keeps the day in view
     if (r) void shuffle(r, undefined, false); // nothing landed: focus already refreshed, resume refreshes itself
   }, [say, go, shuffle]);
@@ -241,7 +241,7 @@ export default function Home() {
     const f = takeFlash();
     if (f) say(f.text, f.r, { sub: f.sub });
     refresh();
-    onForeground().then(landed).catch(() => {});
+    onForeground().then((r) => (r ? landed(r) : refresh())).catch(() => refresh()); // re-read even when it changed nothing: the first refresh may have raced the replan
   }, [refresh, say, landed]));
 
   useEffect(() => {
@@ -258,10 +258,10 @@ export default function Home() {
     const i = setInterval(() => {
       const n = Date.now();
       setNow(n);
-      if (startOfDay(n) !== day) { const was = day; day = startOfDay(n); setSel((v) => (v === was ? day : v)); refresh(); } // today rolls over; a day picked on purpose stays
+      if (startOfDay(n) !== day) { const was = day; day = startOfDay(n); setSel((v) => (v === was ? day : v)); onForeground().then((r) => (r ? landed(r) : refresh())).catch(() => refresh()); } // a new day also gives waiting tasks their slots // today rolls over; a day picked on purpose stays
     }, 30_000);
     return () => clearInterval(i);
-  }, [refresh]);
+  }, [refresh, landed]);
   useEffect(() => onSynced(landed), [landed]); // the campus queue lands its changes here whenever a drain ends
   const monthKey = new Date(sel).getFullYear() * 12 + new Date(sel).getMonth();
   const hols = useMemo<Hols>(() => { // public holidays across the month grid
@@ -609,6 +609,8 @@ export default function Home() {
     });
     return [...out, ...sits, ...seriesItems(x)];
   };
+  // A time that lands on a class keeps your time: the toast names the class, as the detail screen does.
+  const clashSub = (r: Result) => (r.clashes?.length ? { sub: t("previewClash", { title: r.clashes[0].fixed.title }) } : undefined);
   const rowActs = {
     // Edits show at once and persist behind: the list takes the new value now, and the refresh after the save confirms it.
     onToggle: toggle, onTitle: (x: Task, title: string) => { gen.current++; setTasks((p) => p.map((y) => (y.id === x.id ? { ...y, title } : y))); edit(x, { title }); }, itemsFor,
@@ -617,7 +619,7 @@ export default function Home() {
       const start = d.getTime(), len = x.start !== undefined && x.end !== undefined ? x.end - x.start : Math.max(30, x.effort || 30) * 60_000;
       gen.current++;
       setTasks((p) => p.map((y) => (y.id === x.id ? { ...y, start, end: start + len, pinned: true } : y)));
-      retime(x.id, start, Math.round(len / 60_000)).then((r) => { if (r) { say(r.toast, r); refresh(); } }, failed); // saved at once; the toast and reload when it rests
+      retime(x.id, start, Math.round(len / 60_000)).then((r) => { if (r) { say(r.toast, r, clashSub(r)); refresh(); } }, failed); // saved at once; the toast and reload when it rests
     },
     // The end's own dial: the start stays, the length follows (an end before the start runs past midnight, as on the detail screen).
     onEnd: (x: Task, at: Date) => {
@@ -625,7 +627,7 @@ export default function Home() {
       const end = Math.max(x.start + 15 * 60_000, endAt(x.start, x.end, at));
       gen.current++;
       setTasks((p) => p.map((y) => (y.id === x.id ? { ...y, end, pinned: true } : y)));
-      retime(x.id, x.start, Math.round((end - x.start) / 60_000)).then((r) => { if (r) { say(r.toast, r); refresh(); } }, failed);
+      retime(x.id, x.start, Math.round((end - x.start) / 60_000)).then((r) => { if (r) { say(r.toast, r, clashSub(r)); refresh(); } }, failed);
     },
     onOpen: (x: Task) => router.push(`/task/${encodeURIComponent(x.id)}`),
     // Swipe right: a plain task is deleted at once; a series opens the scope dropdown under the row.

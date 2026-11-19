@@ -90,10 +90,10 @@ export function digestNotices(d: Digest, now: number): Notice[] {
     out.push({ title: t("noticeMany", { n: many.length }), sub: `${many.slice(0, 2).map((x) => x.title).join(", ")} +${many.length - 2}` });
     return out;
   }
-  for (const x of d.exams) out.push({ title: t("noticeExam", { title: x.title }), sub: when(x.start!, now), route: `/task/${x.id}` });
+  for (const x of d.exams) out.push({ title: t("noticeExam", { title: x.title }), sub: when(x.start!, now), route: `/task/${x.id}`, urgent: true });
   for (const x of d.assignments) out.push({ title: t("noticeAssignment", { title: x.title }), sub: t("due", { time: when(x.deadline!, now) }), route: `/task/${x.id}` });
   for (const x of d.rooms) out.push({ title: t("noticeRoom", { title: x.title }), sub: t("noticeRoomSub", { room: x.location! }), route: `/task/${x.id}` });
-  for (const x of d.moved) out.push({ title: t("noticeExamMoved", { title: x.title }), sub: when(x.start!, now), route: `/task/${x.id}` });
+  for (const x of d.moved) out.push({ title: t("noticeExamMoved", { title: x.title }), sub: when(x.start!, now), route: `/task/${x.id}`, urgent: true });
   for (const x of d.due) out.push({ title: t("noticeDue", { title: x.title }), sub: t("due", { time: when(x.deadline!, now) }), route: `/task/${x.id}` });
   for (const x of d.makeup) out.push({ title: t("noticeMakeup", { title: x.title }), sub: when(x.start!, now), route: `/task/${x.id}` });
   for (const x of d.cancelled) out.push({ title: t("noticeCancelled", { title: x.title }), sub: when(x.start ?? x.deadline!, now) });

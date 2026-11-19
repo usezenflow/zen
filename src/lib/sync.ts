@@ -1,4 +1,4 @@
-import { AppState } from "react-native";
+import { AppState, Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 import { checkLogin, clearCreds, fetchExams, fetchFees, fetchLms, fetchMarks, fetchWeek, forget, hasLms, hasPortal, loadCreds, materialize, owed, payUrl, registerBackgroundSync, saveCreds, type Check, type Creds, type PortalFeeRow, type Sessions } from "./dlu";
 import { stopBackgroundSync } from "./dlu/background";
@@ -7,7 +7,7 @@ import { examMonth, feeMonth, marksOpen, resolveTerm, termMondays, vnMidnight } 
 import { plain, t } from "./i18n";
 import { digestNotices, marksNotice, type Digest } from "./dlu/materialize";
 import { pushWidgetsNow } from "./widgets";
-import { pushReminders, recordOpen } from "./reminders";
+import { ensureChannels, pushReminders, recordOpen, soundOf } from "./reminders";
 import { ingest, keepSweep, loadClassMult, loadGone, replan, topUp, waiting, type Result } from "./apply";
 import type { Notice, Task } from "./types";
 import type { ParsedMarks } from "./dlu/parse/student";
@@ -26,8 +26,12 @@ const kvStorage: stats.Storage = { get: store.kvGet, set: store.kvSet };
 const STATS_URL = process.env.EXPO_PUBLIC_STATS_URL ?? "https://zen-sink.alphazero25811.workers.dev";
 export type Synced = Result & { notices: Notice[] };
 
-const notify = (n: Notice) =>
-  Notifications.scheduleNotificationAsync({ content: { title: plain(n.title), ...(n.sub ? { body: plain(n.sub) } : {}), ...(n.route ? { data: { route: n.route } } : {}) }, trigger: null }).catch(() => {});
+// A refused login (password changed) is urgent; every other notice has the default tone.
+const notify = async (n: Notice) => {
+  const tone = n.urgent ? "urgent" : "default";
+  await ensureChannels().catch(() => {});
+  return Notifications.scheduleNotificationAsync({ content: { title: plain(n.title), ...(n.sub ? { body: plain(n.sub) } : {}), ...(n.route ? { data: { route: n.route } } : {}), sound: soundOf(tone) }, trigger: Platform.OS === "android" ? { channelId: `zen-${tone}` } : null }).catch(() => {});
+};
 
 /** Marks last fetched, or null before the first fetch. */
 export async function getMarks(): Promise<ParsedMarks | null> {
@@ -159,7 +163,7 @@ async function run(j: queue.Job, acc: Acc): Promise<void> {
   } catch (e) {
     if (!(e instanceof CampusLoginError)) throw e;
     const before = await loginError();
-    if (before !== src && before !== "both") acc.extra.push({ title: t(src === "portal" ? "noticeLoginPortal" : "noticeLoginLms"), sub: t("noticeLoginSub"), route: "/settings" }); // once: a refusal while the flag is set is silent
+    if (before !== src && before !== "both") acc.extra.push({ title: t(src === "portal" ? "noticeLoginPortal" : "noticeLoginLms"), sub: t("noticeLoginSub"), route: "/settings", urgent: true }); // once: a refusal while the flag is set is silent
     await setBad(src, true);
     await queue.dropWhere((x) => SRC[x.kind as Part] === src);
     return;

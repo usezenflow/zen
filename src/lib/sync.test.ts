@@ -9,7 +9,7 @@ const fake = vi.hoisted(() => ({ kv: new Map<string, string>(), jobs: [] as { ke
 
 vi.mock("expo-secure-store", () => ({}));
 vi.mock("expo/fetch", () => ({ fetch: (u: string, i?: RequestInit) => globalThis.fetch(u, i) }));
-vi.mock("react-native", () => ({ AppState: { currentState: "background" } }));
+vi.mock("react-native", () => ({ AppState: { currentState: "background" }, Platform: { OS: "ios" } }));
 vi.mock("expo-notifications", () => ({ scheduleNotificationAsync: vi.fn(async () => undefined) }));
 vi.mock("./store", () => ({ kvGet: async (k: string) => fake.kv.get(k) ?? null, kvSet: async (k: string, v: string) => { fake.kv.set(k, v); }, allTasks: async () => [] }));
 vi.mock("./queue", () => ({
@@ -54,7 +54,7 @@ describe("a refused password", () => {
     fake.exams.mockRejectedValue(new CampusLoginError("portal"));
     await runPart("ex");
     expect(await loginError()).toBe("portal");
-    expect(notices()).toEqual([{ title: "Online không nhận mật khẩu", body: "Nếu bạn không đổi, hãy kiểm tra tài khoản.", data: { route: "/settings" } }]);
+    expect(notices()).toEqual([{ title: "Online không nhận mật khẩu", body: "Nếu bạn không đổi, hãy kiểm tra tài khoản.", sound: "zenflow_urgent.wav", data: { route: "/settings" } }]);
     await runPart("ex");
     expect(notices()).toHaveLength(1);
   });
