@@ -2,7 +2,7 @@
 // without one fails to compile, so no emitter can state a claim nothing checks. Written once in the planner, read again on screen.
 import { examOn, holidayOn } from "../lib/rest";
 import type { Reason, ReasonKey, Rule, Task } from "../lib/types";
-import { MIN } from "./features";
+import { MIN, PART4, dayType, hourOf, partIdx } from "./features";
 import { backToBack, batchKind } from "./place";
 
 // tasks: every task, with planned starts and ends: batch reads the neighbour it names, and the exam check a fixed exam the day after the
@@ -42,5 +42,8 @@ export const HOLDS: Record<ReasonKey, (r: Reason, f: Facts) => boolean> = {
     && backToBack({ start: f.start, end: f.start + f.task.effort * MIN }, { start: n.start, end: n.end })),
 };
 
+// A reason about a time of day or kind of day (vars.pn, vars.dt) is for that time: moved to another part or day, it is no longer true.
+const there = (r: Reason, f: Facts) => (r.vars?.pn === undefined || r.vars.pn === PART4[partIdx(hourOf(f.start))]) && (r.vars?.dt === undefined || r.vars.dt === dayType(new Date(f.start).getDay()));
+
 /** The reasons that are still true of this task at `start`; none left means say nothing. */
-export const grounded = (why: Reason[] | undefined, f: Facts) => (why ?? []).filter((r) => HOLDS[r.key](r, f));
+export const grounded = (why: Reason[] | undefined, f: Facts) => (why ?? []).filter((r) => there(r, f) && HOLDS[r.key](r, f));

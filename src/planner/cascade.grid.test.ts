@@ -32,7 +32,7 @@ describe("a said part that is full runs on to the adjacent parts, today then tom
 });
 
 describe("tonight means tonight", () => {
-  it("Tue 21:20, tối, 60 min, empty: today, from 21:30 on, ends by midnight : the rest of tối runs on into đêm, 21:30", () => {
+  it("Tue 21:20, tối, 60 min, empty: today, from 21:30 on, ends by midnight : the rest of tối (to midnight), 21:30", () => {
     const n = at(21, 20);
     const t = task("tn", { effort: 60, notBefore: at(18), notAfter: at(22), tods: [[18 * 60, 22 * 60]] });
     const { diff } = plan([t], [], newModel(n), n);

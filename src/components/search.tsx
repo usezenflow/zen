@@ -1,5 +1,5 @@
 import { BlurView } from "expo-blur";
-import { useEffect, useMemo, useRef, useState, type ComponentRef } from "react";
+import { memo, useDeferredValue, useEffect, useMemo, useRef, useState, type ComponentRef } from "react";
 import { BackHandler, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import Animated, { Extrapolation, FadeInDown, interpolate, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
@@ -13,6 +13,9 @@ import { useTheme, font, space, ff } from "@/lib/theme";
 import type { Task } from "@/lib/types";
 import { typeOf } from "@/planner";
 
+// Found parses and filters every task: it follows the text a beat behind (deferred) and skips renders where nothing it reads changed, so a key press only repaints the field.
+const FoundLater = memo(Found);
+
 export type Origin = { x: number; y: number }; // the search circle's top-left, in window coordinates
 const C = 44; // the circle, and the field's height
 
@@ -25,6 +28,8 @@ const loadRecent = async () => { try { const v = JSON.parse((await store.kvGet("
 export function Search({ origin, tasks, now, acts, onClose }: { origin: Origin; tasks: Task[]; now: number; acts: RowActions; onClose: () => void }) {
   const th = useTheme();
   const [q, setQ] = useState("");
+  const dq = useDeferredValue(q), qRef = useRef(q);
+  useEffect(() => { qRef.current = q; });
   const [recent, setRecent] = useState<string[]>([]);
   const [box, setBox] = useState<{ x: number; y: number; w: number }>();
   const root = useRef<ComponentRef<typeof View>>(null), input = useRef<ComponentRef<typeof TextInput>>(null);
@@ -71,7 +76,8 @@ export function Search({ origin, tasks, now, acts, onClose }: { origin: Origin; 
   ].filter((g) => g.xs.length);
   let k = 0; // stagger across sections
 
-  const open = { ...acts, onOpen: (x: Task) => { save(q); acts.onOpen(x); } };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- save reads recent through the closure it was made in; recent is the dep
+  const open = useMemo(() => ({ ...acts, onOpen: (x: Task) => { save(qRef.current); acts.onOpen(x); } }), [acts, recent]);
   return (
     <View ref={root} style={StyleSheet.absoluteFill} onLayout={() => root.current?.measureInWindow((x, y, w) => setBox({ x, y, w }))}>
       <Animated.View style={[StyleSheet.absoluteFill, veil]}>
@@ -103,7 +109,7 @@ export function Search({ origin, tasks, now, acts, onClose }: { origin: Origin; 
                   ))}
                 </View>
               ))}
-              <Found tasks={tasks} q={q} now={now} {...open} />
+              <FoundLater tasks={tasks} q={dq} now={now} {...open} />
             </Pressable>
           </Animated.ScrollView>
           <Animated.View style={[s.fld, { top, borderColor: th.line, backgroundColor: th.bg }, field]}>

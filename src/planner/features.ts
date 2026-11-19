@@ -1,4 +1,5 @@
 import type { Kind, Task } from "../lib/types";
+import { PART_NAMES } from "../lib/parts";
 import { D, KINDS } from "./linucb";
 
 export { D, KINDS };
@@ -13,6 +14,10 @@ export const dayStart = (t: number) => { const d = new Date(t); d.setHours(0, 0,
 export const dueOf = (t: Task) => (t.rrule && t.deadline !== undefined && t.deadline === dayStart(t.deadline) ? undefined : t.deadline);
 export const cellIdx = (t: number) => { const d = new Date(t); return ((d.getDay() + 6) % 7) * 24 + d.getHours(); };
 export const cdist = (a: number, b: number) => { const d = Math.abs(a - b) % 24; return Math.min(d, 24 - d); };
+// A day, said as a person would sort it: the part of the day (sáng, trưa, chiều, tối) and ngày thường or cuối tuần. Rhythm and reasons share these words.
+export const PART4 = PART_NAMES; // one list of parts for the planner and the rhythm
+export const partIdx = (h: number) => (h < 11 ? 0 : h < 13 ? 1 : h < 18 ? 2 : 3);
+export const dayType = (wd: number) => (wd === 0 || wd === 6 ? "cuối tuần" : "ngày thường");
 export const energy = (h: number, peak: number) => Math.exp(-(cdist(h, peak) ** 2) / 18);
 
 export interface Nb { w: number; hour: number; r: number }

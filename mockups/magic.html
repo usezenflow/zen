@@ -52,6 +52,11 @@
 .strip { display: flex; align-items: flex-end; gap: 2px; height: 54px; }
 .strip i { flex: 1; border-radius: 2px; background: rgba(255,255,255,.45); }
 .strip i.pk { background: #fff; }
+.mx { display: grid; grid-template-columns: auto repeat(7, 1fr); gap: 3px; align-items: center; }
+.mx b { font-size: 12px; font-weight: 600; opacity: .8; text-align: center; }
+.mx u { text-decoration: none; font-size: 12px; font-weight: 600; opacity: .8; padding-right: 4px; }
+.mx i { height: 22px; border-radius: 5px; background: #fff; }
+.mx i.pk { outline: 2px solid #fff; outline-offset: 1px; }
 .hrs { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; opacity: .8; margin-top: 6px; }
 .ins { margin-top: 10px; padding: 16px 18px; border-radius: 22px; background: var(--chip); }
 .ins b { display: block; font-size: 17px; font-weight: 600; line-height: 1.3; letter-spacing: -.01em; }
@@ -165,7 +170,7 @@ const why = `${dtop}
   <div class="h" style="margin-top:14px">Luyện đề</div>
   <div class="meta">${ml("clock", "Làm T2 9:00 - 10:00")}${ml("book", `Thi Giải tích 2 ${ic(I.right, 16)}`, "lk")}</div>
   <div class="why"><div class="lab">Vì sao lúc này</div>
-    ${wy("Giờ này bạn hay làm xong việc", 82)}${wy("Việc giống thế này bạn hay làm xong lúc 9h", 60)}${wy("Buổi 5/10, rải đều tới hạn", 38)}${wy("Hơi sát Cơ sở dữ liệu", 18, 1)}</div>
+    ${wy("Bạn hay xong việc vào sáng ngày thường", 82)}${wy("Việc giống vậy bạn hay xong vào buổi sáng", 60)}${wy("Buổi 5/10, rải đều tới hạn", 38)}${wy("Hơi sát Cơ sở dữ liệu", 18, 1)}</div>
   <div class="lab" style="margin-top:20px">Cũng hợp</div>
   <div class="pills" style="margin-top:10px"><span class="pl sm">T3 8:00</span></div>`;
 
@@ -179,7 +184,7 @@ function storyOf(knock = true) {
   return `<div class="lab" style="margin-top:22px">Vì Gym T3 15:00</div>
   <div style="margin-top:2px">${mv("Ôn Giải tích", "T3 15:00", "T3 16:30", "Có khoảng nghỉ trước và sau")}</div>${knock ? `
   <div class="lab" style="margin-top:22px">Kéo theo</div>
-  <div style="margin-top:2px">${mv("Đọc sách", "T3 16:30", "T3 17:30", "Giờ này bạn hay làm xong việc")}</div>` : ""}
+  <div style="margin-top:2px">${mv("Đọc sách", "T3 16:30", "T3 17:30", "Hay xong việc sáng ngày thường")}</div>` : ""}
   <div class="pills" style="margin-top:14px"><span class="pl sm on">Xong, mình thấy rồi</span><span class="pl sm">Hoàn tác</span></div>`;
 }
 // 7g/7h: changed from the list, the toast offers Xem; Xem opens the same story on today, in the art card's slot.
@@ -239,36 +244,40 @@ const rule = toast("Mình sẽ giữ Tối T6 để trống", "<b>Đọc sách</
   <div class="kept"><b>Tối T6 để trống</b><small>18:00 - 24:00</small></div>`;
 
 // 11. Nhịp: what the model learned, as a friend would say it. One card of each sort, only when there is evidence.
-const bars = [1, 1, 1, 1, 1, 2, 5, 8, 9, 10, 9, 6, 3, 3, 5, 7, 6, 4, 4, 5, 6, 4, 2, 1];
-const rhythm = () => `${head("Mình hiểu bạn", "Nhịp của bạn", "8h-11h")}${tabs("Nhịp")}
+// The rhythm is a week at a glance: weekday x part of the day, brighter where you finish and move work, outlined where it is golden.
+const WDS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"], PRT = ["Sáng", "Trưa", "Chiều", "Tối"];
+const mx = (v, hot = []) => `<div class="mx"><span></span>${WDS.map((d) => `<b>${d}</b>`).join("")}${PRT.map((p, r) => `<u>${p}</u>${v[r].map((x, c) => `<i class="${hot.some(([a, b]) => a === r && b === c) ? "pk" : ""}" style="opacity:${(0.2 + x * 0.8).toFixed(2)}"></i>`).join("")}`).join("")}</div>`;
+const GRID = [[.9, .8, 1, .7, .9, .2, .1], [.2, .3, .2, .3, .2, .1, .1], [.4, .5, .3, .6, .3, .5, .4], [.3, .2, .4, .2, .1, .6, .7]];
+const FLAT = [[.45, .45, .45, .45, .45, .3, .3], [.2, .2, .2, .2, .2, .2, .2], [.4, .4, .4, .4, .4, .4, .4], [.35, .35, .35, .35, .35, .35, .35]];
+const HOT = [0, 1, 2, 3, 4].map((c) => [0, c]);
+const rhythm = () => `${head("Mình hiểu bạn", "Nhịp của bạn", "Sáng ngày thường")}${tabs("Nhịp")}
   <div class="art" style="margin-top:16px;padding:18px 20px">${art("plan", { w: 264, h: 170, seed: 5, cls: "bgart" })}
-    <div class="lab" style="color:#fff;opacity:.85">Giờ vàng</div><div class="t" style="margin-top:6px">8h-11h</div>
-    <div class="strip" style="margin-top:14px">${bars.map((h, i) => `<i class="${i >= 8 && i < 11 ? "pk" : ""}" style="height:${h * 10}%"></i>`).join("")}</div>
-    <div class="hrs"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div></div>
+    <div class="lab" style="color:#fff;opacity:.85">Giờ vàng</div><div class="t" style="margin-top:6px">Sáng ngày thường</div>
+    <div style="margin-top:14px">${mx(GRID, HOT)}</div></div>
+  <div class="ins"><b>Bạn làm tốt nhất vào buổi sáng ngày thường</b><small>Quanh 8h-11h. Việc cần tập trung mình xếp vào đó khi được.</small></div>
   <div class="ins"><b>Sau giờ học, bạn làm tiếp tốt</b><small>Mình sẽ ưu tiên xếp việc kế tiếp ngay sau đó.</small>
     <div class="viz"><span class="chipk">${swatch("lecture")}học</span></div></div>
-  <div class="ins"><b>Việc tập thể dục hợp nhất lúc 7h-10h</b><small>Mình sẽ xếp việc này vào giờ đó khi có thể.</small>
+  <div class="ins"><b>Việc tập thể dục hợp nhất vào buổi sáng</b><small>Mình xếp vào buổi đó khi được.</small>
     <div class="viz"><span class="chipk">${swatch("plan")}tập thể dục</span><span class="meterh" style="--v:80%"></span></div></div>
   <div class="ins"><b>Việc học hay bị dời</b><small>4 trên 10 lần. Mình xếp sớm hơn một chút, cho bạn đường lùi.</small>
     <div class="viz"><span class="meterh" style="--v:40%"></span></div></div>
-  <div class="ins"><b>Khoảng 19h-22h mình chưa rõ</b><small>Thỉnh thoảng mình sẽ thử giờ này.</small></div>`;
+  <div class="ins"><b>Buổi tối mình chưa rõ</b><small>Thỉnh thoảng mình sẽ thử giờ này.</small></div>`;
 
 // 12. Nhịp, scrolled: what you said (a hard rule, swipe to forget) and what it guessed (with how sure).
-const mem = `${head("Mình hiểu bạn", "Nhịp của bạn", "8h-11h")}${tabs("Nhịp")}
+const mem = `${head("Mình hiểu bạn", "Nhịp của bạn", "Sáng ngày thường")}${tabs("Nhịp")}
   <div class="lab" style="margin-top:22px">Bạn dặn</div>
   <div>${[["Tối T6 để trống", "T6 · Từ 18:00"], ["Sáng cuối tuần để trống", "T7, CN · 5:00 - 11:00"]].map(([t, s]) => `<div class="set"><div class="tx">${t}<small>${s}</small></div></div>`).join("")}</div>
   <div class="lab" style="margin-top:22px">Mình đoán</div>
-  <div>${[["Giờ vàng 8h-11h", "Chắc lắm"], ["Việc tập thể dục hợp nhất lúc 7h-10h", "Chắc lắm"], ["Sau giờ học, bạn làm tiếp tốt", "Khá chắc"], ["Việc học hay bị dời", "Đang đoán"]].map(([t, s]) => `<div class="set"><div class="tx">${t}<small>${s}</small></div></div>`).join("")}</div>
+  <div>${[["Sáng ngày thường bạn làm tốt nhất (8h-11h)", "Chắc lắm"], ["Việc tập thể dục hợp nhất vào buổi sáng", "Chắc lắm"], ["Sau giờ học, bạn làm tiếp tốt", "Khá chắc"], ["Việc học hay bị dời", "Đang đoán"]].map(([t, s]) => `<div class="set"><div class="tx">${t}<small>${s}</small></div></div>`).join("")}</div>
   <div class="lab" style="margin-top:22px">Bạn tránh</div>
-  <div>${[["7:00 - 8:00", "Dời đi 3 lần"], ["22:00 - 23:00", "Dời đi 1 lần"]].map(([t, s]) => `<div class="set"><div class="tx">${t}<small>${s}</small></div></div>`).join("")}</div>
+  <div>${[["Sáng · 7h-8h", "Dời đi 3 lần"], ["Tối · 22h-23h", "Dời đi 1 lần"]].map(([t, s]) => `<div class="set"><div class="tx">${t}<small>${s}</small></div></div>`).join("")}</div>
   <div class="lab" style="margin-top:16px;font-size:14px">Vuốt để mình quên.</div>`;
 
 // 13. Nhịp before there is evidence: it says so. The bars are the default guess, all dim.
 const cold = `${head("Mình hiểu bạn", "Nhịp của bạn", "Mình còn đang học")}${tabs("Nhịp")}
   <div class="art" style="margin-top:16px;padding:18px 20px">${art("plan", { w: 264, h: 170, seed: 5, cls: "bgart" })}
     <div class="lab" style="color:#fff;opacity:.85">Giờ vàng</div><div class="t" style="margin-top:6px">Mình còn đang học</div>
-    <div class="strip" style="margin-top:14px">${[1, 1, 1, 1, 1, 1, 3, 5, 7, 9, 10, 8, 5, 5, 7, 9, 10, 8, 5, 4, 3, 2, 1, 1].map((h) => `<i style="height:${h * 10}%"></i>`).join("")}</div>
-    <div class="hrs"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div></div>
+    <div style="margin-top:14px">${mx(FLAT)}</div></div>
   <div class="ins"><b>Cho mình vài ngày</b><small>Dùng thêm vài ngày, mình sẽ kể bạn nghe nhịp của bạn.</small></div>
   <div class="lab" style="margin-top:22px">Bạn dặn</div>
   <div class="set"><div class="tx">Bạn chưa dặn gì<small>Thử nói “Tối thứ sáu để trống nhé”, mình sẽ nhớ.</small></div></div>
@@ -279,19 +288,17 @@ const cold = `${head("Mình hiểu bạn", "Nhịp của bạn", "Mình còn đa
 const seen = `${head("Mình hiểu bạn", "Nhịp của bạn", "Đã thấy 2 lần")}${tabs("Nhịp")}
   <div class="art" style="margin-top:16px;padding:18px 20px">${art("plan", { w: 264, h: 170, seed: 5, cls: "bgart" })}
     <div class="lab" style="color:#fff;opacity:.85">Giờ vàng</div><div class="t" style="margin-top:6px">Đã thấy 2 lần</div>
-    <div class="strip" style="margin-top:14px">${[1, 1, 1, 1, 1, 1, 3, 5, 7, 9, 10, 8, 5, 5, 7, 9, 10, 8, 5, 4, 3, 2, 1, 1].map((h) => `<i style="height:${h * 10}%"></i>`).join("")}</div>
-    <div class="hrs"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div></div>
+    <div style="margin-top:14px">${mx(FLAT)}</div></div>
   <div class="ins"><b>Thêm 1 lần nữa</b><small>Mỗi lần bạn xong hay dời một việc, mình hiểu bạn thêm.</small></div>`;
 
 // 13c. Nhịp after three: the hours where you actually finished or moved work, said as a guess. Five or more there (and most of your work) and it is the golden range itself, "Giờ vàng 20h-22h" with Khá chắc, no waiting for the model.
-const earlyGuess = `${head("Mình hiểu bạn", "Nhịp của bạn", "Có vẻ 20h-22h")}${tabs("Nhịp")}
+const earlyGuess = `${head("Mình hiểu bạn", "Nhịp của bạn", "Có vẻ tối ngày thường")}${tabs("Nhịp")}
   <div class="art" style="margin-top:16px;padding:18px 20px">${art("plan", { w: 264, h: 170, seed: 5, cls: "bgart" })}
-    <div class="lab" style="color:#fff;opacity:.85">Giờ vàng</div><div class="t" style="margin-top:6px">Có vẻ 20h-22h</div>
-    <div class="strip" style="margin-top:14px">${[1, 1, 1, 1, 1, 1, 3, 5, 7, 9, 10, 8, 5, 5, 7, 9, 10, 8, 5, 4, 3, 2, 1, 1].map((h, i) => `<i class="${i >= 20 && i < 22 ? "pk" : ""}" style="height:${h * 10}%"></i>`).join("")}</div>
-    <div class="hrs"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div></div>
-  <div class="ins"><b>Bạn hay làm việc lúc 20h-22h</b><small>Mấy hôm nay bạn hay xong việc giờ này. Xong thêm 2 việc giờ này nữa là mình chắc.</small></div>
+    <div class="lab" style="color:#fff;opacity:.85">Giờ vàng</div><div class="t" style="margin-top:6px">Có vẻ tối ngày thường</div>
+    <div style="margin-top:14px">${mx([[.1,.1,.1,.1,.1,.1,.1],[.1,.1,.1,.1,.1,.1,.1],[.2,.1,.2,.1,.1,.1,.1],[.8,.4,.9,.5,.3,.1,.1]], [[3,0],[3,2]])}</div></div>
+  <div class="ins"><b>Bạn hay làm việc vào tối ngày thường</b><small>Mấy hôm nay bạn hay xong việc buổi này. Thêm 2 việc nữa là mình chắc.</small></div>
   <div class="lab" style="margin-top:22px">Mình đoán</div>
-  <div class="set"><div class="tx">Bạn hay làm việc lúc 20h-22h<small>Đang đoán</small></div></div>`;
+  <div class="set"><div class="tx">Tối ngày thường bạn hay làm<small>Đang đoán</small></div></div>`;
 
 // 14. Sunday: once a week, and only when the model is sure of something, the art slot says it.
 const sunday = `${head("CN", "22/11", "1 việc")}${tabs("Ngày")}
@@ -515,7 +522,7 @@ const learned = toast("Đã dời <b>Đọc sách</b> sang 9:00", "Đã hiểu �
 // 7l: what you set pushes the rest later; the slot you left stays empty.
 const leftEmpty = `${head("T3", "17/11", "3 việc, 1 tiết học")}${tabs("Ngày")}
   <div class="lab" style="margin-top:22px">Vì Đọc sách T3 9:00</div>
-  <div style="margin-top:2px">${mv("Giặt đồ", "T3 9:00", "T3 10:30", "Giờ này bạn hay làm xong việc")}</div>
+  <div style="margin-top:2px">${mv("Giặt đồ", "T3 9:00", "T3 10:30", "Hay xong việc sáng ngày thường")}</div>
   <div class="pills" style="margin-top:14px"><span class="pl sm on">Xong, mình thấy rồi</span><span class="pl sm">Hoàn tác</span></div>`;
 // 41: "tối nay" said at 21:20 with the evening gone: the next part of the same night, never next week.
 const lateNight = toast("Học tiếng Anh", "Tối kín · xếp đêm 21:30", [["Hoàn tác"]]) + `${head("T3", "17/11", "1 việc")}${tabs("Ngày")}
@@ -560,7 +567,7 @@ mount([
   { tag: "8. Put it back", sub: "Long-press a moved row. Back to the old time, the other good time, or pin it. The first two teach the model, the same as changing the time by hand; pinning just holds it.", html: chrome(back) },
   { tag: "9. Heads up", sub: "After a re-plan, a due date that cannot be met in free time shows on today's list: how much work is left and how much time is free. Each pill pushes one other flexible task to after that due date, longest first; each pill is a full-width block, the task name on the left (one too long ends in an ellipsis) and its day on the right, so every pill shares both edges. One tap applies. Tapping the words opens the task. The card shows only while it is true: real shortfall, the task still open; a task late by its own pin with time to spare raises none.", html: chrome(heads) },
   { tag: "10. A rule, said once", sub: "“Tối thứ sáu để trống nhé.” Zen repeats it in its own words and names the first task it moved to keep it. The week shows the kept evening as a striped block; the day shows it with its words and hours.", html: chrome(rule) },
-  { tag: "11. Nhịp", sub: "The pill right of Tháng. Golden hours: each hour's learned value. One card each, only with evidence: what goes well after a kind of task, the best three hours for a kind, the kind you push later most, and the hours it knows least.", html: chrome(rhythm()) },
+  { tag: "11. Nhịp", sub: "The pill right of Tháng. A week at a glance: weekday by part of the day (sáng, trưa, chiều, tối), brighter where you finish and move work, outlined where it is golden, said as a friend would (“Sáng ngày thường”, “Tối cuối tuần”), the hours only in the card under it. One card each, only with evidence: what goes well after a kind of task, the best part for a kind, the kind you push later most, and the part it knows least. Slow to judge: it needs several things you did on the same days before it claims anything.", html: chrome(rhythm()) },
   { tag: "12. Nhịp, scrolled", sub: "What you said is a hard rule; swipe it to forget. What it guessed shows how sure it is in three words. Bạn tránh: hours you dragged work away from, from the first drag, for every kind; swipe one to forget it. Guesses cannot be forgotten one by one.", html: chrome(mem) },
   { tag: "13. Nhịp, first days", sub: "Before Zen has seen enough it says so. The bars are its default guess, all dim; time passing alone never turns into a claim about you.", html: chrome(cold) },
   { tag: "13b. Nhịp, first ticks", sub: "From the first done or moved task it counts what it has seen and how many more it needs, so learning shows before it can claim anything.", html: chrome(seen) },

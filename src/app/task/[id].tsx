@@ -1,6 +1,6 @@
 import { bolded } from "@/components/bold";
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState, type ComponentProps } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { DateChip, TimeChip } from "@/components/pick";
 import { KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
@@ -58,8 +58,12 @@ export default function Detail() {
   const saved = useRef("");
   const latest = useRef("");
   const nav = useNavigation();
-  const pend = useRef({ title: "", loc: "", task });
-  useEffect(() => { pend.current = { title, loc, task }; });
+  // What is typed lives in refs and in each Field, never in this screen's state: a key press must not re-render the whole detail.
+  const typed = useRef({ title: "", loc: "" });
+  const pend = useRef({ task });
+  const keys = useRef<{ title?: ReturnType<typeof setTimeout>; loc?: ReturnType<typeof setTimeout> }>({});
+  const [rev, setRev] = useState(0); // bumped to make the fields show the stored value again
+  useEffect(() => { pend.current = { task }; });
   // Delete, move and replan each close the screen: a second tap must not run them twice or pop the screen below.
   const [leaving] = useState(() => ({ on: false })); // a plain box, read only in handlers
   const once = <A extends unknown[]>(fn: (...a: A) => Promise<void>) => async (...a: A) => {
@@ -86,9 +90,9 @@ export default function Detail() {
     setSits(all.filter((y) => y.parentId === (x.parentId ?? x.id) && !y.deletedAt).sort((a, b) => (a.start ?? Infinity) - (b.start ?? Infinity)));
     // A reload after a save must not wipe what is still being typed in another field: only untouched fields take the stored value.
     const p = pend.current, first = !p.task;
-    if (first || p.title === p.task?.title) setTitle(x?.title ?? "");
+    if (first || typed.current.title === p.task?.title) { typed.current.title = x?.title ?? ""; setTitle(x?.title ?? ""); }
     if (first || latest.current === saved.current) { setNote(x?.note ?? ""); saved.current = latest.current = x?.note ?? ""; }
-    if (first || p.loc === (p.task?.location ?? "")) setLoc(x?.location ?? "");
+    if (first || typed.current.loc === (p.task?.location ?? "")) { typed.current.loc = x?.location ?? ""; setLoc(x?.location ?? ""); }
   }, [id, nav]);
   // on every focus, not only the first: back from a sitting deleted on its own screen drops it from "Các buổi" here
   useFocusEffect(useCallback(() => { void load(); }, [load]));
@@ -117,24 +121,23 @@ export default function Detail() {
   }, [id]);
   const noteTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => { clearTimeout(noteTimer.current); leftSaved(saveNote()); }, [saveNote]);
-  const typing = (v: string) => { setNote(v); latest.current = v; clearTimeout(noteTimer.current); noteTimer.current = setTimeout(saveNote, 500); };
+  const typing = (v: string) => { latest.current = v; clearTimeout(noteTimer.current); noteTimer.current = setTimeout(saveNote, 500); };
   // Title and place are saved half a second after typing pauses too, not only on Return: a force quit mid-word keeps them.
-  useEffect(() => {
-    const v = title.trim();
-    if (!task || !v || v === task.title) return;
-    const k = setTimeout(() => void apply([{ op: "edit", target: task.id, title: v }]).then(load), 500);
-    return () => clearTimeout(k);
-  }, [title, task, load]);
-  useEffect(() => {
-    const v = loc.trim();
-    if (!task || ed !== "place" || v === (task.location ?? "")) return;
-    const k = setTimeout(() => void apply([{ op: "edit", target: task.id, location: v }]).then(load), 500);
-    return () => clearTimeout(k);
-  }, [loc, task, ed, load]);
+  const typeTitle = (v: string) => {
+    typed.current.title = v;
+    clearTimeout(keys.current.title);
+    keys.current.title = setTimeout(() => { const k = pend.current.task, x = v.trim(); if (k && x && x !== k.title) void apply([{ op: "edit", target: k.id, title: x }]).then(load); }, 500);
+  };
+  const typeLoc = (v: string) => {
+    typed.current.loc = v;
+    clearTimeout(keys.current.loc);
+    keys.current.loc = setTimeout(() => { const k = pend.current.task, x = v.trim(); if (k && x !== (k.location ?? "")) void apply([{ op: "edit", target: k.id, location: x }]).then(load); }, 500);
+  };
 
   // Leaving with the keyboard still up keeps the title and place typed so far, as the note does.
   useEffect(() => () => {
-    const { title: ti, loc: lo, task: tk } = pend.current;
+    const { title: ti, loc: lo } = typed.current, { task: tk } = pend.current;
+    clearTimeout(keys.current.title); clearTimeout(keys.current.loc);
     if (!tk) return;
     const v = ti.trim();
     if (v && v !== tk.title) leftSaved(apply([{ op: "edit", target: tk.id, title: v }]));
@@ -158,8 +161,8 @@ export default function Detail() {
     router.back();
   });
   const submitTitle = () => {
-    const v = title.trim();
-    if (!v) return setTitle(task.title);
+    const v = typed.current.title.trim();
+    if (!v) { typed.current.title = task.title; return setRev((r) => r + 1); }
     if (v !== task.title) void apply([{ op: "edit", target: task.id, title: v }]).then(load);
   };
 
@@ -192,7 +195,7 @@ export default function Detail() {
   } : undefined;
   const openDue = () => { setDv(task.deadline!); setEd("due"); };
   const savePlace = () => {
-    const v = loc.trim();
+    const v = typed.current.loc.trim();
     if (!v) setEd(undefined);
     if (v !== (task.location ?? "")) void apply([{ op: "edit", target: task.id, location: v }]).then(load);
   };
@@ -257,7 +260,7 @@ export default function Detail() {
   if (link && ed !== "place") lines.push(<Meta key="l" icon="link" tone="link" text={host(link)} onPress={() => void Linking.openURL(link).catch(() => {})} />);
   else if (mine && (task.location || ed === "place")) lines.push(
     <EdLine key="l" icon="pin">
-      <TextInput value={loc} onChangeText={setLoc} autoFocus={ed === "place"} onEndEditing={savePlace} returnKeyType="done" submitBehavior="blurAndSubmit" placeholder={t("placeHint")} placeholderTextColor={th.muted}
+      <Field value={loc} rev={rev} onText={typeLoc} autoFocus={ed === "place"} onEndEditing={savePlace} returnKeyType="done" submitBehavior="blurAndSubmit" placeholder={t("placeHint")} placeholderTextColor={th.muted}
         selectionColor={th.seal} cursorColor={th.seal} accessibilityLabel={t("placeHint")} style={[s.loc, { color: th.ink }]} />
     </EdLine>,
   );
@@ -325,7 +328,7 @@ export default function Detail() {
               <Text style={[s.sub, { color: th.muted }]}>{task.source === "dlu" && !task.forId ? (task.fixed ? t("fromCampus") : t("fromLms")) : mine && task.fixed === "busy" ? t("youKind", { k: t("fixedTime") }) : t("fromYou")}</Text>
             )}
           </View>
-          <TextInput value={title} onChangeText={setTitle} selectionColor={th.seal} cursorColor={th.seal} onEndEditing={submitTitle} returnKeyType="done" submitBehavior="blurAndSubmit" multiline style={[s.h, { color: th.ink }]} />
+          <Field value={title} rev={rev} onText={typeTitle} selectionColor={th.seal} cursorColor={th.seal} onEndEditing={submitTitle} returnKeyType="done" submitBehavior="blurAndSubmit" multiline style={[s.h, { color: th.ink }]} />
           {lines.length > 0 && <View style={s.meta}>{lines}</View>}
           {/* magic.html 7d/7e: what the time just set did, in place: a clash with a class asks, the moves tell their story with Undo */}
           {told && (
@@ -409,7 +412,7 @@ export default function Detail() {
               )}
             </View>
           )}
-          <TextInput value={note} onChangeText={typing} selectionColor={th.seal} cursorColor={th.seal} onBlur={saveNote} multiline scrollEnabled={false} placeholder={t("addNote")} placeholderTextColor={th.muted}
+          <Field value={note} rev={rev} onText={typing} selectionColor={th.seal} cursorColor={th.seal} onBlur={saveNote} multiline scrollEnabled={false} placeholder={t("addNote")} placeholderTextColor={th.muted}
             style={[s.note, { color: th.ink }]} />
         </Animated.View>
       </ScrollView>
@@ -461,3 +464,10 @@ const s = StyleSheet.create({
 });
 
 
+
+/** A text field that owns what is typed: the screen hears the text through `onText` (a ref write) and shows `value` again only when it changes or `rev` bumps. */
+const Field = memo(function Field({ value, rev, onText, ...p }: Omit<ComponentProps<typeof TextInput>, "value" | "onChangeText"> & { value: string; rev: number; onText: (v: string) => void }) {
+  const [v, setV] = useState(value), [seen, setSeen] = useState({ value, rev });
+  if (seen.value !== value || seen.rev !== rev) { setSeen({ value, rev }); setV(value); } // the stored text changed under us: show it
+  return <TextInput {...p} value={v} onChangeText={(x) => { setV(x); onText(x); }} />;
+});

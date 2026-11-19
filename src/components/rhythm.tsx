@@ -1,6 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
-import { useEffect, useRef } from "react";
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withTiming } from "react-native-reanimated";
+import Animated from "react-native-reanimated";
 import { Count } from "@/components/count";
 import { TypeArt } from "@/components/art";
 import { Meter } from "@/components/meter";
@@ -8,9 +7,9 @@ import { SwipeDelete } from "@/components/row";
 import { fadeIn } from "@/components/tap";
 import { t } from "@/lib/i18n";
 import { KIND_VI, kindW } from "@/lib/reasons";
-import { useTheme, font, ff, motion } from "@/lib/theme";
+import { useTheme, font, ff } from "@/lib/theme";
 import type { Kind, Rule } from "@/lib/types";
-import { EARLY, PROMOTE, type Insights } from "@/planner";
+import { EARLY, PROMOTE, whenText, type Insights } from "@/planner";
 
 // magic 10 + 11 as one home view (the Nhịp tab): what Zen learned, then what you told it. Trust lives on the main screen, not in Settings.
 const WD = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
@@ -48,23 +47,32 @@ const Empty = ({ title, sub }: { title: string; sub: string }) => {
 };
 
 /** The Nhịp headline as a line key and its numbers: learned golden hours, else the early guess from what you did, else how much it has seen. */
-const headOf = (i: Insights): { k: "goldenRange" | "earlyRange" | "seenN" | "stillLearning"; vars: Record<string, number> } =>
-  i.golden ? { k: "goldenRange", vars: { a: i.golden.from, b: i.golden.to } }
+const headOf = (i: Insights): { k: "goldenRange" | "earlyRange" | "whenHead" | "earlyWhen" | "seenN" | "stillLearning"; vars: Record<string, number | string> } =>
+  i.when && (i.golden || i.early) ? { k: i.golden ? "whenHead" : "earlyWhen", vars: { w: whenText(i.when) } }
+  : i.golden ? { k: "goldenRange", vars: { a: i.golden.from, b: i.golden.to } }
   : i.early ? { k: "earlyRange", vars: { a: i.early.from, b: i.early.to } }
   : i.seen ? { k: "seenN", vars: { n: i.seen } } : { k: "stillLearning", vars: {} };
 export const rhythmHead = (i: Insights) => { const h = headOf(i); return t(h.k, h.vars); };
 
-// One hour of the strip: grows from nothing on first paint (a little later for each hour), then eases to every new height and tint.
-function Bar({ v, i, lit }: { v: number; i: number; lit: boolean }) {
-  const h = useSharedValue(0), o = useSharedValue(lit ? 1 : 0.45), first = useRef(true);
-  useEffect(() => {
-    const go = withTiming(10 + v * 90, { duration: motion.progress, easing: Easing.out(Easing.cubic) });
-    h.set(first.current ? withDelay(i * 14, go) : go);
-    o.set(withTiming(lit ? 1 : 0.45, { duration: motion.progress }));
-    first.current = false;
-  }, [v, lit, i, h, o]);
-  const st = useAnimatedStyle(() => ({ height: `${h.get()}%`, opacity: o.get() }));
-  return <Animated.View style={[s.bar, st]} />;
+const ORDER = [1, 2, 3, 4, 5, 6, 0]; // T2 first, CN last (getDay() is 0 = CN)
+const PART_LAB = ["Sáng", "Trưa", "Chiều", "Tối"];
+const partOfHour = (h: number) => (h < 11 ? 0 : h < 13 ? 1 : h < 18 ? 2 : 3);
+
+/** The week at a glance: weekday by part of the day, brighter where you finish and move work, outlined where it is yours (magic.html 11). */
+function Grid({ i }: { i: Insights }) {
+  const w = i.when, g = i.golden ?? i.early;
+  const lit = (d: number, p: number) => (w ? p === w.part && w.wds.includes(d) : !!g && p === partOfHour(g.from));
+  return (
+    <View accessibilityLabel={rhythmHead(i)} style={s.mx}>
+      <View style={s.mxRow}><View style={s.mxLab} />{ORDER.map((d) => <Text key={d} style={s.mxDay}>{WD[d]}</Text>)}</View>
+      {PART_LAB.map((lab, p) => (
+        <View key={lab} style={s.mxRow}>
+          <Text style={[s.mxLab, s.mxDay]}>{lab}</Text>
+          {ORDER.map((d) => <View key={d} style={[s.cell, { opacity: 0.2 + 0.8 * (i.grid[d]?.[p] ?? 0) }, lit(d, p) && s.cellOn]} />)}
+        </View>
+      ))}
+    </View>
+  );
 }
 
 export function Rhythm({ i, rules, onForget, onForgetHour }: { i: Insights; rules: Rule[]; onForget: (r: Rule) => void; onForgetHour: (hour: number) => void }) {
@@ -77,19 +85,17 @@ export function Rhythm({ i, rules, onForget, onForgetHour }: { i: Insights; rule
         <View style={StyleSheet.absoluteFill}><TypeArt type="plan" w={264} h={170} seed={5} /></View>
         <Text style={s.lab}>{t("goldenHours")}</Text>
         <Count style={s.title} k={headOf(i).k} vars={headOf(i).vars} />
-        {/* Before any evidence the bars are the cold prior (linucb curve), all dim: a guess, not a golden range. */}
-        <View style={s.strip} accessibilityLabel={rhythmHead(i)}>
-          {i.hours.map((v, h) => { const w = g ?? e; return <Bar key={h} v={v} i={h} lit={!!w && h >= w.from && h < w.to} />; })}
-        </View>
-        <View style={s.hrs}>{[0, 6, 12, 18, 24].map((h) => <Text key={h} style={s.hr}>{h}</Text>)}</View>
+        {/* Before any evidence every cell is dim: a guess, not a claim. */}
+        <Grid i={i} />
       </View>
-      {!g && (e ? <Card title={<Count k="earlyTitle" vars={{ a: e.from, b: e.to }} style={[s.b, { color: th.ink }]} />} sub={t("earlySub", { n: Math.max(1, PROMOTE - e.n) })} />
+      {i.when && <Card title={t("whenTitle", { w: whenText(i.when).toLocaleLowerCase("vi") })} sub={g ? t("whenSub", { a: g.from, b: g.to }) : t("whenSubBare")} />}
+      {!g && !i.when && (e ? <Card title={<Count k="earlyTitle" vars={{ a: e.from, b: e.to }} style={[s.b, { color: th.ink }]} />} sub={t("earlySub", { n: Math.max(1, PROMOTE - e.n) })} />
         : i.seen ? <Card title={<Count k="moreN" vars={{ n: Math.max(1, EARLY - i.seen) }} style={[s.b, { color: th.ink }]} />} sub={t("seenSub")} />
         : <Card title={t("learningT")} sub={t("learningSub")} />)}
       {pair && <Card title={t("pairTitle", { k: KIND_VI[pair.before] })} sub={t("pairSub")}><Chip kind={pair.before} /></Card>}
-      {kind && <Card title={t("kindTitle", { k: kindW(kind.kind, true), a: kind.from, b: kind.to })} sub={t("kindSub")}><Chip kind={kind.kind} /><Meter v={kind.sure} /></Card>}
+      {kind && <Card title={t("kindTitle", { k: kindW(kind.kind, true), p: PART_LAB[partOfHour(kind.from + 1.5)].toLowerCase() })} sub={t("kindSub")}><Chip kind={kind.kind} /><Meter v={kind.sure} /></Card>}
       {slip && <Card title={t("slipTitle", { k: kindW(slip.kind, true) })} sub={t("slipSub", { n: Math.round(slip.rate * 10) })}><Meter v={slip.rate} /></Card>}
-      {un && <Card title={t("unsureTitle", { a: un.from, b: un.to })} sub={t("unsureSub")} />}
+      {un && <Card title={t("unsureTitle", { p: PART_LAB[partOfHour(un.from + 1.5)].toLowerCase() })} sub={t("unsureSub")} />}
 
       <Text style={[s.lab2, { color: th.muted }]}>{t("saidByYou")}</Text>
       {rules.length ? rules.map((r) => (
@@ -103,7 +109,7 @@ export function Rhythm({ i, rules, onForget, onForgetHour }: { i: Insights; rule
       {i.avoid.map((x) => (
         <SwipeDelete key={x.hour} onDelete={() => onForgetHour(x.hour)}>
           <View style={line} accessibilityHint={t("swipeForget")}>
-            <View style={s.tx}><Text style={[s.b, { color: th.ink }]}>{t("avoidRow", { a: x.hour, b: x.hour + 1 })}</Text><Text style={[s.small2, { color: th.muted }]}>{t("avoidSub", { n: x.n })}</Text></View>
+            <View style={s.tx}><Text style={[s.b, { color: th.ink }]}>{t("avoidRow", { p: PART_LAB[partOfHour(x.hour)], a: x.hour, b: x.hour + 1 })}</Text><Text style={[s.small2, { color: th.muted }]}>{t("avoidSub", { n: x.n })}</Text></View>
           </View>
         </SwipeDelete>
       ))}
@@ -124,10 +130,12 @@ const s = StyleSheet.create({
   lab: { color: "#fff", opacity: 0.85, fontSize: font.label, fontFamily: ff("500") },
   lab2: { fontSize: font.label, fontFamily: ff("500"), marginTop: 22 },
   title: { color: "#fff", fontSize: 24, fontFamily: ff("600"), marginTop: 6, letterSpacing: -0.4 },
-  strip: { flexDirection: "row", alignItems: "flex-end", gap: 2, height: 54, marginTop: 14 },
-  bar: { flex: 1, borderRadius: 2, backgroundColor: "#fff", opacity: 0.45 },
-  hrs: { flexDirection: "row", justifyContent: "space-between", marginTop: 6 },
-  hr: { color: "#fff", opacity: 0.8, fontSize: 12, fontFamily: ff("600") },
+  mx: { marginTop: 14, gap: 3 },
+  mxRow: { flexDirection: "row", alignItems: "center", gap: 3 },
+  mxLab: { width: 42 },
+  mxDay: { flex: 1, color: "#fff", opacity: 0.8, fontSize: 12, fontFamily: ff("600"), textAlign: "center" },
+  cell: { flex: 1, height: 22, borderRadius: 5, backgroundColor: "#fff" },
+  cellOn: { borderWidth: 2, borderColor: "#fff", backgroundColor: "rgba(255,255,255,.35)" },
   ins: { marginTop: 10, paddingVertical: 16, paddingHorizontal: 18, borderRadius: 22 },
   b: { fontSize: 17, fontFamily: ff("600"), lineHeight: 22, letterSpacing: -0.17 },
   small2: { fontSize: 14, fontFamily: ff("500"), marginTop: 2 },

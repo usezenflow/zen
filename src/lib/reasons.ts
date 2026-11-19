@@ -11,13 +11,13 @@ export const kindW = (k: Kind, up = false) => { const w = /việc/.test(KIND_VI[
 // Each entry lists its wordings best first; the first whose {vars} are all known is said. Facts come in loose words, not minute math.
 type W = { short: string[]; long: string[]; neg?: string };
 const R: Record<ReasonKey, W> = {
-  hour: { short: ["Giờ bạn hay làm", "Giờ bạn tập trung"], long: ["{often} bạn xong việc quanh {hour}h", "Giờ này bạn hay xong việc"], neg: "Giờ khác hợp hơn" },
+  hour: { short: ["Hay xong việc {pn} {dt}", "Giờ bạn hay làm", "Giờ bạn tập trung"], long: ["{often} bạn xong việc vào {pn} {dt}", "{often} bạn xong việc quanh {hour}h", "Giờ này bạn hay xong việc"], neg: "Giờ khác hợp hơn" },
   after: { short: ["Sau giờ {prev}, như mọi khi"], long: ["Bạn hay làm việc này sau khi {prev}"], neg: "Sau giờ {prev}, giờ khác hợp hơn" },
-  similar: { short: ["Giống việc trước", "Việc tương tự giờ này"], long: ["Việc giống vậy bạn {oft} xong quanh {hour}h", "Việc giống vậy bạn hay xong lúc {hour}h"], neg: "Việc tương tự hợp giờ khác" },
-  energy: { short: ["Lúc bạn khoẻ"], long: ["Gần giờ bạn làm tốt nhất"], neg: "Hơi xa giờ bạn khoẻ" },
+  similar: { short: ["Giống việc trước", "Việc tương tự buổi {pn}"], long: ["Việc giống vậy bạn {oft} xong vào buổi {pn}", "Việc giống vậy bạn hay xong lúc {hour}h"], neg: "Việc tương tự hợp giờ khác" },
+  energy: { short: ["Lúc bạn khoẻ"], long: ["Buổi {pn} là lúc bạn khoẻ nhất", "Gần giờ bạn làm tốt nhất"], neg: "Hơi xa giờ bạn khoẻ" },
   weekend: { short: ["Cuối tuần thong thả"], long: ["Cuối tuần bạn hay rảnh việc này"], neg: "Ngày thường hợp hơn" },
   busy: { short: ["Ngày nhẹ"], long: ["Hôm đó ít lịch"], neg: "Hôm đó dày lịch" },
-  kind: { short: ["Hợp {kind}"], long: ["Giờ này hợp {kind}"], neg: "Giờ này ít hợp {kind}" },
+  kind: { short: ["Hợp {kind}"], long: ["Buổi {pn} hợp {kind}", "Giờ này hợp {kind}"], neg: "Giờ này ít hợp {kind}" },
   deadline: { short: ["{ahead}", "Hạn {due}, làm sớm"], long: ["Hạn {due}, {aheadLong}", "Hạn {due}, làm sớm cho khỏi dồn"], neg: "Hơi sát hạn {due}" },
   pace: { short: ["Buổi {k}/{n}"], long: ["Buổi {k}/{n}, rải đều tới hạn"], neg: "Các buổi hơi dồn" },
   load: { short: ["Ngày còn rộng"], long: ["Ngày còn rộng"], neg: "Ngày đã {h}h" },

@@ -5,7 +5,7 @@ import { coldArms } from "../planner/linucb";
 import { cosine, effort } from "../planner/habits";
 import { addClassLog, classLogsOf, classMults } from "./nlu/context";
 import { fill, t } from "./i18n";
-import { hm, when as at12 } from "./when";
+import { day, hm, when as at12 } from "./when";
 import { holidays } from "./holidays";
 import * as stats from "./stats";
 import * as store from "./store";
@@ -32,6 +32,7 @@ const ms = (iso?: string) => {
 export interface Result { toast: string; sub?: string; changed: boolean; undo: () => Promise<void>; steps?: Step[]; warn?: Warn[]; moved?: number; moves?: Move[]; clashes?: { mine: Task; fixed: Task }[]; lost?: Task[] }
 
 interface Work {
+  timed: Set<string>; // tasks given a time by hand in this transaction, whether or not they had one before (a drag needs a place to come from)
   tasks: Map<string, Task>;
   model: Model;
   events: TaskEvent[];
@@ -329,16 +330,21 @@ async function act(w: Work, a: Action) {
       } else if (when !== undefined) {
         next.notBefore = when;
         next.start = when;
+        w.timed.add(tk.id);
         next.pinned = true; // a time you set stays: notBefore only bounds the planner, which would pick another slot (and never a past one)
         edited.add("start");
         next.end = when + (next.effort || 30) * 60_000; // next.effort: the length may be edited in the same action
         // From where it was before the wheel's held values (a.from), else a settled move would teach from its own new time.
         const from = a.from?.start !== undefined ? a.from : { start: tk.start, end: tk.end };
-        if (from.start !== undefined && from.start !== when) {
-          w.log("drag", tk, { fromStart: from.start, fromEnd: from.end, toStart: when });
-          w.sub = t("learnedAvoid", { time: hm(from.start) });
+        // Another day at the same time of day is a change of day, not of time: nothing to learn about the hour, and not "dời".
+        if (from.start !== undefined && from.start !== when && hm(from.start) === hm(when)) w.toast = t("onDay", { title: next.title, day: day(when, now) });
+        else {
+          if (from.start !== undefined && from.start !== when) {
+            w.log("drag", tk, { fromStart: from.start, fromEnd: from.end, toStart: when });
+            w.sub = t("learnedAvoid", { time: hm(from.start) });
+          }
+          w.toast = t("moved", { title: next.title, time: at12(when, now) });
         }
-        w.toast = t("moved", { title: next.title, time: at12(when, now) });
       }
       next.userEdited = [...edited];
       w.tasks.set(tk.id, next);
@@ -370,7 +376,7 @@ async function transactNow(now: number, mutate: (w: Work) => Promise<void> | voi
   const model0 = await store.loadModel(now);
   const before = new Map((await store.allTasks()).map((x) => [x.id, x]));
   const w: Work = {
-    tasks: new Map(before), model: model0, events: [], moves: [], now,
+    timed: new Set(), tasks: new Map(before), model: model0, events: [], moves: [], now,
     log(type, task, data) {
       if (o.quiet) return; // a value held mid-edit: the edit that settles it is the one worth learning from
       const ev: TaskEvent = { id: uid(), taskId: task.id, type, at: now, data };
@@ -387,10 +393,11 @@ async function transactNow(now: number, mutate: (w: Work) => Promise<void> | voi
   let diff: Diff | undefined;
   // Times set by hand in this transaction (a held wheel value was saved before, so `before` already has it: this is how we know).
   const dragged = new Set(w.events.filter((e) => e.type === "drag").map((e) => e.taskId));
+  const handSet = new Set([...dragged, ...w.timed]); // a time set on a task that had none is set as much as a dragged one: it knocks older hand-set tasks and can clash with a class
   const span = (x: Task) => !x.doneAt && !x.deletedAt && x.start !== undefined && x.end !== undefined;
-  const set = [...dragged].map((id) => w.tasks.get(id)!).filter((x) => x && span(x));
+  const set = [...handSet].map((id) => w.tasks.get(id)!).filter((x) => x && span(x));
   // A time set wholly in the past is kept as set (pinned, as any set time) and planned around by no one: nothing new is planned for it. Part after now replans.
-  const past = set.length === dragged.size && set.length > 0 && set.every((x) => x.end! <= now) && ![...w.tasks.keys()].some((id) => !before.has(id));
+  const past = set.length === handSet.size && set.length > 0 && set.every((x) => x.end! <= now) && ![...w.tasks.keys()].some((id) => !before.has(id));
   // "pull": time was freed (a done, a delete, a dropped sitting). Later pieces may take it, earlier only; the rest of the calendar holds.
   let pullGap: { from: number; to: number } | undefined;
   if (o.replan === "pull") {
@@ -451,7 +458,8 @@ async function transactNow(now: number, mutate: (w: Work) => Promise<void> | voi
     const owned = (x: Task) => !!x.doneAt || !!x.deletedAt || (!!x.pinned && x.start !== undefined);
     for (const u of diff.unplaced ?? []) {
       const old = w.tasks.get(u.id), task = old ?? sitting(u.id);
-      if (task && !owned(task)) w.tasks.set(u.id, { ...task, start: undefined, end: undefined, effort: old ? task.effort : u.effort });
+      // an already-unplaced task keeps its object: a plan that finds it still has no room changed nothing (no toast, no write)
+      if (task && !owned(task) && !(old && task.start === undefined && task.end === undefined)) w.tasks.set(u.id, { ...task, start: undefined, end: undefined, effort: old ? task.effort : u.effort });
     }
     for (const pl of diff.placed) {
       const task = w.tasks.get(pl.id) ?? sitting(pl.id);

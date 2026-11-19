@@ -14,37 +14,49 @@ jest.mock("@/components/row", () => {
 });
 
 const hours = Array.from({ length: 24 }, (_, h) => (h >= 8 && h < 11 ? 0.9 : 0.3));
-const empty: Insights = { hours, pairs: [], slip: [], byKind: [], guesses: [], seen: 0, avoid: [] };
+const grid = Array.from({ length: 7 }, () => [0.9, 0.2, 0.4, 0.3]);
+const empty: Insights = { grid: grid.map((r) => r.map(() => 0)), hours, pairs: [], slip: [], byKind: [], guesses: [], seen: 0, avoid: [] };
 const full: Insights = {
-  hours, seen: 40, avoid: [{ hour: 7, n: 3 }], golden: { from: 8, to: 11 }, pairs: [{ before: "exercise", w: 1 }], slip: [{ kind: "chores", rate: 0.62 }],
+  grid, hours, seen: 40, avoid: [{ hour: 7, n: 3 }], golden: { from: 8, to: 11 }, pairs: [{ before: "exercise", w: 1 }], slip: [{ kind: "chores", rate: 0.62 }],
   byKind: [{ kind: "study", from: 8, to: 11, sure: 0.8 }], unsure: { from: 20, to: 22 },
   guesses: [{ text: "Bạn học tốt buổi sáng", sure: 0.8 }, { text: "Tối hay mệt", sure: 0.6 }, { text: "Cuối tuần rảnh", sure: 0.2 }],
 };
 const rule = (over: Partial<Rule>): Rule => ({ id: "r1", text: "Tối thứ sáu để trống", days: [5], from: 18 * 60, to: 22 * 60, kinds: [], at: NOW, ...over });
-type Bar = { props: { style: unknown } };
-const opacities = (label: string) => (screen.getByLabelText(label).children as unknown as Bar[]).map((b) => (StyleSheet.flatten(b.props.style as object) as { opacity?: number }).opacity);
-const bars = () => opacities(t("goldenRange", { a: 8, b: 11 }));
+type Node = { props: { style: unknown }; children: Node[] };
+const flat = (n: Node) => StyleSheet.flatten(n.props.style as object) as { opacity?: number; borderWidth?: number };
+// the matrix: a header row, then a row per part of the day, each with its label and seven day cells (T2 first)
+const cells = (label: string) => (screen.getByLabelText(label).children as unknown as Node[]).slice(1).map((row) => row.children.slice(1).map(flat));
+const lit = (label: string) => cells(label).flatMap((row, p) => row.map((c, d) => (c.borderWidth ? [p, d] : null))).filter(Boolean);
 
-it("a golden range titles the strip, lights its hours, and shows each card", async () => {
+it("the week is a matrix: weekday by part, and the days that are yours are outlined", async () => {
+  const i = { ...full, when: { part: 0, wds: [1, 2, 3, 4, 5], n: 9, sure: 0.7 } };
+  await render(<Rhythm i={i} rules={[]} onForgetHour={() => {}} onForget={jest.fn()} />);
+  const head = t("whenHead", { w: "Sáng ngày thường" });
+  expect(screen.getAllByText(head).length).toBeGreaterThan(0);
+  expect(lit(head)).toEqual([[0, 0], [0, 1], [0, 2], [0, 3], [0, 4]]); // sáng, T2 to T6; not the weekend
+  expect(cells(head)[0][0].opacity).toBeCloseTo(0.92);
+  expect(screen.getByText(t("whenTitle", { w: "sáng ngày thường" }))).toBeOnTheScreen();
+});
+
+it("a golden range titles the matrix, outlines its part, and shows each card", async () => {
   await render(<Rhythm i={full} rules={[]} onForgetHour={() => {}} onForget={jest.fn()} />);
   expect(screen.getAllByText(t("goldenRange", { a: 8, b: 11 })).length).toBeGreaterThan(0);
-  expect(bars().map((o, h) => (o === 1 ? h : -1)).filter((h) => h >= 0)).toEqual([8, 9, 10]); // to is exclusive
+  expect(lit(t("goldenRange", { a: 8, b: 11 })).map((c) => (c as number[])[0])).toEqual(Array(7).fill(0)); // no days known: the whole sáng row
   expect(screen.queryByText(t("learningT"))).toBeNull();
   expect(screen.getByText(t("pairTitle", { k: KIND_VI.exercise }))).toBeOnTheScreen();
-  expect(screen.getByText(t("kindTitle", { k: kindW("study", true), a: 8, b: 11 }))).toBeOnTheScreen();
+  expect(screen.getByText(t("kindTitle", { k: kindW("study", true), p: "sáng" }))).toBeOnTheScreen();
   expect(screen.getByText(t("slipTitle", { k: kindW("chores", true) }))).toBeOnTheScreen();
   expect(screen.getByText(t("slipSub", { n: 6 }))).toBeOnTheScreen(); // 0.62 of 10, rounded
-  expect(screen.getByText(t("unsureTitle", { a: 20, b: 22 }))).toBeOnTheScreen();
-  expect(screen.getByText(t("avoidRow", { a: 7, b: 8 }))).toBeOnTheScreen();
+  expect(screen.getByText(t("unsureTitle", { p: "tối" }))).toBeOnTheScreen();
+  expect(screen.getByText(t("avoidRow", { p: "Sáng", a: 7, b: 8 }))).toBeOnTheScreen();
   expect(screen.getByText(t("avoidSub", { n: 3 }))).toBeOnTheScreen();
 });
 
-it("without evidence: still learning, the learning card, every bar dim, no other cards", async () => {
+it("without evidence: still learning, the learning card, every cell dim, no other cards", async () => {
   await render(<Rhythm i={empty} rules={[]} onForgetHour={() => {}} onForget={jest.fn()} />);
   expect(screen.getAllByText(t("stillLearning")).length).toBeGreaterThan(0);
   expect(screen.getByText(t("learningT"))).toBeOnTheScreen();
-  const dim = opacities(t("stillLearning"));
-  expect(dim.every((o) => o === 0.45)).toBe(true);
+  expect(cells(t("stillLearning")).flat().every((c) => c.opacity === 0.2)).toBe(true);
   expect(screen.getByText(t("noGuessesT"))).toBeOnTheScreen();
 });
 
@@ -55,11 +67,11 @@ it("first ticks: how many it has seen and how many more it needs", async () => {
   expect(screen.queryByText(t("learningT"))).toBeNull();
 });
 
-it("an early guess titles the strip and lights its two hours", async () => {
+it("an early guess titles the matrix and outlines its part", async () => {
   await render(<Rhythm i={{ ...empty, seen: 4, early: { from: 20, to: 22, n: 4 } }} rules={[]} onForgetHour={() => {}} onForget={jest.fn()} />);
   expect(screen.getByText(t("earlyTitle", { a: 20, b: 22 }))).toBeOnTheScreen();
   expect(screen.getByText("Mấy hôm nay bạn hay xong việc giờ này. Xong thêm 1 việc giờ này nữa là mình chắc.")).toBeOnTheScreen(); // 4 in the stretch, 5 names it
-  expect(opacities(t("earlyRange", { a: 20, b: 22 })).map((o, h) => (o === 1 ? h : -1)).filter((h) => h >= 0)).toEqual([20, 21]);
+  expect(lit(t("earlyRange", { a: 20, b: 22 })).map((c) => (c as number[])[0])).toEqual(Array(7).fill(3)); // tối
 });
 
 it("a forgotten rule is passed back whole", async () => {

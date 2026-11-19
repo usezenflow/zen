@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { D, I_AFTER, I_ENERGY, energy } from "./features";
-import { insights } from "./insights";
+import { grounded } from "./grounded";
+import { dayWords, insights } from "./insights";
 import { update } from "./linucb";
 import { learn, newModel, plan } from "./index";
 
 const now = new Date(2026, 10, 16, 8, 0).getTime();
 
 describe("insights", () => {
-  it("counts what it has seen, and after three names the hours you finished or dragged work to", () => {
+  it("counts what it has seen, and after three names the stretch you finished or dragged work to, as a guess", () => {
     const m = newModel(now), at = (h: number) => new Date(2026, 10, 15, h, 20).getTime();
     expect(insights(m, now).seen).toBe(0); expect(insights(m, now).early).toBeUndefined();
     m.doneHours.push({ hour: 20.3, at: at(20) });
@@ -16,10 +17,11 @@ describe("insights", () => {
     m.moved!.push({ hour: 21.3, at: at(21) }); // dragged to 21h
     m.doneHours.push({ hour: 21.5, at: at(21) });
     const i = insights(m, now);
-    expect(i).toMatchObject({ seen: 3, golden: { from: 20, to: 22 } }); // three in one stretch is already the range
-    expect(i.guesses[0].text).toBe("Giờ vàng 20h-22h");
+    expect(i).toMatchObject({ seen: 3, early: { from: 20, to: 22, n: 3 } }); // three name the stretch, as a guess; the range itself waits for five
+    expect(i.golden).toBeUndefined();
     const two = newModel(now); two.doneHours.push({ hour: 20.3, at: at(20) }, { hour: 21.5, at: at(21) });
-    expect(insights(two, now).early).toMatchObject({ from: 20, to: 22, n: 2 }); // two name the stretch, as a guess
+    expect(insights(two, now).early).toBeUndefined(); // two things are not a habit
+    two.doneHours.push({ hour: 20.6, at: at(20) });
     expect(insights(two, now).guesses).toContainEqual({ text: "Bạn hay làm việc lúc 20h-22h", sure: 0.3 });
     // two weeks old says nothing; scattered hours name no range
     expect(insights(m, now + 20 * 86400000).seen).toBe(0); expect(insights(m, now + 20 * 86400000).early).toBeUndefined();
@@ -35,12 +37,13 @@ describe("insights", () => {
     const i = insights(m, now);
     expect(i.seen).toBe(6);
     expect(i.golden).toMatchObject({ from: 20, to: 22 });
-    expect(i.golden!.sure).toBeGreaterThan(0.5);
+    expect(i.golden!.sure).toBeGreaterThan(0.4);
     expect(i.early).toBeUndefined();
-    expect(i.guesses[0].text).toBe("Giờ vàng 20h-22h");
-    expect(i.weekly).toBe("Bạn làm việc hợp nhất lúc 20h-22h");
+    expect(i.guesses[0].text).toBe("Tối hầu hết các ngày bạn làm tốt nhất, quanh 20h-22h"); // five days, said in the words of the week
+    expect(i.weekly).toBeUndefined(); // five is a guess, not yet a Sunday sentence
     for (let d = 5; d < 13; d++) m.doneHours.push({ hour: 21, at: at(d % 13, 21) });
-    expect(insights(m, now).golden!.sure).toBeGreaterThanOrEqual(0.6); // week-old evidence counts for less
+    expect(insights(m, now).golden!.sure).toBeGreaterThanOrEqual(0.55); // week-old evidence counts for less
+    expect(insights(m, now).weekly).toMatch(/^Bạn làm việc hợp nhất vào tối/);
   });
   it("says nothing when cold", () => {
     const i = insights(newModel(now), now);
@@ -78,7 +81,7 @@ describe("insights", () => {
     const k = insights(m, now).byKind.find((e) => e.kind === "study")!;
     expect(k.from).toBeGreaterThanOrEqual(7);
     expect(k.from).toBeLessThanOrEqual(8);
-    expect(insights(m, now).weekly).toMatch(/hợp nhất lúc/);
+    expect(insights(m, now).weekly).toMatch(/hợp nhất vào buổi/);
   });
   it("reports slip and pairs once learned", () => {
     const m = newModel(now);
@@ -157,5 +160,43 @@ describe("keep share for the Sunday line", () => {
     expect(insights(flat, now).keep).toBeUndefined();
     const none = newModel(now); week(none, 10, 9, 1);
     expect(insights(none, now).keep).toBeUndefined();
+  });
+});
+
+describe("the week, as a person says it", () => {
+  const sun = new Date(2026, 10, 15, 12).getTime(); // a Sunday
+  const mk = (days: number[], hour: number) => {
+    const m = newModel(sun);
+    for (const d of days) { const at = new Date(2026, 10, 15 - d, hour, 20).getTime(); m.doneHours.push({ hour: hour + 0.3, at, wd: new Date(at).getDay() }); }
+    return m;
+  };
+  it("names the part and the days that are yours, only with several things on several days", () => {
+    expect(insights(mk([0, 1, 2], 9), sun).when).toBeUndefined(); // three is not enough
+    expect(insights(mk([6, 6, 6, 6], 9), sun).when).toBeUndefined(); // four on one day is one day
+    const w = insights(mk([6, 5, 4, 3, 2], 9), sun).when!; // Mon..Fri mornings (15 Nov is a Sunday)
+    expect(w).toMatchObject({ part: 0, wds: [1, 2, 3, 4, 5] });
+    expect(insights(mk([1, 8, 15, 22], 20), sun).when).toMatchObject({ part: 3, wds: [6] }); // four Saturday evenings
+  });
+  it("grid is weekday by part, 0..1, and one odd day does not outweigh a habit", () => {
+    const m = mk([6, 5, 4, 3, 2], 9);
+    m.doneHours.push({ hour: 20.3, at: sun - 3600_000, wd: 0 }); // one late-night Sunday
+    const i = insights(m, sun);
+    expect(i.grid).toHaveLength(7);
+    expect(Math.max(...i.grid.flat())).toBe(1);
+    expect(i.when).toMatchObject({ part: 0 });
+  });
+  it("says days as people do", () => {
+    expect(dayWords([1, 2, 3, 4, 5])).toBe("ngày thường");
+    expect(dayWords([0, 6])).toBe("cuối tuần");
+    expect(dayWords([2, 4])).toBe("T3, T5");
+    expect(dayWords([0, 1, 2, 3, 4, 5, 6])).toBe("mọi ngày");
+  });
+  it("a drag to another day and part moves a reason's claim: stale ones are dropped", () => {
+    const r = { key: "hour" as const, w: 1, vars: { hour: 9, n: 4, pn: "sáng", dt: "ngày thường" } };
+    const at = (h: number, d: number) => new Date(2026, 10, d, h).getTime(); // 16 Nov is a Monday, 21 a Saturday
+    const f = (start: number) => ({ task: { id: "a", title: "x", kind: "study", source: "user", effort: 30, createdAt: 0 } as never, start, rules: [] });
+    expect(grounded([r], f(at(10, 16)))).toHaveLength(1);
+    expect(grounded([r], f(at(15, 16)))).toHaveLength(0); // afternoon
+    expect(grounded([r], f(at(10, 21)))).toHaveLength(0); // weekend
   });
 });

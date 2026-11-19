@@ -1,8 +1,34 @@
 import { expect, it, vi } from "vitest";
 
-const SR = { getPermissionsAsync: vi.fn(), requestPermissionsAsync: vi.fn() };
+const SR = {
+  getPermissionsAsync: vi.fn(), requestPermissionsAsync: vi.fn(), start: vi.fn(), stop: vi.fn(), abort: vi.fn(), setAudioSessionActiveIOS: vi.fn(),
+  addListener: vi.fn(() => ({ remove() {} })), getSupportedLocales: vi.fn(async () => ({ installedLocales: [] })),
+};
 vi.mock("expo-speech-recognition", () => ({ ExpoSpeechRecognitionModule: SR }));
-const { askMic, level, lowWords, transcripts } = await import("./ears");
+const vm = { usable: vi.fn(async () => false), broke: vi.fn() };
+vi.mock("./voiceModel", () => vm);
+const moon = { listenMoon: vi.fn() };
+vi.mock("./moon", () => moon);
+const { askMic, level, listenLive, lowWords, transcripts } = await import("./ears");
+
+it("uses the on-device model when it is on and ready, and never starts the system recognizer", async () => {
+  vm.usable.mockResolvedValue(true);
+  moon.listenMoon.mockResolvedValue({ stop: async () => ({ text: "họp nhóm mai", alternatives: [], low: [] }), abort() {} });
+  const s = await listenLive();
+  expect(await s.stop()).toEqual({ text: "họp nhóm mai", alternatives: [], low: [] });
+  expect(SR.start).not.toHaveBeenCalled();
+});
+
+it("falls back to the system dictation when the model is off, or fails to start (and stays off this session)", async () => {
+  vm.usable.mockResolvedValue(false);
+  await listenLive();
+  expect(SR.start).toHaveBeenCalledTimes(1);
+  vm.usable.mockResolvedValue(true);
+  moon.listenMoon.mockRejectedValue(new Error("no native module"));
+  await listenLive();
+  expect(vm.broke).toHaveBeenCalledTimes(1);
+  expect(SR.start).toHaveBeenCalledTimes(2);
+});
 
 it("asks for the mic only when it is missing (Android's ask pauses the app and cancels the hold)", async () => {
   SR.getPermissionsAsync.mockResolvedValue({ granted: true });

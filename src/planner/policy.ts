@@ -1,5 +1,5 @@
 import type { Diff, Placement, Reason, ReasonKey, Step, Task, TaskEvent, TaskType, Warn } from "../lib/types";
-import { DAY, HOUR, I_AFTER, I_ENERGY, I_SIM, KINDS, MIN, type FeatCtx, cdist, dayStart, dueOf, features, hourOf } from "./features";
+import { DAY, HOUR, I_AFTER, I_ENERGY, I_SIM, KINDS, MIN, PART4, type FeatCtx, cdist, dayStart, dayType, dueOf, features, hourOf, partIdx } from "./features";
 import { aimOf, effort, fallacy, leadSample, neighbors, peakHour, slipOf } from "./habits";
 import { ALPHA, D, LAMBDA, N0, type Primed, coldArms, decayArms, prepare, primeBatch, ucb, ucbAt, update } from "./linucb";
 import { grounded } from "./grounded";
@@ -144,12 +144,18 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
     const ask = t.notAfter !== undefined && t.deadline === undefined && !t.rrule ? { from: t.notBefore, to: t.notAfter } : undefined;
     let gapMin = widest(t);
     if (ask && gapMin !== undefined && gapMin < need) {
-      // The said part, then its neighbours: today's later part (tối → đêm), the same part tomorrow, tomorrow's later part, today's earlier one.
-      // Parts already past are skipped; the first that fits is taken. A step into the evening (tối → đêm) also keeps tomorrow's said part open, never past its end.
+      // The said part, then its neighbours: the rest of today's part, then its later part (sáng → trưa), the same part tomorrow, tomorrow's later part, today's earlier one.
+      // Parts already past are skipped; the first that fits is taken. A step into the evening (chiều → tối) also keeps tomorrow's said part open, never past its end.
       const D = dayStart(ask.from!), sm = (ask.from! - D) / MIN, i = DEFAULT_BOUNDS.parts.findIndex(([a, b]) => sm >= a && sm < b);
       // today's later part joins on to what is left of the said one (21:20 "tối": 21:30, not 22:00)
-      const part = (off: number, j: number): Task => { const a = B.parts[off === 0 && j === i + 1 ? i : j][0]; return { ...t, tods: [[a, B.parts[j][1]]], notBefore: D + off * DAY + a * MIN, notAfter: D + off * DAY + B.parts[j][1] * MIN }; };
-      const order: [number, number][] = i < 0 ? [] : [[0, i + 1], [1, i], [1, i + 1], [0, i - 1]];
+      // the same part on another day repeats the window as it was said (18-22), not the whole part
+      const part = (off: number, j: number): Task => {
+        const same = off >= 1 && j === i, a = same ? sm : B.parts[off === 0 && j === i + 1 ? i : j][0], e = same ? Math.min(B.parts[j][1], (ask.to - D) / MIN) : B.parts[j][1];
+        return { ...t, tods: [[a, e]], notBefore: D + off * DAY + a * MIN, notAfter: D + off * DAY + e * MIN };
+      };
+      const lateBad = [22, 23].some((h) => m.arms[h].b[0] < coldArms()[h].b[0]); // you dragged work off the late hours: the rest of the part past the said window is not offered
+      // the said window can be narrower than its part (tối said as 18-22 is 18-24): the rest of the same part comes first, then the next one
+      const order: [number, number][] = i < 0 ? [] : [...(lateBad && B.parts[i][1] > (ask.to - D) / MIN ? [] : [[0, i] as [number, number]]), [0, i + 1], [1, i], [1, i + 1], [0, i - 1]];
       const hit = order.find(([off, j]) => B.parts[j] && D + off * DAY + B.parts[j][1] * MIN > now && (widest(part(off, j)) ?? -1) >= need);
       if (hit) {
         // a late hour may move to tomorrow's said part, but only once the user has dragged work off it (learned below the cold prior); the solver picks by value
@@ -374,9 +380,12 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
   };
   const afterOf = (p: Piece, s: number) => allBusy.find((b) => b.title && b.end <= s && b.end > s - 30 * MIN)?.title
     ?? pieces.find((q) => q !== p && at(q) >= 0 && at(q) + dur(q) <= s && at(q) + dur(q) > s - 30 * MIN && q.task.title !== p.task.title)?.task.title;
-  const guessOf = (p: Piece, s: number): Reason => dueVars(p, s) ? { key: "deadline", w: 1, vars: dueVars(p, s) } : { key: "guess", w: 1, vars: { m: p.effort, part: partOf(s), ...(afterOf(p, s) ? { after: afterOf(p, s)! } : {}) } };
+  const guessOf = (p: Piece, s: number): Reason => dueVars(p, s) ? { key: "deadline", w: 1, vars: dueVars(p, s) } : { key: "guess", w: 1, vars: { m: p.effort, part: partOf(s), pn: slotOf(s).pn, ...(afterOf(p, s) ? { after: afterOf(p, s)! } : {}) } };
   // How often you finished work (or work like this) near this hour lately: the count behind "Mấy lần gần đây…".
-  const doneNear = (s: number) => m.doneHours.filter((d) => now - d.at <= 14 * DAY && cdist(d.hour, hourOf(s)) <= 1).length;
+  // Same part of the day and same kind of day (ngày thường or cuối tuần); an older tick without its weekday counts by the hour alone.
+  const doneNear = (s: number) => m.doneHours.filter((d) => now - d.at <= 14 * DAY && (d.wd === undefined ? cdist(d.hour, hourOf(s)) <= 1 : partIdx(d.hour) === partIdx(hourOf(s)) && dayType(d.wd) === dayType(new Date(s).getDay()))).length;
+  // Where a time sits, for the reasons that only hold at that time (grounded checks it again when the task is moved).
+  const slotOf = (s: number) => ({ pn: PART4[partIdx(hourOf(s))], dt: dayType(new Date(s).getDay()) });
   const likeNear = (p: Piece, s: number) => (nbs.get(p.id) ?? []).filter((n) => n.r > 0 && cdist(n.hour, hourOf(s)) <= 1).length;
   // The placed pieces as neighbours: a batch names the errand or finance piece it sits back to back with.
   const near: Task[] = pieces.filter((q) => at(q) >= 0).map((q) => ({ ...q.task, start: at(q), end: at(q) + dur(q) }));
@@ -393,8 +402,9 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
       const w = dot(ths, xs, k0, k1) - dot(thc, xc, k0, k1);
       const ai = xs.slice(I_AFTER, I_AFTER + KINDS.length).indexOf(1), aj = ai >= 0 ? ai : xc.slice(I_AFTER, I_AFTER + KINDS.length).indexOf(1);
       put(key, w, key === "deadline" ? dueVars(p, s) ?? { due: "" }
-        : key === "kind" ? { kind: p.task.kind } : key === "after" ? { prev: KINDS[aj] ?? "" }
-        : key === "similar" ? { hour: Math.round(hourOf(s)), n: likeNear(p, s) } : key === "hour" ? { hour: Math.floor(hourOf(s)), n: doneNear(s) } : undefined);
+        : key === "kind" ? { kind: p.task.kind, pn: slotOf(s).pn } : key === "after" ? { prev: KINDS[aj] ?? "" }
+        : key === "similar" ? { hour: Math.round(hourOf(s)), n: likeNear(p, s), pn: slotOf(s).pn } : key === "hour" ? { hour: Math.floor(hourOf(s)), n: doneNear(s), ...slotOf(s) }
+        : key === "energy" ? { pn: slotOf(s).pn } : undefined);
     }
     const meanS = dot(ths, xs), meanC = dot(thc, xc);
     const bonus = a ? ucb(prep, as, xs, a) - meanS - (ucb(prep, ac, xc, a) - meanC) : 0;
@@ -441,7 +451,7 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
     // a repeat placed before its day bound stopped counting as a due drops the "Hạn 0:00" reason it was kept for
     if (known0?.why && dueOf(p.task) === undefined) known0.why = known0.why.filter((r) => r.key !== "deadline");
     // held where it was placed: it keeps the reasons it was placed for. Moved by hand since, those reasons were for another time: say them anew.
-    if (!changed && known0 && p.lock && known0.start === s) continue;
+    if (!changed && known0?.why && p.lock && known0.start === s) continue;
     const alt = altOf(p, s);
     const c = changed && p.prior !== undefined ? p.prior : alt;
     const r = c === undefined ? { why: [guessOf(p, s)], explore: false } : whyOf(p, s, c);
@@ -449,7 +459,7 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
     // What came of what was asked leads: the window was packed, the length was shrunk, the day ran late. Else, inside the window said.
     const fits: Reason[] = [];
     if (p.ask && (s + dur(p) > p.ask.to || (p.ask.from !== undefined && s < p.ask.from))) fits.push({ key: "packed", w: 1, vars: { was: wasOf(p.ask), to: partOf(s).replace(/^./, (c) => c.toLowerCase()) } });
-    if (p.cut !== undefined || p.slow !== undefined) fits.push({ key: "fit", w: 1, vars: { len: p.effort, part: partOf(s), ...(dueOf(p.task) !== undefined ? { due: when(dueOf(p.task)!, now) } : {}), ...(p.slow !== undefined ? { slow: p.slow } : {}) } });
+    if (p.cut !== undefined || p.slow !== undefined) fits.push({ key: "fit", w: 1, vars: { len: p.effort, part: partOf(s), pn: slotOf(s).pn, ...(dueOf(p.task) !== undefined ? { due: when(dueOf(p.task)!, now) } : {}), ...(p.slow !== undefined ? { slow: p.slow } : {}) } });
     if (p.over && s + dur(p) > dayStart(s) + B.to * MIN) fits.push({ key: "over", w: 1 });
     if (!fits.length && p.task.notAfter !== undefined) fits.push({ key: "said", w: 1 });
     if ((p.task.misses ?? 0) >= 3) fits.push({ key: "missed3", w: 1, vars: { n: p.task.misses!, part: partOf(s) } });
@@ -625,7 +635,7 @@ export function learn(model: Model, ev: TaskEvent, task: Task, own = false, clas
       if (start !== undefined) {
         if (!late) {
           hist(early ? ev.at : start, 1);
-          m.doneHours.push({ hour: hourOf(ev.at), at: ev.at });
+          m.doneHours.push({ hour: hourOf(ev.at), at: ev.at, wd: new Date(ev.at).getDay() });
           m.doneHours = m.doneHours.slice(-200);
         }
         // A tick up to 1.5x the planned length (or 30 min past it) teaches the real length. Wider (3x) taught overruns but read late ticks as long work and cost a dense timetable its keeps (bench: dluStudent).
@@ -659,9 +669,9 @@ export function learn(model: Model, ev: TaskEvent, task: Task, own = false, clas
       const from = Number(ev.data?.fromStart ?? start), to = Number(ev.data?.toStart);
       if (!Number.isFinite(from) || !Number.isFinite(to)) break;
       // Where you put it counts even when the planner never placed it (a time you set pins the task): the rhythm reads this list.
-      (m.moved ??= []).push({ hour: hourOf(to), at: ev.at });
+      (m.moved ??= []).push({ hour: hourOf(to), at: ev.at, wd: new Date(to).getDay() });
       m.moved = m.moved.slice(-200);
-      (m.left ??= []).push({ hour: hourOf(from), at: ev.at }); // where you took it off: the slot not to fill again
+      (m.left ??= []).push({ hour: hourOf(from), at: ev.at, wd: new Date(from).getDay() }); // where you took it off: the slot not to fill again
       m.left = m.left.slice(-200);
       // Flat -1 where it was taken from, +0.5 where it went, each as 3 outcomes on a narrow kernel. Not placed by the planner: its kind alone teaches.
       const x = new Array(D).fill(0);
@@ -670,7 +680,7 @@ export function learn(model: Model, ev: TaskEvent, task: Task, own = false, clas
       x[0] = 0.5; // the intercept at half weight: the hour's curve, not every kind's
       for (let a = 0; a < m.arms.length; a++) { update(m.arms[a], x, -1, 3 * kernel(a + 0.5, hourOf(from), 0.5)); update(m.arms[a], x, 0.5, 3 * kernel(a + 0.5, hourOf(to), 0.5)); }
       hist(from, -1);
-      if (pl) m.placed[task.id] = { ...pl, start: to, arm: Math.floor(hourOf(to)), moved: true };
+      if (pl) m.placed[task.id] = { ...pl, start: to, arm: Math.floor(hourOf(to)), moved: true, why: undefined }; // the reasons were for the old time: the next plan says them anew
       break;
     }
     default:

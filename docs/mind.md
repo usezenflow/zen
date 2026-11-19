@@ -1,6 +1,6 @@
 # Mind and ears
 
-No on-device models. Speech is the system recognizer; everything after it is rules.
+No language model. Speech is the system recognizer, or, when the user turns it on in Settings (Giọng nói), Moonshine tiny streaming Vietnamese on the phone (`lib/moon.ts`, `lib/voiceModel.ts`: ~32 MB downloaded once, 3 GB RAM or more, any failure falls back to the system recognizer; one reading, no hints, no doubt marks). Everything after it is rules.
 
 ## Now
 

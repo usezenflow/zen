@@ -1,3 +1,4 @@
+import { broke, usable } from "./voiceModel";
 import { ExpoSpeechRecognitionModule as SR, type ExpoSpeechRecognitionResult, type ExpoSpeechRecognitionResultEvent } from "expo-speech-recognition";
 
 const LANG = "vi-VN";
@@ -12,7 +13,9 @@ export const level = (v: number) => Math.max(0, Math.min(1, v / 10));
 export const askMic = async () => (await SR.getPermissionsAsync()).granted || (await SR.requestPermissionsAsync()).granted;
 
 /** Stops any recognition an earlier JS bundle left running (a reload keeps native modules alive) and releases the session, clearing iOS's orange dot. */
+let abortFast: (() => void) | undefined;
 export function micReset() {
+  abortFast?.(); abortFast = undefined;
   SR.abort();
   try { SR.setAudioSessionActiveIOS(false, { notifyOthersOnDeactivation: true }); } catch { /* Android: no session */ }
 }
@@ -48,6 +51,15 @@ const local = () => (onDevice ??= SR.getSupportedLocales({}).then((l) => l.insta
  * `hints` bias the recognizer toward words it would otherwise miss (course names, task titles, English terms).
  */
 export async function listenLive(o: { onPartial?(text: string): void; onLevel?(level: number): void; hints?: string[] } = {}): Promise<{ stop(): Promise<Heard> }> {
+  // The on-device model first, when the user turned it on, it is downloaded and the phone has room; anything wrong with it is the system dictation, silently.
+  // It hears no `hints` and gives one reading with no doubt marks: Heard's alternatives and low stay empty.
+  if (await usable()) {
+    try {
+      const s = await (await import("./moon")).listenMoon(o);
+      abortFast = s.abort;
+      return { stop: () => { abortFast = undefined; return s.stop(); } };
+    } catch { broke(); }
+  }
   const dev = await local();
   const finals: string[][] = [];
   let partial: string[] = [];
