@@ -1,11 +1,9 @@
 # zen
 
-## 26.0.11
+## 26.0.12
 
 ### Patch Changes
 
-- Việc chỉ có một lần cũng thêm được buổi: nhấn giữ việc, chọn "Cần thêm một buổi"
-- Zen xếp giờ bắt đầu vào :00 hoặc :30, tránh :15 và :45 (giờ bạn tự nói vẫn giữ nguyên)
 - Nhịp là một lưới cả tuần: thứ × buổi (sáng, trưa, chiều, tối), nói như người ("Sáng ngày thường", "Tối T3, T5"). Chậm kết luận hơn: cần nhiều việc, nhiều ngày mới nói là nhịp của bạn
 - "Vì sao lúc này" nói theo buổi và loại ngày ("Hay xong việc sáng ngày thường"), và tự đổi khi bạn dời việc sang buổi hay ngày khác
 - Bốn buổi thống nhất: sáng 0-11h, trưa 11-13h, chiều 13-18h, tối 18-24h; giờ quá sớm do thói quen của bạn quyết
@@ -13,9 +11,15 @@
 - Dời việc sang ngày khác (cùng giờ) không còn báo "Đã dời" hay học là bạn tránh giờ đó; "Chưa có gì để làm" không còn hiện mỗi lần mở lại ứng dụng
 - Gõ ghi chú, tên việc, nơi chốn và tìm kiếm mượt hơn
 - Nói nhanh hơn (Cài đặt > Giọng nói): tải một lần 32 MB, chữ hiện ngay khi bạn nói, chạy trên máy, không cần mạng; máy yếu hoặc chưa tải thì dùng giọng nói của hệ thống
-- Thông báo nhắc có âm riêng theo mức (thường, nhắc, gấp)
 - Thông báo có âm riêng: nhắc việc dùng âm nhắc, đổi mật khẩu và lịch thi dùng âm khẩn, còn lại âm mặc định (cần bản dựng mới)
 - Danh sách tải lại sau khi xếp giờ, và sang ngày mới zen xếp giờ cho việc còn chờ giờ
+
+## 26.0.11
+
+### Patch Changes
+
+- Việc chỉ có một lần cũng thêm được buổi: nhấn giữ việc, chọn "Cần thêm một buổi"
+- Zen xếp giờ bắt đầu vào :00 hoặc :30, tránh :15 và :45 (giờ bạn tự nói vẫn giữ nguyên)
 
 ## 26.0.10
 
