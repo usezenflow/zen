@@ -25,13 +25,13 @@ import { PdfView, PhotoMenu, PhotoView, TypeBar, Veil } from "@/components/captu
 import { Hold, type Aside, type HoldState } from "@/components/hold";
 import type { Item } from "@/components/menu";
 import { Month } from "@/components/month";
-import { Live, MovesPill, NowCard, Steps, Story, Weekly, type Card } from "@/components/nowcard";
+import { Live, MovesPill, NowCard, Steps, Story, Weekly, type Card, type LaterChoice } from "@/components/nowcard";
 import { RowMenu, menuTop, sittingItems } from "@/components/rowmenu";
 import { fadeIn, fadeOut, glide, popIn, settle, Tap, EASE } from "@/components/tap";
 import { Sweep, useSweep } from "@/components/sweep";
 import { Toast } from "@/components/toast";
 import { Swipe, Week } from "@/components/week";
-import { apply, retime, forgetHour, makeRoom, moveMine, pickNow, addRule, addSitting, dropSitting, loadClassMult, needMore, pin, putBack, removeRule, removeScope, scopeIds, swipeDone, swipeLater, take, type Result } from "@/lib/apply";
+import { apply, retime, forgetWhen, makeRoom, moveMine, moveToDay, pickNow, addRule, addSitting, dropSitting, loadClassMult, needMore, pin, putBack, removeRule, removeScope, scopeIds, swipeDone, swipeLater, take, type Result } from "@/lib/apply";
 import { briefMoves, loadMoves, loadWarn, seeMoves } from "@/lib/moves";
 import { reasonText, stepText, topReason } from "@/lib/reasons";
 import { holidays } from "@/lib/holidays";
@@ -44,9 +44,12 @@ import { personalPrior } from "@/lib/nlu/reader/assemble";
 import { isRule, readRule } from "@/lib/rules";
 import { sharedOf, viaOf } from "@/lib/share";
 import { onLeftSaved, takeFlash, takeHomeDay } from "@/lib/flash";
+import { compose, inferred, whereOf, type Ctx } from "@/lib/say";
 import { keepBoth, pendingOverlaps, type Overlap } from "@/lib/overlap";
 import * as store from "@/lib/store";
-import { getMarks, onForeground, onSynced } from "@/lib/sync";
+import { getMarks, onForeground, onSynced, onTick } from "@/lib/sync";
+import { nudgeAction, overdue } from "@/lib/nudges";
+import { pushReminders } from "@/lib/reminders";
 import { listenWidgets, pushWidgets } from "@/lib/widgets";
 import { useTheme, font, space, ff } from "@/lib/theme";
 import type { Move, Notice, Rule, Step, Task, Warn } from "@/lib/types";
@@ -146,7 +149,7 @@ export default function Home() {
       // Assignments keep the due-date sub unless the reason says more than "do it early".
       if (why && !x.fixed && !trail[x.id] && (typeOf(x) !== "assignment" || ["pace", "explore", "rule", "pinned", "chose", "packed", "fit", "over"].includes(why.key))) reason[x.id] = reasonText(why);
     }
-    const ins = insights(model, now), wkAgo = now - 7 * 86400_000, w = new Date(now).getDay() === 0 ? ins.weekly : undefined;
+    const ins = insights(model, now), wkAgo = now - 7 * 86400_000, w = new Date(now).getDay() === 0 ? t("sundayLab") : undefined; // Sundays only
     setMind({ i: ins, rules: model.rules ?? [] });
     // A saved card outlives its task until the next re-plan: drop it once the task is gone or ticked, or it was never short of time.
     const open = (id: string) => all.some((x) => x.id === id && !x.doneAt && !x.deletedAt);
@@ -174,13 +177,13 @@ export default function Home() {
     return () => clearTimeout(id);
   }, [toast]);
 
-  const say = useCallback((text: string, r?: Result, extra?: { sub?: string; alt?: { label: string; run: () => void } }) => {
-    // It moved other things (a knock-on has a cause): "Xem" opens the story on today, where it can be read and undone.
-    const ms = r?.moves ?? [], see = ms.length > 1 || ms.some((m) => m.cause) ? { label: t("briefSee"), plain: true, run: () => { setMine({ moves: ms, r: r! }); setView("day"); setSel(startOfDay(Date.now())); } } : undefined;
+  // Every toast's words come from say.ts: this only shows what compose() decided. "Xem" opens the story of what moved, on today.
+  const say = useCallback((text: string, r?: Result, ctx: Ctx = {}) => {
+    const out = compose(r, { ...ctx, title: text, see: r && (() => { setMine({ moves: r.moves ?? [], r }); setView("day"); setSel(startOfDay(Date.now())); }) });
     setToasts((q) => [{
-      text,
-      sub: extra?.sub ?? r?.sub,
-      alt: extra?.alt ?? see,
+      text: out.title,
+      sub: out.sub,
+      alt: out.alt ?? out.more,
       action: r && { run: (() => { let done = false; return async () => { if (done) return; done = true; await r.undo(); setToasts((u) => [{ text: t("undone") }, ...u.slice(1)]); refresh(); }; })() }, // a double tap undoes once
     }, ...q.slice(1)]);
   }, [refresh]);
@@ -251,6 +254,15 @@ export default function Home() {
     return () => sub.remove();
   }, [refresh, landed]);
   useEffect(() => { pushWidgets(); return listenWidgets(refresh); }, [refresh]);
+  // Android: the overrun question as a toast once per launch (the notification's two buttons are the same Xong / Để sau).
+  const asked = useRef(false);
+  useEffect(() => {
+    const x = overdue(tasks, now)[0];
+    if (Platform.OS !== "android" || asked.current || !x) return;
+    asked.current = true;
+    const act = (a: "done" | "later") => () => { setToasts((q) => q.slice(1)); void nudgeAction(x.id, a).then(() => { refresh(); pushReminders(); }); };
+    setToasts((q) => [...q, { text: t("overrunSub", { title: x.title }), sub: t("overrunQ"), action: { label: t("finishDone"), run: act("done") }, alt: { label: t("laterAfter"), run: act("later"), plain: true } }]);
+  }, [tasks, now, refresh]);
   useEffect(() => onLeftSaved(refresh), [refresh]); // the detail screen's last edits, saved as it closed
   // `now` otherwise moves only on a refresh: left open, rows would never turn late and "today" would not roll over at midnight.
   useEffect(() => {
@@ -259,6 +271,7 @@ export default function Home() {
       const n = Date.now();
       setNow(n);
       if (startOfDay(n) !== day) { const was = day; day = startOfDay(n); setSel((v) => (v === was ? day : v)); onForeground().then((r) => (r ? landed(r) : refresh())).catch(() => refresh()); } // a new day also gives waiting tasks their slots // today rolls over; a day picked on purpose stays
+      else onTick(n).then((r) => { if (r) landed(r); }).catch(() => {}); // the clock's replans: a block ended, an idle gap, the 21:30 sweep
     }, 30_000);
     return () => clearInterval(i);
   }, [refresh, landed]);
@@ -391,16 +404,17 @@ export default function Home() {
       if (!playing && titles.length && Number.isFinite(firstAt)) setSel(startOfDay(firstAt));
       // The sized sub (exam, shared end, span or due with sittings) names what the sizer did; else the time of the first piece.
       const sized = sizedSub(actions.filter((a) => a.op === "create" && a.title), now);
-      if (titles.length > 1) { // bulk: count, the shared end if all share one, one Undo for all, no alt
-        say(t("addedN", { n: titles.length }), r, { sub: [stuck.length ? t("noRoomN", { n: stuck.length }) : sized, r.sub, notes.sub, farSub].filter(Boolean).join(" · ") || undefined });
+      const understood = inferred(actions.filter((a) => a.op === "create" && a.title), sized); // only what was worked out beyond the words
+      if (titles.length > 1) { // bulk: count, one Undo for all, no alt
+        say(t("addedN", { n: titles.length }), r, { stuck: stuck.length ? t("noRoomN", { n: stuck.length }) : undefined, understood, notes: notes.sub, far: farSub });
       } else if (titles.length === 1 && stuck.length) {
-        say(t("added", { title: titles[0] }), r, { sub: [t("noRoom"), r.sub].filter(Boolean).join(" · "), alt: { label: t("pickTime"), run: async () => router.push(`/task/${encodeURIComponent(stuck[0].id)}`) } });
+        say(t("added", { title: titles[0] }), r, { name: titles[0], stuck: t("noRoom"), alt: { label: t("pickTime"), run: async () => router.push(`/task/${encodeURIComponent(stuck[0].id)}`) } });
       } else if (titles.length === 1) {
         // The reader's own ask ("3 giờ": 15:00 or 03:00) takes the chip; else the planner's other slot.
         const alt = notes.alt && { alt: { label: notes.alt.label, run: async () => { await r.undo(); await run(notes.alt!.text, via); } } };
         // Not where or as long as it was asked: the reason says why at once ("Sáng mai kín, dời sang chiều mai").
         const first = made.find((x) => x.start === firstAt), fitWhy = first && (await store.loadModel(now)).placed[first.id]?.why?.find((x) => FIT.has(x.key));
-        say(t("added", { title: titles[0] }), r, { sub: [sized ?? (Number.isFinite(firstAt) ? when(firstAt, now) : undefined), fitWhy && reasonText(fitWhy), r.sub, notes.sub, farSub].filter(Boolean).join(" · ") || undefined, ...(alt ?? (await otherSlot(made, now))) });
+        say(t("added", { title: titles[0] }), r, { name: titles[0], reason: fitWhy && reasonText(fitWhy), understood, where: Number.isFinite(firstAt) ? whereOf(firstAt, now) : undefined, notes: notes.sub, far: farSub, ...(alt ?? (await otherSlot(made, now))) });
       } else say(r.toast, r);
       setPhoto(undefined);
       setPdf(undefined);
@@ -610,7 +624,7 @@ export default function Home() {
     return [...out, ...sits, ...seriesItems(x)];
   };
   // A time that lands on a class keeps your time: the toast names the class, as the detail screen does.
-  const clashSub = (r: Result) => (r.clashes?.length ? { sub: t("previewClash", { title: r.clashes[0].fixed.title }) } : undefined);
+  const clashSub = (r: Result): Ctx | undefined => (r.clashes?.length ? { clash: t("previewClash", { title: r.clashes[0].fixed.title }) } : undefined); // compose() keeps a learned line over this
   const rowActs = {
     // Edits show at once and persist behind: the list takes the new value now, and the refresh after the save confirms it.
     onToggle: toggle, onTitle: (x: Task, title: string) => { gen.current++; setTasks((p) => p.map((y) => (y.id === x.id ? { ...y, title } : y))); edit(x, { title }); }, itemsFor,
@@ -643,6 +657,14 @@ export default function Home() {
     if (!c || c.start === undefined || c.end === undefined) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     const at = Math.ceil(Date.now() / 60_000) * 60_000, r = await take(c.task.id, at, at + (c.end - c.start));
+    say(r.toast, r);
+    await shuffle(r);
+  };
+  // "Dời" on the now card: the task goes to that part of a day (its window kept); Zen picks the hour inside it.
+  const laterOn = async (c: LaterChoice) => {
+    const cur = cardRef.current;
+    if (!cur || shuf.current) return;
+    const r = await moveToDay(cur.task.id, c.day, Date.now(), c.part);
     say(r.toast, r);
     await shuffle(r);
   };
@@ -710,12 +732,11 @@ export default function Home() {
   };
   const sd = new Date(sel);
   // Week and month: a row held and moved lands on the day it is let go over, at its own time of day; the list then shows that day.
+  // A drop moves the task to that day and keeps its part of the day; the planner picks the slot. The list follows only once the move lands.
   const dropOn = (x: Task, d: number) => {
-    const start = d + (x.start! - startOfDay(x.start!)), len = (x.end ?? x.start! + x.effort * 60_000) - x.start!;
+    if (shuf.current) return; // a plan is playing out on the list: no second write over it
     gen.current++;
-    setTasks((p) => p.map((y) => (y.id === x.id ? { ...y, start, end: start + len, pinned: true } : y)));
-    setSel(d);
-    apply([{ op: "edit", target: x.id, when: new Date(start).toISOString() }]).then((r) => { say(r.toast, r); refresh(); }, failed);
+    moveToDay(x.id, d).then((r) => { say(r.toast, r); if (r.changed) setSel(d); refresh(); }, failed);
   };
   const dd = useDragDay(view === "week" || view === "month" ? view : undefined, sel, dropOn);
   const sun = addDays(mon, 6), sm = new Date(mon), em = new Date(sun);
@@ -724,7 +745,7 @@ export default function Home() {
     : view === "week"
       ? { hello: mon === mondayOf(today0) ? t("thisWeek") : mon === addDays(mondayOf(today0), 7) ? t("nextWeek") : t("yearN", { y: sm.getFullYear() }), h: t("rangeTo", { a: sm.getMonth() === em.getMonth() ? sm.getDate() : dm(mon), b: dm(sun) }), n: count(mon, addDays(mon, 7), 1) || t("nothingYet") }
       : view === "rhythm"
-        ? { hello: t("rhythmHello"), h: t("rhythm"), n: mind ? rhythmHead(mind.i) : t("stillLearning") }
+        ? { hello: t("rhythmHello"), h: t("learnedTitle"), n: mind ? rhythmHead(mind.i, mind.rules) : "" }
       : { hello: t("yearN", { y: sd.getFullYear() }), h: monthLabel(sel), n: count(new Date(sd.getFullYear(), sd.getMonth(), 1).getTime(), new Date(sd.getFullYear(), sd.getMonth() + 1, 1).getTime(), 1) || t("nothingYet") };
   const stepWeek = (d: -1 | 1) => setSel(addDays(sel, 7 * d));
   const stepMonth = (d: -1 | 1) => setSel(new Date(sd.getFullYear(), sd.getMonth() + d, 1).getTime());
@@ -767,7 +788,7 @@ export default function Home() {
   const cardView = card && (
     <GestureDetector gesture={swipe}>
       <Reanimated.View style={flick}>
-        <NowCard card={card} onDone={card.gap ? startNow : () => commit("done")} onStart={startNow} />
+        <NowCard card={card} onDone={card.gap ? startNow : () => commit("done")} onStart={startNow} onLater={laterOn} />
       </Reanimated.View>
     </GestureDetector>
   );
@@ -853,7 +874,7 @@ export default function Home() {
           {(view === "day" || view === "month") && pillOn && (story
             ? <Story moves={fresh} now={now} onClose={closeStory} />
             : <MovesPill moves={fresh} now={now} onOpen={() => setStory(true)} onDismiss={dismissBrief} />)}
-          {view === "rhythm" && mind && <Rhythm i={mind.i} rules={mind.rules} onForget={async (x) => { const r = await removeRule(x.id); say(r.toast, r); refresh(); }} onForgetHour={async (h) => { const r = await forgetHour(h); say(r.toast, r); refresh(); }} />}
+          {view === "rhythm" && mind && <Rhythm i={mind.i} rules={mind.rules} onForget={async (x) => { const r = await removeRule(x.id); say(r.toast, r); refresh(); }} onForgetHour={async (h) => { const r = await forgetWhen({ hour: h }); say(r.toast, r); refresh(); }} />}
           {(view === "week" || view === "month") && (
             <Reanimated.View key={view} entering={fadeIn}>
               {view === "week"

@@ -1,18 +1,20 @@
 import { bolded } from "@/components/bold";
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
-import { memo, useCallback, useEffect, useRef, useState, type ComponentProps } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { DateChip, TimeChip } from "@/components/pick";
 import { KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import Animated from "react-native-reanimated";
 import { fadeIn, Tap } from "@/components/tap";
 import { Icon, TypeArt } from "@/components/art";
 import { repeatText } from "@/components/detail-html";
 import { EdLine, Gly, Meta } from "@/components/detail-meta";
+import { lenText } from "@/components/dial";
+import { DateChip, TimeChip } from "@/components/pick";
+import { SittingList } from "@/components/sittings";
 import { useTapOutside, type Box } from "@/components/outside";
 import { DropMenu } from "@/components/menu";
 import { RichText } from "@/components/richtext";
-import { addSitting, apply, dropSitting, lastMore, moveMine, preview, removeScope, stillMore, toAction, type LiveEdit, type Result } from "@/lib/apply";
+import { addSitting, apply, dropSitting, lastMore, moveMine, removeScope, stillMore, toAction, type LiveEdit, type Result } from "@/lib/apply";
 import { Story } from "@/components/nowcard";
 import { seeMoves } from "@/lib/moves";
 import { keepBoth } from "@/lib/overlap";
@@ -24,13 +26,23 @@ import { useTheme, type TypeName, font, space, ff } from "@/lib/theme";
 import { grounded, typeOf } from "@/planner";
 import type { Placed } from "@/planner/model";
 import type { Kind, Rule, Task } from "@/lib/types";
-import { day, dayLabel, endAt, startDay, when } from "@/lib/when";
+import { dayLabel, endAt, startDay, when } from "@/lib/when";
 
 type Scope = "this" | "following" | "all";
 const KINDS = Object.keys(KIND_VI) as Kind[];
 const cap = (x: string) => x[0].toUpperCase() + x.slice(1);
 const kindLabel = (k: Kind) => (k === "other" ? "Khác" : cap(KIND_VI[k])); // "Việc của bạn · Khác", not "· Việc khác"
 const host = (u: string) => u.replace(/^https?:\/\/(www\.)?/i, "").split(/[/?#]/)[0];
+const QUARTER = 900_000, LENS = [15, 30, 45, 60, 90, 120]; // the end chip offers these lengths from the start
+const clock = (base: number, d: Date) => { const n = new Date(base); n.setHours(d.getHours(), d.getMinutes(), 0, 0); return n.getTime(); };
+const dayOf = (base: number, d: Date) => { const n = new Date(base); n.setFullYear(d.getFullYear(), d.getMonth(), d.getDate()); return n.getTime(); };
+/** true when `v` differs from the last value stored under `k` (JSON, vec left out); remembers it. */
+const fresh = (seen: Record<string, string>, k: string, v: unknown) => {
+  const j = JSON.stringify(v, (key, x) => (key === "vec" ? undefined : x)) ?? "";
+  if (seen[k] === j) return false;
+  seen[k] = j;
+  return true;
+};
 
 export default function Detail() {
   const th = useTheme();
@@ -44,25 +56,21 @@ export default function Detail() {
   const [pool, setPool] = useState<Task[]>([]); // every task: a batch reason's neighbour and an exam reason's exam
   const [title, setTitle] = useState("");
   const [note, setNote] = useState("");
-  const [ed, setEd] = useState<"time" | "due" | "place">();
-  const [dr, setDr] = useState({ s: 0, m: 30 }); // time draft: start and length in minutes
-  const [dv, setDv] = useState(0); // due draft
   const [loc, setLoc] = useState("");
-  // The open time or due line's value: nothing is saved or planned until the line closes (magic.html 7c), then once.
-  const draft = useRef<{ id: string; e: LiveEdit }>(undefined);
-  const [pv, setPv] = useState<Result>(); // what the draft would do: a dry run, shown as one line under the chips
-  const [told, setTold] = useState<{ r: Result; id: string }>(); // what the saved value did, shown in place (magic.html 7d)
-  const [added, setAdded] = useState<Result>(); // what "Còn nữa" just added: its toast and Undo, in place
-  const pvGen = useRef(0);
-  const pvT = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [ed, setEd] = useState<"time" | "due" | "place">(); // which inline line is open
+  const [noTitle, setNoTitle] = useState(false); // an emptied title: a hint, the stored one stays
+  // Every time, day, length and due change waits here until its dropdown closes, a tap outside, or leaving: one apply, one replan.
+  const [draft] = useState(() => new Map<string, LiveEdit>()); // a plain box, written in handlers only
+  const [told, setTold] = useState<{ r: Result; ids: string[] }>(); // what the saved value did, shown in place (magic.html 7d)
+  const [added, setAdded] = useState<Result>(); // what "Còn nữa" or a sitting change just did: its toast and Undo, in place
   const saved = useRef("");
   const latest = useRef("");
+  const seen = useRef<Record<string, string>>({}); // last loaded values, so a reload that changes nothing sets no state
   const nav = useNavigation();
   // What is typed lives in refs and in each Field, never in this screen's state: a key press must not re-render the whole detail.
   const typed = useRef({ title: "", loc: "" });
   const pend = useRef({ task });
-  const keys = useRef<{ title?: ReturnType<typeof setTimeout>; loc?: ReturnType<typeof setTimeout> }>({});
-  const [rev, setRev] = useState(0); // bumped to make the fields show the stored value again
+  const [rev] = useState(0); // the fields show the stored value again when this bumps (none does now: a save never reverts a field)
   useEffect(() => { pend.current = { task }; });
   // Delete, move and replan each close the screen: a second tap must not run them twice or pop the screen below.
   const [leaving] = useState(() => ({ on: false })); // a plain box, read only in handlers
@@ -77,8 +85,9 @@ export default function Detail() {
     const x = all.find((y) => y.id === id);
     const n = Date.now();
     const mdl = id ? await loadModel(n) : undefined;
-    setPlc(id ? mdl?.placed[id] : undefined);
-    setRules(mdl?.rules ?? []);
+    const pl = id ? mdl?.placed[id] : undefined, rl = mdl?.rules ?? [];
+    if (fresh(seen.current, "plc", pl)) setPlc(pl);
+    if (fresh(seen.current, "rules", rl)) setRules(rl);
     if (!x || x.deletedAt) { // opened from a stale widget or notification, or synced away
       // only while on top: a screen under another popping itself took the top one (or nothing) with it
       if (nav.isFocused()) { if (router.canGoBack()) router.back(); else router.replace("/"); }
@@ -86,64 +95,77 @@ export default function Detail() {
     }
     const on = x.start ?? x.deadline;
     if (on !== undefined) openedOnDay(on);
-    setNow(n); setTask(x); setPool(all); setExam(x?.forId ? all.find((y) => y.id === x.forId) : undefined);
-    setSits(all.filter((y) => y.parentId === (x.parentId ?? x.id) && !y.deletedAt).sort((a, b) => (a.start ?? Infinity) - (b.start ?? Infinity)));
+    if (fresh(seen.current, "now", Math.floor(n / 60_000))) setNow(n);
+    if (fresh(seen.current, "task", x)) setTask(x);
+    if (fresh(seen.current, "pool", all)) setPool(all);
+    const ex = x.forId ? all.find((y) => y.id === x.forId) : undefined;
+    if (fresh(seen.current, "exam", ex)) setExam(ex);
+    const ss = all.filter((y) => y.parentId === (x.parentId ?? x.id) && !y.deletedAt).sort((a, b) => (a.start ?? Infinity) - (b.start ?? Infinity));
+    if (fresh(seen.current, "sits", ss)) setSits(ss);
     // A reload after a save must not wipe what is still being typed in another field: only untouched fields take the stored value.
     const p = pend.current, first = !p.task;
-    if (first || typed.current.title === p.task?.title) { typed.current.title = x?.title ?? ""; setTitle(x?.title ?? ""); }
-    if (first || latest.current === saved.current) { setNote(x?.note ?? ""); saved.current = latest.current = x?.note ?? ""; }
-    if (first || typed.current.loc === (p.task?.location ?? "")) { typed.current.loc = x?.location ?? ""; setLoc(x?.location ?? ""); }
+    if (first || typed.current.title === p.task?.title) { typed.current.title = x.title ?? ""; setTitle(x.title ?? ""); }
+    if (first || latest.current === saved.current) { setNote(x.note ?? ""); saved.current = latest.current = x.note ?? ""; }
+    if (first || typed.current.loc === (p.task?.location ?? "")) { typed.current.loc = x.location ?? ""; setLoc(x.location ?? ""); }
   }, [id, nav]);
   // on every focus, not only the first: back from a sitting deleted on its own screen drops it from "Các buổi" here
   useFocusEffect(useCallback(() => { void load(); }, [load]));
-  // Saves the open line's value: one edit, one plan, one undo.
-  const commit = useCallback(() => {
-    const d = draft.current;
-    draft.current = undefined; pvGen.current++; clearTimeout(pvT.current); setPv(undefined);
-    return d && apply([toAction(d.id, d.e)]).then((r) => ({ r, id: d.id }));
-  }, []);
-  useEffect(() => () => leftSaved(commit()), [commit]); // leaving with the line open keeps the value; the list reloads once it lands
-  const close = () => {
-    setEd(undefined);
-    const p = commit();
+
+  // The one save: every pending change in one apply. Nothing is planned while the user is still editing.
+  const put = useCallback((sid: string, e: LiveEdit) => { draft.set(sid, { ...draft.get(sid), ...e }); }, [draft]);
+  const flush = useCallback(() => {
+    const ids = [...draft.keys()], acts = ids.map((i) => toAction(i, draft.get(i)!));
+    draft.clear();
+    if (!ids.length) return undefined;
+    return apply(acts).then((r) => ({ r, ids }));
+  }, [draft]);
+  const settle = () => {
+    const p = flush();
     if (!p) return void load();
     leftSaved(p);
-    p.then(({ r, id }) => { if (r.moves?.some((m) => m.id !== id) || r.clashes?.length || r.lost?.length) setTold({ r, id }); void load(); }, () => void load());
+    p.then(({ r, ids }) => { if (r.moves?.some((m) => !ids.includes(m.id)) || r.clashes?.length || r.lost?.length) setTold({ r, ids }); void load(); }, () => void load());
   };
+  const close = () => { setEd(undefined); settle(); };
+  const saveFirst = async () => { const p = flush(); if (p) await p.catch(() => {}); };
   const edBox = useRef<Box>(null);
   useTapOutside(edBox, ed === "time" || ed === "due", close); // a dropdown open over it takes its own taps
 
-  // Note: save on blur, after a pause, and when leaving.
+  // Note: saved on blur and when leaving, not on every pause, so typing plans nothing.
   const saveNote = useCallback(() => {
     if (latest.current === saved.current) return;
     saved.current = latest.current;
     return apply([{ op: "edit", target: id, note: latest.current }]);
   }, [id]);
-  const noteTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => () => { clearTimeout(noteTimer.current); leftSaved(saveNote()); }, [saveNote]);
-  const typing = (v: string) => { latest.current = v; clearTimeout(noteTimer.current); noteTimer.current = setTimeout(saveNote, 500); };
-  // Title and place are saved half a second after typing pauses too, not only on Return: a force quit mid-word keeps them.
-  const typeTitle = (v: string) => {
-    typed.current.title = v;
-    clearTimeout(keys.current.title);
-    keys.current.title = setTimeout(() => { const k = pend.current.task, x = v.trim(); if (k && x && x !== k.title) void apply([{ op: "edit", target: k.id, title: x }]).then(load); }, 500);
-  };
-  const typeLoc = (v: string) => {
-    typed.current.loc = v;
-    clearTimeout(keys.current.loc);
-    keys.current.loc = setTimeout(() => { const k = pend.current.task, x = v.trim(); if (k && x !== (k.location ?? "")) void apply([{ op: "edit", target: k.id, location: x }]).then(load); }, 500);
-  };
+  const typing = (v: string) => { latest.current = v; };
+  const typeTitle = (v: string) => { typed.current.title = v; if (noTitle && v.trim()) setNoTitle(false); };
+  const typeLoc = (v: string) => { typed.current.loc = v; };
 
-  // Leaving with the keyboard still up keeps the title and place typed so far, as the note does.
+  // Leaving saves what is pending: the open time or due line, the note, the title and the place typed so far.
   useEffect(() => () => {
+    leftSaved(flush());
+    leftSaved(saveNote());
     const { title: ti, loc: lo } = typed.current, { task: tk } = pend.current;
-    clearTimeout(keys.current.title); clearTimeout(keys.current.loc);
     if (!tk) return;
     const v = ti.trim();
     if (v && v !== tk.title) leftSaved(apply([{ op: "edit", target: tk.id, title: v }]));
     if (lo.trim() && lo.trim() !== (tk.location ?? "")) leftSaved(apply([{ op: "edit", target: tk.id, location: lo.trim() }]));
-  }, []);
+  }, [flush, saveNote]);
 
+  // A time, day or part change for one task (the screen's own or one of its sittings): local at once, saved with the rest.
+  const setTime = useCallback((sid: string, s: number, m: number) => {
+    setTold(undefined);
+    const moved = (x: Task) => ({ ...x, start: s, end: s + m * 60_000, effort: m });
+    setTask((x) => (x && x.id === sid ? moved(x) : x));
+    setSits((xs) => xs.map((x) => (x.id === sid ? moved(x) : x)));
+    put(sid, { when: s, effortMinutes: m });
+  }, [put]);
+
+  // Why this time: computed once per change of the plan or the task, not on every render (hooks stay above the early return).
+  const why = useMemo(() => {
+    if (!task || task.fixed) return undefined;
+    const openN = sits.filter((k) => !k.doneAt);
+    return grounded(plc?.why, { task, start: task.start ?? 0, rules, tasks: pool }).flatMap((r) => (r.key !== "pace" ? [r] : openN.length > 1 ? [{ ...r, vars: { k: openN.findIndex((k) => k.id === task.id) + 1, n: openN.length } }] : [])).slice(0, 4);
+  }, [plc, task, rules, pool, sits]);
   if (!task) return <SafeAreaView style={{ flex: 1, backgroundColor: th.bg }} />;
   const type: TypeName = typeOf(task);
   // A split task's time line is its next open sitting's, and edits that sitting; a task with no time yet (no free slot) can be given one by hand.
@@ -151,6 +173,7 @@ export default function Detail() {
   const tt = split ? sits.find((k) => !k.doneAt) : task;
   const series = !!(task.section || task.rrule || task.parentId || split);
   const at = (ts: number) => when(ts, now);
+  const hm = (ts: number) => at(ts).split(" ").pop()!;
 
   // A split task deletes from its next open sitting, as its time line edits it: "this" is that sitting, "all" every one.
   const del = once(async (scope: Scope) => {
@@ -162,45 +185,33 @@ export default function Detail() {
   });
   const submitTitle = () => {
     const v = typed.current.title.trim();
-    if (!v) { typed.current.title = task.title; return setRev((r) => r + 1); }
+    if (!v) return setNoTitle(true); // the stored title stays; the hint asks for one
+    setNoTitle(false);
     if (v !== task.title) void apply([{ op: "edit", target: task.id, title: v }]).then(load);
   };
 
   const mine = task.source !== "dlu" && !task.forId;
   const canTime = !!tt && (task.fixed ? task.fixed === "busy" && mine && task.start !== undefined : true);
   const hasDue = mine && !task.fixed && !task.rrule && task.deadline !== undefined;
-  // A dry run of the draft, once the wheel rests a moment; a later turn drops an earlier answer.
-  const ask = () => {
-    clearTimeout(pvT.current);
-    const g = ++pvGen.current;
-    pvT.current = setTimeout(() => { const d = draft.current; if (d) void preview(d.id, d.e).then((r) => { if (g === pvGen.current) setPv(r); }, () => {}); }, 120);
-  };
-  const setTime = (s: number, m: number) => {
-    if (!tt) return;
-    setDr({ s, m });
-    setTold(undefined);
-    const moved = (x: Task) => ({ ...x, start: s, end: s + m * 60_000, effort: m });
-    if (tt.id === task.id) setTask((x) => x && moved(x)); else setSits((xs) => xs.map((x) => (x.id === tt.id ? moved(x) : x)));
-    draft.current = { id: tt.id, e: { when: s, effortMinutes: m } };
-    ask();
-  };
-  const setDue = (d: number) => { setDv(d); setTold(undefined); setTask((x) => x && { ...x, deadline: d }); draft.current = { id: task.id, e: { deadline: d } }; };
-  const setEnd = (end: number) => setTime(dr.s, Math.max(15, Math.round((end - dr.s) / 60_000))); // never before the start
-  const clock = (base: number, d: Date) => { const n = new Date(base); n.setHours(d.getHours(), d.getMinutes(), 0, 0); return n.getTime(); };
-  const dayOf = (base: number, d: Date) => { const n = new Date(base); n.setFullYear(d.getFullYear(), d.getMonth(), d.getDate()); return n.getTime(); };
-  const openTime = canTime && tt ? () => {
-    const s0 = tt.start ?? Math.ceil(Date.now() / 900_000) * 900_000; // untimed: from the next quarter hour
-    setDr({ s: s0, m: tt.start !== undefined && tt.end !== undefined ? Math.max(15, Math.round((tt.end - tt.start) / 60000)) : tt.effort || 30 });
-    setEd("time");
-  } : undefined;
-  const openDue = () => { setDv(task.deadline!); setEd("due"); };
+  // The open time line (a placed one, or an untimed one once its "no free slot" line is tapped). Start and length come from the task's own values.
+  const tid = tt?.id ?? task.id;
+  const sNow = tt?.start ?? Math.ceil(now / QUARTER) * QUARTER; // untimed: from the next quarter hour (now is set by the load)
+  const mNow = tt && tt.start !== undefined && tt.end !== undefined ? Math.max(15, Math.round((tt.end - tt.start) / 60_000)) : tt?.effort || 30;
+  const eNow = sNow + mNow * 60_000;
+  const openTime = () => { if (tt) setEd("time"); };
+  const setEnd = (end: number) => setTime(tid, sNow, Math.max(15, Math.round((end - sNow) / 60_000))); // never before the start
+  const dl = task.deadline;
+  const setDue = (ts: number) => { setTask((x) => x && { ...x, deadline: ts }); put(task.id, { deadline: ts }); };
+  const openDue = () => setEd("due");
+  const clearDue = () => { setTask((x) => x && { ...x, deadline: undefined }); put(task.id, { deadline: "" }); close(); };
+  const e = eNow; // the end; its day chip shows only when it is another day
   const savePlace = () => {
     const v = typed.current.loc.trim();
     if (!v) setEd(undefined);
     if (v !== (task.location ?? "")) void apply([{ op: "edit", target: task.id, location: v }]).then(load);
   };
-  // Opens the pickers on today 23:59; nothing is saved (and nothing re-planned) until the user picks.
-  const defaultDue = () => { const d = new Date(now); d.setHours(23, 59, 0, 0); setDv(d.getTime()); setEd("due"); };
+  // Opens the due line on today 23:59; nothing is saved until a dropdown closes, a tap outside, or leaving.
+  const defaultDue = () => { const d = new Date(now); d.setHours(23, 59, 0, 0); setDue(d.getTime()); setEd("due"); };
   const link = /^https?:\/\/\S+$/i.test(task.location ?? "") ? task.location! : undefined;
   const goBack = once(async () => router.back()); // a second tap must not pop the screen below
   const more = () => [
@@ -209,53 +220,51 @@ export default function Detail() {
     ...(mine && link && ed !== "place" ? [{ label: t("editPlace"), icon: "pencil" as const, onPress: () => setEd("place") }] : []),
     // A fixed block is the user's own time: zen never offers to plan it, nor says why it is there.
     ...(mine && !task.fixed && task.userEdited?.includes("start") ? [{ label: t("zenReplan"), icon: "sync" as const, onPress: once(async () => {
+      await saveFirst();
       const r: Result = await moveMine(task.id);
       setFlash({ text: r.toast, sub: r.sub, r });
       router.back();
     }) }] : []),
   ];
-  const hm = (ts: number) => at(ts).split(" ").pop()!;
+  const span = tt?.start !== undefined ? t("toEnd", { t: tt.rrule ? hm(tt.start) : at(tt.start), e: hm(tt.end ?? tt.start + tt.effort * 60_000) }) : "";
+
+  // views.html "Detail, change the time": one line of chips, start - end; each chip drops its picker, and closing one saves once.
+  const timeLine = (
+    <EdLine key="t" ref={edBox} icon="clock">
+      <DateChip value={sNow} past onChange={(d) => setTime(tid, dayOf(sNow, d), mNow)} onClose={settle} />
+      <TimeChip value={sNow} past onChange={(d) => setTime(tid, clock(sNow, d), mNow)} onClose={settle} />
+      <Text style={[s.dash, { color: th.muted }]}>-</Text>
+      {startDay(e) !== startDay(sNow) && <DateChip value={e} min={startDay(sNow)} past onChange={(d) => setEnd(dayOf(e, d))} onClose={settle} />}
+      {/* an end before the start runs into the next day (endAt); its day chip then shows. Its presets are lengths. */}
+      <TimeChip value={e} past onChange={(d) => setEnd(endAt(sNow, e, d))} onClose={settle}
+        presets={LENS.map((m) => ({ label: lenText(m), at: new Date(sNow + m * 60_000), on: m === mNow }))} />
+    </EdLine>
+  );
+  const dueLine = dl !== undefined && (
+    <EdLine key="d" ref={edBox} icon="hourglass" tone="red">
+      <DateChip value={dl} onChange={(d) => setDue(dayOf(dl, d))} onClose={settle} />
+      <TimeChip value={dl} due onChange={(d) => setDue(clock(dl, d))} onClose={settle} />
+      <Tap onPress={clearDue} accessibilityLabel={t("clearDue")} style={s.clr}>
+        <Text style={{ fontFamily: ff("600"), fontSize: font.sub, color: th.muted }}>{t("clearDue")}</Text>
+      </Tap>
+    </EdLine>
+  );
+
   const lines: React.ReactNode[] = [];
   if (task.fixed && task.start !== undefined) {
-    lines.push(<Meta key="t" icon="clock" text={task.end !== undefined && task.fixed !== "exam" ? t("toEnd", { t: at(task.start), e: startDay(task.end - 1) === startDay(task.start) ? hm(task.end) : at(task.end) }) : at(task.start)} onPress={openTime} />);
+    if (ed === "time" && canTime) lines.push(timeLine);
+    else lines.push(<Meta key="t" icon="clock" onPress={canTime ? openTime : undefined} text={task.end !== undefined && task.fixed !== "exam" ? t("toEnd", { t: at(task.start), e: startDay(task.end - 1) === startDay(task.start) ? hm(task.end) : at(task.end) }) : at(task.start)} />);
   } else {
     if (task.deadline !== undefined && task.source === "dlu" && !task.forId) lines.push(<Meta key="d" icon="hourglass" tone="red" text={t("dueAt", { t: at(task.deadline) })} />);
-    if (hasDue || (mine && ed === "due")) lines.push(ed === "due" ? (
-      <EdLine key="d" ref={edBox} icon="hourglass" tone="red">
-        <DateChip value={dv} onChange={(d) => setDue(dayOf(dv, d))} />
-        <TimeChip value={dv} due onChange={(d) => setDue(clock(dv, d))} />
-        <Tap onPress={() => { if (task.deadline !== undefined) draft.current = { id: task.id, e: { deadline: "" } }; close(); }} accessibilityLabel={t("clearDue")} style={s.clr}>
-          <Text style={{ fontFamily: ff("600"), fontSize: font.sub, color: th.muted }}>{t("clearDue")}</Text>
-        </Tap>
-      </EdLine>
-    ) : <Meta key="d" icon="hourglass" tone="red" text={t("dueAt", { t: at(task.deadline!) })} onPress={openDue} />);
+    if (mine && ed === "due" && dueLine) lines.push(dueLine);
+    else if (hasDue) lines.push(<Meta key="d" icon="hourglass" tone="red" text={t("dueAt", { t: at(task.deadline!) })} onPress={openDue} />);
     // The time is always shown: a split task's next open sitting (its sittings listed under "Các buổi"), else "no free slot" (views.html "Detail, no free time").
-    // start - end, not start and a length: "Làm lúc T2 9:00 - 10:00"; a repeat drops the day (its repeat line says which days)
-    if (tt?.start !== undefined) { const span = t("toEnd", { t: tt.rrule ? hm(tt.start) : at(tt.start), e: hm(tt.end ?? tt.start + tt.effort * 60_000) }); lines.push(<Meta key="t" icon="clock" text={tt.rrule ? span : t("planAt", { t: span })} onPress={openTime} />); }
-    else if (tt && !task.doneAt) lines.push(<Meta key="t" icon="clock" tone="red" text={t("noSlot")} onPress={openTime} />);
+    if (ed === "time" && canTime) lines.push(timeLine);
+    else if (tt?.start !== undefined) lines.push(<Meta key="t" icon="clock" text={tt.rrule ? span : t("planAt", { t: span })} onPress={canTime ? openTime : undefined} />);
+    else if (tt && !task.doneAt) lines.push(<Meta key="t" icon="clock" tone="red" text={t("noSlot")} onPress={canTime ? openTime : undefined} />);
   }
   // The repeat sits right under the time (views.html "Detail, repeating"); lectures have none, the timetable is the repeat.
   if (task.rrule && !task.section) lines.push(<Meta key="r" icon="repeat" text={repeatText(task.rrule, task.start ?? task.deadline ?? now)} />);
-  if (ed === "time" && canTime) {
-    const i = lines.findIndex((x) => (x as { key: string }).key === "t"), e = new Date(dr.s + dr.m * 60000);
-    const row = (
-      // views.html "Detail, set time": one line, start - end; the end's day shows only when it is another day. One box for tap-outside
-      <EdLine key="t" ref={edBox} icon="clock">
-        <DateChip value={dr.s} past onChange={(d) => setTime(dayOf(dr.s, d), dr.m)} />
-        <TimeChip value={dr.s} past onChange={(d) => setTime(clock(dr.s, d), dr.m)} />
-        <Text style={[s.dash, { color: th.muted }]}>-</Text>
-        {/* views.html "Detail, over several days": the end day; days before the start are greyed out */}
-        {startDay(e.getTime()) !== startDay(dr.s) && <DateChip value={e.getTime()} min={startDay(dr.s)} past onChange={(d) => setEnd(dayOf(e.getTime(), d))} />}
-        {/* an end is at least 15 minutes after its start (setEnd); one turned before the start runs into the next day */}
-        <TimeChip value={e.getTime()} past onChange={(d) => setEnd(endAt(dr.s, dr.s + dr.m * 60_000, d))} /* an end turned before the start moves to the next day (endAt); its day chip then shows */ />
-      </EdLine>
-    );
-    if (i >= 0) lines[i] = row; else lines.push(row);
-    // magic.html 7c: what the time being turned to would do; nothing when it touches nothing
-    const c = pv?.clashes?.[0], ms = (pv?.moves ?? []).filter((x) => x.id !== tt?.id);
-    const say = c ? t("previewClash", { title: c.fixed.title }) : ms.length > 1 ? t("previewMoves", { n: ms.length }) : ms[0] && t("previewMove", { title: ms[0].title, when: at(ms[0].to) });
-    if (say) lines.splice((i >= 0 ? i : lines.length - 1) + 1, 0, <Text key="pv" accessibilityLiveRegion="polite" style={[s.pv, { color: th.muted }]}>{bolded(say, { color: th.ink })}</Text>);
-  }
   // a link place opens on tap; the dots menu edits it
   if (link && ed !== "place") lines.push(<Meta key="l" icon="link" tone="link" text={host(link)} onPress={() => void Linking.openURL(link).catch(() => {})} />);
   else if (mine && (task.location || ed === "place")) lines.push(
@@ -274,13 +283,12 @@ export default function Detail() {
   const open = sits.filter((k) => !k.doneAt);
   // "Còn nữa": under the sittings once the last one is done or under way (lastMore); no sheet, the result stays here with its Undo.
   const still = lastMore(sits.length ? sits : task.rrule ? [] : [task], now); // an unsplit task is its own last sitting
-  const addMore = async () => { if (!still) return; setAdded(await stillMore(still)); void load(); };
-  // "−" and "+ Thêm buổi" in the list: the result stays here with its Undo, as "Còn nữa". "−" only with two or more open: the last open one
-  // going would leave no open sitting, and the planner would split the task again.
-  const dropOne = async (id: string) => { setAdded(await dropSitting(task.parentId ?? task.id, undefined, id)); void load(); };
-  const addOne = async () => { setAdded(await addSitting(task.parentId ?? task.id)); void load(); };
+  const addMore = async () => { if (!still) return; await saveFirst(); setAdded(await stillMore(still)); void load(); };
+  // Sittings: "Thêm buổi" on every open, non-fixed, non-repeating task; "Bỏ buổi" only with two or more open (the split keeps one).
+  const canSplit = !task.fixed && !task.rrule && !task.doneAt;
+  const dropOne = async (sid: string) => { await saveFirst(); setAdded(await dropSitting(task.parentId ?? task.id, undefined, sid)); void load(); };
+  const addOne = async () => { await saveFirst(); setAdded(await addSitting(task.parentId ?? task.id)); void load(); };
   const undoMore = async () => { const r = added; setAdded(undefined); await r?.undo(); void load(); };
-  const why =!task.fixed ? grounded(plc?.why, { task, start: task.start ?? 0, rules, tasks: pool }).flatMap((r) => (r.key !== "pace" ? [r] : open.length > 1 ? [{ ...r, vars: { k: open.findIndex((k) => k.id === task.id) + 1, n: open.length } }] : [])).slice(0, 4) : undefined;
   const me = split ? tt?.id : task.id;
   // "Cũng hợp" only for a real other time: one the planner found, not the current one, not already gone
   const alt = plc?.alt !== undefined && plc.alt !== task.start && plc.alt > now ? plc.alt : undefined;
@@ -289,10 +297,10 @@ export default function Detail() {
     setFlash({ text: r.toast, sub: r.sub, r });
     router.back();
   });
-  const toldMoves = told ? (told.r.moves ?? []).filter((x) => x.id !== told.id) : [];
-  const giveBack = async (id: string) => { setTold(undefined); const r = await moveMine(id); setFlash({ text: r.toast, sub: r.sub, r }); void load(); };
+  const toldMoves = told ? (told.r.moves ?? []).filter((x) => !told.ids.includes(x.id)) : [];
+  const giveBack = async (sid: string) => { setTold(undefined); await saveFirst(); const r = await moveMine(sid); setFlash({ text: r.toast, sub: r.sub, r }); void load(); };
   const keep = async (c: NonNullable<Result["clashes"]>[number]) => { await keepBoth(c); setTold((x) => x && { ...x, r: { ...x.r, clashes: x.r.clashes?.filter((y) => y !== c) } }); };
-  const seen = () => { setTold(undefined); void seeMoves(toldMoves.map((x) => x.id)); };
+  const seeTold = () => { setTold(undefined); void seeMoves(toldMoves.map((x) => x.id)); };
   const undoTold = async () => { const r = told?.r; setTold(undefined); await r?.undo(); void load(); };
   const circle = [s.o, { borderColor: th.line, backgroundColor: th.bg }];
   const danger = [s.o, { borderColor: th.seal, backgroundColor: th.bg }]; // red: not mistaken for the dots next to it
@@ -329,6 +337,7 @@ export default function Detail() {
             )}
           </View>
           <Field value={title} rev={rev} onText={typeTitle} selectionColor={th.seal} cursorColor={th.seal} onEndEditing={submitTitle} returnKeyType="done" submitBehavior="blurAndSubmit" multiline style={[s.h, { color: th.ink }]} />
+          {noTitle && <Text accessibilityLiveRegion="polite" style={[s.hint, { color: th.seal }]}>Gõ tên việc để lưu</Text>}
           {lines.length > 0 && <View style={s.meta}>{lines}</View>}
           {/* magic.html 7d/7e: what the time just set did, in place: a clash with a class asks, the moves tell their story with Undo */}
           {told && (
@@ -344,37 +353,16 @@ export default function Detail() {
                   </View>
                 ))}
                 {told.r.lost?.map((x) => <Text key={x.id} style={[s.wb, { color: th.seal, marginTop: 12 }]}>{bolded(t("lostSlot", { title: x.title }))}</Text>)}
-                {toldMoves.length > 0 && <Story moves={toldMoves} now={now} onClose={seen} onUndo={undoTold} />}
+                {toldMoves.length > 0 && <Story moves={toldMoves} now={now} onClose={seeTold} onUndo={undoTold} />}
               </View>
           )}
-          {/* prep.html "Các buổi": every sitting with its day, step and length; done ones struck, this one bold. Only for two or more; above the LMS content, each row opens its sitting. */}
-          {sits.length > 1 && (
+          {/* prep.html "Các buổi": every open, non-fixed, non-repeating task can take sittings; each open one has its own day, part and length. */}
+          {(canSplit || sits.length > 1) && (
             <View style={s.why}>
               <Text style={[s.lab, { color: th.muted }]}>{t("sittings")}</Text>
               <View style={{ marginTop: 6 }}>
-                {sits.map((k) => {
-                  const done = !!k.doneAt, on = k.id === me, dim = { color: th.muted, textDecorationLine: done ? "line-through" : "none" } as const;
-                  return (
-                    <View key={k.id} style={s.sirow}>
-                      {/* push, not replace: back returns to this one; encoded, as a sitting id holds "#" */}
-                      <Tap variant="row" disabled={k.id === task.id} onPress={() => router.push(`/task/${encodeURIComponent(k.id)}`)} accessibilityRole="button" style={[s.si, { flex: 1 }]}>
-                        <Text style={[s.sd, dim, on && !done && { color: th.ink, fontFamily: ff("600") }]}>{k.start !== undefined ? day(k.start, now) : "—"}</Text>
-                        <Text style={[s.sp, { color: th.ink }, done && dim, on && !done && { fontFamily: ff("700") }]} numberOfLines={1}>{k.title}</Text>
-                        <Text style={[s.sm, { color: th.muted }]}>{t("minutes", { n: k.effort })}</Text>
-                      </Tap>
-                      {done || open.length < 2 ? <View style={s.xGap} /> : (
-                        <Tap onPress={() => dropOne(k.id)} accessibilityRole="button" accessibilityLabel={t("dropSit")} style={s.x}>
-                          <Icon name="x" size={20} color={th.muted} w={2} />
-                        </Tap>
-                      )}
-                    </View>
-                  );
-                })}
-                {/* a whole-width button, not a "+" glyph: easy to hit with a thumb */}
-                <Tap onPress={addOne} accessibilityRole="button" accessibilityLabel={t("addSit")} style={[s.add, { borderColor: th.line }]}>
-                  <Icon name="plus" size={20} color={th.ink} w={2.2} />
-                  <Text style={[s.addT, { color: th.ink }]}>{t("addSit")}</Text>
-                </Tap>
+                <SittingList sits={sits} me={me} canDrop={open.length >= 2} canAdd={canSplit}
+                  onTime={setTime} onDrop={dropOne} onAdd={addOne} onSettle={settle} />
               </View>
             </View>
           )}
@@ -385,35 +373,10 @@ export default function Detail() {
               <Tap onPress={undoMore} accessibilityRole="button" accessibilityLabel={t("undo")} style={s.more}><Text style={[s.moreT, { color: th.ink }]}>{t("undo")}</Text></Tap>
             </View>
           )}
-          {!!task.content?.trim() && (
-            <View style={[s.lms, { borderColor: th.line }]}>
-              <Text style={[s.lab, { color: th.muted, marginBottom: 6 }]}>{t("lmsContent")}</Text>
-              <RichText html={task.content} color={th.ink} line={th.line} link={th.ink} />
-            </View>
-          )}
-          {!!why?.length && (
-            <View style={s.why}>
-              <Text style={[s.lab, { color: th.muted }]}>{t("whyNow")}</Text>
-              {why.map((x, i) => (
-                <View key={i} style={s.wr}>
-                  <Text style={[s.wt, { color: th.ink }]}>{reasonText(x, true)}</Text>
-                  <View style={[s.bar2, { backgroundColor: th.line }]}><View style={{ width: `${Math.min(1, Math.abs(x.w)) * 100}%`, height: 4, borderRadius: 4, backgroundColor: x.w < 0 ? th.seal : th.ink }} /></View>
-                </View>
-              ))}
-              {alt !== undefined && (
-                <>
-                  <Text style={[s.lab, { color: th.muted, marginTop: 20 }]}>{t("alsoFits")}</Text>
-                  <View style={s.pills}>
-                    <Tap onPress={() => moveTo(alt)} accessibilityLabel={`${t("alsoFits")} ${at(alt)}`} style={[s.pill, { borderColor: th.line }]}>
-                      <Text style={{ fontSize: font.sub, fontFamily: ff("500"), color: th.ink }}>{at(alt)}</Text>
-                    </Tap>
-                  </View>
-                </>
-              )}
-            </View>
-          )}
-          <Field value={note} rev={rev} onText={typing} selectionColor={th.seal} cursorColor={th.seal} onBlur={saveNote} multiline scrollEnabled={false} placeholder={t("addNote")} placeholderTextColor={th.muted}
-            style={[s.note, { color: th.ink }]} />
+          {!!task.content?.trim() && <Lms html={task.content} />}
+          {!!why?.length && <WhyBlock items={why} alt={alt} now={now} onMove={moveTo} />}
+          <Field value={note} rev={rev} onText={typing} selectionColor={th.seal} cursorColor={th.seal} onBlur={() => void saveNote()} multiline scrollEnabled={false} placeholder={t("addNote")} placeholderTextColor={th.muted}
+            style={[s.note, { color: th.ink, backgroundColor: th.chip }]} />
         </Animated.View>
       </ScrollView>
       </KeyboardAvoidingView>
@@ -421,49 +384,77 @@ export default function Detail() {
   );
 }
 
+/** views.html .lms: the LMS content, memo'd so typing in the note does not re-render it. */
+const Lms = memo(function Lms({ html }: { html: string }) {
+  const th = useTheme();
+  return (
+    <View style={[s.lms, { borderColor: th.line }]}>
+      <Text style={[s.lab, { color: th.muted, marginBottom: 6 }]}>{t("lmsContent")}</Text>
+      <RichText html={html} color={th.ink} line={th.line} link={th.ink} />
+    </View>
+  );
+});
+
+/** "Vì sao lúc này" with weight bars, and the one other good time. */
+const WhyBlock = memo(function WhyBlock({ items, alt, now, onMove }: { items: ReturnType<typeof grounded>; alt?: number; now: number; onMove: (ts: number) => void }) {
+  const th = useTheme();
+  return (
+    <View style={s.why}>
+      <Text style={[s.lab, { color: th.muted }]}>{t("whyNow")}</Text>
+      {items.map((x, i) => (
+        <View key={i} style={s.wr}>
+          <Text style={[s.wt, { color: th.ink }]}>{reasonText(x, true)}</Text>
+          <View style={[s.bar2, { backgroundColor: th.line }]}><View style={{ width: `${Math.min(1, Math.abs(x.w)) * 100}%`, height: 4, borderRadius: 4, backgroundColor: x.w < 0 ? th.seal : th.ink }} /></View>
+        </View>
+      ))}
+      {alt !== undefined && (
+        <>
+          <Text style={[s.lab, { color: th.muted, marginTop: 20 }]}>{t("alsoFits")}</Text>
+          <View style={s.pills}>
+            <Tap onPress={() => onMove(alt)} accessibilityLabel={`${t("alsoFits")} ${when(alt, now).split(" ").pop()}`} style={[s.pill, { borderColor: th.line }]}>
+              <Text style={{ fontSize: font.sub, fontFamily: ff("500"), color: th.ink }}>{when(alt, now).split(" ").pop()}</Text>
+            </Tap>
+          </View>
+        </>
+      )}
+    </View>
+  );
+});
+
 const s = StyleSheet.create({
   bar: { flexDirection: "row", justifyContent: "space-between" },
-  o: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  o: { width: 48, height: 48, borderRadius: 24, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   acts: { flexDirection: "row", gap: 8 },
-  clr: { marginLeft: "auto", paddingVertical: 6 },
-  loc: { flex: 1, fontFamily: ff("500"), fontSize: font.meta, lineHeight: 22, padding: 0 },
+  loc: { flex: 1, fontFamily: ff("500"), fontSize: font.meta, lineHeight: 22, minHeight: 48, padding: 0, textAlignVertical: "center" },
   who: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 22 },
   sw: { width: 34, height: 34, borderRadius: 17, overflow: "hidden" },
   sub: { fontFamily: ff(), fontSize: font.md },
-  h: { marginTop: 14, fontSize: font.h, lineHeight: 36, fontFamily: ff("600"), letterSpacing: -0.75, padding: 0 },
+  h: { marginTop: 8, fontSize: font.h, lineHeight: 36, minHeight: 48, fontFamily: ff("600"), letterSpacing: -0.75, padding: 0 },
+  hint: { marginTop: 4, fontFamily: ff("600"), fontSize: font.sub },
   meta: { marginTop: 16, gap: 10 },
-  dash: { fontSize: font.sub, fontFamily: ff("500") },
-  kd: { flexDirection: "row", alignItems: "center", gap: 4 },
+  kd: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 48 },
   lms: { marginTop: 18, paddingVertical: 14, paddingHorizontal: 16, borderWidth: 1, borderRadius: 16 },
   lab: { fontSize: font.label, fontFamily: ff("500") },
   why: { marginTop: 22 },
-  si: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 48 }, // prep.html .si: a whole row to tap, at least 48
-  sirow: { flexDirection: "row", alignItems: "center" },
-  x: { width: 40, height: 48, alignItems: "center", justifyContent: "center" }, // views.html .si .x: a plain x, centred on the row, 48 tall to hit
-  xGap: { width: 40 }, // a done or lone row keeps the remove space empty
-  add: { marginTop: 10, height: 48, borderRadius: 24, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }, // views.html .si.add
-  addT: { fontSize: font.sub, fontFamily: ff("600") },
-  more: { alignSelf: "flex-start", marginTop: 10, paddingVertical: 6 }, // magic.html .tbtn: an in-place text button
-  moreT: { fontSize: 14, fontFamily: ff("600"), textDecorationLine: "underline" },
-  addRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
-  sd: { width: 74, fontSize: font.sub, fontFamily: ff("500"), fontVariant: ["tabular-nums"] },
+  add: { marginTop: 10, height: 48, borderRadius: 24, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  more: { alignSelf: "flex-start", minHeight: 48, justifyContent: "center", paddingHorizontal: 4 }, // magic.html .tbtn: an in-place text button, 48 tall
+  moreT: { fontSize: font.sub, fontFamily: ff("600"), textDecorationLine: "underline" },
+  addRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" },
   sp: { flex: 1, fontSize: font.sub, fontFamily: ff("500") },
-  sm: { fontSize: font.sub, fontFamily: ff("500"), fontVariant: ["tabular-nums"] },
   wr: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 9 },
   wt: { flex: 1, fontFamily: ff("500"), fontSize: font.meta, lineHeight: 21.6 },
   bar2: { width: 46, height: 4, borderRadius: 4, overflow: "hidden" },
   pills: { flexDirection: "row", gap: 8, marginTop: 10 },
-  pv: { marginLeft: 30, marginTop: -4, fontFamily: ff("500"), fontSize: font.sub, lineHeight: 20 },
   warn: { marginTop: 16, padding: 14, paddingHorizontal: 16, borderRadius: 22, borderWidth: 1.5 }, // day.tsx .warn
   wht: { fontSize: font.meta, fontFamily: ff("700") },
-  wb: { marginTop: 4, fontFamily: ff(), fontSize: font.sub, lineHeight: 21 },
-  pill2: { height: 36, paddingHorizontal: 16, borderRadius: 99, alignItems: "center", justifyContent: "center", flexShrink: 1, minWidth: 0 },
+  wb: { marginTop: 4, fontFamily: ff(), fontSize: font.sub, lineHeight: 22 },
+  pill2: { height: 48, paddingHorizontal: 16, borderRadius: 99, alignItems: "center", justifyContent: "center", flexShrink: 1, minWidth: 0 },
   plt: { fontSize: font.sub, fontFamily: ff("500") },
-  pill: { height: 40, paddingHorizontal: 16, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  note: { marginTop: 18, fontFamily: ff(), fontSize: font.base, lineHeight: 25.5, minHeight: 120, textAlignVertical: "top", padding: 0 },
+  pill: { height: 48, paddingHorizontal: 16, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  clr: { marginLeft: "auto", minHeight: 44, justifyContent: "center" },
+  dash: { fontSize: font.sub, fontFamily: ff("500") },
+  note: { marginTop: 18, fontFamily: ff(), fontSize: font.base, lineHeight: 25.5, minHeight: 120, textAlignVertical: "top", paddingVertical: 14, paddingHorizontal: 16, borderRadius: 18 },
 });
-
-
 
 /** A text field that owns what is typed: the screen hears the text through `onText` (a ref write) and shows `value` again only when it changes or `rev` bumps. */
 const Field = memo(function Field({ value, rev, onText, ...p }: Omit<ComponentProps<typeof TextInput>, "value" | "onChangeText"> & { value: string; rev: number; onText: (v: string) => void }) {

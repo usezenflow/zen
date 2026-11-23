@@ -190,7 +190,7 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
   });
   const heldSt = useAnimatedStyle(() => ({ opacity: 1 - 0.55 * held.get() })); // the row stays as a faint place-holder while its chip travels
   const longPress = onHold && !picking && !canDrag ? hold : undefined; // with a drag the pan owns the hold
-  const ring = task.source === "dlu" && type === "lecture"; // campus lecture: glow ring (pull.html)
+  const ring = task.source === "dlu" && type === "lecture"; // campus lecture: glow ring
   const subEl = !!(trail || sub) && (
     <View style={s.sl}>
       {!!trail && <View style={[s.dot, { backgroundColor: th.seal }]} />}

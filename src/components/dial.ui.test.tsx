@@ -3,8 +3,8 @@ import { View } from "react-native";
 import { DateDrop, TimeDial } from "./dial";
 
 const A = { x: 200, y: 200, w: 60, h: 34 };
-const drums = () => screen.container.queryAll((n) => typeof n.props.onMomentumScrollEnd === "function" && n.props.snapToInterval === 36);
-const settle = (el: { props: Record<string, unknown> }, row: number) => act(() => { (el.props.onMomentumScrollEnd as (e: object) => void)({ nativeEvent: { contentOffset: { x: 0, y: row * 36 } } }); });
+const drums = () => screen.container.queryAll((n) => typeof n.props.onMomentumScrollEnd === "function" && n.props.snapToInterval === 44);
+const settle = (el: { props: Record<string, unknown> }, row: number) => act(() => { (el.props.onMomentumScrollEnd as (e: object) => void)({ nativeEvent: { contentOffset: { x: 0, y: row * 44 } } }); });
 const at = (h: number, m: number) => new Date(2026, 10, 20, h, m);
 const draw = (value: Date, due: boolean, onChange = jest.fn()) => render(<View><TimeDial open anchor={A} due={due} value={value} onChange={onChange} onClose={jest.fn()} /></View>);
 
@@ -13,19 +13,19 @@ it("a due at 23 offers :59", async () => {
   expect(screen.getByText("59")).toBeOnTheScreen();
 });
 
-it("a plain time at 23 keeps steps of 15", async () => {
+it("a plain time at 23 keeps steps of 5", async () => {
   await draw(at(23, 45), false);
   expect(screen.queryByText("59")).toBeNull();
 });
 
-it("leaving 23 from :59 lands on :45, and 23:59 can be picked again", async () => {
+it("leaving 23 from :59 lands on :55, and 23:59 can be picked again", async () => {
   const onChange = jest.fn();
   await draw(at(23, 59), true, onChange);
   await settle(drums()[0], 22);
-  expect(onChange).toHaveBeenLastCalledWith(at(22, 45));
+  expect(onChange).toHaveBeenLastCalledWith(at(22, 55));
   expect(screen.queryByText("59")).toBeNull();
   await settle(drums()[0], 23);
-  await settle(drums()[1], 4);
+  await settle(drums()[1], 12);
   expect(onChange).toHaveBeenLastCalledWith(at(23, 59));
 });
 

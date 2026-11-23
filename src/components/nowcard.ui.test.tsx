@@ -32,20 +32,20 @@ describe("NowCard", () => {
     await render(<NowCard card={{ task: task(), start: at(14), end: at(14) }} onDone={jest.fn()} />);
     expect(screen.getByText(t("nMin", { n: 1 }))).toBeOnTheScreen();
   });
-  it("running says Đang làm and offers no Làm luôn; the next block says Tiếp theo and Làm luôn starts it", async () => {
+  it("running says Đang làm and offers no Bắt đầu; the next block says Tiếp theo and Bắt đầu starts it", async () => {
     const onStart = jest.fn();
     const r = await render(<NowCard card={{ task: task(), start: at(9, 30), end: at(10, 30) }} onDone={jest.fn()} onStart={onStart} />);
     expect(screen.getByText(t("doingNow"))).toBeOnTheScreen();
-    expect(screen.queryByLabelText(t("startNow"))).toBeNull();
+    expect(screen.queryByLabelText(t("startLab"))).toBeNull();
     await r.unmount();
     await render(<NowCard card={{ task: task(), start: at(14), end: at(15) }} onDone={jest.fn()} onStart={onStart} />);
     expect(screen.getByText(t("nextUp"))).toBeOnTheScreen();
-    await fireEvent.press(screen.getByLabelText(t("startNow")));
+    await fireEvent.press(screen.getByLabelText(t("startLab")));
     expect(onStart).toHaveBeenCalledTimes(1);
   });
-  it("a class or an exam next has no Làm luôn", async () => {
+  it("a class or an exam next has no Bắt đầu", async () => {
     await render(<NowCard card={{ task: task({ fixed: "lecture" }), start: at(14), end: at(15) }} onDone={jest.fn()} onStart={jest.fn()} />);
-    expect(screen.queryByLabelText(t("startNow"))).toBeNull();
+    expect(screen.queryByLabelText(t("startLab"))).toBeNull();
   });
   it("ticks every 3 s and stops ticking once unmounted", async () => {
     const r = await render(<NowCard card={{ task: task(), start: at(9, 30), end: at(10, 30) }} onDone={jest.fn()} />);

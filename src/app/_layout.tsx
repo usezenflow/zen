@@ -8,6 +8,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { kvGet } from "@/lib/store";
 import * as Notifications from "expo-notifications";
 import { askReminders, pushReminders } from "@/lib/reminders";
+import { nudgeAction } from "@/lib/nudges";
 import { setupBackground } from "@/lib/sync";
 import { feedTaps } from "@/components/outside";
 import { UpdatePrompt } from "@/components/update";
@@ -32,6 +33,9 @@ export default function Layout() {
   // A tapped notice opens what it names: a web page (fees: the pay page) or a screen.
   const tapped = Notifications.useLastNotificationResponse();
   useEffect(() => {
+    // The overrun and start nudges' buttons: Xong ticks the task, Để sau moves it on; neither opens the app.
+    const id = tapped?.notification.request.content.data?.id, act = tapped?.actionIdentifier;
+    if (ready && typeof id === "string" && (act === "done" || act === "later")) nudgeAction(id, act).then(pushReminders).catch(() => {});
     const route = tapped?.notification.request.content.data?.route;
     if (!ready || typeof route !== "string") return;
     if (route.startsWith("https://")) Linking.openURL(route).catch(() => {});

@@ -35,12 +35,13 @@ export function Search({ origin, tasks, now, acts, onClose }: { origin: Origin; 
   const root = useRef<ComponentRef<typeof View>>(null), input = useRef<ComponentRef<typeof TextInput>>(null);
   const p = useSharedValue(0);
   const closing = useRef(false);
+  const [listed, setListed] = useState(false); // the suggestions and results mount once the field is full: nothing heavy shares frames with the grow
 
   useEffect(() => { void loadRecent().then(setRecent); }, []);
   const save = (v: string) => { const next = remember(recent, v); setRecent(next); void store.kvSet("searches", JSON.stringify(next)); };
 
   // Grow once the overlay knows where it sits, so the field starts exactly on the circle; the keyboard rises when it is full.
-  const focus = () => input.current?.focus();
+  const focus = () => { setListed(true); input.current?.focus(); };
   useEffect(() => {
     if (box) p.set(withTiming(1, { duration: 280, easing: EASE }, (done) => { if (done) scheduleOnRN(focus); }));
   }, [box, p]);
@@ -74,19 +75,35 @@ export function Search({ origin, tasks, now, acts, onClose }: { origin: Origin; 
     { lab: t("recent"), icon: "clock" as const, xs: recent.slice(0, 3), sub: false, clear: true },
     mine.length ? { lab: t("suggested"), icon: "search" as const, xs: mine.map((c) => c.q), sub: true } : { lab: t("trySearch"), icon: "search" as const, xs: SAMPLES, sub: true },
   ].filter((g) => g.xs.length);
+  const subs = useMemo(() => new Map((listed ? (mine.length ? mine.map((c) => c.q) : SAMPLES) : []).map((v) => [v, subOf(v)])), [listed, mine, tasks, now]); // eslint-disable-line react-hooks/exhaustive-deps -- subOf reads only those
   let k = 0; // stagger across sections
 
   // eslint-disable-next-line react-hooks/exhaustive-deps -- save reads recent through the closure it was made in; recent is the dep
   const open = useMemo(() => ({ ...acts, onOpen: (x: Task) => { save(qRef.current); acts.onOpen(x); } }), [acts, recent]);
   return (
-    <View ref={root} style={StyleSheet.absoluteFill} onLayout={() => root.current?.measureInWindow((x, y, w) => setBox({ x, y, w }))}>
+    <View ref={root} style={StyleSheet.absoluteFill} onLayout={() => { if (!box) root.current?.measureInWindow((x, y, w) => setBox((b) => b ?? { x, y, w })); }}>
       <Animated.View style={[StyleSheet.absoluteFill, veil]}>
         <BlurView intensity={40} tint={th.dark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
         <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: th.bg }, paper]} />
       </Animated.View>
       {box && (
         <>
-          <Animated.ScrollView style={[StyleSheet.absoluteFill, { top: top + C }, late]} contentContainerStyle={{ flexGrow: 1 }}
+          {/* From the first frame, while the list is still being made: static bars, no work. */}
+          {!listed && (
+            <Animated.View pointerEvents="none" style={[s.body, { position: "absolute", left: 0, right: 0, top: top + C }, veil]}>
+              <View style={[s.bar, { width: 70, height: 12, marginTop: 28, backgroundColor: th.line }]} />
+              {[0, 1, 2, 3].map((i) => (
+                <View key={i} style={s.sg}>
+                  <View style={[s.bar, { width: 18, height: 18, borderRadius: 9, backgroundColor: th.line }]} />
+                  <View style={s.st}>
+                    <View style={[s.bar, { width: `${70 - i * 9}%`, height: 14, backgroundColor: th.line }]} />
+                    <View style={[s.bar, { width: `${45 - i * 4}%`, height: 11, marginTop: 8, backgroundColor: th.line }]} />
+                  </View>
+                </View>
+              ))}
+            </Animated.View>
+          )}
+          {listed && <Animated.ScrollView style={[StyleSheet.absoluteFill, { top: top + C }, late]} contentContainerStyle={{ flexGrow: 1 }}
             keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
             {/* Empty space in the list closes too; rows take their own taps first. */}
             <Pressable onPress={close} accessible={false} style={s.body}>
@@ -97,12 +114,12 @@ export function Search({ origin, tasks, now, acts, onClose }: { origin: Origin; 
                     {g.clear && <Tap onPress={() => { setRecent([]); void store.kvSet("searches", "[]"); }} hitSlop={10} accessibilityRole="button"><Text style={[s.lab, { color: th.ink, fontFamily: ff("600") }]}>{t("searchClear")}</Text></Tap>}
                   </View>
                   {g.xs.map((v, i) => (
-                    <Animated.View key={v} entering={FadeInDown.delay(80 + 30 * k++).duration(220).easing(EASE)}>
+                    <Animated.View key={v} entering={FadeInDown.delay(30 * k++).duration(220).easing(EASE)}>
                       <Tap variant="row" onPress={() => setQ(v)} accessibilityRole="button" style={s.sg}>
                         <Icon name={g.icon} size={18} w={2} color={th.muted} />
                         <View style={[s.st, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: th.line }]}>
                           <Text numberOfLines={1} style={[s.sgB, { color: th.ink }]}>{v}</Text>
-                          {g.sub && <Text numberOfLines={1} style={[s.sgS, { color: th.muted }]}>{subOf(v)}</Text>}
+                          {g.sub && <Text numberOfLines={1} style={[s.sgS, { color: th.muted }]}>{subs.get(v)}</Text>}
                         </View>
                       </Tap>
                     </Animated.View>
@@ -111,7 +128,7 @@ export function Search({ origin, tasks, now, acts, onClose }: { origin: Origin; 
               ))}
               <FoundLater tasks={tasks} q={dq} now={now} {...open} />
             </Pressable>
-          </Animated.ScrollView>
+          </Animated.ScrollView>}
           <Animated.View style={[s.fld, { top, borderColor: th.line, backgroundColor: th.bg }, field]}>
             <Icon name="search" size={20} color={th.ink} />
             <Animated.View style={[s.row, late]}>
@@ -140,6 +157,7 @@ const s = StyleSheet.create({
   fld: { position: "absolute", height: C, borderRadius: C / 2, borderWidth: 1, paddingLeft: (C - 20) / 2 - 1, paddingRight: 14, flexDirection: "row", alignItems: "center", gap: 10, overflow: "hidden" },
   row: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
   fldT: { flex: 1, fontSize: 17, lineHeight: 22, height: 22, fontFamily: ff("500"), padding: 0 }, // as settings-connect .input: equal lineHeight and height keep the cursor level with the placeholder
+  bar: { borderRadius: 6 },
   labRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 28 },
   lab: { fontSize: font.label, fontFamily: ff("500") },
   sg: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 2 },

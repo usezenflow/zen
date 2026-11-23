@@ -9,29 +9,29 @@ import { EASE, Hit } from "@/components/tap";
 import { t } from "@/lib/i18n";
 import { ff, useTheme } from "@/lib/theme";
 
-// views.html .dial: zen's small time drum dropped from its chip like a menu. Five 36px rows, the middle one in a band; minutes step 15.
+// views.html .dial: zen's small time drum dropped from its chip like a menu. Three 44px rows, the middle one in a band; minutes step 5.
 // Three rows: with five, the hours before today's first (or an end's start) left blank rows above the band.
-const ROW = 36, SHOW = 3, COL = 52, SEP = 16, PADX = 12, PADY = 10;
-const PRE = 48, PILL = 38, GAP = 8; // the preset row: views.html .pre, one tap picks and closes
+const ROW = 44, SHOW = 3, COL = 60, SEP = 16, PADX = 12, PADY = 10;
+const PRE = 44, PILL = 44, GAP = 8; // the preset row: views.html .pre, one tap picks and closes
 const H = SHOW * ROW + 2 * PADY;
-const TW = 168; // just past the drums: two presets to a line, each time centred with room on both sides
+const TW = 208; // two presets to a line, each centred with room on both sides
 // A start's usual morning, afternoon, after class, evening; a due's before midnight and midnight.
 const TPRE: [number, number][] = [[8, 0], [14, 0], [17, 0], [20, 0]], DPRE: [number, number][] = [[23, 59], [0, 0]];
 const TH = (n: number) => H + PRE + (Math.ceil(n / 2) - 1) * (PILL + GAP);
-const HOURS = Array.from({ length: 24 }, (_, i) => i), MINUTES = [0, 15, 30, 45];
+const HOURS = Array.from({ length: 24 }, (_, i) => i), MINUTES = Array.from({ length: 12 }, (_, i) => i * 5); // any 5p; the presets cover the usual
 const pad = (n: number) => String(n).padStart(2, "0");
 const tick = () => { Haptics.selectionAsync().catch(() => {}); };
 
 export type Anchor = { x: number; y: number; w: number; h: number };
 
 /** A row of preset pills (views.html .pre). */
-function Presets({ items, style, pill }: { items: { label: string; off?: boolean; onPress: () => void }[]; style?: object; pill?: object }) {
+function Presets({ items, style, pill }: { items: { label: string; off?: boolean; on?: boolean; onPress: () => void }[]; style?: object; pill?: object }) {
   const th = useTheme();
   return (
     <View style={[s.pre, style]}>
       {items.map((x) => (
-        <Hit key={x.label} disabled={x.off} onPress={x.onPress} accessibilityRole="button" accessibilityLabel={x.label} style={[s.pill, pill, { backgroundColor: th.chip }, x.off && { opacity: 0.4 }]}>
-          <Text style={[s.pt, { color: th.ink }]} numberOfLines={1}>{x.label}</Text>
+        <Hit key={x.label} disabled={x.off} onPress={x.onPress} accessibilityRole="button" accessibilityLabel={x.label} style={[s.pill, pill, { backgroundColor: x.on ? th.ink : th.chip }, x.off && { opacity: 0.4 }]}>
+          <Text style={[s.pt, { color: x.on ? th.bg : th.ink }]} numberOfLines={1}>{x.label}</Text>
         </Hit>
       ))}
     </View>
@@ -56,7 +56,7 @@ function Cell({ i, y, label }: { i: number; y: SharedValue<number>; label: strin
 }
 
 /** One drum. Ticks a light haptic per row passed; `onPick` once it settles on a new row. */
-function Drum({ values, start, onPick }: { values: number[]; start: number; onPick: (v: number) => void }) {
+function Drum({ values, start, onPick, fmt = pad }: { values: number[]; start: number; onPick: (v: number) => void; fmt?: (v: number) => string }) {
   const ref = useAnimatedRef<Animated.ScrollView>();
   const y = useSharedValue(start * ROW), seen = useSharedValue(start);
   const settled = useRef(start);
@@ -80,7 +80,7 @@ function Drum({ values, start, onPick }: { values: number[]; start: number; onPi
       onScrollEndDrag={(e) => { if (Math.abs(e.nativeEvent.velocity?.y ?? 0) < 0.05) land(e.nativeEvent.contentOffset.y); }} // let go without a flick: no momentum event follows
       contentContainerStyle={{ paddingVertical: ((SHOW - 1) / 2) * ROW }} style={{ width: COL, height: SHOW * ROW }}
     >
-      {values.map((v, i) => <Cell key={v} i={i} y={y} label={pad(v)} />)}
+      {values.map((v, i) => <Cell key={v} i={i} y={y} label={fmt(v)} />)}
     </Animated.ScrollView>
   );
 }
@@ -108,7 +108,7 @@ function Drop({ anchor, w, h, side, onClose, children }: { anchor: Anchor; w: nu
   );
 }
 
-function Clock({ value, due, min, past, onChange, onClose }: { value: Date; due?: boolean; min?: Date; past?: boolean; onChange: (d: Date) => void; onClose: () => void }) {
+function Clock({ value, due, min, past, presets, onChange, onClose }: { value: Date; due?: boolean; min?: Date; past?: boolean; presets?: Preset[]; onChange: (d: Date) => void; onClose: () => void }) {
   const th = useTheme();
   // On today only now to midnight is offered: an hour once a quarter of it is left, minutes from now on. `past`: any time (a manual edit).
   const [now] = useState(() => new Date(Date.now())); // Date.now, as the calendar: one clock for both
@@ -122,7 +122,7 @@ function Clock({ value, due, min, past, onChange, onClose }: { value: Date; due?
   const [first] = useState(() => {
     const h0 = value.getHours(), mm = value.getMinutes();
     const h = hours.includes(h0) ? h0 : hours[0]; // a time already gone starts on the first one left
-    const want = h !== h0 ? -1 : due && h === 23 && mm === 59 ? 59 : MINUTES[Math.round(mm / 15) % 4];
+    const want = h !== h0 ? -1 : due && h === 23 && mm === 59 ? 59 : MINUTES[Math.round(mm / 5) % 12];
     const ms = allowed(h);
     return { h, m: ms.includes(want) ? want : ms[0] }; // where the drums start
   });
@@ -150,23 +150,48 @@ function Clock({ value, due, min, past, onChange, onClose }: { value: Date; due?
         {/* keyed by its minutes: gaining or losing :59, or today's first hour, starts the drum again on the current minute */}
         <Drum key={mins.join()} values={mins} start={Math.max(0, mins.indexOf(at.current.m))} onPick={(v) => set("m", v)} />
       </View>
-      <Presets style={s.dpre} pill={s.dpill} items={(due ? DPRE : TPRE).map(([h, m]) => ({ label: `${h}:${pad(m)}`, off: gone(h, m), onPress: () => { const d = new Date(value); d.setHours(h, m, 0, 0); onChange(d); onClose(); } }))} />
+      <Presets style={s.dpre} pill={s.dpill} items={presets ? presets.map((x) => ({ label: x.label, on: x.on, onPress: () => { onChange(x.at); onClose(); } })) : (due ? DPRE : TPRE).map(([h, m]) => ({ label: `${h}:${pad(m)}`, off: gone(h, m), onPress: () => { const d = new Date(value); d.setHours(h, m, 0, 0); onChange(d); onClose(); } }))} />
     </View>
   );
 }
 
-/** The time dial under `anchor` (from measureInWindow). Each settled drum calls `onChange`; a tap outside closes. */
-export function TimeDial({ open, anchor, value, due, min, past, side = "right", onChange, onClose }: { open: boolean; anchor?: Anchor; value: Date; due?: boolean; min?: Date; past?: boolean; side?: "left" | "right"; onChange: (d: Date) => void; onClose: () => void }) {
+/** Minutes as "45p", "1h", "1h30" (views.html: p/h units). */
+export const lenText = (m: number) => (m < 60 ? `${m}p` : m % 60 ? `${Math.floor(m / 60)}h${m % 60}` : `${m / 60}h`);
+const LENS = [15, 30, 45, 60, 90, 120], DRUM = Array.from({ length: 47 }, (_, i) => 15 + i * 5); // the presets; the drum: 15p to 4h in 5s
+
+/** A sitting's length dropped from its chip: a drum of minutes and the usual lengths as presets; a tap outside closes. */
+export function LenDrop({ open, anchor, value, side = "right", onChange, onClose }: { open: boolean; anchor?: Anchor; value: number; side?: "left" | "right"; onChange: (m: number) => void; onClose: () => void }) {
+  const th = useTheme();
   if (!open || !anchor) return null;
-  return <Drop anchor={anchor} w={TW} h={TH((due ? DPRE : TPRE).length)} side={side} onClose={onClose}><Clock value={value} due={due} min={min} past={past} onChange={onChange} onClose={onClose} /></Drop>;
+  const start = Math.max(0, Math.min(DRUM.length - 1, Math.round((value - 15) / 5)));
+  return (
+    <Drop anchor={anchor} w={TW} h={TH(LENS.length)} side={side} onClose={onClose}>
+      <View style={s.pad}>
+        <View style={[s.band, { backgroundColor: th.dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" }]} />
+        <View style={s.row}><Drum values={DRUM} start={start} fmt={lenText} onPick={onChange} /></View>
+        <Presets style={s.dpre} pill={s.dpill} items={LENS.map((m) => ({ label: lenText(m), on: m === value, onPress: () => { onChange(m); onClose(); } }))} />
+      </View>
+    </Drop>
+  );
+}
+
+export type Preset = { label: string; at: Date; on?: boolean };
+
+/** The time dial under `anchor` (from measureInWindow). Each settled drum calls `onChange`; a tap outside closes. `presets`: replace the usual times (an end offers lengths). */
+export function TimeDial({ open, anchor, value, due, min, past, presets, side = "right", onChange, onClose }: { open: boolean; anchor?: Anchor; value: Date; due?: boolean; min?: Date; past?: boolean; presets?: Preset[]; side?: "left" | "right"; onChange: (d: Date) => void; onClose: () => void }) {
+  if (!open || !anchor) return null;
+  return <Drop anchor={anchor} w={TW} h={TH(presets ? presets.length : (due ? DPRE : TPRE).length)} side={side} onClose={onClose}><Clock value={value} due={due} min={min} past={past} presets={presets} onChange={onChange} onClose={onClose} /></Drop>;
 }
 
 // views.html .cal: the month, Monday first, six weeks. Today vermilion, the picked day a filled vermilion circle, days before today or `min` greyed out.
-const CW = 322, CELL = 40, CH = 14 + PRE + 44 + 22 + 6 * (CELL + 4) + 10;
+const CW = 322, CELL = 44, CH = 14 + PRE + 10 + 44 + 22 + 6 * CELL + 10;
+/** A sitting's day chip: the four parts sit above the month in place of the day presets; a tap on one calls `onPick`. */
+export type Parts = { on: number; onPick: (i: number) => void };
+const PARTS = ["Sáng", "Trưa", "Chiều", "Tối"];
 const WEEK = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
 const day0 = (ts: number) => { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); };
 
-function Month({ value, min, past, onPick }: { value: Date; min?: Date; past?: boolean; onPick: (d: Date) => void }) {
+function Month({ value, min, past, parts, onPick }: { value: Date; min?: Date; past?: boolean; parts?: Parts; onPick: (d: Date) => void }) {
   const th = useTheme();
   const [now] = useState(() => Date.now()); // today, as the calendar opened
   const [shown, setShown] = useState(() => new Date(value.getFullYear(), value.getMonth(), 1));
@@ -177,7 +202,8 @@ function Month({ value, min, past, onPick }: { value: Date; min?: Date; past?: b
   const plus = (k: number) => { const d = new Date(today); d.setDate(d.getDate() + k); return d; };
   return (
     <View style={s.cal}>
-      <Presets style={{ justifyContent: "flex-start", paddingHorizontal: 4, paddingBottom: 12 }} items={([["today", 0], ["tomorrow", 1], ["nextWeek", 7]] as const).map(([k, n]) => ({ label: t(k), off: plus(n).getTime() < lo, onPress: () => onPick(plus(n)) }))} />
+      {/* one line: three days, or the four parts of a sitting */}
+      <Presets style={{ paddingHorizontal: 4, paddingBottom: 10 }} pill={s.cpill} items={parts ? PARTS.map((p, i) => ({ label: p, on: i === parts.on, onPress: () => parts.onPick(i) })) : ([["today", 0], ["tomorrow", 1], ["nextWeek", 7]] as const).map(([k, n]) => ({ label: t(k), off: plus(n).getTime() < lo, onPress: () => onPick(plus(n)) }))} />
       <View style={s.mh}>
         <Text style={[s.mt, { color: th.ink }]}>{`Tháng ${m + 1} ${y}`}</Text>
         <View style={s.arrows}>
@@ -204,12 +230,13 @@ function Month({ value, min, past, onPick }: { value: Date; min?: Date; past?: b
 }
 
 /** The date dropdown under `anchor`: a tap on a day calls `onChange` with that day (the time kept) and closes. */
-export function DateDrop({ open, anchor, value, min, past, side = "left", onChange, onClose }: { open: boolean; anchor?: Anchor; value: Date; min?: Date; past?: boolean; side?: "left" | "right"; onChange: (d: Date) => void; onClose: () => void }) {
+export function DateDrop({ open, anchor, value, min, past, parts, side = "left", onChange, onClose }: { open: boolean; anchor?: Anchor; value: Date; min?: Date; past?: boolean; parts?: Parts; side?: "left" | "right"; onChange: (d: Date) => void; onClose: () => void }) {
+  const win = useWindowDimensions();
   if (!open || !anchor) return null;
   return (
-    <Drop anchor={anchor} w={CW} h={CH} side={side} onClose={onClose}>
+    <Drop anchor={anchor} w={Math.min(CW, win.width - 24)} h={CH} side={side} onClose={onClose}>
       {/* a day whose time is already gone (today) takes the next quarter hour, as the dial does; `past` keeps the time as it is */}
-      <Month value={value} min={min} past={past} onPick={(d) => { const n = new Date(value); n.setFullYear(d.getFullYear(), d.getMonth(), d.getDate()); onChange(past ? n : new Date(Math.max(n.getTime(), Math.ceil(Date.now() / 900_000) * 900_000))); onClose(); }} />
+      <Month value={value} min={min} past={past} parts={parts} onPick={(d) => { const n = new Date(value); n.setFullYear(d.getFullYear(), d.getMonth(), d.getDate()); onChange(past ? n : new Date(Math.max(n.getTime(), Math.ceil(Date.now() / 900_000) * 900_000))); onClose(); }} />
     </Drop>
   );
 }
@@ -225,16 +252,17 @@ const s = StyleSheet.create({
   arrow: { fontSize: 28, lineHeight: 30, fontFamily: ff("600") },
   arrowB: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   gr: { flexDirection: "row", flexWrap: "wrap" },
-  wd: { width: "14.2857%", height: 22, textAlign: "center", fontSize: 12, fontFamily: ff("600") },
-  dc: { width: "14.2857%", height: CELL + 4, alignItems: "center", justifyContent: "center" },
+  wd: { width: "14.2857%", height: 22, textAlign: "center", fontSize: 13, fontFamily: ff("600") },
+  dc: { width: "14.2857%", height: CELL, alignItems: "center", justifyContent: "center" },
   dot: { width: CELL, height: CELL, borderRadius: CELL / 2, alignItems: "center", justifyContent: "center" },
   dn: { fontSize: 17, fontFamily: ff("500"), fontVariant: ["tabular-nums"] },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "center" },
   pre: { flexDirection: "row", gap: GAP, justifyContent: "center" },
   dpre: { paddingTop: 8, flexWrap: "wrap" },
   dpill: { width: (TW - 2 * PADX - GAP) / 2, paddingHorizontal: 0 }, // two to a line, the time centred
+  cpill: { flex: 1, minWidth: 0, paddingHorizontal: 4 },
   pill: { height: PILL, paddingHorizontal: 10, borderRadius: 99, alignItems: "center", justifyContent: "center" },
-  pt: { fontSize: 14, fontFamily: ff("600"), fontVariant: ["tabular-nums"] },
+  pt: { fontSize: 16, fontFamily: ff("600"), fontVariant: ["tabular-nums"] },
   cell: { height: ROW, alignItems: "center", justifyContent: "center" },
   num: { fontSize: 20, fontFamily: ff("600"), fontVariant: ["tabular-nums"] },
   sep: { width: SEP, textAlign: "center" },

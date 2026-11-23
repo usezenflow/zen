@@ -1,7 +1,7 @@
 import { bolded } from "@/components/bold";
 import { BlurView } from "expo-blur";
 import { useEffect, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { Easing, FadeInDown, interpolate, Keyframe, useAnimatedStyle, useFrameCallback, useSharedValue, withRepeat, withTiming, type SharedValue } from "react-native-reanimated";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
 import { scheduleOnRN } from "react-native-worklets";
@@ -11,6 +11,7 @@ import { Icon, TypeArt } from "@/components/art";
 import { hhmm } from "@/components/cal";
 import type { HoldState } from "@/components/hold";
 import { t } from "@/lib/i18n";
+import { laterChoices } from "@/lib/parts";
 import { reasonText, topReason } from "@/lib/reasons";
 import { useTheme, font, ff } from "@/lib/theme";
 import { when } from "@/lib/when";
@@ -19,12 +20,15 @@ import { typeOf } from "@/planner";
 
 // gap: magic.html 17, a later task offered for the free time now (its label, e.g. "30p"); the circle takes it now.
 export type Card = { task: Task; start?: number; end?: number; gap?: string };
+/** A "Dời" choice: a part of a day (its window as tods) and the day it falls on (parts.ts laterChoices). */
+export type LaterChoice = ReturnType<typeof laterChoices>[number];
 
 // Art card with progress meter; the circle marks it done. Swipe is handled by the caller.
 // views.html "Day, next up": a flexible block not started yet also offers Làm luôn (onStart: that sitting moves to now).
-export function NowCard({ card, onDone, onStart }: { card: Card; onDone: () => void; onStart?: () => void }) {
+export function NowCard({ card, onDone, onStart, onLater }: { card: Card; onDone: () => void; onStart?: () => void; onLater?: (c: LaterChoice) => void }) {
   const th = useTheme();
   const [now, setNow] = useState(() => Date.now());
+  const [later, setLater] = useState(false); // "Dời" opens the parts of the day in place, never a sheet
   useEffect(() => { // the meter fills continuously: a slow ticker is smooth enough for a 54px capsule
     const i = setInterval(() => setNow(Date.now()), 3000);
     return () => clearInterval(i);
@@ -33,11 +37,23 @@ export function NowCard({ card, onDone, onStart }: { card: Card; onDone: () => v
   const going = !card.gap && start <= now && now < end;
   const p = going ? Math.max(0, Math.min(1, (now - start) / (end - start))) : 0;
   const mins = Math.max(1, Math.round((going ? end - now : end - start) / 60000));
+  const moving = !going && !task.fixed && !card.gap && !!onLater;
   return (
     <View style={[s.art, { backgroundColor: th.chip }]}>
       <View style={StyleSheet.absoluteFill}><TypeArt type={typeOf(task)} w={264} h={220} seed={4} /></View>
       <Text style={[s.lab, { color: th.onart }]}>{t(going ? "doingNow" : "nextUp")}</Text>
       <Text style={[s.t, { color: th.onart }]} numberOfLines={3}>{card.gap ? bolded(t("gapT", { free: card.gap, title: task.title })) : task.title}</Text>
+      {later && moving ? (
+        <View style={s.chips}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={s.chipsIn}>
+            {laterChoices(now).map((c) => (
+              <Tap key={c.label} onPress={() => { setLater(false); onLater!(c); }} scale={0.96} accessibilityRole="button" accessibilityLabel={c.label} style={[s.glass, s.chip]}>
+                <Glass /><Text style={[s.chipT, { color: th.onart }]}>{c.label}</Text>
+              </Tap>
+            ))}
+          </ScrollView>
+        </View>
+      ) : (
       <View style={s.foot}>
         <View style={s.meter}>
           <View style={s.cap}><Fill p={p} /></View>
@@ -47,10 +63,12 @@ export function NowCard({ card, onDone, onStart }: { card: Card; onDone: () => v
           </View>
         </View>
         <View style={s.acts2}>
-          {!going && !task.fixed && !card.gap && onStart && <Tap onPress={onStart} scale={0.94} accessibilityRole="button" accessibilityLabel={t("startNow")} style={[s.glass, s.start]}><Glass /><Text style={s.startT}>{t("startNow")}</Text></Tap>}
+          {moving && onStart && <Tap onPress={onStart} scale={0.94} accessibilityRole="button" accessibilityLabel={t("startLab")} style={[s.glass, s.start]}><Glass /><Text style={s.startT}>{t("startLab")}</Text></Tap>}
+          {moving && <Tap onPress={() => setLater(true)} scale={0.94} accessibilityRole="button" accessibilityLabel={t("laterBtn")} style={[s.glass, s.start]}><Glass /><Text style={s.startT}>{t("laterBtn")}</Text></Tap>}
           <Tap onPress={onDone} hitSlop={8} scale={0.88} testID="nowDone" accessibilityRole="button" accessibilityLabel={t("markDone")} style={[s.glass, s.solid]}><Glass /><Icon name="check" size={22} color="#0b0b0c" w={2.2} /></Tap>
         </View>
       </View>
+      )}
     </View>
   );
 }
@@ -263,6 +281,10 @@ const s = StyleSheet.create({
   acts2: { flexDirection: "row", alignItems: "center", gap: 8 },
   start: { width: undefined, paddingHorizontal: 18 }, // views.html "Day, next up": a glass pill as tall as the check
   startT: { color: "#fff", fontSize: font.sub, fontFamily: ff("700") },
+  chips: { position: "absolute", left: 0, right: 0, bottom: 16 }, // the parts of the day, in place of the foot (views.html "Day, move")
+  chipsIn: { paddingHorizontal: 20, gap: 8, alignItems: "center" },
+  chip: { height: 48, paddingHorizontal: 16, borderRadius: 99, justifyContent: "center", alignItems: "center" },
+  chipT: { fontSize: font.sub, fontFamily: ff("600") },
   words: { fontSize: 24, lineHeight: LINE, fontFamily: ff("600"), letterSpacing: -0.48 }, // .words: 24/600, 1.3, -.02em
   wordsBox: { maxHeight: MAX, overflow: "hidden", justifyContent: "flex-end" },
   wordsRow: { flexDirection: "row", flexWrap: "wrap" },
