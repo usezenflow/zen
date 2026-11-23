@@ -99,7 +99,7 @@ body { font-family: 'Be Vietnam Pro', system-ui, sans-serif; background: var(--p
 .toast .tl .tx { flex: 1; }
 .ring { flex: none; width: 30px; height: 30px; }
 .toast .acts { display: flex; justify-content: flex-end; gap: 8px; }
-.toast .a { flex: none; height: 40px; padding: 0 13px; border-radius: 99px; display: grid; place-items: center; font-size: 15px; font-weight: 700; background: var(--bg); color: var(--ink); white-space: nowrap; }
+.toast .a { flex: none; height: 44px; padding: 0 13px; border-radius: 99px; display: grid; place-items: center; font-size: 15px; font-weight: 700; background: var(--bg); color: var(--ink); white-space: nowrap; }
 .toast .a.ol { background: none; color: var(--bg); border: 1px solid rgba(127,127,127,.5); }
 
 /* Week and month */
