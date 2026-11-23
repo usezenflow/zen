@@ -67,7 +67,9 @@ async function drain(): Promise<boolean> {
 }
 
 async function push() {
-  if (await drain().catch(() => false)) onTicked?.();
+  let any = false;
+  try { any = await drain(); } catch { return; } // the unapplied ticks stay in the timeline for the next try; a push now would wipe them
+  if (any) onTicked?.();
   const [tasks, a] = await Promise.all([allTasks(), copyArt()]);
   const now = Date.now();
   const at = instants(tasks, now);
@@ -87,7 +89,7 @@ export function listenWidgets(onTick: () => void) {
   if (!W) return () => {};
   onTicked = onTick;
   const sub = W.addUserInteractionListener((e) => {
-    if (e.target.startsWith(DONE)) void swipeDone(e.target.slice(DONE.length)).then(onTick);
+    if (e.target.startsWith(DONE)) void swipeDone(e.target.slice(DONE.length)).then(onTick).catch(() => {});
   });
   void serial(async () => { if (await drain()) onTick(); });
   return () => { sub.remove(); if (onTicked === onTick) onTicked = undefined; };

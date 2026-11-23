@@ -13,7 +13,13 @@ export const monthLabel = (ms: number) => `Tháng ${new Date(ms).getMonth() + 1}
 
 export const live = (x: Task) => !x.doneAt && !x.deletedAt;
 /** Tasks that show: not a split parent, placed. */
-export const shown = (all: Task[]) => { const ps = parents(all); return all.filter((x) => live(x) && x.start !== undefined && x.end !== undefined && !ps.has(x.id)); };
+// Cached per list: month and week ask it once per cell (42 and 14 times a render) with the same array. Callers never mutate the result.
+const shownMemo = new WeakMap<Task[], Task[]>();
+export const shown = (all: Task[]) => {
+  let r = shownMemo.get(all);
+  if (!r) { const ps = parents(all); r = all.filter((x) => live(x) && x.start !== undefined && x.end !== undefined && !ps.has(x.id)); shownMemo.set(all, r); }
+  return r;
+};
 /** Ids of split parents: built once so callers test membership in O(1), not a scan per task. */
 export const parents = (all: Task[]) => new Set(all.map((x) => x.parentId));
 /** Everything on that day: what starts on it, and a block running over it from an earlier day (a trip, 23:00 to 01:00). */

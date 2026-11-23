@@ -305,4 +305,15 @@ describe("changes that now get a notice", () => {
     expect([digest.moved.length, digest.due.length, digest.cancelled.length]).toEqual([1, 1, 1]);
     expect(digestNotices(digest, NOW)).toEqual([{ title: "Trường cập nhật 3 việc", sub: "Môn mẫu, Bài tập +1" }]);
   });
+
+  it("a lecture whose period changed is the same class: it keeps its id and the student's note, not cancelled and re-added", () => {
+    const lec = (key: string, at: number) => ({ ...lecture(key, at), scheduleStudyUnitId: "S1" }) as Fetched[number];
+    const old = { ...stored(lec("portal:lecture:S1:2026-09-03:1", NOW + 2 * D)), note: "mang laptop", userEdited: ["note"] };
+    const r = materialize([lec("portal:lecture:S1:2026-09-03:3", NOW + 2 * D + 4 * H)] as Fetched, [old], NOW);
+    expect(r.deletes).toEqual([]);
+    expect(r.digest.cancelled).toEqual([]);
+    expect(r.digest.makeup).toEqual([]);
+    expect(r.upserts[0]).toMatchObject({ id: old.id, note: "mang laptop", start: NOW + 2 * D + 4 * H, upstreamKey: "portal:lecture:S1:2026-09-03:3" });
+    expect(materialize([lec("portal:lecture:S1:2026-09-03:3", NOW + 2 * D + 4 * H)] as Fetched, r.upserts, NOW)).toMatchObject({ upserts: [], deletes: [] });
+  });
 });

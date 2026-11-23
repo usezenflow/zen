@@ -42,7 +42,7 @@ const open = () =>
       CREATE TABLE IF NOT EXISTS kv(key TEXT PRIMARY KEY, value TEXT);`);
     await migrateVecs(d);
     return d;
-  })());
+  })().catch((e) => { db = undefined; throw e; })); // a failed open must not be cached for good
 
 type Row = Record<string, any>;
 // Every task write refreshes the widgets and reminders, including background sync. Lazy: widgets imports apply, which imports this file.

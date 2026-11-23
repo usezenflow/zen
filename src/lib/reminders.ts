@@ -86,10 +86,11 @@ export function pushReminders() {
 export async function push(stale: () => boolean = () => false) {
   if (!(await Notifications.getPermissionsAsync()).granted) return;
   await ensureChannels();
+  const want = upcoming(await allTasks(), Date.now(), await opensOf()), ids = new Set(want.map((r) => PREFIX + r.id));
+  // Only what is no longer wanted is cancelled: a same-id schedule replaces in place, so a killed app never sits with none.
   for (const n of await Notifications.getAllScheduledNotificationsAsync())
-    if (n.identifier.startsWith(PREFIX)) await Notifications.cancelScheduledNotificationAsync(n.identifier);
-  const opens = await opensOf();
-  for (const r of upcoming(await allTasks(), Date.now(), opens)) {
+    if (n.identifier.startsWith(PREFIX) && !ids.has(n.identifier)) await Notifications.cancelScheduledNotificationAsync(n.identifier);
+  for (const r of want) {
     if (stale()) return;
     await Notifications.scheduleNotificationAsync({
       identifier: PREFIX + r.id,

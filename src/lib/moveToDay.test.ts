@@ -57,4 +57,25 @@ describe("moveToDay", () => {
     expect(db.tasks.get("lec")).toBe(fixed);
     expect(r.changed).toBe(false);
   });
+
+  it("a day mostly full of classes: the task stays on the dropped day, never tomorrow's morning", async () => {
+    const H = 3_600_000;
+    // classes 07-12 and 13-21 leave only 12-13 and the evening tail on Monday
+    for (const [i, [a, b]] of ([[7, 12], [13, 20.5]] as const).entries())
+      db.tasks.set(`c${i}`, { id: `c${i}`, title: "Lớp", kind: "study", source: "dlu", effort: (b - a) * 60, createdAt: NOW, fixed: "lecture", start: MON + a * H, end: MON + b * H } as Task);
+    await apply([{ op: "create", title: "Đọc sách", kind: "study", effortMinutes: 60 }], NOW);
+    const id = live().find((x) => x.title === "Đọc sách")!.id;
+    await moveToDay(id, MON, NOW);
+    const x = db.tasks.get(id);
+    if (x.start !== undefined) expect(x.start >= MON && x.start < MON + 86_400_000).toBe(true);
+    expect(x.notBefore).toBe(MON);
+  });
+
+  it("a past day or one beyond the horizon is refused, nothing is written", async () => {
+    await apply([{ op: "create", title: "Đọc sách", kind: "study", effortMinutes: 60 }], NOW);
+    const id = live()[0].id, before = db.tasks.get(id);
+    await moveToDay(id, NOW - 3 * 86_400_000, NOW);
+    await moveToDay(id, NOW + 60 * 86_400_000, NOW);
+    expect(db.tasks.get(id)).toBe(before);
+  });
 });

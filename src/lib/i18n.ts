@@ -243,6 +243,7 @@ const S = {
   yearN: "Năm {y}",
   doneTitle: "{title} xong",
   leftToday: "Còn {n} việc hôm nay",
+  leftNone: "Xong hết hôm nay",
   thisWeek: "Tuần này",
   nextWeek: "Tuần sau",
   nAllDone: "{n} việc, xong hết",

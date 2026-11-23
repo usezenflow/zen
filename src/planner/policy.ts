@@ -143,7 +143,7 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
     // window, not below what the work needs (an errand 15 min, deep work 1h30); a said length never shrinks. A window too packed for that
     // runs on to the rest of its day, then to any day: the task always gets a time, and its reason says why it is not where it was asked.
     const need = t.effortGuessed ? Math.min(eff, minSitting(t)) : Math.min(eff, cap);
-    const ask = t.notAfter !== undefined && t.deadline === undefined && !t.rrule ? { from: t.notBefore, to: t.notAfter } : undefined;
+    const ask = t.notAfter !== undefined && t.deadline === undefined && !t.rrule && !t.userDay ? { from: t.notBefore, to: t.notAfter } : undefined;
     let gapMin = widest(t);
     if (ask && gapMin !== undefined && gapMin < need) {
       // The said part, then its neighbours: the rest of today's part, then its later part (sáng → trưa), the same part tomorrow, tomorrow's later part, today's earlier one.
@@ -339,7 +339,7 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
   // Only what a due or a said window can use counts: an unplaced piece with no due gains nothing from a bump, so it does not decide one.
   const urgent = short.filter((q) => q.task.deadline !== undefined || q.ask !== undefined);
   // Only new trouble bumps: a piece still short at its own old slot was short last plan too, and a replan with nothing new moves nothing.
-  const fresh = urgent.filter((q) => q.prior === undefined || at(q) !== q.prior);
+  const fresh = urgent.filter((q) => !q.task.userDay && (q.prior === undefined || at(q) !== q.prior)); // a day chosen by hand never evicts other tasks
   let bump: string[] | undefined;
   if (fresh.length && !pulls.length && !unlock) {
     const dl = (x: Piece) => x.task.deadline ?? Infinity;

@@ -1,11 +1,11 @@
 import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Icon } from "@/components/art";
-import { hhmm, weekday } from "@/components/cal";
+import { hhmm } from "@/components/cal";
 import { DateChip, TimeChip } from "@/components/pick";
 import { Tap } from "@/components/tap";
 import { font, ff, useTheme } from "@/lib/theme";
-import { endAt } from "@/lib/when";
+import { day, endAt } from "@/lib/when";
 import type { Task } from "@/lib/types";
 
 const nextQuarter = () => Math.ceil(Date.now() / 900_000) * 900_000;
@@ -46,20 +46,30 @@ const SittingRow = memo(function SittingRow({ k, canDrop, onTime, onDrop, onSett
   const start = k.start ?? nextQuarter();
   const len = placed && k.end !== undefined ? Math.max(15, Math.round((k.end - k.start!) / 60_000)) : k.effort || 30;
   const end = start + len * 60_000;
+  const DW = 84, TW = 64; // one grid for every row: date, start, dash, end line up whatever the label
   if (done || !placed) {
+    const m = { color: th.muted, textDecorationLine: done ? "line-through" as const : "none" as const, textAlign: "center" as const };
     return (
       <View style={s.si}>
-        <Text style={[s.p, { color: th.muted, textDecorationLine: done ? "line-through" : "none" }]} numberOfLines={1}>{placed ? `${weekday(start)} ${hhmm(start)} - ${hhmm(end)}` : "chưa có giờ"}</Text>
+        {placed ? (
+          <>
+            <Text style={[s.cell, m, { width: DW }]} numberOfLines={1}>{day(start, 0)}</Text>
+            <Text style={[s.cell, m, { width: TW }]}>{hhmm(start)}</Text>
+            <Text style={[s.dash, { color: th.muted, width: 10, textAlign: "center" }]}>-</Text>
+            <Text style={[s.cell, m, { width: TW }]}>{hhmm(end)}</Text>
+          </>
+        ) : <Text style={[s.cell, m, { flex: 1, textAlign: "left" }]}>chưa có giờ</Text>}
+        <View style={s.p} />
         {!done && canDrop ? <Drop id={k.id} onDrop={onDrop} /> : <View style={s.x} />}
       </View>
     );
   }
   return (
     <View style={s.si}>
-      <DateChip value={start} past side="left" onChange={(d) => onTime(k.id, sameDay(start, d), len)} onClose={onSettle} />
-      <TimeChip value={start} past onChange={(d) => onTime(k.id, clock(start, d), len)} onClose={onSettle} />
-      <Text style={[s.dash, { color: th.muted }]}>-</Text>
-      <TimeChip value={end} past onChange={(d) => onTime(k.id, start, Math.max(15, Math.round((endAt(start, end, d) - start) / 60_000)))} onClose={onSettle}
+      <DateChip width={DW} value={start} past side="left" onChange={(d) => onTime(k.id, sameDay(start, d), len)} onClose={onSettle} />
+      <TimeChip width={TW} value={start} past onChange={(d) => onTime(k.id, clock(start, d), len)} onClose={onSettle} />
+      <Text style={[s.dash, { color: th.muted, width: 10, textAlign: "center" }]}>-</Text>
+      <TimeChip width={TW} value={end} past onChange={(d) => onTime(k.id, start, Math.max(15, Math.round((endAt(start, end, d) - start) / 60_000)))} onClose={onSettle}
         presets={LENS.map((m) => ({ label: hhmm(start + m * 60_000), at: new Date(start + m * 60_000), on: m === len }))} />
       <View style={s.p} />
       {canDrop ? <Drop id={k.id} onDrop={onDrop} /> : <View style={s.x} />}
@@ -78,6 +88,7 @@ function Drop({ id, onDrop }: { id: string; onDrop: (id: string) => void }) {
 
 const s = StyleSheet.create({
   si: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 48 },
+  cell: { fontSize: font.sub, fontFamily: ff("500"), fontVariant: ["tabular-nums"] },
   dash: { fontSize: font.sub, fontFamily: ff("600") },
   p: { flex: 1, minWidth: 0, fontSize: font.sub, fontFamily: ff("500"), fontVariant: ["tabular-nums"] },
   x: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },

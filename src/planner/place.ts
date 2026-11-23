@@ -27,7 +27,7 @@ const HALO = 60 * MIN;
 const TAIL = 6 * HOUR; // a block this far past a day's end can still halo an item that spills over midnight
 const W_GAP = 0.05; // per SLOT: the same weight per hour as 0.1 per 30 min
 const SPREAD = 1;
-const T0 = 0.5, T1 = 0.005, CAP_MS = 150, LOG_CAP = 40; // CAP_MS: a safety net only, the iteration budget is what bounds a solve
+const T0 = 0.5, T1 = 0.005, CAP_MS = 400, LOG_CAP = 40; // CAP_MS: a safety net only, the iteration budget is what bounds a solve
 const MISS = -1e6; // an unplaced piece: worse than any late placement, so a piece is left out only when no cell is free
 export const EJECT_CAP = 12;
 // Day load per hour: W_SOFT above cap-2, W_HARD above the cap (dayCost; policy.ts mirrors it). Both 0.3 and 1.0 before the sweep.

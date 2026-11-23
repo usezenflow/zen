@@ -155,6 +155,22 @@ it("split sittings are a series; the parent goes once no sitting is left, so it 
   expect(scopeIds([ts[0], { ...ts[1], deletedAt: NOW }, ts[2]], "p#2", "this")).toEqual(["p#2", "p"]);
 });
 
+it("ingest keeps what the user did after the sync snapshot: done stays done, a done task is not deleted", async () => {
+  const base = T({ id: "d1", source: "dlu", fixed: "lecture", start: NOW + DAYMS, end: NOW + DAYMS + H1 });
+  db.tasks.set("d1", { ...base, doneAt: NOW });
+  db.tasks.set("d2", { ...base, id: "d2", doneAt: NOW });
+  await ingest([{ ...base, title: "renamed" }], ["d2"], NOW);
+  expect(db.tasks.get("d1")).toMatchObject({ title: "renamed", doneAt: NOW });
+  expect(db.tasks.get("d2").deletedAt).toBeUndefined();
+});
+
+it("delete all on a split repeat covers every day, parents and sittings", () => {
+  const day = (id: string, d: number, parentId?: string) => T({ id, title: "Giải code", rrule: "FREQ=DAILY", seriesId: "s1", ...(parentId ? { parentId } : {}), start: parentId ? NOW + d * DAYMS : undefined, notBefore: NOW + d * DAYMS });
+  const ts = [day("a", 1), day("a#1", 1, "a"), day("a#2", 1, "a"), day("b", 2), day("b#1", 2, "b"), day("b#2", 2, "b"), T({ id: "z", title: "Khác", rrule: "FREQ=DAILY", seriesId: "s2" })];
+  expect(scopeIds(ts, "b#1", "all").sort()).toEqual(["a", "a#1", "a#2", "b", "b#1", "b#2"]);
+  expect(scopeIds(ts, "b#1", "following").sort()).toEqual(["b", "b#1", "b#2"]);
+});
+
 it("removeScope tombstones the section and a fresh repeating create clears a series tombstone", async () => {
   for (const [id, d] of [["a", 1], ["b", 8]] as const) db.tasks.set(id, T({ id, source: "dlu", section: "S1", fixed: "lecture", start: NOW + d * DAYMS, end: NOW + d * DAYMS + H1 }));
   const r = await removeScope("b", "following", NOW);
@@ -555,6 +571,12 @@ describe("repeats, splits and deletes (review fixes)", () => {
   it("every other week Mon and Fri counts calendar weeks, not 7 days from the creation day", async () => {
     await apply([{ op: "create", title: "Việc", repeat: "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,FR" }], WED);
     expect(own("FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,FR").map((x) => day(x.notBefore)).slice(0, 3)).toEqual(["2026-11-20", "2026-11-30", "2026-12-04"]);
+  });
+  it("saying the same repeat twice makes one series, not two", async () => {
+    await apply([{ op: "create", title: "Giải code", repeat: "FREQ=DAILY" }], WED);
+    const n = live().length;
+    await apply([{ op: "create", title: "giải code", repeat: "FREQ=DAILY" }], WED);
+    expect(live().length).toBe(n);
   });
   it("top-up keeps COUNT as a total, on the rule's weekday, due that day", async () => {
     const rr = "FREQ=WEEKLY;BYDAY=MO;COUNT=4";

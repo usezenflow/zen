@@ -133,8 +133,9 @@ export default function Detail() {
   // Note: saved on blur and when leaving, not on every pause, so typing plans nothing.
   const saveNote = useCallback(() => {
     if (latest.current === saved.current) return;
+    const was = saved.current;
     saved.current = latest.current;
-    return apply([{ op: "edit", target: id, note: latest.current }]);
+    return apply([{ op: "edit", target: id, note: latest.current }]).catch((e) => { saved.current = was; throw e; }); // a failed note is tried again
   }, [id]);
   const typing = (v: string) => { latest.current = v; };
   const typeTitle = (v: string) => { typed.current.title = v; if (noTitle && v.trim()) setNoTitle(false); };
@@ -187,7 +188,7 @@ export default function Detail() {
     const v = typed.current.title.trim();
     if (!v) return setNoTitle(true); // the stored title stays; the hint asks for one
     setNoTitle(false);
-    if (v !== task.title) void apply([{ op: "edit", target: task.id, title: v }]).then(load);
+    if (v !== task.title) void apply([{ op: "edit", target: task.id, title: v }]).then(load).catch(() => {});
   };
 
   const mine = task.source !== "dlu" && !task.forId;
@@ -208,7 +209,7 @@ export default function Detail() {
   const savePlace = () => {
     const v = typed.current.loc.trim();
     if (!v) setEd(undefined);
-    if (v !== (task.location ?? "")) void apply([{ op: "edit", target: task.id, location: v }]).then(load);
+    if (v !== (task.location ?? "")) void apply([{ op: "edit", target: task.id, location: v }]).then(load).catch(() => {});
   };
   // Opens the due line on today 23:59; nothing is saved until a dropdown closes, a tap outside, or leaving.
   const defaultDue = () => { const d = new Date(now); d.setHours(23, 59, 0, 0); setDue(d.getTime()); setEd("due"); };
@@ -331,7 +332,7 @@ export default function Detail() {
             <View style={s.sw}><TypeArt type={type} w={40} h={40} seed={7} /></View>
             {mine && !task.fixed ? (
               <DropMenu chevron label={t("youKind", { k: kindLabel(task.kind) })} color={th.muted} size={font.md} icon={<View style={s.kd}><Text style={[s.sub, { color: th.muted }]}>{t("youKind", { k: kindLabel(task.kind) })}</Text><Icon name="down" size={14} color={th.muted} /></View>}
-                items={KINDS.map((k) => ({ label: kindLabel(k), icon: k, onPress: () => void apply([{ op: "edit", target: task.id, kind: k }]).then(load) }))} />
+                items={KINDS.map((k) => ({ label: kindLabel(k), icon: k, onPress: () => void apply([{ op: "edit", target: task.id, kind: k }]).then(load).catch(() => {}) }))} />
             ) : (
               <Text style={[s.sub, { color: th.muted }]}>{task.source === "dlu" && !task.forId ? (task.fixed ? t("fromCampus") : t("fromLms")) : mine && task.fixed === "busy" ? t("youKind", { k: t("fixedTime") }) : t("fromYou")}</Text>
             )}

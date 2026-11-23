@@ -73,7 +73,7 @@ export function useDragDay(view: "week" | "month" | undefined, sel: number, onDr
       const d = s.hover;
       s.task = undefined; s.hover = undefined;
       setTask(undefined); setHover(undefined); setPeek(0);
-      if (t && d !== undefined && t.start !== undefined && d !== startOfDay(t.start)) s.onDrop(t, d);
+      if (t && d !== undefined && t.start !== undefined && d !== startOfDay(t.start) && d >= startOfDay(Date.now())) s.onDrop(t, d);
     },
   }), [view, width]); // eslint-disable-line react-hooks/exhaustive-deps -- the rest is read through st
   useEffect(() => () => clearTimeout(st.current.timer), []);

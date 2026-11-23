@@ -14,10 +14,10 @@ function useChip(onClose?: () => void) {
   return { box, anchor, open, close: () => { setAnchor(undefined); onClose?.(); } }; // closing is the blur: the owner saves once
 }
 
-function Chip({ label, on, onPress, box }: { label: string; on: boolean; onPress: () => void; box: React.RefObject<ComponentRef<typeof View> | null> }) {
+function Chip({ label, on, onPress, box, width }: { width?: number; label: string; on: boolean; onPress: () => void; box: React.RefObject<ComponentRef<typeof View> | null> }) {
   const th = useTheme();
   return (
-    <View ref={box} collapsable={false} style={s.fit}>
+    <View ref={box} collapsable={false} style={width ? { width } : s.fit}>
       <Tap onPress={onPress} accessibilityRole="button" accessibilityLabel={label} style={[s.chip, { backgroundColor: th.chip, borderColor: on ? th.seal : "transparent" }]}>
         <Text style={[s.t, { color: th.ink }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{label}</Text>
       </Tap>
@@ -26,22 +26,22 @@ function Chip({ label, on, onPress, box }: { label: string; on: boolean; onPress
 }
 
 /** "17:00": drops zen's time dial, its right edge on the chip's. `due`: 23 also offers :59. `min`: nothing earlier on that day (an end: its start + 15). `past`: a manual edit, any time. */
-export function TimeChip({ value, due, min, past, presets, onChange, onClose }: { value: number; due?: boolean; min?: number; past?: boolean; presets?: Preset[]; onChange: (d: Date) => void; onClose?: () => void }) {
+export function TimeChip({ width, value, due, min, past, presets, onChange, onClose }: { width?: number; value: number; due?: boolean; min?: number; past?: boolean; presets?: Preset[]; onChange: (d: Date) => void; onClose?: () => void }) {
   const c = useChip(onClose);
   return (
     <>
-      <Chip label={hhmm(value)} on={!!c.anchor} onPress={c.open} box={c.box} />
+      <Chip width={width} label={hhmm(value)} on={!!c.anchor} onPress={c.open} box={c.box} />
       <TimeDial open={!!c.anchor} anchor={c.anchor} value={new Date(value)} due={due} min={min === undefined ? undefined : new Date(min)} past={past} presets={presets} onChange={onChange} onClose={c.close} />
     </>
   );
 }
 
 /** "T4 18/11": drops zen's calendar from the chip's left (a start) or right (an end) edge. `min`: days before it greyed out. `past`: days gone too. */
-export function DateChip({ value, label, min, past, parts, side = "left", onChange, onClose }: { value: number; label?: string; min?: number; past?: boolean; parts?: Parts; side?: "left" | "right"; onChange: (d: Date) => void; onClose?: () => void }) {
+export function DateChip({ width, value, label, min, past, parts, side = "left", onChange, onClose }: { width?: number; value: number; label?: string; min?: number; past?: boolean; parts?: Parts; side?: "left" | "right"; onChange: (d: Date) => void; onClose?: () => void }) {
   const c = useChip(onClose);
   return (
     <>
-      <Chip label={label ?? day(value, 0)} on={!!c.anchor} onPress={c.open} box={c.box} />
+      <Chip width={width} label={label ?? day(value, 0)} on={!!c.anchor} onPress={c.open} box={c.box} />
       <DateDrop open={!!c.anchor} anchor={c.anchor} value={new Date(value)} min={min !== undefined ? new Date(min) : undefined} past={past} parts={parts && { on: parts.on, onPick: (i) => { parts.onPick(i); c.close(); } }} side={side} onChange={onChange} onClose={c.close} />
     </>
   );

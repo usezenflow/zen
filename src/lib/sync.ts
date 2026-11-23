@@ -8,7 +8,7 @@ import { plain, t } from "./i18n";
 import { digestNotices, marksNotice, type Digest } from "./dlu/materialize";
 import { pushWidgetsNow } from "./widgets";
 import { ensureChannels, pushReminders, recordOpen, soundOf } from "./reminders";
-import { ingest, keepSweep, loadClassMult, loadGone, pullInto, replan, sweepUndone, topUp, waiting, type Result } from "./apply";
+import { ingest, keepSweep, loadClassMult, loadGone, pullInto, replan, serial, sweepUndone, topUp, waiting, type Result } from "./apply";
 import type { Notice, Task } from "./types";
 import type { ParsedMarks } from "./dlu/parse/student";
 import * as queue from "./queue";
@@ -104,7 +104,7 @@ function jobsFor(p: Part, now: number, auto = false): Omit<queue.Job, "tries" | 
 /** Queues one part by hand and starts the queue. A part already queued is not queued twice. */
 export async function ask(p: Part): Promise<void> {
   await queue.enqueue(jobsFor(p, Date.now()));
-  void drain();
+  void drain().catch(() => {});
 }
 
 /** Queues what is due on its own (see the top of this file). A refused account is not asked until its password is typed again. */
@@ -173,6 +173,8 @@ async function run(j: queue.Job, acc: Acc): Promise<void> {
   await setBad(src, false);
   for (const k of [AT[p], "sync.last", `sync.last.${src}`]) await store.kvSet(k, String(now));
   if (!fetched) return;
+  const cur = await loadCreds(); // disconnected while this job was fetching: its items must not come back
+  if (!cur || !(src === "portal" ? hasPortal : hasLms)(cur)) return;
   const { upserts, deletes, digest } = materialize(fetched, await store.allTasks(), now, prepMult(await getMarks()), await loadGone(), await loadClassMult().catch(() => ({})));
   acc.digest.exams.push(...digest.exams); acc.digest.assignments.push(...digest.assignments); acc.digest.rooms.push(...digest.rooms);
   acc.digest.lectures!.push(...(digest.lectures ?? []));
@@ -195,14 +197,17 @@ export function drain(opts: { budget?: number } = {}): Promise<Synced | undefine
     const acc: Acc = { digest: { exams: [], assignments: [], rooms: [], moved: [], due: [], makeup: [], cancelled: [], lectures: [] }, extra: [], changed: false,
       hadTimetable: tasks.some((x) => x.source === "dlu" && x.fixed === "lecture" && !x.deletedAt && x.start! > now) };
     await queue.work((j) => run(j, acc), opts.budget);
-    if (acc.changed) await replan(Date.now());
+    if (acc.changed) await replan(Date.now()).catch(() => {}); // stored already: a failed replan is retried by the next tick
     const ls = acc.digest.lectures!;
     acc.digest.timetable = !acc.hadTimetable && ls.length >= 3 ? { n: ls.length, first: Math.min(...ls) } : undefined;
-    if (!acc.hadTimetable) acc.digest.makeup = []; // lectures of a timetable that came in this drain are not makeups
+    // lectures of a timetable still coming in (this drain, or the weeks the first drain left queued) are not makeups
+    const first = Number(await store.kvGet("tt.first")) || 0;
+    if (!acc.hadTimetable && ls.length >= 3) await store.kvSet("tt.first", String(now));
+    if (!acc.hadTimetable || now - first < 30 * 60_000) acc.digest.makeup = [];
     const notices = [...digestNotices(acc.digest, now), ...acc.extra];
     const next = await queue.nextDue();
     if (wake) clearTimeout(wake);
-    if (next !== null) wake = setTimeout(() => void drain(), Math.max(1000, next - Date.now()));
+    if (next !== null) wake = setTimeout(() => void drain().catch(() => {}), Math.max(1000, next - Date.now()));
     if (!acc.changed && !notices.length) return undefined;
     const r: Synced = { toast: notices.length ? "" : t("syncedNew"), changed: acc.changed, undo: async () => {}, notices };
     if (AppState.currentState !== "active") for (const n of notices) await notify(n);
@@ -218,7 +223,7 @@ export async function syncNow(only?: Source): Promise<void> {
   const parts: Part[] = only === "lms" ? ["lms"] : only === "portal" ? ["ex", "tt", "marks", "fees"] : ["ex", "lms", "tt", "marks", "fees"];
   await queue.enqueue(parts.flatMap((p) => jobsFor(p, now)), now);
   await drain({ budget: 8_000 });
-  void drain();
+  void drain().catch(() => {});
 }
 
 /** Forgets one account's password (or both) and its queued jobs. Once both are gone, everything the campus gave (items, prep for them, marks, fees) is wiped too. */
@@ -230,10 +235,12 @@ export async function disconnect(which: "lms" | "portal" | "both"): Promise<void
   else {
     await clearCreds();
     await stopBackgroundSync().catch(() => {});
-    const all = await store.allTasks();
-    const gone = new Set(all.filter((x) => x.source === "dlu").map((x) => x.id));
-    await store.removeTasks(all.filter((x) => gone.has(x.id) || (x.forId && gone.has(x.forId))).map((x) => x.id));
-    for (const k of ["marks", "fees.rows", "sync.last", "sync.last.portal", "sync.last.lms", "sync.tt", "sync.tt.at", "sync.tt.try", "sync.exam.at", "marks.at", "fees.at", "fees.month"]) await store.kvSet(k, "");
+    await serial(async () => { // inside the write queue, so no write lands between the read and the removal
+      const all = await store.allTasks();
+      const gone = new Set(all.filter((x) => x.source === "dlu").map((x) => x.id));
+      await store.removeTasks(all.filter((x) => gone.has(x.id) || (x.forId && gone.has(x.forId))).map((x) => x.id));
+    });
+    for (const k of ["tt.first","marks", "fees.rows", "sync.last", "sync.last.portal", "sync.last.lms", "sync.tt", "sync.tt.at", "sync.tt.try", "sync.exam.at", "marks.at", "fees.at", "fees.month"]) await store.kvSet(k, "");
   }
   if (which !== "both") await store.kvSet(`sync.last.${which}`, "");
   await store.kvSet("sync.loginError", "");
@@ -348,7 +355,7 @@ async function foregroundNow(now: number): Promise<Synced | undefined> {
   if (made?.changed) out = wrap(made);
   await schedule(now);
   pushReminders(); // debounced; a drain's replan after this is not pushed here
-  void drain(); // its result reaches the day view through onSynced
+  void drain().catch(() => {}); // its result reaches the day view through onSynced
   if (STATS_URL) await stats.flush(kvStorage, STATS_URL, now).catch(() => 0);
   return out;
 }

@@ -121,10 +121,21 @@ export function materialize(items: Fetched, tasks: Task[], now = Date.now(), mul
   const hadTimetable = tasks.some((x) => x.source === "dlu" && x.fixed === "lecture" && !x.deletedAt && x.start! > now);
   const lectures: number[] = [];
 
+  // A class whose period changed has a new key (the period is in it): the same section on the same day, no longer fed, is the same class.
+  // It keeps its id, note and pin instead of being cancelled and re-added.
+  const keys = new Set(items.map((i) => i.externalKey)), taken = new Set<string>();
+  const dayOf = (ms: number) => new Date(ms).toDateString();
+  const orphanOf = (next: Task) => next.fixed !== "lecture" || next.section === undefined ? undefined : tasks.find((o) => o.source === "dlu" && o.fixed === "lecture" && o.section === next.section && !o.parentId && !o.deletedAt && !o.doneAt
+    && o.upstreamKey !== undefined && !keys.has(o.upstreamKey) && !taken.has(o.id) && o.start !== undefined && o.start > now && dayOf(o.start) === dayOf(next.start!));
   for (const i of items) {
     seen.add(i.externalKey);
     const next = fromItem(i, now, mult);
-    const old = byKey.get(i.externalKey);
+    let old = byKey.get(i.externalKey);
+    if (!old) {
+      const o = orphanOf(next);
+      if (o) { taken.add(o.id); seen.add(o.upstreamKey!); const m = { ...merge(o, next), upstreamKey: next.upstreamKey }; if (!same(o, m)) upserts.push(m, ...syncKids(m, tasks)); old = o; }
+    }
+    if (old && old.upstreamKey !== i.externalKey) continue; // handled above
     if (!old) {
       const cut = next.section !== undefined ? gone.sections[next.section] : undefined;
       if (cut !== undefined && next.start! >= cut) continue; // the student deleted this section (or its tail)

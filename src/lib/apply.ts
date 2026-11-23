@@ -139,10 +139,10 @@ const seriesKey = (x: Task) => x.seriesId ?? `${x.rrule}|${x.title}`; // older r
  *  "following" is this one and later ones, "all" the whole series, "this" just itself. */
 export function scopeIds(tasks: Task[], id: string, scope: "this" | "following" | "all"): string[] {
   const me = tasks.find((x) => x.id === id);
-  const kin = (x: Task) => (me?.section ? x.section === me.section : me?.parentId ? x.parentId === me.parentId : !!me?.rrule && !!x.rrule && seriesKey(x) === seriesKey(me));
+  const kin = (x: Task) => (me?.section ? x.section === me.section : me?.rrule ? !!x.rrule && seriesKey(x) === seriesKey(me) : me?.parentId ? x.parentId === me.parentId : false);
   const ids = !me || scope === "this" ? [id] : tasks.filter((x) => x.id === id || (kin(x) && !x.deletedAt && !x.doneAt && (scope === "all" || at(x) >= at(me)))).map((x) => x.id);
   // Last live sitting gone: the parent goes too (last, after its sittings), or the planner splits it again.
-  if (me?.parentId && tasks.every((x) => x.parentId !== me.parentId || x.deletedAt || x.doneAt || ids.includes(x.id))) ids.push(me.parentId);
+  if (me?.parentId && !ids.includes(me.parentId) && tasks.every((x) => x.parentId !== me.parentId || x.deletedAt || x.doneAt || ids.includes(x.id))) ids.push(me.parentId);
   return ids;
 }
 
@@ -271,6 +271,9 @@ async function act(w: Work, a: Action) {
       const gone = await loadGone();
       if (delete gone.series[`${a.repeat}|${title}`]) await store.kvSet("gone", JSON.stringify(gone)); // a fresh series replaces the deleted one
     }
+    // Saying the same repeat twice (voice then typed, alt chip) must not make a second copy: it could never be deleted as one series.
+    const clock = (x: { start?: number }) => (x.start === undefined ? -1 : new Date(x.start).getHours() * 60 + new Date(x.start).getMinutes());
+    if (a.repeat && [...w.tasks.values()].some((x) => x.rrule === a.repeat && !x.deletedAt && !x.doneAt && x.title.toLowerCase() === title.toLowerCase() && JSON.stringify(x.tods ?? []) === JSON.stringify(a.tods ?? []) && clock(x) === (a.fixed && when !== undefined ? clock({ start: when }) : -1))) { w.toast = t("added", { title }); return; }
     const occ = occurrences(a.repeat, now, when, ms(a.deadline));
     if (occ.short) w.short = true;
     const vec = embed(title);
@@ -301,6 +304,7 @@ async function act(w: Work, a: Action) {
   for (const [tk, b] of [...all.map((x): [Task, Action] => [x, a]), ...(whole ? seriesWide(w, a, all) : [])]) {
     a = b; // the rest of a series takes only the fields it shared (seriesWide)
     if (a.op === "done") {
+      if (tk.doneAt) continue; // a second tap (card, row, widget) must not log a second done
       const next = { ...tk, doneAt: now, misses: undefined };
       w.tasks.set(tk.id, next);
       w.log("done", next);
@@ -316,6 +320,7 @@ async function act(w: Work, a: Action) {
       if (p && !p.deletedAt && ![...w.tasks.values()].some((c) => c.parentId === p.id && !c.doneAt && !c.deletedAt)) gone(p);
       w.toast = t("deleted", { title: tk.title });
     } else if (a.op === "edit") {
+      if (tk.deletedAt) continue; // a screen saving as it closes after a delete must not touch the deleted task (Undo skips a changed one)
       const when = ms(a.when);
       const edited = new Set(tk.userEdited);
       const next: Task = { ...tk };
@@ -328,7 +333,7 @@ async function act(w: Work, a: Action) {
       const dl = ms(a.deadline);
       if (dl) { next.deadline = dl; edited.add("deadline"); }
       // a time the user sets wins over the parts of the day it was said in
-      if (when !== undefined) next.tods = undefined;
+      if (when !== undefined) { next.tods = undefined; next.notAfter = undefined; next.userDay = undefined; } // a clock set by hand ends any window a drop or a said part left
       if (when !== undefined && tk !== lead) {
         // A split task moved as a whole: its first open sitting takes the time, the rest are planned after it, not stacked on it.
         Object.assign(next, { start: undefined, end: undefined, pinned: false, notBefore: when + (lead.effort || 30) * 60_000 });
@@ -363,7 +368,7 @@ const canon = (x: Task) => JSON.stringify(Object.keys(x).filter((k) => k !== "ve
 
 // Every task write is read-modify-write of the whole store, so they run one at a time or the later one wipes the earlier.
 let chain: Promise<unknown> = Promise.resolve();
-const serial = <T>(fn: () => Promise<T>): Promise<T> => { const r = chain.then(fn); chain = r.catch(() => {}); return r; };
+export const serial = <T>(fn: () => Promise<T>): Promise<T> => { const r = chain.then(fn); chain = r.catch(() => {}); return r; };
 
 /** A flexible task still waiting for a time (not a split parent, whose sittings hold the time): any freed time should take it. */
 export const waiting = (all: Task[], now = Date.now()) => {
@@ -593,7 +598,7 @@ export const swipeLater = (id: string, now = Date.now()) =>
 
 /** Starts the suggested gap task now. */
 export const take = (id: string, start: number, end: number, now = Date.now()) =>
-  transact(now, (w) => { const tk = w.tasks.get(id); if (tk) w.tasks.set(id, { ...tk, start, end, notBefore: start, userEdited: [...(tk.userEdited ?? []), "start"] }); w.toast = t("moved", { title: tk?.title ?? "", time: at12(start, now) }); }, { replan: false });
+  transact(now, (w) => { const tk = w.tasks.get(id); if (tk) w.tasks.set(id, { ...tk, start, end, notBefore: start, notAfter: undefined, userDay: undefined, userEdited: [...(tk.userEdited ?? []), "start"] }); w.toast = t("moved", { title: tk?.title ?? "", time: at12(start, now) }); }, { replan: false });
 
 /** Replan with no edits (morning, sync). */
 export const putBack = async (id: string, start: number, now = Date.now()) => {
@@ -654,15 +659,26 @@ export const settleHyp = (kind: Kind, part: number, state: "rule" | "off", now =
     w.model = m;
   }, { replan: false });
 
+// Replans waiting for their turn are one: the tick, a foreground and a sync landing together plan once, not three times over the whole calendar.
+let waitingReplan: Promise<Result> | undefined;
 export function replan(now = Date.now(), toast?: (d: Diff) => string | undefined) {
-  return transact(now, () => {}, { self: false, text: (d) => (d && toast ? toast(d) : undefined) }).then(quiet);
+  if (!toast && waitingReplan) return waitingReplan;
+  const r = transact(now, () => { if (waitingReplan === r) waitingReplan = undefined; }, { self: false, text: (d) => (d && toast ? toast(d) : undefined) }).then(quiet);
+  if (!toast) { waitingReplan = r; const clear = () => { if (waitingReplan === r) waitingReplan = undefined; }; r.then(clear, clear); }
+  return r;
 }
 
 /** Applies upstream upserts and soft deletes, replans, and reports moved tasks. */
 export function ingest(upserts: Task[], deletes: string[], now = Date.now(), notices: Notice[] = [], replan = true) {
   return transact(now, (w) => {
-    for (const u of upserts) w.tasks.set(u.id, u);
-    for (const id of deletes) { const x = w.tasks.get(id); if (x) w.tasks.set(id, { ...x, deletedAt: now }); }
+    // `upserts` were worked out from a snapshot taken before this write waited its turn: what the user did meanwhile wins.
+    for (const u of upserts) {
+      const x = w.tasks.get(u.id);
+      if (!x) { w.tasks.set(u.id, u); continue; }
+      const mine = x.userEdited?.includes("start") && x.start !== u.start;
+      w.tasks.set(u.id, { ...u, doneAt: u.doneAt ?? x.doneAt, ...(x.userEdited?.includes("deleted") ? { deletedAt: u.deletedAt ?? x.deletedAt, userEdited: [...new Set([...(u.userEdited ?? []), "deleted"])] } : {}), ...(mine ? { start: x.start, end: x.end, userEdited: [...new Set([...(u.userEdited ?? []), "start"])] } : {}) });
+    }
+    for (const id of deletes) { const x = w.tasks.get(id); if (x && !x.doneAt) w.tasks.set(id, { ...x, deletedAt: now }); }
   }, {
     self: false,
     replan,
@@ -781,15 +797,25 @@ export const moveMine = (id: string, now = Date.now()) =>
 
 /** Moves a flexible task (or its open sittings) to another day, keeping its part of the day (tods): no clock, the planner picks the slot that day.
  *  `part` (minutes after midnight) sets the part instead ("Dời: chiều nay"). A fixed task (a class, an exam, a busy block) is not moved; nothing is written then. */
-export const moveToDay = (id: string, dayMs: number, now = Date.now(), part?: [number, number]) =>
-  transact(now, (w) => {
+export const moveToDay = (id: string, dayMs: number, now = Date.now(), part?: [number, number]) => {
+  const ids = new Set<string>();
+  let title = "";
+  return transact(now, (w) => {
     const tk = w.tasks.get(id);
-    if (!tk || tk.fixed || tk.doneAt || tk.deletedAt) return;
     const d = dayStart(dayMs);
-    for (const x of targets(w, id)) // a split parent moves its open sittings, which are what is planned
-      w.tasks.set(x.id, { ...x, start: undefined, end: undefined, pinned: false, notBefore: d, notAfter: d + DAY, ...(part ? { tods: [part] } : {}), userEdited: x.userEdited?.filter((f) => f !== "start") });
+    if (!tk || tk.fixed || tk.doneAt || tk.deletedAt || d < dayStart(now) || d > dayStart(now) + 29 * DAY) return; // past or beyond the planning horizon: no cells, the task would vanish
+    const nextDay = new Date(d); nextDay.setDate(nextDay.getDate() + 1); // not d + DAY: a 23 or 25 hour day
+    for (const x of targets(w, id)) { // a split parent moves its open sittings, which are what is planned
+      ids.add(x.id);
+      w.tasks.set(x.id, { ...x, start: undefined, end: undefined, pinned: false, notBefore: d, notAfter: nextDay.getTime(), userDay: true, ...(part ? { tods: [part] } : {}), userEdited: x.userEdited?.filter((f) => f !== "start") });
+    }
+    title = tk.title;
     w.toast = t("moved", { title: tk.title, time: day(d, now) });
-  }, { replan: true, text: (_, w) => w.toast });
+  }, { replan: true, text: (df, w) => { // say where it really landed, not where it was dropped
+    const p = df?.placed.find((x) => ids.has(x.id));
+    return p && title ? t("moved", { title, time: day(dayStart(p.start), now) }) : w.toast;
+  } });
+};
 
 /** A change the clock or a sync made, not the user: its result shows no Undo. */
 const quiet = (r: Result): Result => ({ ...r, undoable: false });

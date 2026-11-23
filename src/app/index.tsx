@@ -130,6 +130,7 @@ export default function Home() {
     setOver(await pendingOverlaps(now));
     // Moves and the model load once per refresh; rows get plain maps.
     const [model, mv, wn] = await Promise.all([store.loadModel(now), loadMoves(), loadWarn()]);
+    if (mine !== gen.current) return; // a newer refresh began while these loaded
     // A notice is stale once its task sits somewhere else (moved again since, by hand or by another replan): it goes, never to come back.
     const stale = mv.filter((m, i) => !m.seen && (mv.slice(i + 1).some((n) => n.id === m.id) || all.some((x) => x.id === m.id && x.start !== m.to)));
     if (stale.length) void seeMoves(stale.map((m) => m.id).filter((id) => !mv.some((n) => n.id === id && !stale.includes(n))));
@@ -173,7 +174,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!toast) return;
-    const id = setTimeout(() => setToasts((q) => q.slice(1)), 6000);
+    const id = setTimeout(() => setToasts((q) => q.slice(1)), toast.action ? 8000 : 6000);
     return () => clearTimeout(id);
   }, [toast]);
 
@@ -264,6 +265,8 @@ export default function Home() {
     setToasts((q) => [...q, { text: t("overrunSub", { title: x.title }), sub: t("overrunQ"), action: { label: t("finishDone"), run: act("done") }, alt: { label: t("laterAfter"), run: act("later"), plain: true } }]);
   }, [tasks, now, refresh]);
   useEffect(() => onLeftSaved(refresh), [refresh]); // the detail screen's last edits, saved as it closed
+  const cardRef = useRef(card);
+  useEffect(() => { cardRef.current = card; }, [card]);
   // `now` otherwise moves only on a refresh: left open, rows would never turn late and "today" would not roll over at midnight.
   useEffect(() => {
     let day = startOfDay(Date.now());
@@ -271,7 +274,7 @@ export default function Home() {
       const n = Date.now();
       setNow(n);
       if (startOfDay(n) !== day) { const was = day; day = startOfDay(n); setSel((v) => (v === was ? day : v)); onForeground().then((r) => (r ? landed(r) : refresh())).catch(() => refresh()); } // a new day also gives waiting tasks their slots // today rolls over; a day picked on purpose stays
-      else onTick(n).then((r) => { if (r) landed(r); }).catch(() => {}); // the clock's replans: a block ended, an idle gap, the 21:30 sweep
+      else onTick(n).then((r) => { if (r) landed(r); else if (cardRef.current?.end !== undefined && cardRef.current.end <= n) refresh(); }).catch(() => {}); // a block ended: the card moves on // the clock's replans: a block ended, an idle gap, the 21:30 sweep
     }, 30_000);
     return () => clearInterval(i);
   }, [refresh, landed]);
@@ -561,6 +564,9 @@ export default function Home() {
             fail(t("photoFail"), e);
           }
         } else await readPdf(item.value);
+      } catch (e) {
+        setState("idle"); setPdf(undefined);
+        fail(t("photoFail"), e);
       } finally {
         clearSharedPayloads(); // after the read: clearing deletes zen's copy of the shared file
       }
@@ -588,7 +594,8 @@ export default function Home() {
     setTimeout(() => setPop((p) => { const n = new Set(p); n.delete(x.id); return n; }), 1400);
     const ps = parents(tasks);
     const left = tasks.filter((a) => live(a) && a.id !== x.id && a.start !== undefined && a.start < addDays(startOfDay(Date.now()), 1) && !ps.has(a.id)).length;
-    say(t("doneTitle", { title: x.title }), r, { sub: t("leftToday", { n: left }) });
+    if (!left) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {}); // the day's last one: a second buzz
+    say(t("doneTitle", { title: x.title }), r, { sub: left ? t("leftToday", { n: left }) : t("leftNone") });
     refresh();
   };
   const edit = (x: Task, a: { title?: string }) => apply([{ op: "edit", target: x.id, ...a }]).then((r) => { say(r.toast, r); refresh(); }, failed);
@@ -649,8 +656,6 @@ export default function Home() {
     onHold: (x: Task, bottom: number, top: number) => setMenu({ task: x, ...menuAt(bottom, top, itemsFor(x)) }), lifted: menu?.task.id,
   };
 
-  const cardRef = useRef(card);
-  useEffect(() => { cardRef.current = card; }, [card]);
   // "Làm luôn" on the next block: that very sitting moves to now (its old slot goes to whatever waits for a time).
   const startNow = async () => {
     const c = cardRef.current;
@@ -780,7 +785,7 @@ export default function Home() {
   const cardView = card && (
     <GestureDetector gesture={swipe}>
       <Reanimated.View style={flick}>
-        <NowCard card={card} onDone={card.gap ? startNow : () => commit("done")} onStart={startNow} onLater={() => void finish("later")} />
+        <NowCard card={card} onDone={card.gap ? startNow : () => void finish("done")} onStart={startNow} onLater={() => void finish("later")} />
       </Reanimated.View>
     </GestureDetector>
   );

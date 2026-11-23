@@ -47,9 +47,11 @@ export async function pushNudges(now = Date.now()) {
   if (Platform.OS === "web") return;
   if (!(await Notifications.getPermissionsAsync()).granted) return;
   await registerNudgeCategories();
+  const want = nudgesOf(await allTasks(), now), ids = new Set(want.map((n) => `${PREFIX}${n.kind}:${n.id}`));
+  // Only what is no longer wanted is cancelled: a same-id schedule replaces in place, so a killed app never sits with none.
   for (const n of await Notifications.getAllScheduledNotificationsAsync())
-    if (n.identifier.startsWith(PREFIX)) await Notifications.cancelScheduledNotificationAsync(n.identifier);
-  for (const n of nudgesOf(await allTasks(), now)) {
+    if (n.identifier.startsWith(PREFIX) && !ids.has(n.identifier)) await Notifications.cancelScheduledNotificationAsync(n.identifier);
+  for (const n of want) {
     const over = n.kind === "over";
     await Notifications.scheduleNotificationAsync({
       identifier: `${PREFIX}${n.kind}:${n.id}`,
