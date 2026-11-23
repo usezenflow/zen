@@ -5,8 +5,8 @@ const light = { bg: "#fbfaf7", ink: "#16181b", muted: "#8d8f8c", line: "#e6e4de"
 const dark = { bg: "#121314", ink: "#ecebe6", muted: "#7f817e", line: "#26282a", chip: "#1c1d1f" };
 
 // Same in both modes: art stays colourful on a paper ui.
-// Readability scale, mirrors mockups/ui.css: label/sub/time/pill 15, tab/toast/sub 15, meta 16, body/menu 17, title 30.
-export const font = { label: 15, sub: 15, md: 15, meta: 16, base: 17, lg: 24, xl: 26, h: 30 } as const;
+// Readability scale, grown for touch and small phones (320dp): label/sub 16, md (chips, buttons) 17, meta 16, body 17, title 30.
+export const font = { label: 16, sub: 16, md: 17, meta: 16, base: 17, lg: 24, xl: 26, h: 30 } as const;
 export const space = { gutter: 24, row: 15, xs: 4, sm: 8, md: 12, lg: 14, xl: 18, xxl: 24 } as const;
 
 const fixed = {

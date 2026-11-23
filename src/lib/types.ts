@@ -42,6 +42,7 @@ export interface Task {
   userEdited?: string[]; // fields the user changed, upstream never overwrites; "deleted" = user removed it, never revived
   misses?: number; // blocks that passed unfinished and were replanned (one per distinct missed start, apply.ts)
   pinned?: boolean; // "Đừng dời việc này nữa": the planner treats it as busy at start..end
+  holdUntil?: number; // a time set by hand (drag): busy only until this or its start passes, then a preference the planner may move
   createdAt: number;
 }
 

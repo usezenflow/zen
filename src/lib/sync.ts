@@ -8,7 +8,7 @@ import { plain, t } from "./i18n";
 import { digestNotices, marksNotice, type Digest } from "./dlu/materialize";
 import { pushWidgetsNow } from "./widgets";
 import { ensureChannels, pushReminders, recordOpen, soundOf } from "./reminders";
-import { ingest, keepSweep, loadClassMult, loadGone, replan, topUp, waiting, type Result } from "./apply";
+import { ingest, keepSweep, loadClassMult, loadGone, pullInto, replan, sweepUndone, topUp, waiting, type Result } from "./apply";
 import type { Notice, Task } from "./types";
 import type { ParsedMarks } from "./dlu/parse/student";
 import * as queue from "./queue";
@@ -280,6 +280,49 @@ async function backfill(now: number): Promise<Result | undefined> {
   return r;
 }
 
+const MIN = 60_000;
+const dayStart = (ms: number) => new Date(new Date(ms).setHours(0, 0, 0, 0)).getTime();
+/** The clock's own replans, run on the 30 s tick, at launch and in the background: a new day, an idle gap of 30 min or more a later task can take (once per gap), the 21:30 sweep (once a day). `fg` adds the waiting check,
+ *  which only an open app does (a tick would retry a task that cannot fit every 30 s). Exported for tests. */
+export async function reactToTime(now: number, fg: boolean): Promise<Result | undefined> {
+  const planned = Number((await store.kvGet("plannedAt")) ?? now);
+  const all = await store.allTasks(), live = all.filter((x) => !x.doneAt && !x.deletedAt);
+  // A block that ends unticked does not roll by itself: the overrun nudge asks (Xong / Để sau), and a new day replans what is left.
+  if (planned < dayStart(now) || (fg && waiting(all, now))) {
+    const r = await replan(now);
+    if (r.changed) return r;
+  }
+  const gap = idleGap(live, now);
+  if (gap && (await store.kvGet("idle.to")) !== String(gap.to)) {
+    await store.kvSet("idle.to", String(gap.to)); // once per gap: a pull that moves nothing is not retried every tick
+    const r = await pullInto([gap], now);
+    if (r.changed) return r;
+  }
+  const day = dayStart(now);
+  if (now >= day + 21.5 * HOUR && (await store.kvGet("sweep.day")) !== String(day)) {
+    await store.kvSet("sweep.day", String(day));
+    const r = await sweepUndone(now);
+    if (r?.changed) return r;
+  }
+  return undefined;
+}
+
+/** The free stretch from now to the next booked block, when it is 30 min or more. A block running now (or still in its grace) is booked. */
+function idleGap(live: Task[], now: number): { from: number; to: number } | undefined {
+  let from = Math.ceil(now / (15 * MIN)) * (15 * MIN);
+  const booked = live.filter((x) => x.start !== undefined && x.end !== undefined && x.end > now).map((x) => [x.start!, x.end!] as const).sort((a, b) => a[0] - b[0]);
+  for (const [s, e] of booked) if (s <= from && from < e) from = e;
+  const to = booked.find(([s]) => s >= from)?.[0] ?? dayStart(now) + 22 * HOUR;
+  return to - from >= 30 * MIN ? { from, to } : undefined;
+}
+
+let ticking: Promise<Synced | undefined> | undefined;
+/** The 30 s tick in the open app: the clock's replans only (no campus, no notices), never two at once. */
+export function onTick(now = Date.now()): Promise<Synced | undefined> {
+  if (foreground || ticking) return Promise.resolve(undefined);
+  return (ticking = reactToTime(now, false).then((r) => (r ? { ...r, notices: [] } : undefined)).finally(() => { ticking = undefined; }));
+}
+
 let foreground: Promise<Synced | undefined> | undefined;
 /** Foreground hook: keep sweep once a day, missed check, top-up, queue what is due and start it, flush stats. No daily replan.
  *  App focus and resume both call it at launch: a call while one runs waits for it and lands nothing of its own. */
@@ -296,15 +339,9 @@ async function foregroundNow(now: number): Promise<Synced | undefined> {
     await store.kvSet("morning.day", day);
     await keepSweep(now);
   }
-  // A task that ended after the last plan was missed: roll it forward once (plannedAt moves on after the replan).
-  const planned = Number((await store.kvGet("plannedAt")) ?? now);
-  // A time the user set by hand (pinned, or userEdited start) is not missed: it stays where the user put it.
-  // ...and a task still waiting for a time gets any time freed since (a class gone, a block ended): placing it moves nothing placed.
-  const all = await store.allTasks();
-  if (!out && (waiting(all) || all.some((x) => !x.doneAt && !x.deletedAt && !x.fixed && !x.pinned && !x.userEdited?.includes("start") && x.end !== undefined && x.end <= now && x.end > planned))) {
-    const r = await replan(now);
-    if (r.changed) out = wrap(r);
-  }
+  // A block that ended unticked was missed, and rolls forward; a task still waiting for a time gets any time freed since (see reactToTime).
+  const clock = await reactToTime(now, true);
+  if (!out && clock) out = wrap(clock);
   const up = await topUp(now);
   if (up) out = wrap(up);
   const made = await backfill(now); // before the sync, which an auto refresh may skip
@@ -318,5 +355,5 @@ async function foregroundNow(now: number): Promise<Synced | undefined> {
 
 // iOS gives a background task about 30 s: stop picking new jobs after 25; the rest waits for the next run or app open.
 // Each run also re-pushes the widgets, so their timeline (through the end of tomorrow) keeps rolling without the app opened.
-export const setupBackground = () => registerBackgroundSync(async () => { await schedule(); await drain({ budget: 25_000 }); await pushWidgetsNow(); }).catch(() => {});
+export const setupBackground = () => registerBackgroundSync(async () => { await reactToTime(Date.now(), false).catch(() => undefined); await schedule(); await drain({ budget: 25_000 }); await pushWidgetsNow(); }).catch(() => {});
 export { kvStorage };

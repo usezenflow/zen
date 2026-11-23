@@ -176,7 +176,7 @@ export function readNotes(text: string, r: ReaderResult): { sub?: string; alt?: 
   const ask = r.hints?.find((h) => h.kind === "ask" && h.options.length > 1);
   const o = ask?.options[1];
   const parts = [
-    ...r.repairs.slice(0, 2).map((x) => `“${text.slice(x.start, x.end)}” → ${x.to}`),
+    ...r.repairs.slice(0, 2).map((x) => t("repairTo", { quote: text.slice(x.start, x.end), to: x.to })),
     ...r.dropped.slice(0, 2).map((d) => t("dropNote", { quote: d.quote, why: t(`drop${d.reason[0].toUpperCase()}${d.reason.slice(1)}` as Key) })),
     ...[...new Set(r.items.flatMap((i) => i.flags))].filter((f) => FLAGS.includes(f)).map((f) => t(`flag${f[0].toUpperCase()}${f.slice(1)}` as Key)),
   ];

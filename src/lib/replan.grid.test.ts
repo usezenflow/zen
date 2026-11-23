@@ -125,7 +125,7 @@ describe("freed time: later tasks move into it, earlier only", () => {
     for (const x of [flex("A", NOW + 3 * H, 120), { ...flex("U1", 0), start: undefined, end: undefined } as Task, { ...flex("U2", 0), start: undefined, end: undefined } as Task]) db.tasks.set(x.id, x);
     const r = await swipeDone("A", NOW) as { sub?: string };
     expect(db.tasks.get("U1").start !== undefined && db.tasks.get("U2").start !== undefined).toBe(true);
-    expect(r.sub).toBe("Đã dời sớm 2 việc");
+    expect(r.sub).toMatch(/^2 việc nhích lên, \S+ thoáng hơn$/);
   });
   it("done after its time: nothing can take the time, no plan at all", async () => {
     for (const x of [flex("A", NOW - 3 * H, 60), flex("C", NOW + 2 * D)]) db.tasks.set(x.id, x);

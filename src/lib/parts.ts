@@ -19,3 +19,12 @@ export const WINDOW_END: Record<ReaderWindow, string> = {
 /** The names of PARTS, in the same order: sáng, trưa, chiều, tối. */
 export const PART_NAMES = ["sáng", "trưa", "chiều", "tối"] as const;
 export type PartName = (typeof PART_NAMES)[number];
+
+/** "Dời" choices from `now`: the parts of today still ahead (a part with less than 30 min left is not offered), then tomorrow's sáng and trưa (at most four). Each keeps its window. */
+export function laterChoices(now: number): { label: string; day: number; part: [number, number] }[] {
+  const d0 = new Date(now).setHours(0, 0, 0, 0), mins = (now - d0) / 60_000;
+  const d1 = new Date(d0).setDate(new Date(d0).getDate() + 1); // a DST day is not 24 h
+  const today = PARTS.map((part, k) => ({ label: `${PART_NAMES[k]} nay`, day: d0, part })).filter((c) => c.part[1] > mins + 30);
+  const tomorrow = PARTS.slice(0, 2).map((part, k) => ({ label: `mai ${PART_NAMES[k]}`, day: d1, part }));
+  return [...today, ...tomorrow].slice(0, 4);
+}

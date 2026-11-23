@@ -79,7 +79,7 @@ let chain: Promise<unknown> = Promise.resolve(), gen = 0;
 export function pushReminders() {
   if (Platform.OS === "web") return;
   clearTimeout(timer);
-  timer = setTimeout(() => { const me = ++gen; chain = chain.then(() => push(() => me !== gen)).catch(() => {}); }, 400);
+  timer = setTimeout(() => { const me = ++gen; chain = chain.then(() => push(() => me !== gen)).then(async () => { if (me === gen) await (await import("./nudges")).pushNudges(); }).catch(() => {}); }, 400);
 }
 
 /** `stale`: a newer run is queued, which cancels and reschedules everything itself. */

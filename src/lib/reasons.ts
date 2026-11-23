@@ -1,5 +1,5 @@
 // Words for the planner's reasons and solver steps: short, warm, like a friend noticing. Vietnamese only.
-import { fill } from "./i18n";
+import { fill, lenW } from "./i18n";
 import type { Kind, Reason, ReasonKey, Step } from "./types";
 
 export const KIND_VI: Record<Kind, string> = { study: "học", exercise: "tập thể dục", chores: "việc nhà", social: "gặp gỡ", other: "việc khác", work: "công việc", errand: "việc vặt", finance: "tài chính", self: "bản thân" };
@@ -11,11 +11,11 @@ export const kindW = (k: Kind, up = false) => { const w = /việc/.test(KIND_VI[
 // Each entry lists its wordings best first; the first whose {vars} are all known is said. Facts come in loose words, not minute math.
 type W = { short: string[]; long: string[]; neg?: string };
 const R: Record<ReasonKey, W> = {
-  hour: { short: ["Hay xong việc {pn} {dt}", "Giờ bạn hay làm", "Giờ bạn tập trung"], long: ["{often} bạn xong việc vào {pn} {dt}", "{often} bạn xong việc quanh {hour}h", "Giờ này bạn hay xong việc"], neg: "Giờ khác hợp hơn" },
+  hour: { short: ["Hay xong việc buổi {pn}", "Giờ bạn hay làm", "Giờ bạn tập trung"], long: ["{often} bạn xong việc vào buổi {pn}", "{often} bạn xong việc quanh {hour}h", "Giờ này bạn hay xong việc"], neg: "Giờ khác hợp hơn" }, // no day type: no weekday or weekend said
   after: { short: ["Sau giờ {prev}, như mọi khi"], long: ["Bạn hay làm việc này sau khi {prev}"], neg: "Sau giờ {prev}, giờ khác hợp hơn" },
   similar: { short: ["Giống việc trước", "Việc tương tự buổi {pn}"], long: ["Việc giống vậy bạn {oft} xong vào buổi {pn}", "Việc giống vậy bạn hay xong lúc {hour}h"], neg: "Việc tương tự hợp giờ khác" },
   energy: { short: ["Lúc bạn khoẻ"], long: ["Buổi {pn} là lúc bạn khoẻ nhất", "Gần giờ bạn làm tốt nhất"], neg: "Hơi xa giờ bạn khoẻ" },
-  weekend: { short: ["Cuối tuần thong thả"], long: ["Cuối tuần bạn hay rảnh việc này"], neg: "Ngày thường hợp hơn" },
+  weekend: { short: ["Ngày thong thả hơn"], long: ["Hôm đó thong thả hơn, hợp việc này"], neg: "Hôm đó bận hơn" }, // no weekday names: day load, not the calendar
   busy: { short: ["Ngày nhẹ"], long: ["Hôm đó ít lịch"], neg: "Hôm đó dày lịch" },
   kind: { short: ["Hợp {kind}"], long: ["Buổi {pn} hợp {kind}", "Giờ này hợp {kind}"], neg: "Giờ này ít hợp {kind}" },
   deadline: { short: ["{ahead}", "Hạn {due}, làm sớm"], long: ["Hạn {due}, {aheadLong}", "Hạn {due}, làm sớm cho khỏi dồn"], neg: "Hơi sát hạn {due}" },
@@ -52,7 +52,7 @@ const vars = (r: Reason) => {
     v.aheadLong = d >= 2 ? `làm từ giờ là còn ${d} ngày thong thả` : v.left >= 180 ? "làm giờ này là còn dư thời gian" : "giờ này là vừa kịp";
   }
   if (typeof v.slow === "number") v.slow = "bạn hay cần lâu hơn dự kiến"; // the ratio is never said as a number
-  if (typeof v.len === "number") { const h = Math.floor(v.len / 60), r = v.len % 60; v.lenW = h ? `${h} tiếng${r >= 30 ? " rưỡi" : ""}` : v.len === 30 ? "nửa tiếng" : `${v.len} phút`; }
+  if (typeof v.len === "number") v.lenW = lenW(v.len); // "45p", "1h30" (i18n units)
   if (typeof v.n === "number" && v.n >= 2) { v.often = v.n >= 5 ? "Bạn hay" : "Mấy lần gần đây"; v.oft = v.n >= 3 ? "hay" : "từng"; }
   return v;
 };

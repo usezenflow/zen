@@ -20,11 +20,7 @@ const S = {
   deleted: "Đã xoá {title}", // views.html "Deleted, single task": xoá, as removed
   renamed: "Đã đổi tên thành {title}",
   moved: "Đã dời {title} sang {time}",
-  onDay: "{title} sang {day}",
-  learnedAvoid: "Đã hiểu · ít xếp {time}",
-  avoidLab: "Bạn tránh",
-  avoidRow: "{p} · {a}h-{b}h",
-  avoidSub: "Dời đi {n} lần",
+  learnedAvoid: "Hiểu rồi: ít xếp buổi {time}", // time: a part word (partAt)
   avoidGone: "Mình quên giờ {a}:00",
   synced: "Lịch học đổi, đã dời {n} việc",
   syncedNew: "Đã cập nhật lịch học",
@@ -178,7 +174,7 @@ const S = {
   restT: "Đủ cho hôm nay",
   restSub: "Phần còn lại của ngày là của bạn.",
   restMore: "Thêm một việc nữa",
-  restLearned: "Đã hiểu · nghỉ sau {h}",
+  restLearned: "Hiểu rồi: nghỉ sau {h}",
   gapT: "{free} trống, hợp làm {title}",
   soon: "Sắp tới",
   tomorrow: "Ngày mai",
@@ -212,6 +208,12 @@ const S = {
   nearest: "Gần nhất: {when}, {title}",
   nothingYet: "Chưa có gì",
   startLab: "Bắt đầu",
+  laterBtn: "Dời", // the now card's second action: parts of the day, never hours (views.html "Day, move")
+  overrunQ: "Xong chưa?", // a block ended and nothing is ticked: one calm question (magic.html 7p)
+  overrunSub: "{title} đã quá giờ",
+  finishDone: "Xong",
+  startFirst: "Chỉ cần 2p đầu", // the start nudge's body (magic.html 7q)
+  laterAfter: "Để sau",
   startT: "Giữ nút và kể tuần này",
   startSub: "Nói như nhắn cho bạn. zen tự xếp giờ.",
   trySay: "Thử nói",
@@ -227,8 +229,9 @@ const S = {
   previewClash: "Trùng {title}",
   briefSee: "Xem",
   briefHide: "Ẩn",
-  pulledIn: "{title} có giờ: {when}",
-  pulledInN: "Đã dời sớm {n} việc",
+  pulledIn: "{title} nhích lên, {part} thoáng hơn",
+  pulledInN: "{n} việc nhích lên, {part} thoáng hơn",
+  swept: "{n} việc chưa xong, mai xếp lại sau 9h",
   lostSlot: "{title} chưa có giờ trống",
   addedN: "Đã thêm {n} việc",
   farDue: "Lên lịch 30 ngày tới · hạn {date}",
@@ -294,7 +297,6 @@ const S = {
   deleteAll: "Xoá tất cả",
   goneFrom: "Từ {d} trở đi",
   goneAll: "Mọi buổi",
-  putBack: "Đã để lại {time}",
   pinned: "Mình sẽ không dời {title}",
   unpinned: "Đã bỏ ghim {title}",
   madeRoom: "Đã dời {title} sau hạn",
@@ -333,42 +335,7 @@ const S = {
   alsoFits: "Cũng hợp",
   rhythm: "Nhịp của bạn",
   memory: "Mình nhớ",
-  goldenHours: "Giờ vàng",
-  stillLearning: "Mình đang học",
-  learningSub: "Vài ngày nữa là mình nắm nhịp bạn.",
-  learningT: "Mình đang học",
-  seenN: "Đã thấy {n} lần",
-  moreN: "Thêm {n} lần nữa",
-  seenSub: "Mỗi lần xong hay dời việc, mình hiểu bạn hơn.",
-  earlyRange: "Có vẻ {a}h-{b}h",
-  whenHead: "{w}",
-  whenTitle: "Bạn làm tốt nhất vào {w}",
-  whenSub: "Quanh {a}h-{b}h. Việc cần tập trung mình xếp vào đó khi được.",
-  whenSubBare: "Việc cần tập trung mình xếp vào đó khi được.",
-  earlyWhen: "Có vẻ {w}",
-  earlyTitle: "Bạn hay làm lúc {a}h-{b}h",
-  earlySub: "Thêm {n} việc giờ này nữa là mình chắc.",
-  noRulesT: "Bạn chưa dặn gì",
-  noGuessesT: "Chưa đoán được gì",
-  goldenRange: "{a}h-{b}h",
-  pairTitle: "Sau {k}, bạn làm tiếp tốt",
-  pairSub: "Mình xếp việc kế ngay sau.",
-  kindTitle: "{k} hợp nhất vào buổi {p}",
-  kindSub: "Mình xếp vào giờ đó khi được.",
-  slipTitle: "{k} hay bị dời",
-  slipSub: "{n}/10 lần. Mình xếp sớm hơn cho bạn dư.",
-  unsureTitle: "Buổi {p} mình chưa rõ",
-  unsureSub: "Mình sẽ thử giờ này.",
-  saidByYou: "Bạn dặn",
-  myGuess: "Mình đoán",
-  swipeForget: "Vuốt để mình quên.",
-  noRules: "Thử nói “Tối thứ sáu để trống nhé”, mình sẽ nhớ.",
-  noGuesses: "Mình còn đang học.",
-  sureHigh: "Chắc lắm",
-  sureMid: "Khá chắc",
-  sureLow: "Đang đoán",
   fromTime: "Từ {t}",
-  everyDay: "Mọi ngày",
   forgotRule: "Mình đã quên",
   causeAt: "Vì {title} {time}",
   causeNew: "Vì trường thêm {title} {time}",
@@ -417,10 +384,40 @@ const S = {
   repeatEveryDay: "Mỗi ngày",
   repeatPerWeek: "{n} buổi/tuần",
   repeatEveryWeek: "Mỗi tuần",
+  // Rhythm: "Zen đã học được gì" (rules the planner applies, each forgettable)
+  learnedTitle: "Zen đã học được gì",
+  learnedN: "{n} quy tắc",
+  learnedLab: "Mình đang theo",
+  learnedCold: "Chưa có gì khác thường. Cứ dùng, mình sẽ ghi nhớ.",
+  learnedForget: "Bỏ",
+  learnedNap: "Nghỉ {m}p sau buổi học",
+  learnedAvoidPart: "Tránh buổi {p}",
+  learnedKindPart: "{k} hợp buổi {p}",
+  // Capture toast: "Mình hiểu" names only what was inferred beyond the words
+  understood: "Mình hiểu: {what}",
+  whereWhen: "{day}, buổi {part}",
+  repairTo: "“{quote}” → {to}",
+  // Plan insights: the planner's own wording (policy.ts), moved here
+  planAfter: "{prev} xong thì {what} nhé",
+  planMoved: "{title} dời sang {time}",
+  planSimilar: "Hợp buổi giống việc trước",
+  planSlipEarly: "{title} được xếp sớm hơn, lúc {time}",
+  planSlip: "Xếp sớm để khỏi dời tiếp",
 } as const;
 export type Key = keyof typeof S;
 
 export const t = (k: Key, v: Record<string, string | number> = {}) => fill(S[k], v);
+
+/** A length in the app's units: "45p", "2h", "1h30". */
+export const lenW = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h${m % 60 ? String(m % 60).padStart(2, "0") : ""}` : `${m}p`);
+/** The part of the day a clock hour falls in, as a bare word ("sáng"): sáng 0-11, trưa 11-13, chiều 13-18, tối 18-24 (parts.ts). */
+export const partAt = (hour: number) => (hour < 11 ? "sáng" : hour < 13 ? "trưa" : hour < 18 ? "chiều" : "tối");
+/** Plan-insight wording the planner returns to the toast (policy.ts): one table, so the words live in i18n. */
+export const TPL = {
+  after: [S.planAfter, S.planMoved],
+  similar: [S.planMoved, S.planSimilar],
+  slip: [S.planSlipEarly, S.planSlip],
+} as const;
 
 // "Hôm nay"/"Ngày mai" open a line capitalised; inside a sentence they are plain words ("Hạn hôm nay 23:59", not "Hạn Hôm nay").
 /** A task's title inside a sentence is wrapped in two invisible marks, so the views can set it in bold (components/rich.tsx); unrendered, they show nothing. */

@@ -28,7 +28,7 @@ vi.mock("../planner", async (orig) => {
 
 import { addRule, addSitting, apply, dropSitting, ingest, lastMore, liveEdit, loadClassMult, needMore, pickNow, pin, putBack, removeRule, retime, scopeIds, stillMore, swipeDone } from "./apply";
 import { loadMoves } from "./moves";
-import { preps } from "../planner/prep";import { plain, t } from "./i18n";
+import { preps } from "../planner/prep";import { partAt, plain, t } from "./i18n";
 import { hm } from "./when";
 import { holidays } from "./holidays";
 
@@ -257,7 +257,7 @@ it("a time set wholly in the past is kept pinned and plans nothing; one reaching
   const id = live()[0].id, planned = db.kv.get("plannedAt");
   const gone = NOW - 3 * 3600_000;
   await apply([{ op: "edit", target: id, when: new Date(gone).toISOString() }], NOW + 1000);
-  expect(db.tasks.get(id)).toMatchObject({ pinned: true, start: gone, end: gone + 30 * 60_000 });
+  expect(db.tasks.get(id)).toMatchObject({ holdUntil: expect.any(Number), start: gone, end: gone + 30 * 60_000 }); // a set time holds to its day's end; only "Đừng dời" pins
   expect(db.kv.get("plannedAt")).toBe(planned); // no plan ran
   await apply([{ op: "edit", target: id, when: new Date(NOW - 15 * 60_000).toISOString() }], NOW + 2000); // ends 15 min after now
   expect(db.kv.get("plannedAt")).toBe(String(NOW + 2000));
@@ -503,7 +503,7 @@ it("a time set by hand stays put, even one already past, and its length counts",
   const id = live()[0].id;
   const past = NOW - 3 * 3600_000;
   await apply([{ op: "edit", target: id, when: new Date(past).toISOString(), effortMinutes: 120 }], NOW);
-  expect(db.tasks.get(id)).toMatchObject({ start: past, end: past + 120 * 60_000, pinned: true });
+  expect(db.tasks.get(id)).toMatchObject({ start: past, end: past + 120 * 60_000, holdUntil: expect.any(Number) });
 });
 
 const plan = (id: string, start: number, min: number): Task => ({ id, title: id, kind: "study", source: "user", effort: min, createdAt: NOW, start, end: start + min * 60_000 } as Task);
@@ -591,7 +591,7 @@ describe("repeats, splits and deletes (review fixes)", () => {
     const at = new Date("2026-11-18T15:00:00").getTime();
     await apply([{ op: "edit", target: `${pid}#${before}`, when: new Date(at).toISOString() }], NOW + 3);
     const last = db.tasks.get(`${pid}#${before}`);
-    expect([last.start, last.end, last.pinned]).toEqual([at, at + last.effort * 60_000, true]);
+    expect([last.start, last.end, last.holdUntil !== undefined]).toEqual([at, at + last.effort * 60_000, true]);
     expect(kids()).toHaveLength(before);
     for (const d of done) expect(db.tasks.get(d.id)).toEqual(d); // done sittings untouched
   });
@@ -628,7 +628,7 @@ it("liveEdit teaches from where the task was before the wheel, and the toast say
   const r = await liveEdit("z", { when: NOW + 8 * H }, NOW + 20, 50);
   const left = (db.model?.left ?? []).map((x: { hour: number }) => x.hour);
   expect(left).toEqual([new Date(NOW + 6 * H).getHours() + new Date(NOW + 6 * H).getMinutes() / 60]); // one drag, from the start, not the held 7h
-  expect(r?.sub).toContain(t("learnedAvoid", { time: hm(NOW + 6 * H) }));
+  expect(r?.sub).toContain(t("learnedAvoid", { time: partAt(new Date(NOW + 6 * H).getHours()) })); // the part, not the clock
 });
 
 it("liveEdit holds a due date at once and clears it with ''", async () => {
