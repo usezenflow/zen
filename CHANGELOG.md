@@ -1,5 +1,21 @@
 # zen
 
+## 26.0.13
+
+### Patch Changes
+
+- Zen tự xếp lại theo thời gian, bạn không phải sửa tay
+    - Việc quá giờ không còn tự bị dời: thông báo hỏi "Xong chưa?" với hai nút Xong và Để sau (Android: hiện thêm một thông báo nhỏ khi mở ứng dụng). Đến giờ bắt đầu cũng có thông báo: Bắt đầu hoặc Để sau
+    - Kéo một việc chỉ là gợi ý, không còn ghim vĩnh viễn; chỉ "Đừng dời" mới ghim
+    - Dời việc sang ngày khác giữ nguyên buổi, zen chọn giờ; ngày quá tải biết nhường chỗ
+- Học nhanh từ vài lần kéo: kéo một lần zen đoán ("Hiểu rồi: việc học để chiều") với "Luôn vậy" hoặc "Chỉ lần này"; kéo lần hai cùng hướng thì thành quy tắc. Học theo buổi trước, rồi mới đến từng giờ
+- Nhịp thành "Zen đã học được gì": chỉ những quy tắc zen thật sự dùng, mỗi dòng bỏ được bằng một chạm; bỏ các câu "bạn hay học T4, T5"
+- Chỉnh giờ ngay trong màn việc, không cần bảng: chọn buổi và ngày, bước ±15p cho giờ và độ dài, có nút Xong; không xếp lại khi đang kéo hay gõ, chỉ khi thả hoặc bấm Xong
+- Thêm buổi cho mọi việc còn mở; mỗi buổi có buổi trong ngày và độ dài riêng, chỉnh ngay trên dòng
+- Vùng chạm lớn hơn (ít nhất 44), chữ to hơn, lịch vừa màn hình nhỏ; gõ tên việc, nơi chốn mượt hơn
+- Một giọng nói thống nhất cho mọi thông báo trong ứng dụng: mỗi dòng một ý, nói theo buổi và ngày thay vì giờ chính xác
+- Tìm kiếm mở và đóng mượt hơn, hiện khung chờ ngay khi mở
+
 ## 26.0.12
 
 ### Patch Changes
