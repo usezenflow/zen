@@ -37,7 +37,7 @@ const owed = `<div class="art" style="margin-top:18px;height:150px;padding:18px 
     <div style="position:absolute;left:20px;bottom:18px"><div class="big" style="font-size:34px">1.590.000 đ</div><div class="small">1 khoản, HK1, 2026-2027</div></div>
     <span class="pl sm" style="position:absolute;right:16px;bottom:18px;background:rgba(255,255,255,.9);color:#0b0b0c;border:none;font-weight:700">Đóng</span></div>`;
 const paid = `<div class="rest"><span class="lab">Học phí</span><span class="lf">${LOGO(52, "color")}</span><div class="t">Đã đóng đủ</div><div class="s">Không còn khoản nào. Kỳ sau Zen xem lại giữa tháng 3.</div></div>`;
-const none = `<div class="rest"><span class="lab">Học phí</span><span class="lf">${LOGO(52, "line")}</span><div class="t">Chưa có học phí</div><div class="s">Chạm vòng tròn phía trên để lấy từ Online.</div></div>`;
+const none = `<div class="rest"><span class="lab">Học phí</span><span class="lf">${LOGO(52, "line")}</span><div class="t">Chưa có học phí</div><div class="s">Chạm vòng tròn để lấy từ Online.</div></div>`;
 mount([
   { tag: "Fees, owed", sub: "The red exam palette carries what is left and how many lines; Đóng opens e-bills for this student ID, and coming back asks again. Below, each term's table with its total: a paid line says when, an unpaid one says what is left in vermilion.", html: chrome(hdr() + owed + HK1 + HK2, { dock: null }) },
   { tag: "Fees, paid", sub: "Nothing owed: the quiet card with the leaf filled in, and the tables still there to look back on.", html: chrome(hdr() + paid + HK1.replace(/<small class="owe">3 TC · Còn 1.590.000 đ/, "<small>3 TC · Đã đóng 14/11") + HK2, { dock: null }) },

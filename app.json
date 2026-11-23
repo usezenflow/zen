@@ -71,16 +71,6 @@
         { "android": { "minSdkVersion": 26 } }
       ],
       [
-        "@siteed/audio-studio",
-        {
-          "enablePhoneStateHandling": false,
-          "enableNotifications": false,
-          "enableBackgroundAudio": false,
-          "enableDeviceDetection": false,
-          "iosConfig": { "microphoneUsageDescription": "zen dùng micro để bạn nói lịch của mình." }
-        }
-      ],
-      [
         "expo-speech-recognition",
         {
           "microphonePermission": "zen dùng micro để bạn nói lịch của mình.",

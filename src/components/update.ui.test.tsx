@@ -82,6 +82,7 @@ describe("UpdateDialog", () => {
     const onClose = jest.fn();
     await render(<UpdateDialog d={upd} onClose={onClose} />);
     expect(screen.getByText(t("installSideStore"))).toBeTruthy();
+    expect(screen.getByText(t("installAltStore"))).toBeTruthy();
     expect(screen.root!.props.onRequestClose).toBe(onClose);
     await fireEvent.press(screen.getByText(t("notNow")));
     expect(onClose).toHaveBeenCalled();

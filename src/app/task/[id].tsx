@@ -8,7 +8,7 @@ import { fadeIn, Tap } from "@/components/tap";
 import { Icon, TypeArt } from "@/components/art";
 import { repeatText } from "@/components/detail-html";
 import { EdLine, Gly, Meta } from "@/components/detail-meta";
-import { lenText } from "@/components/dial";
+import { hhmm } from "@/components/cal";
 import { DateChip, TimeChip } from "@/components/pick";
 import { SittingList } from "@/components/sittings";
 import { useTapOutside, type Box } from "@/components/outside";
@@ -235,9 +235,9 @@ export default function Detail() {
       <TimeChip value={sNow} past onChange={(d) => setTime(tid, clock(sNow, d), mNow)} onClose={settle} />
       <Text style={[s.dash, { color: th.muted }]}>-</Text>
       {startDay(e) !== startDay(sNow) && <DateChip value={e} min={startDay(sNow)} past onChange={(d) => setEnd(dayOf(e, d))} onClose={settle} />}
-      {/* an end before the start runs into the next day (endAt); its day chip then shows. Its presets are lengths. */}
+      {/* an end before the start runs into the next day (endAt); its day chip then shows. Its presets are end times, a length after the start. */}
       <TimeChip value={e} past onChange={(d) => setEnd(endAt(sNow, e, d))} onClose={settle}
-        presets={LENS.map((m) => ({ label: lenText(m), at: new Date(sNow + m * 60_000), on: m === mNow }))} />
+        presets={LENS.map((m) => ({ label: hhmm(sNow + m * 60_000), at: new Date(sNow + m * 60_000), on: m === mNow }))} />
     </EdLine>
   );
   const dueLine = dl !== undefined && (
@@ -359,8 +359,8 @@ export default function Detail() {
           {/* prep.html "Các buổi": every open, non-fixed, non-repeating task can take sittings; each open one has its own day, part and length. */}
           {(canSplit || sits.length > 1) && (
             <View style={s.why}>
-              <Text style={[s.lab, { color: th.muted }]}>{t("sittings")}</Text>
-              <View style={{ marginTop: 6 }}>
+              {sits.length > 1 && <Text style={[s.lab, { color: th.muted }]}>{t("sittings")}</Text>}
+              <View style={{ marginTop: sits.length > 1 ? 6 : 0 }}>
                 <SittingList sits={sits} me={me} canDrop={open.length >= 2} canAdd={canSplit}
                   onTime={setTime} onDrop={dropOne} onAdd={addOne} onSettle={settle} />
               </View>
@@ -409,7 +409,7 @@ const WhyBlock = memo(function WhyBlock({ items, alt, now, onMove }: { items: Re
       ))}
       {alt !== undefined && (
         <>
-          <Text style={[s.lab, { color: th.muted, marginTop: 20 }]}>{t("alsoFits")}</Text>
+          <Text style={[s.lab, { color: th.muted, marginTop: 14 }]}>{t("alsoFits")}</Text>
           <View style={s.pills}>
             <Tap onPress={() => onMove(alt)} accessibilityLabel={`${t("alsoFits")} ${when(alt, now).split(" ").pop()}`} style={[s.pill, { borderColor: th.line }]}>
               <Text style={{ fontSize: font.sub, fontFamily: ff("500"), color: th.ink }}>{when(alt, now).split(" ").pop()}</Text>
@@ -426,22 +426,22 @@ const s = StyleSheet.create({
   o: { width: 48, height: 48, borderRadius: 24, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   acts: { flexDirection: "row", gap: 8 },
   loc: { flex: 1, fontFamily: ff("500"), fontSize: font.meta, lineHeight: 22, minHeight: 48, padding: 0, textAlignVertical: "center" },
-  who: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 22 },
+  who: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 14 },
   sw: { width: 34, height: 34, borderRadius: 17, overflow: "hidden" },
   sub: { fontFamily: ff(), fontSize: font.md },
   h: { marginTop: 8, fontSize: font.h, lineHeight: 36, minHeight: 48, fontFamily: ff("600"), letterSpacing: -0.75, padding: 0 },
   hint: { marginTop: 4, fontFamily: ff("600"), fontSize: font.sub },
-  meta: { marginTop: 16, gap: 10 },
-  kd: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 48 },
-  lms: { marginTop: 18, paddingVertical: 14, paddingHorizontal: 16, borderWidth: 1, borderRadius: 16 },
+  meta: { marginTop: 10, gap: 2 },
+  kd: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 44 },
+  lms: { marginTop: 12, paddingVertical: 14, paddingHorizontal: 16, borderWidth: 1, borderRadius: 16 },
   lab: { fontSize: font.label, fontFamily: ff("500") },
-  why: { marginTop: 22 },
-  add: { marginTop: 10, height: 48, borderRadius: 24, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  why: { marginTop: 14 },
+  add: { marginTop: 6, height: 44, borderRadius: 24, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   more: { alignSelf: "flex-start", minHeight: 48, justifyContent: "center", paddingHorizontal: 4 }, // magic.html .tbtn: an in-place text button, 48 tall
   moreT: { fontSize: font.sub, fontFamily: ff("600"), textDecorationLine: "underline" },
   addRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" },
   sp: { flex: 1, fontSize: font.sub, fontFamily: ff("500") },
-  wr: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 9 },
+  wr: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 6 },
   wt: { flex: 1, fontFamily: ff("500"), fontSize: font.meta, lineHeight: 21.6 },
   bar2: { width: 46, height: 4, borderRadius: 4, overflow: "hidden" },
   pills: { flexDirection: "row", gap: 8, marginTop: 10 },
@@ -453,7 +453,7 @@ const s = StyleSheet.create({
   pill: { height: 48, paddingHorizontal: 16, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   clr: { marginLeft: "auto", minHeight: 44, justifyContent: "center" },
   dash: { fontSize: font.sub, fontFamily: ff("500") },
-  note: { marginTop: 18, fontFamily: ff(), fontSize: font.base, lineHeight: 25.5, minHeight: 120, textAlignVertical: "top", paddingVertical: 14, paddingHorizontal: 16, borderRadius: 18 },
+  note: { marginTop: 12, fontFamily: ff(), fontSize: font.base, lineHeight: 25.5, minHeight: 120, textAlignVertical: "top", paddingVertical: 14, paddingHorizontal: 16, borderRadius: 18 },
 });
 
 /** A text field that owns what is typed: the screen hears the text through `onText` (a ref write) and shows `value` again only when it changes or `rev` bumps. */

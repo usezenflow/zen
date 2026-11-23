@@ -16,8 +16,8 @@
 .say svg { flex-shrink: 0; color: var(--ink); }
 .say b { color: var(--ink); font-weight: 600; }
 /* Các buổi: a minus on each open sitting, and one add row at the end. */
-.si .x { flex: none; width: 44px; height: 48px; display: grid; place-items: center; color: var(--muted); }
-.si.add { margin-top: 10px; height: 48px; border-radius: 99px; border: 1px solid var(--line); justify-content: center; align-items: center; color: var(--ink); font-weight: 600; }
+.si .x { flex: none; width: 44px; height: 44px; display: grid; place-items: center; color: var(--muted); }
+.si.add { margin-top: 6px; height: 44px; border-radius: 99px; border: 1px solid var(--line); justify-content: center; align-items: center; color: var(--ink); font-weight: 600; }
 .si.add .d { width: auto; color: var(--ink); }
 .si.add .p { flex: none; }
 .wk .nil { height: 150px; border-radius: 10px; border: 1px dashed var(--line); }
@@ -40,7 +40,7 @@
 .meta .ed svg { margin-right: 4px; }
 .pk { flex: none; white-space: nowrap; height: 34px; padding: 0 9px; border-radius: 9px; background: var(--chip); display: inline-grid; place-items: center; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
 .pk.on { box-shadow: 0 0 0 1.5px var(--seal); }
-.meta .ed em { font-style: normal; color: var(--muted); font-weight: 500; }
+.meta .ed em, .si em { font-style: normal; color: var(--muted); font-weight: 500; }
 /* The time line runs on: start day and time, đến, end day and time, wrapping only when it runs out of room. */
 .meta .ed.span { flex-wrap: wrap; row-gap: 8px; gap: 5px; }
 .meta .ed.span .pk { padding: 0 7px; }
@@ -90,7 +90,7 @@ section.khi { margin-top: 16px; padding: 14px; border-radius: 22px; background: 
 /* Time chips and their dropdowns: a chip is 44px; the dial is zen's own drum, its rows 44px, with presets; the calendar is one tap. */
 .pk { height: 44px; padding: 0 12px; border-radius: 12px; }
 .meta .ed.span .pk { padding: 0 10px; }
-.dial { width: 208px; padding: 10px 12px 12px; }
+.dial { width: 208px; padding: 10px 12px; }
 .pre, .meta .att .pre { display: flex; gap: 6px; justify-content: center; }
 .pre span { height: 44px; padding: 0 12px; border-radius: 99px; background: var(--chip); display: grid; place-items: center; font-size: 16px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .pre span.on { background: var(--ink); color: var(--bg); }
@@ -116,7 +116,7 @@ section.khi { margin-top: 16px; padding: 14px; border-radius: 22px; background: 
 .cal .gr span.x { color: var(--muted); opacity: .5; }
 .cal .gr span.td { color: var(--seal); font-weight: 600; }
 .cal .gr span.on { width: 44px; justify-self: center; border-radius: 50%; background: var(--seal); color: #fff; font-weight: 600; }
-.si { min-height: 56px; }
+.si { min-height: 48px; }
 /* The month is wider than a chip's right side: it hangs from the row's left edge, never off the screen. */
 .meta .ed, .si { position: relative; }
 .pk:has(> .att > .cal) { position: static !important; }
@@ -141,9 +141,10 @@ section.khi { margin-top: 16px; padding: 14px; border-radius: 22px; background: 
 .nbt { flex: 1; height: 56px; border-radius: 99px; display: grid; place-items: center; font-size: 17px; font-weight: 700; }
 .nbt.a { background: rgba(255,255,255,.94); color: #0b0b0c; }
 .nbt.b { background: rgba(255,255,255,.26); border: 1px solid rgba(255,255,255,.5); color: #fff; }
+.nbt.b.soft { opacity: .72; }
 .nbt.b.on { background: #fff; color: #0b0b0c; }
 /* Detail: meta lines 48px, chips 48px, the title and note fields larger. */
-.meta > div { min-height: 48px; }
+.meta > div { min-height: 44px; }
 .pk { height: 48px; min-width: 56px; padding: 0 12px; font-size: 16px; border-radius: 12px; }
 .h.ttl { font-size: 32px; line-height: 1.15; min-height: 48px; }
 div.note { display: block; min-height: 120px; padding: 14px 16px; border-radius: 18px; background: var(--chip); font-size: 18px; line-height: 1.5; }
@@ -218,7 +219,8 @@ const PARTS = ["Sáng", "Trưa", "Chiều", "Tối"]; // 0-11, 11-13, 13-18, 18-
 // The wheel: three rows, the middle one picked; ":" between two columns makes a clock. Minutes step 5 (any 5p), presets cover the usual.
 const wcol = (vals) => `<div class="col">${vals.map((v, i) => `<span class="${["n1", "on", "p1"][i]}">${v}</span>`).join("")}</div>`;
 const pre = (xs, on = "") => `<div class="pre">${xs.map((x) => `<span class="${x === on ? "on" : ""}">${x}</span>`).join("")}</div>`;
-const TPRE = ["8:00", "14:00", "17:00", "20:00"], DPRE = ["23:59", "0:00"], LPRE = ["15p", "30p", "45p", "1h", "1h30", "2h"]; // start; due; the length the end chip sets
+const EPRE = ["17:15", "17:30", "17:45", "18:00", "18:30", "19:00"]; // the end chip: times after a 17:00 start
+const TPRE = ["8:00", "14:00", "17:00", "20:00"], DPRE = ["23:59", "0:00"]; // start; due
 const HOURS = (h) => [h - 1, h, h + 1].map((x) => String((x + 24) % 24).padStart(2, "0"));
 const MINS = (m) => [m - 5, m, m + 5].map((x) => String((x + 60) % 60).padStart(2, "0"));
 // The dial drops from its chip. Dragging the drum changes nothing and re-plans nothing: tapping away (or a preset) commits once.
@@ -232,10 +234,8 @@ const nowC = (title, meta, on = "") => `<div class="art" style="margin-top:16px;
   <div class="lab" style="color:#fff;opacity:.85">Bây giờ · ${meta}</div><div class="t" style="margin-top:10px">${title}</div>
   <div style="position:absolute;left:20px;right:20px;bottom:18px;display:flex;gap:10px"><span class="nbt a">Bắt đầu</span><span class="nbt b ${on}">Dời</span></div></div>`;
 const pg = (name, rows) => `<div class="lab" style="margin-top:22px">${name}</div><div class="list" style="margin-top:6px">${rows}</div>`;
-// Dời: the parts (and tomorrow or the weekend) in place of hours; one tap moves it and Zen picks the hour inside that part.
 const dayMove = `${head("T2", "16/11", "5 việc, 1 tiết học")}${tabs("Ngày")}
-  ${nowC("Ôn Giải tích", "đến 14:30", "on")}
-  <section class="khi"><div class="kh">Dời sang</div><div class="pg2">${["Chiều nay", "Tối nay", "Mai sáng", "Mai chiều", "T7 sáng", "T7 chiều"].map((x, i) => `<span class="${i === 1 ? "on" : ""}">${x}</span>`).join("")}</div><div class="kn">Zen chọn giờ trong buổi đó. Giữ nguyên buổi, đổi ngày được.</div></section>`;
+  ${nowC("Ôn Giải tích", "đến 14:30", "soft")}`; // Dời is slightly transparent; one tap, no choices
 const dt = (type, from, title, meta, note, lms = "", top = dtop) => `${top}
   <div style="display:flex;align-items:center;gap:10px;margin-top:22px">${swatch(type)}<span class="sub" style="margin:0">${from}</span></div>
   <div class="h ttl" style="margin-top:14px">${title}</div>
@@ -247,13 +247,13 @@ const detail = dt("assignment", "Từ LMS", "Bài tập lớn: Quản lý sinh v
   ml("hourglass", `Hạn ${when("2026-11-23", "23:59")}`, "red") + ml("clock", `Làm ${when("2026-11-20", "14:00")} - 15:00`) + ml("book", "Lập trình Web") + ml("link", `Mở trên LMS ${ic(I.right, 16)}`, "lk"), noteLms, lmsBody);
 // Split into sittings: the time line is the next open sitting's (tap to change it); "Các buổi" lists them all as prep.html does.
 // The last row of Các buổi: one more sitting of the same length after the last (addSitting), with Hoàn tác in the toast.
-const sitRow = (n, tot, day, part, len, done = false, drop = "") => `<div class="si ${done ? "done" : ""}"><span class="d">Buổi ${n}/${tot}</span>${done ? `<span class="p">${day} ${part.toLowerCase()} · ${len}</span><span class="x" style="visibility:hidden"></span>` : `${pk(`${day} ${part.toLowerCase()}`, drop.includes("menu cal"), drop.includes("menu cal") ? drop : "", "l")}${pk(len, !!drop && drop.includes("dial"), drop.includes("dial") ? drop : "")}<span class="p"></span><span class="x" aria-label="Bỏ buổi này">${ic(I.x, 20, 2)}</span>`}</div>`;
-const siAdd = `<div class="si add"><span class="d">${ic(MI.plus, 20, 2.2)}</span><span class="p">Thêm buổi</span></div>`; // a whole-width 48px button, never a bare "+"
+const sitRow = (day, from, to, done = false, drop = "") => `<div class="si ${done ? "done" : ""}">${done ? `<span class="p">${day.split(" ")[0]} ${from} - ${to}</span><span class="x" style="visibility:hidden"></span>` : `${pk(day, drop.includes("menu cal"), drop.includes("menu cal") ? drop : "", "l")}${pk(from, false)}<em>-</em>${pk(to, drop.includes("menu dial"), drop.includes("menu dial") ? drop : "")}<span class="p"></span><span class="x" aria-label="Bỏ buổi này">${ic(I.x, 20, 2)}</span>`}</div>`; // the detail's time line, one per sitting: day, start - end; no "Buổi k/n", no dot, no length chip
+const siAdd = `<div class="si add"><span class="d">${ic(MI.plus, 20, 2.2)}</span><span class="p">Thêm buổi</span></div>`; // a whole-width 44px button, never a bare "+"
 const detailSplit = (drop = "") => dt("assignment", "Từ LMS", "Bài tập lớn: Quản lý sinh viên",
   ml("hourglass", `Hạn ${when("2026-11-23", "23:59")}`, "red") + ml("clock", `Làm ${when("2026-11-18", "15:00")} - 15:45`) + ml("book", "Lập trình Web") + ml("link", `Mở trên LMS ${ic(I.right, 16)}`, "lk"), noteLms,
-  `<div class="lab" style="margin-top:20px">Các buổi</div><div class="sits">${sitRow(1, 3, "T3", "Sáng", "60p", true)}${sitRow(2, 3, "T4", "Chiều", "45p", false, drop)}${sitRow(3, 3, "T6", "Tối", "30p")}${siAdd}</div>` + lmsBody);
-const detailSitDay = detailSplit(calCard(18, 16, 16, PARTS, "Chiều"));
-const detailSitLen = detailSplit(`<div class="menu dial"><div class="wh">${wcol(["40p", "45p", "50p"])}</div>${pre(LPRE, "45p")}</div>`);
+  `<div class="lab" style="margin-top:20px">Các buổi</div><div class="sits">${sitRow("T3 17/11", "9:00", "10:00", true)}${sitRow("T4 18/11", "14:00", "14:45", false, drop)}${sitRow("T6 20/11", "19:00", "19:30")}${siAdd}</div>` + lmsBody);
+const detailSitDay = detailSplit(calCard(18, 16, 16));
+const detailSitLen = detailSplit(dialCard(14, 45, ["14:15", "14:30", "14:45", "15:00", "15:30", "16:00"], MINS(45), "14:45"));
 // No free, awake slot before it is due: the time line says so in vermilion and opens the time chips to pick one.
 const detailNoSlot = dt("plan", mine("Học"), "Ôn lý thuyết, luyện đề",
   ml("hourglass", `Hạn ${when("2026-11-17", "7:00")}`, "red") + ml("clock", `Chưa có giờ trống · <b>Chọn giờ</b>`, "red") + ml("book", `Giải tích 2 ${ic(I.right, 16)}`, "lk"), "Làm lại bài tập chương 3.", "", dtop2);
@@ -262,7 +262,7 @@ const detailLec = (m = "") => dt("lecture", "Từ Online", "Cấu trúc dữ li�
 const detailExam = dt("exam", "Từ Online", "Thi Giải tích 2", ml("clock", when("2026-11-27", "8:00")) + ml("pin", "A2.301"), '<span class="note ph">Thêm ghi chú</span>');
 const detailPrep = dt("plan", mine("Học"), "Ôn lý thuyết, luyện đề",
   ml("clock", `Làm ${when("2026-11-19", "8:00")} - 9:00`) + ml("book", `Giải tích 2 ${ic(I.right, 16)}`, "lk"), "Làm lại bài tập chương 3.",
-  `<div class="lab" style="margin-top:20px">Các buổi</div><div class="sits">${sitRow(1, 6, "T3", "Sáng", "60p", true)}${sitRow(2, 6, "T4", "Chiều", "60p")}${sitRow(3, 6, "T6", "Sáng", "60p")}<div class="fold"><span>+3 buổi nữa · đến T2 23/11</span></div>${siAdd}</div>`, dtop2);
+  `<div class="lab" style="margin-top:20px">Các buổi</div><div class="sits">${sitRow("T3 17/11", "8:00", "9:00", true)}${sitRow("T4 18/11", "14:00", "15:00")}${sitRow("T6 20/11", "8:00", "9:00")}<div class="fold"><span>+3 buổi nữa · đến T2 23/11</span></div>${siAdd}</div>`, dtop2);
 const detailRep = (m = "") => dt("plan", mine("Khác"), "Đọc sách mỗi tối",
   ml("clock", "20:00 - 20:30") + ml("repeat", "Mỗi ngày"), "Đọc chương đang dở.", "", dtop2) + m;
 const PH = '<span class="note ph">Thêm ghi chú</span>';
@@ -272,7 +272,7 @@ const edLine = (k, inner, cls = "") => `<div class="ed ${cls}">${ic(I[k], 20, 1.
 const detailDate = dt("plan", mine("Việc nhà"), "Mua pin cho chuột", span("Hôm nay", "17:00", "17:30", "Hôm nay", 0, calCard(17, 16)), PH, "", dtop2) + '<div class="mscrim"></div>';
 const detailTime = dt("plan", mine("Việc nhà"), "Mua pin cho chuột", span("Hôm nay", "17:00", "17:30", "Hôm nay", 1, dialCard(17, 0)), PH, "", dtop2) + '<div class="mscrim"></div>';
 // The end chip sets the length: its presets are lengths from the start (15p ... 2h), and the drum still sets any 5p.
-const detailLen = dt("plan", mine("Việc nhà"), "Mua pin cho chuột", span("Hôm nay", "17:00", "17:30", "Hôm nay", 3, dialCard(17, 30, LPRE, MINS(30), "30p")), PH, "", dtop2) + '<div class="mscrim"></div>';
+const detailLen = dt("plan", mine("Việc nhà"), "Mua pin cho chuột", span("Hôm nay", "17:00", "17:30", "Hôm nay", 3, dialCard(17, 30, EPRE, MINS(30), "17:30")), PH, "", dtop2) + '<div class="mscrim"></div>';
 // Past midnight: the end drum turned to 0:00, before the start, so the end day moved to the next day by itself.
 const detailMidnight = dt("busy", "Việc của bạn · Giờ cố định", "Xem phim", span("Hôm nay", "23:00", "0:00", "T4", 3, dialCard(0, 0)), PH, "", dtop2) + '<div class="mscrim"></div>';
 // Days long: a trip, a camp. The end day picked in its calendar; days before the start are greyed out.
@@ -360,11 +360,11 @@ const dayAt = (hello, title) => `${head(hello, title, "5 việc, 1 tiết học"
 const rest = (lab, t, sub, leaf = "line", h = 220) => `<div class="rest" style="height:${h}px"><span class="lab">${lab}</span><span class="lf">${LOGO(52, leaf)}</span><div class="t">${t}</div><div class="s">${sub}</div></div>`;
 const say = (txt) => `<div class="say">${ic(I.mic, 18, 2)}<span>“<b>${txt}</b>”</span></div>`;
 const dayFree = `${head("T7", "21/11", "Không có việc")}${tabs("Ngày")}
-  ${rest("Hôm nay", "Ngày trống, thở chút", "Không có lịch học hay việc nào. Cứ để trống cũng được.")}
+  ${rest("Hôm nay", "Ngày trống", "Không có lịch học hay việc nào.")}
   <div class="lab" style="margin-top:28px">Sắp tới</div>
   <div class="list" style="margin-top:6px">${row("7:00", "Cấu trúc dữ liệu", "lecture", "", `${when("2026-11-23")}, A2.301`)}${row("23:59", "Viết luận Triết", "assignment", "", `${when("2026-11-23")}, Hạn 23:59`)}${row("8:00", "Thi Giải tích 2", "exam", "", `${when("2026-11-27")}, A2.301`)}</div>`;
 const dayDone = `${head("T2", "16/11", "5 việc, xong hết")}${tabs("Ngày")}
-  ${rest("Hôm nay", "Xong hết rồi", "5 việc, 1 tiết học. Phần còn lại của ngày là của bạn.", "color")}
+  ${rest("Hôm nay", "Xong hết rồi", "5 việc, 1 tiết học. Phần còn lại là của bạn.", "color")}
   <div class="lab" style="margin-top:28px">Xong (5) ${ic(I.down, 14)}</div>`;
 // After 20:00 and past the day's last block: the day is over, so tomorrow may show.
 const dayNight = `${head("T2", "16/11", "5 việc, xong hết")}${tabs("Ngày")}
@@ -373,7 +373,7 @@ const dayNight = `${head("T2", "16/11", "5 việc, xong hết")}${tabs("Ngày")}
   <div class="list" style="margin-top:6px">${row("8:00", "Ôn thi", "plan", "", "Buổi 2/6 · Xác suất")}${row("13:30", "Thi Xác suất", "exam", "", "B1.201")}</div>
   <div class="lab" style="margin-top:20px">Xong (5) ${ic(I.down, 14)}</div>`;
 const dayFirst = `${head("Chào bạn", "T2, 16/11", "Chưa có gì")}${tabs("Ngày")}
-  ${rest("Bắt đầu", "Giữ nút và kể tuần này", "Nói như nhắn cho bạn. zen tự xếp giờ.", "line", 168)}
+  ${rest("Bắt đầu", "Giữ nút và kể tuần này", "Nói tự nhiên, zen xếp giờ.", "line", 168)}
   <div class="lab" style="margin-top:22px">Thử nói</div>
   <div style="margin-top:10px">${say("Mai 9 giờ ôn Giải tích")}${say("T6 nộp báo cáo nhóm")}${say("Tối nào cũng đọc sách")}</div>
   <div class="lab" style="margin-top:22px"><span>Hoặc lấy lịch từ Online</span>${ic(I.right, 14)}</div>`;
@@ -448,7 +448,7 @@ const foundRep = `${field("gym")}
   <div class="lab" style="margin-top:28px">T4, 18/11</div>
   <div class="list" style="margin-top:6px">${row("18:00", "Đi <mark>gym</mark>", "busy", "", "Mỗi tuần vào T4")}</div>`;
 const foundNone = `${field("bơi")}
-  <div class="inl">${LOGO(34, "line")}<div><b>Không thấy việc nào</b><small>Tìm theo tên việc, gõ không dấu cũng được.</small></div></div>`;
+  <div class="inl">${LOGO(34, "line")}<div><b>Không thấy việc nào</b><small>Gõ không dấu cũng được.</small></div></div>`;
 // A daily repeat with no fixed time: its next 14 days show as rows; the rest fold into one muted row on the first day past them.
 const FOLD_DAYS = ["T3, 17/11", "T4, 18/11", "T5, 19/11", "T6, 20/11", "T7, 21/11", "CN, 22/11", "T2, 23/11", "T3, 24/11", "T4, 25/11", "T5, 26/11", "T6, 27/11", "T7, 28/11", "CN, 29/11", "T2, 30/11"];
 const dayFold = `${head("T3", "17/11", "14 việc")}${tabs("Ngày")}
@@ -457,7 +457,7 @@ const dayFold = `${head("T3", "17/11", "14 việc")}${tabs("Ngày")}
   <div class="list" style="margin-top:6px"><div class="fold"><span>+16 buổi · đến 16/12</span></div></div>`;
 mount([
   { tag: "Day", sub: "Home is a flow. The now card holds one task, with a big Bắt đầu and Dời. Below it, Tiếp theo with its clock, then today grouped under Sáng, Chiều and Tối. Rows name their part; only Now and Next show an exact clock.", html: chrome(day("")) },
-  { tag: "Day, move", sub: "Dời opens parts of the day in place (Chiều nay, Tối nay, Mai sáng), never hours. One tap moves the task to that part and Zen picks the hour. No sheet.", html: chrome(dayMove) },
+  { tag: "Day, move", sub: "Dời is one tap, slightly transparent, with nothing to choose: Zen moves the task to a suitable day and hour itself, the same as swiping it away. No parts, no hours, no sheet.", html: chrome(dayMove) },
   { tag: "Day, next up", sub: "Nothing running: the next block of today, \u201cTiếp theo\u201d, with its start time. Làm luôn moves that sitting to now (its old slot is freed for what waits); the circle marks it done. A class or an exam has no Làm luôn. Never a suggestion for a free gap, and never a task of another day.", html: chrome(dayNext) },
   { tag: "Day, empty", sub: "No blank screen. The rest card takes the art card's slot, with the leaf in outline. Below it, what's coming in the next days, so the screen is still useful.", html: chrome(dayFree) },
   { tag: "Day, all done", sub: "Everything ticked before the evening. The leaf fills in and done rows collapse. Nothing from tomorrow and no gap card: the rest of the day is yours.", html: chrome(dayDone) },
@@ -481,8 +481,8 @@ mount([
   { tag: "Day, pull to next", sub: "Pull up at the bottom for the next day. Same pill, above the button.", html: chrome(pull("up", 0.55, "T7, 14/11")) },
   { tag: "Detail, LMS assignment", sub: "Trash replaces the dots. Muted meta lines with icons (due, planned time, course, LMS link), then the LMS content as rich text in a quiet bordered block, then your own note like Apple Notes. The title is the LMS name. The work is sittings of at most an hour, in half hours (30 or 60p, never 45): how many comes from what the title and content ask for (a report or essay more than a lab, an oral or an exercise) and from the student's marks.", html: chrome(detail, { dock: null }) },
   { tag: "Detail, LMS assignment in sittings", sub: "Bigger work is split into sittings: “Buổi 2/3”, a day-and-part chip (T4 chiều) and a length chip (45p), each 44px; x removes a sitting. A done one keeps its place, struck. The time line is the next open sitting's. With one sitting there is no list and no “Buổi 1/1”.", html: chrome(detailSplit(), { dock: null }) },
-  { tag: "Detail, a sitting's day", sub: "The day-and-part chip drops the month, with Sáng, Trưa, Chiều, Tối as presets above it. One tap on a day keeps the part; a part keeps the day. Zen picks the hour inside it.", html: chrome(detailSitDay, { dock: null }) },
-  { tag: "Detail, a sitting's length", sub: "The length chip drops a drum of minutes (5p steps) with 15p, 30p, 45p, 1h, 1h30, 2h as presets; tapping away saves. A new sitting copies the last length; it is set here, never by counting taps.", html: chrome(detailSitLen, { dock: null }) },
+  { tag: "Detail, a sitting's day", sub: "Each sitting is the detail's own time line: day, start - end. The day chip drops the month with Hôm nay, Ngày mai and Tuần sau above it, exactly as the detail does.", html: chrome(detailSitDay, { dock: null }) },
+  { tag: "Detail, a sitting's end", sub: "The end chip drops the same dial as the detail: end times as presets (a length after the start), or turn the drum for any 5p; tapping away saves. No dot, no length chip, no \"Buổi k/n\".", html: chrome(detailSitLen, { dock: null }) },
   { tag: "Detail, add a sitting", sub: "Every open task has Thêm buổi, even with one sitting: it adds one more of the same length after the last. Full width, 48px; Hoàn tác sits in the toast.", html: chrome(detailPlain + `<div class="sits">${siAdd}</div>`, { dock: null }) },
   { tag: "Detail, no free time", sub: "When nothing before the due fits (classes, sleep hours and other work fill it), the task has no time. Its line says “Chưa có giờ trống” in vermilion; “Chọn giờ” opens the same time chips to set one by hand.", html: chrome(detailNoSlot, { dock: null }) },
   { tag: "Detail, lecture", sub: "Lectures lead with room and teacher; the note stays yours. No Lặp lại line: the timetable is just flexible busy time. Trash opens the dropdown (same section: this, this and later, all).", html: chrome(detailLec(menu(DEL)), { dock: null }) },
@@ -491,7 +491,7 @@ mount([
   { tag: "Detail, repeating", sub: "Only the user's own repeating task shows a repeat line. It has no end, so just Mỗi ngày. Trash opens the same three-option dropdown.", html: chrome(detailRep(menu(DEL)), { dock: null }) },
   { tag: "Detail, single task", sub: "Your own task. The tag names its kind; the time line is where Zen put it. Every line you can change is tappable, and the dots hold what the task does not have yet. Not a series: the trash deletes at once, no menu.", html: chrome(detailPlain, { dock: null }) },
   { tag: "Detail, change the time", sub: "Tap the start: zen's drum drops from the chip. Rows are 44px, minutes step 5, the usual starts (8:00, 14:00, 17:00, 20:00) are presets, and Dragging the drum changes nothing and re-plans nothing; tapping away saves once and Zen re-plans once. A time you set is kept.", html: chrome(detailTime, { dock: null }) },
-  { tag: "Detail, change the length", sub: "Tap the end: the presets are lengths (15p, 30p, 45p, 1h, 1h30, 2h), one tap sets it from the start, or turn the drum for any 5p.", html: chrome(detailLen, { dock: null }) },
+  { tag: "Detail, change the end", sub: "Tap the end: the presets are times (17:15, 17:30, 17:45, 18:00, 18:30, 19:00 after a 17:00 start), one tap sets it, or turn the drum for any 5p. The drums run round: 55 goes on to 00, 23 to 00.", html: chrome(detailLen, { dock: null }) },
   { tag: "Detail, change the day", sub: "The day chip drops zen's own month (Monday first, 44px days, never wider than the screen), with Hôm nay, Ngày mai, Tuần sau as presets. One tap picks and closes; days already past are greyed out.", html: chrome(detailDate, { dock: null }) },
   { tag: "Detail, past midnight", sub: "The end drum turned to 0:00, before the start: the end day moved to the next day by itself and and gets its own day chip (T4), like the start. The block is one hour, never minus 23. Turn the end back and the day comes back.", html: chrome(detailMidnight, { dock: null }) },
   { tag: "Detail, over several days", sub: "A trip or a camp: pick the end day in its own month. Days before the start day are greyed out and can't be tapped, so an end can never come before it.", html: chrome(detailDays, { dock: null }) },
@@ -516,7 +516,7 @@ mount([
   { tag: "Reminder, lecture", sub: "Lectures and exams name the room instead. A busy block you said gets one too. Phone-calendar events get none: their own calendar already reminds.", html: chrome(nt("Cấu trúc dữ liệu", "Bắt đầu lúc 13:30 · A2.301") + daySit(), { time: "13:20" }) },
   { tag: "Campus, many changes", sub: "A campus sync that brings three or more changes (new exams, assignments or room changes, an exam moved, a due date moved, a makeup lecture, an item the campus took back) posts one notification, not one each: the count, then the first two names and +n, like Created, many. One or two still come one by one. A new term's timetable and new marks keep their own line. Inside the app the same one toast shows.", html: chrome(nt("Trường cập nhật 5 việc", "Bài tập lớn: Quản lý sinh viên, Thi Giải tích 2 +3") + daySit(), { time: "7:12" }) },
   { tag: "Fees owed", sub: "On the 15th of Oct, Mar and Jun, the first sync after noon checks fees. If something is unpaid, one local notification (no push server): the amount left. Tap opens the school's e-bills page for this student. Nothing owed, nothing said.", html: chrome(nt("Còn nợ học phí", "1.590.000 đ · Chạm để đóng") + daySit(), { time: "12:05" }) },
-  { tag: "Campus, password refused", sub: "The campus refuses the saved password (not a slow answer, which says nothing): one notification when the refusal starts, not on every sync after it. Tap opens Settings, where the red card is. The same for LMS: “LMS không nhận mật khẩu”.", html: chrome(nt("Online không nhận mật khẩu", "Nếu bạn không đổi, hãy kiểm tra tài khoản.") + daySit(), { time: "7:05" }) },
+  { tag: "Campus, password refused", sub: "The campus refuses the saved password (not a slow answer, which says nothing): one notification when the refusal starts, not on every sync after it. Tap opens Settings, where the red card is. The same for LMS: “LMS không nhận mật khẩu”.", html: chrome(nt("Online không nhận mật khẩu", "Bạn chưa đổi? Kiểm tra tài khoản.") + daySit(), { time: "7:05" }) },
   { tag: "Reminder, dark", sub: "Same at night.", dark: true, html: chrome(nt("Đọc sách mỗi tối", "Bắt đầu lúc 20:00") + daySit(), { time: "19:50" }) },
   { tag: "Overlap", sub: "Campus lands on a time you fixed: a busy block you said, or a task you pinned or timed by hand. A small card under the two rows: move mine, or keep both. Nothing moves until you tap.", html: chrome(overlap) },
   { tag: "Search, opening", sub: "Like Spotlight: tap the search circle and it grows leftward into the field (about 280 ms) while the view behind blurs and fades out to plain paper, so nothing colourful sits under the rows. The keyboard rises once the field is full; the suggestions drop in one after another.", html: chrome(opening, { dock: null }) },

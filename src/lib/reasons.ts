@@ -15,16 +15,16 @@ const R: Record<ReasonKey, W> = {
   after: { short: ["Sau giờ {prev}, như mọi khi"], long: ["Bạn hay làm việc này sau khi {prev}"], neg: "Sau giờ {prev}, giờ khác hợp hơn" },
   similar: { short: ["Giống việc trước", "Việc tương tự buổi {pn}"], long: ["Việc giống vậy bạn {oft} xong vào buổi {pn}", "Việc giống vậy bạn hay xong lúc {hour}h"], neg: "Việc tương tự hợp giờ khác" },
   energy: { short: ["Lúc bạn khoẻ"], long: ["Buổi {pn} là lúc bạn khoẻ nhất", "Gần giờ bạn làm tốt nhất"], neg: "Hơi xa giờ bạn khoẻ" },
-  weekend: { short: ["Ngày thong thả hơn"], long: ["Hôm đó thong thả hơn, hợp việc này"], neg: "Hôm đó bận hơn" }, // no weekday names: day load, not the calendar
+  weekend: { short: ["Ngày thong thả hơn"], long: ["Hôm đó thong thả"], neg: "Hôm đó bận hơn" }, // no weekday names: day load, not the calendar
   busy: { short: ["Ngày nhẹ"], long: ["Hôm đó ít lịch"], neg: "Hôm đó dày lịch" },
   kind: { short: ["Hợp {kind}"], long: ["Buổi {pn} hợp {kind}", "Giờ này hợp {kind}"], neg: "Giờ này ít hợp {kind}" },
-  deadline: { short: ["{ahead}", "Hạn {due}, làm sớm"], long: ["Hạn {due}, {aheadLong}", "Hạn {due}, làm sớm cho khỏi dồn"], neg: "Hơi sát hạn {due}" },
+  deadline: { short: ["{ahead}", "Hạn {due}, làm sớm"], long: ["Hạn {due}, {aheadLong}", "Hạn {due}, làm sớm cho nhẹ"], neg: "Hơi sát hạn {due}" },
   pace: { short: ["Buổi {k}/{n}"], long: ["Buổi {k}/{n}, rải đều tới hạn"], neg: "Các buổi hơi dồn" },
   load: { short: ["Ngày còn rộng"], long: ["Ngày còn rộng"], neg: "Ngày đã {h}h" },
   gap: { short: ["Có khoảng nghỉ"], long: ["Có nghỉ trước và sau"], neg: "Hơi sát {title}" },
-  stable: { short: ["Giữ giờ cũ"], long: ["Giữ gần giờ cũ, đỡ xáo trộn"] },
+  stable: { short: ["Giữ giờ cũ"], long: ["Gần giờ cũ"] },
   late: { short: ["{ahead}", "Kịp hạn"], long: ["Hạn {due}, {aheadLong}", "Xong trước hạn"], neg: "Có thể trễ hạn {due}" },
-  explore: { short: ["Thử giờ mới"], long: ["Chưa rõ giờ này hợp không, thử một lần"] },
+  explore: { short: ["Thử giờ mới"], long: ["Thử giờ này xem sao"] },
   rule: { short: ["Theo lời bạn dặn"], long: ["Bạn dặn: {text}"] },
   missed: { short: ["Lỡ {time}, không sao"], long: ["Lúc {time} chưa làm được, dời sang đây"] },
   missed3: { short: ["Lỡ {n} lần, đổi giờ"], long: ["Lỡ {n} lần buổi {part}, thử giờ khác"] },
@@ -35,9 +35,9 @@ const R: Record<ReasonKey, W> = {
   fit: { short: ["Hạn {due}, làm {lenW}", "{part} trống {lenW}", "Làm trước {lenW}"], long: ["Hạn {due} gần, {slow}, xếp {lenW} trước", "Hạn {due} gần, xếp {lenW} trước, làm thêm nếu còn sức", "{part} trống chừng {lenW}, làm trước chừng đó", "Xếp {lenW} trước"] },
   over: { short: ["Hôm nay dồn, hơi muộn"], long: ["Hôm nay nhiều việc, nên làm muộn hơn chút"] },
   batch: { short: ["Gộp với {title}"], long: ["Làm liền với {title} cho gọn"] },
-  holiday: { short: ["Để nhẹ ngày {title}"], long: ["Ngày {title} mình xếp nhẹ, nên dời sang đây"] }, // said on the day it moved to, not the holiday
-  exam: { short: ["Để nhẹ hôm trước thi"], long: ["Hôm trước thi mình xếp nhẹ, nên dời sang đây"] },
-  guess: { short: ["Rảnh sau {after}", "{part} còn trống", "Trống vừa {m}p"], long: ["Sau {after} bạn rảnh, vừa cho việc này", "{part} còn trống, vừa cho việc này", "Khoảng trống vừa {m}p, không đụng lịch"] },
+  holiday: { short: ["Để nhẹ ngày {title}"], long: ["Ngày {title} xếp nhẹ, việc này dời sang đây"] }, // said on the day it moved to, not the holiday
+  exam: { short: ["Để nhẹ hôm trước thi"], long: ["Hôm trước thi xếp nhẹ, việc này dời sang đây"] },
+  guess: { short: ["Rảnh sau {after}", "{part} còn trống", "Đang rảnh"], long: ["Sau {after} bạn rảnh", "{part} còn trống", "Giờ này đang rảnh"] },
 };
 
 // Loose words for the planner's numbers: "còn 3 ngày", "mấy lần gần đây", never "sớm 2h15p".

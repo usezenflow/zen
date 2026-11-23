@@ -60,7 +60,7 @@ describe("insights", () => {
     for (let n = 0; n < 5; n++) for (const h of [8, 9, 10]) { const x = new Array(D).fill(0); x[0] = 1; x[I_ENERGY] = energy(h + 0.5, 15); update(m.arms[h], x, 1); }
     const i = insights(m, now);
     expect(i.golden).toBeUndefined();
-    expect(i.learned).toEqual([]);
+    expect(i.learned.every((x) => x.guess)).toBe(true); // exploring rows only, drawn dashed; no sure rule yet
   });
   it("finds the golden window after rewards on arms 8-10", () => {
     const m = newModel(now);
@@ -76,6 +76,17 @@ describe("insights", () => {
     expect(k.from).toBeGreaterThanOrEqual(7);
     expect(k.from).toBeLessThanOrEqual(8);
     expect(insights(m, now).learned).toContainEqual(expect.objectContaining({ text: "Việc học hợp buổi sáng" })); // a part, never a weekday
+  });
+  it("drags away from 21h, 22h and 23h are one 'Tránh buổi tối', which forgets the part", () => {
+    const m = newModel(now);
+    m.left = [21, 21, 22, 22, 23, 23].map((hour) => ({ hour, at: now - 1000 }));
+    const rows = insights(m, now).learned.filter((x) => x.text === "Tránh buổi tối");
+    expect(rows).toEqual([expect.objectContaining({ text: "Tránh buổi tối", part: 3 })]);
+  });
+  it("an older history of ticks alone still names the part you finish in", () => {
+    const m = newModel(now);
+    m.doneHours = [8, 9, 10].map((hour, i) => ({ hour, at: now - (i + 1) * 86400000 }));
+    expect(insights(m, now).learned).toContainEqual(expect.objectContaining({ text: "Hay xong việc buổi sáng", part: 0 }));
   });
   it("reports slip and pairs once learned", () => {
     const m = newModel(now);

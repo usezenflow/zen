@@ -690,13 +690,13 @@ describe("adding and dropping a sitting", () => {
     const n = open().length, len = open()[n - 1].effort;
     const dropped = await dropSitting(pid, NOW + 1000);
     expect(open()).toHaveLength(n - 1);
-    expect(plain(dropped.toast)).toBe("Bớt một buổi Essay");
+    expect(plain(dropped.toast)).toBe("Bớt buổi Essay");
     const added = await addSitting(pid, NOW + 2000);
     expect(open()).toHaveLength(n);
     const last = open()[n - 1];
     expect(last.id).toBe(`${pid}#${n + 1}`);
     expect(last.effort).toBe(len);
-    expect(plain(added.toast)).toBe("Thêm một buổi Essay");
+    expect(plain(added.toast)).toBe("Thêm buổi Essay");
     expect(added.sub).toBeDefined();
   });
   it("dropping a chosen sitting or adding one spreads the open ones again: one a day, never two bunched", async () => {
@@ -713,6 +713,18 @@ describe("adding and dropping a sitting", () => {
     expect(plain(r.sub ?? "")).toMatch(/^Chia lại \d+ buổi cho đều$/);
     await addSitting(pid, NOW + 2000);
     expect(days(open())).toBe(open().length);
+  });
+  it("a series with no due spreads over the 30 days: every added sitting on a day of its own", async () => {
+    await apply([{ op: "create", title: "Guitar", kind: "study", effortMinutes: 60 }], NOW);
+    const pid = live().find((x: Task) => !x.parentId)!.id;
+    await addSitting(pid, NOW + 1000);
+    await addSitting(pid, NOW + 2000);
+    const sits = live().filter((x: Task) => x.parentId === pid && !x.doneAt && x.start !== undefined);
+    expect(sits).toHaveLength(3);
+    expect(new Set(sits.map((x: Task) => new Date(x.start!).toDateString())).size).toBe(3);
+    const last = Math.max(...sits.map((x: Task) => x.start!));
+    expect(last).toBeLessThan(NOW + 30 * 86400_000);
+    expect(last).toBeGreaterThan(NOW + 5 * 86400_000); // reaching out into the window, not three days in a row
   });
   it("drop does nothing with one open sitting", async () => {
     await apply([{ op: "create", title: "Essay", kind: "study", effortMinutes: 60, deadline: "2026-11-20T23:00:00" }], NOW);
@@ -750,7 +762,7 @@ describe("Còn nữa on a guessed split task's last sitting", () => {
     const added = kids().find((x: Task) => x.id === "p#2")!;
     expect(added.effort).toBe(60);
     expect(added.doneAt).toBeUndefined();
-    expect(plain(r.toast)).toBe("Thêm một buổi Code x");
+    expect(plain(r.toast)).toBe("Thêm buổi Code x");
     expect((await loadClassMult()).code).toBeGreaterThan(1);
     await r.undo();
     expect(kids()).toHaveLength(1);
@@ -767,7 +779,7 @@ describe("Còn nữa on a guessed split task's last sitting", () => {
     expect(kids().find((x: Task) => x.id === "w#1")!.doneAt).toBe(NOW - 2 * H);
     expect(kids().find((x: Task) => x.id === "w#2")!).toMatchObject({ effort: 60, doneAt: undefined });
     expect(db.tasks.get("w").doneAt).toBeUndefined(); // the parent is the container now
-    expect(plain(r.toast)).toBe("Thêm một buổi Viết báo cáo");
+    expect(plain(r.toast)).toBe("Thêm buổi Viết báo cáo");
     expect((await loadClassMult()).write).toBeGreaterThan(1);
     await r.undo();
     expect(kids()).toHaveLength(0);

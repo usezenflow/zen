@@ -8,13 +8,16 @@
     - Việc quá giờ không còn tự bị dời: thông báo hỏi "Xong chưa?" với hai nút Xong và Để sau (Android: hiện thêm một thông báo nhỏ khi mở ứng dụng). Đến giờ bắt đầu cũng có thông báo: Bắt đầu hoặc Để sau
     - Kéo một việc chỉ là gợi ý, không còn ghim vĩnh viễn; chỉ "Đừng dời" mới ghim
     - Dời việc sang ngày khác giữ nguyên buổi, zen chọn giờ; ngày quá tải biết nhường chỗ
+    - Dời trên thẻ "Bây giờ" chỉ một chạm, zen tự chọn ngày và giờ hợp
 - Học nhanh từ vài lần kéo: kéo một lần zen đoán ("Hiểu rồi: việc học để chiều") với "Luôn vậy" hoặc "Chỉ lần này"; kéo lần hai cùng hướng thì thành quy tắc. Học theo buổi trước, rồi mới đến từng giờ
-- Nhịp thành "Zen đã học được gì": chỉ những quy tắc zen thật sự dùng, mỗi dòng bỏ được bằng một chạm; bỏ các câu "bạn hay học T4, T5"
-- Chỉnh giờ ngay trong màn việc, không cần bảng: chọn buổi và ngày, bước ±15p cho giờ và độ dài, có nút Xong; không xếp lại khi đang kéo hay gõ, chỉ khi thả hoặc bấm Xong
-- Thêm buổi cho mọi việc còn mở; mỗi buổi có buổi trong ngày và độ dài riêng, chỉnh ngay trên dòng
-- Vùng chạm lớn hơn (ít nhất 44), chữ to hơn, lịch vừa màn hình nhỏ; gõ tên việc, nơi chốn mượt hơn
-- Một giọng nói thống nhất cho mọi thông báo trong ứng dụng: mỗi dòng một ý, nói theo buổi và ngày thay vì giờ chính xác
+- Nhịp làm lại: thẻ cả tuần (thứ × buổi), "Bạn dặn" (lời bạn nói, kèm ngày giờ) rồi "Mình đang theo" (zen học được), mỗi dòng một biểu tượng và thanh độ chắc (nét đứt khi còn đoán); vuốt để quên. Mỗi buổi trong ngày một dòng, không còn dòng lặp; chưa có gì vẫn có thẻ tuần mờ. Nút giữ nói là "Giữ để dặn"
+- Chỉnh giờ ngay trong màn việc, không cần bảng: chọn ngày, giờ bắt đầu và kết thúc (gợi ý bằng giờ, không phải độ dài); bảng giờ quay vòng (55 sang 00, 23 sang 00), nút không còn sát đáy; không xếp lại khi đang kéo hay gõ, chỉ khi thả hoặc bấm Xong
+- Các buổi: mỗi buổi là ngày, bắt đầu - kết thúc như màn việc; bỏ "Buổi 1/3", dấu chấm và ô độ dài; một buổi thì không hiện danh sách. Thêm buổi trải đều theo hạn, không có hạn thì trong 30 ngày
+- Màn việc gọn hơn, vùng chạm lớn hơn (ít nhất 44), chữ to hơn, lịch vừa màn hình nhỏ; gõ tên việc, nơi chốn mượt hơn
+- Một giọng nói thống nhất cho mọi thông báo: mỗi dòng một ý, nói theo buổi và ngày thay vì giờ chính xác; lý do xếp không còn nhắc con số cũ khi việc được dời
 - Tìm kiếm mở và đóng mượt hơn, hiện khung chờ ngay khi mở
+- Cập nhật iPhone cài được qua SideStore hoặc AltStore
+- Bỏ giọng nói Moonshine tải thêm: dùng giọng nói của hệ thống
 
 ## 26.0.12
 

@@ -17,7 +17,6 @@ import { ask, disconnect, getFeeRows, getMarks, kvStorage, loginError, onQueue, 
 import { hasLms, hasPortal } from "@/lib/dlu/creds";
 import { useTheme, font, space, ff } from "@/lib/theme";
 import { Sweep, useSweep } from "@/components/sweep";
-import { downloadModel, fastOn, modelReady, setFast } from "@/lib/voiceModel";
 import { when } from "@/lib/when";
 import { LogoState } from "@/components/logostate";
 import { UpdateDialog, type Dlg } from "@/components/update";
@@ -61,16 +60,6 @@ function Row({ label, right, onPress, flat, line = !flat, dense }: { label: stri
 export default function Settings() {
   const th = useTheme();
   const [mode, setMode] = useState<Mode>("system");
-  const [voice, setVoice] = useState<"none" | "fail" | "on" | "off" | number>("none"); // the on-device recognizer: a percent while it downloads
-  useEffect(() => { void modelReady().then(async (ok) => { if (ok) setVoice((await fastOn()) ? "on" : "off"); }); }, []);
-  const pickVoice = async () => {
-    if (typeof voice === "number") return;
-    if (voice === "on" || voice === "off") { await setFast(voice === "off"); return setVoice(voice === "on" ? "off" : "on"); }
-    setVoice(0);
-    const ok = await downloadModel((p) => setVoice(Math.round(p * 100)));
-    if (ok) await setFast(true);
-    setVoice(ok ? "on" : "fail");
-  };
   const [first, setFirst] = useState<"load" | "err" | null>(null); // logo.html: the first school sync, or its failure
   const [id, setId] = useState("");
   const [on, setOn] = useState(false);
@@ -153,11 +142,6 @@ export default function Settings() {
             <Pill key={m} sweep on={mode === m} onPress={() => pickMode(m)} label={t(m === "system" ? "themeSystem" : m === "light" ? "themeLight" : "themeDark")} />
           ))}
         </View>
-
-        <Text style={[s.lab, { color: th.muted, marginTop: 26 }]}>{t("voiceLab")}</Text>
-        <Row label={t("voiceFast")} onPress={typeof voice === "number" ? undefined : pickVoice}
-          right={<Text style={{ fontSize: font.meta, fontFamily: ff("500"), color: voice === "fail" ? th.seal : th.muted }}>{typeof voice === "number" ? t("voiceGetting", { n: voice }) : t({ none: "voiceGet", fail: "voiceFail", on: "voiceOn", off: "voiceOff" }[voice] as "voiceGet")}</Text>} />
-        <Text style={{ fontSize: font.sub, fontFamily: ff("500"), lineHeight: 20, color: th.muted, marginTop: 6 }}>{t("voiceSub")}</Text>
 
         {/* Online (timetable, exams, marks) and LMS (assignments) are separate sections: each connects, syncs and disconnects on its own. */}
         {!on && (

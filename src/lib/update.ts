@@ -46,12 +46,12 @@ const onScreen = () => new Promise<void>((r) => {
 
 /**
  * Android: download the APK in the background, then open the system installer (it asks to confirm; it only accepts our signing key).
- * iOS: the .ipa is unsigned, so SideStore installs and re-signs it. Any failure opens the release page instead (Android: the toast says so a moment). A second call mid-download does nothing.
+ * iOS: the .ipa is unsigned, so SideStore or AltStore installs and re-signs it. Any failure opens the release page instead (Android: the toast says so a moment). A second call mid-download does nothing.
  */
-export async function install(u: Update): Promise<void> {
+export async function install(u: Update, via: "sidestore" | "altstore" = "sidestore"): Promise<void> {
   if (dl && !dl.failed) return;
   try {
-    if (Platform.OS === "ios") return void (await Linking.openURL(`sidestore://install?url=${encodeURIComponent(u.url)}`));
+    if (Platform.OS === "ios") return void (await Linking.openURL(`${via}://install?url=${encodeURIComponent(u.url)}`));
     set({ version: u.version, pct: 0 });
     const target = `${FS.cacheDirectory}zen-update.apk`;
     await FS.deleteAsync(target, { idempotent: true });
@@ -68,7 +68,7 @@ export async function install(u: Update): Promise<void> {
     });
     set(null);
   } catch {
-    if (!dl) return void (await Linking.openURL(u.page).catch(() => {})); // iOS: SideStore did not open
+    if (!dl) return void (await Linking.openURL(u.page).catch(() => {})); // iOS: the store did not open
     set({ ...dl, failed: true }); // the toast stays a moment, its ring stopped where it broke
     await Linking.openURL(u.page).catch(() => {});
     setTimeout(() => dl?.failed && set(null), 4000); // a retry meanwhile keeps its own toast

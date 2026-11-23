@@ -29,16 +29,18 @@ export const SOFT_AIM = 0.75;
 
 export function bell(p: Piece, now: number, start: number): number {
   const t = p.task;
-  const due = dueOf(t);
+  // A series with no due spreads over the 30 days place.ts scans (shortcut: the window starts at `now`, so it slides a little per replan; the prior's move cost holds a placed sitting still).
+  const open = dueOf(t) === undefined && !!t.parentId && !t.rrule;
+  const due = open ? now + 30 * DAY : dueOf(t);
   if (due === undefined) return 0; // a repeat's day bound pulls nowhere: place.ts keeps it inside the day
-  const lo = Math.max(t.createdAt, t.notBefore ?? t.createdAt); // not `now`: the curve must not drift between replans
+  const lo = open ? now : Math.max(t.createdAt, t.notBefore ?? t.createdAt); // not `now`: the curve must not drift between replans
   const hi = due - dur(p);
   if (hi <= lo) return 1;
   const pos = Math.min(1, Math.max(0, (start - lo) / (hi - lo)));
   const slip = 0.3 * p.slip;
   let centre: number;
   if (hi - lo < DAY) centre = 0; // under a day: aim at the start
-  else if (due - now <= 30 * DAY) centre = Math.max(0, Math.min(1, ((p.aim ?? SOFT_AIM) * p.k) / Math.max(1, p.n) * (due - lo) / (hi - lo)) - slip);
+  else if (!open && due - now <= 30 * DAY) centre = Math.max(0, Math.min(1, ((p.aim ?? SOFT_AIM) * p.k) / Math.max(1, p.n) * (due - lo) / (hi - lo)) - slip);
   else centre = Math.max(0, p.k / (p.n + 1) - slip);
   return Math.exp(-((pos - centre) ** 2) / (2 * 0.2 ** 2));
 }

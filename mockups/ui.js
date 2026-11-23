@@ -65,9 +65,9 @@ function ring(p) {
 }
 
 function chrome(inner, { time = "14:20", dock = "idle", p = 0 } = {}) {
-  const label = { idle: "Giữ để nói", live: "Thả tay khi xong", think: "Đang sắp xếp", off: `Đang chuẩn bị ${Math.round(p * 100)}%` }[dock];
+  const label = { idle: "Giữ để nói", rule: "Giữ để dặn", live: "Thả tay khi xong", think: "Đang sắp xếp", off: `Đang chuẩn bị ${Math.round(p * 100)}%` }[dock];
   return `<div class="sb"><span>${time}</span><span>●●● ▮</span></div><div class="scr">${inner}</div>
-  ${dock ? `<div class="fade"></div><div class="dock"><div class="hold ${dock}">${p ? ring(p) : ""}${dock === "think" ? LOGO(34, "mono") : ic(I.mic, 28, 1.8)}</div><div class="dlabel">${label}</div></div>` : ""}<div class="hi"></div>`;
+  ${dock ? `<div class="fade"></div><div class="dock"><div class="hold ${dock === "rule" ? "idle" : dock}">${p ? ring(p) : ""}${dock === "think" ? LOGO(34, "mono") : ic(I.mic, 28, 1.8)}</div><div class="dlabel">${label}</div></div>` : ""}<div class="hi"></div>`;
 }
 
 // Toast: title and sub wrap (two lines each); actions sit in a bottom row, right-aligned.

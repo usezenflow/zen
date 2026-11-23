@@ -238,7 +238,7 @@ describe("reasons follow the time", () => {
     expect(reasonText({ key: "deadline", w: 1, vars: { due: "hôm nay 23:59", left: 40 } }, true)).toBe("Hạn hôm nay 23:59, giờ này là vừa kịp");
     expect(reasonText({ key: "deadline", w: 1, vars: { due: "T6 23:59" } })).toBe("Hạn T6 23:59, làm sớm");
     expect(reasonText({ key: "guess", w: 1, vars: { m: 60, part: "Tối nay", after: "Giải tích 2" } })).toBe("Rảnh sau Giải tích 2");
-    expect(reasonText({ key: "guess", w: 1, vars: { m: 60, part: "Tối nay" } }, true)).toBe("Tối nay còn trống, vừa cho việc này");
+    expect(reasonText({ key: "guess", w: 1, vars: { m: 60, part: "Tối nay" } }, true)).toBe("Tối nay còn trống");
     expect(reasonText({ key: "hour", w: 1, vars: { hour: 20, n: 3 } }, true)).toBe("Mấy lần gần đây bạn xong việc quanh 20h");
     expect(reasonText({ key: "hour", w: 1, vars: { hour: 20, n: 1 } }, true)).toBe("Giờ này bạn hay xong việc");
     expect(reasonText({ key: "kind", w: 1, vars: { kind: "chores" } })).toBe("Hợp việc nhà");

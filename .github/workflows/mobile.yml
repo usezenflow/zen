@@ -168,7 +168,6 @@ jobs:
             -Dorg.gradle.parallel=true -Dorg.gradle.caching=true
             -Dorg.gradle.jvmargs="-Xmx3g -XX:MaxMetaspaceSize=768m -XX:+UseParallelGC"
             -Pkotlin.daemon.jvm.options="-Xmx1g")
-          # :app only: root assembleRelease also bundles library AARs, which moonshine.rn (local .aar dep) forbids.
           ./gradlew :app:assembleRelease "${args[@]}"
       - name: Collect APK
         run: |
@@ -232,17 +231,6 @@ jobs:
           path: ios/build-device
           key: ios-derived-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: ios-derived-${{ runner.os }}-
-      # Moonshine's static library is fetched by a build phase, but CocoaPods adds -lmoonshine_core to the app's
-      # link line only if the file exists at pod install (a path pod never runs prepare_command): stage it first.
-      - name: Stage Moonshine iOS library
-        if: steps.ipa.outputs.cache-hit != 'true'
-        run: |
-          set -eu
-          m=node_modules/@siteed/moonshine.rn
-          bash $m/scripts/ensure-ios-artifacts.sh
-          mkdir -p $m/prebuilt/ios/current
-          rsync -a --exclude libmoonshine.a $m/prebuilt/ios/Moonshine.xcframework/ios-arm64/ $m/prebuilt/ios/current/
-          cp $m/prebuilt/ios/Moonshine.xcframework/ios-arm64/libmoonshine.a $m/prebuilt/ios/current/libmoonshine_core.a
       # prebuild exits 0 even when its own pod install fails, so install here
       # where a failure is visible, and retry runner I/O blips.
       - name: Install pods

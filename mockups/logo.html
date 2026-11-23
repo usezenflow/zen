@@ -64,8 +64,8 @@ document.getElementById("t").innerHTML = `<section class="concept"><h2>Mark</h2>
 
 const state = (leaf, h, sub, extra = "") => `<div class="state">${leaf}<div class="h">${h}</div><div class="sub">${sub}</div>${extra}</div>`;
 mount([
-  { tag: "Loading", sub: "First sync from the school portal. The leaf rocks on water.", html: chrome(state(LEAF(96, "color", "load"), "Đang lấy lịch", "Đang đọc thời khoá biểu từ Online. Chỉ một lần thôi."), { dock: "" }) },
-  { tag: "Empty", sub: "Nothing planned today. Outline only, hold button stays ready.", html: chrome(state(LEAF(96, "line"), "Ngày trống, thở chút", "Không có lịch học hay việc nào. Cứ để trống cũng được.")) },
+  { tag: "Loading", sub: "First sync from the school portal. The leaf rocks on water.", html: chrome(state(LEAF(96, "color", "load"), "Đang lấy lịch", "Chỉ lần đầu thôi."), { dock: "" }) },
+  { tag: "Empty", sub: "Nothing planned today. Outline only, hold button stays ready.", html: chrome(state(LEAF(96, "line"), "Ngày trống", "Không có lịch học hay việc nào.")) },
   { tag: "Error", sub: "Couldn't reach the school. The leaf tips and the sun rolls away.", html: chrome(state(LEAF(96, "color", "err"), "Chưa kết nối được trường", "Lịch cũ vẫn còn nguyên. Thử lại khi có mạng.", `<div class="btn">Thử lại</div><div class="ghost">Để sau</div>`), { dock: "" }) },
   { tag: "Error, dark", sub: "Same state at night.", dark: true, html: chrome(state(LEAF(96, "color", "err"), "Chưa kết nối được trường", "Lịch cũ vẫn còn nguyên. Thử lại khi có mạng.", `<div class="btn">Thử lại</div><div class="ghost">Để sau</div>`), { dock: "" }) },
 ]);

@@ -15,7 +15,7 @@ export interface Insights {
   pairs: { before: Kind; w: number }[]; // "after" weights worth saying, strongest first
   slip: { kind: Kind; rate: number }[]; // kinds pushed later often, highest first
   unsure?: { from: number; to: number }; // waking hours the model knows least about
-  learned: { text: string; hour?: number }[]; // the rules the planner applies now, in plain words (Nhịp): hour = the clock hour it forgets, when it has one
+  learned: { text: string; hour?: number; part?: number; kind?: Kind; v?: number; guess?: boolean; icon?: "moon" | "sun" | "clock" | "minus" | "undo" | "search" }[]; // icon: the glyph its row wears (kind rows wear their kind's); v: how sure (0..1); guess: still exploring, drawn dashed // the rules the planner applies now, in plain words (Nhịp): hour or part = what Bỏ forgets, when it has one
   byKind: { kind: Kind; from: number; to: number; sure: number }[]; // best 3-hour window per kind, only when clearly better than its average
   keep?: { pct: number; delta: number }; // the Sunday card's keep line: this week's share of Zen's placements kept, and the change from last week (points)
   seen: number; // done or moved tasks in the last two weeks: the first days show these, never a bare "still learning"
@@ -28,6 +28,8 @@ export const PROMOTE = 5; // five in one stretch make it the golden range
 export const WHEN_MIN = 4; // a part of the day needs this many (on two or more days) before it is said as yours
 const FRESH = 7 * DAY; // evidence halves every week: a new habit leads, one odd day does not flip it
 
+const n5 = (n: number) => n / (n + 5);
+const PART_WORD = ["sáng", "trưa", "chiều", "tối"];
 const COLD = prepare(coldArms());
 const U0 = Math.sqrt(COLD.inv[0][0]); // uncertainty of an arm with no evidence
 const KC = KINDS.map((_, j) => 4 + j); // the kind one-hot columns
@@ -96,7 +98,25 @@ export function insights(m: Model, now: number): Insights {
     if (counted && counted >= (out.golden?.sure ?? 0)) out.golden = { ...out.early!, sure: counted };
     if (out.golden) out.early = undefined;
   };
-  if (!learned) { say(); return out; }
+  // The rules Nhịp lists, from what the planner applies now: a rest that differs from the default, the hours you dragged work away from, the part a kind settled into.
+  // Run on the early exit too: drags and rests are counted evidence, they show before any arm has moved off its prior.
+  const rules = () => {
+    const nap = afterBuffer(m);
+    // One row per part of the day: drags at 21h and 23h are one "Tránh buổi tối", whatever hours the older history spread them over.
+    const avoidParts = [...new Set(out.avoid.map((x) => partIdx(x.hour)))];
+    out.learned = [
+      ...(nap !== 15 ? [{ text: t("learnedNap", { m: nap }), icon: "moon" as const, v: clamp(n5(m.afterClass?.length ?? 0)) }] : []),
+      // Counted from what is already stored (ticks and drags), so an older history shows it too. Sure = n / (n + k): more evidence, nearer 1 (the bandit's own sureness is used where it has one, below).
+      ...(pn[top4] >= EARLY && dates[top4].size >= 2 ? [{ text: t("learnedBusy", { p: PART_WORD[top4] }), part: top4, icon: (top4 === 3 ? "moon" : "sun") as "moon" | "sun", v: clamp(pw[top4] / (pw[top4] + PROMOTE)) }] : []),
+      ...(out.golden && (out.golden.sure ?? 0) >= 0.5 ? [{ text: t("learnedGolden", { a: out.golden.from, b: out.golden.to }), icon: "clock" as const, v: out.golden.sure }] : []),
+      ...(out.early ? [{ text: t("learnedEarly", { a: out.early.from, b: out.early.to }), icon: "clock" as const, v: clamp(out.early.n / PROMOTE), guess: true }] : []),
+      ...avoidParts.map((part) => ({ text: t("learnedAvoidPart", { p: PART_WORD[part] }), part, icon: "minus" as const, v: clamp(out.avoid.filter((x) => partIdx(x.hour) === part).reduce((a, x) => a + x.n, 0) / (out.avoid.filter((x) => partIdx(x.hour) === part).reduce((a, x) => a + x.n, 0) + 3)) })),
+      ...out.byKind.map((x) => ({ text: t("learnedKindPart", { k: kindW(x.kind, true), p: partAt(x.from + 1) }), hour: x.from, kind: x.kind, v: x.sure })),
+      ...out.slip.slice(0, 2).map((x) => ({ text: t("learnedSlip", { k: kindW(x.kind, true) }), kind: x.kind, icon: "undo" as const, v: clamp(m.slip[x.kind].placed / (m.slip[x.kind].placed + 5)) })),
+      ...(out.unsure && learned ? [{ text: t("learnedTry", { p: partAt(out.unsure.from + 1) }), icon: "search" as const, v: 0.25, guess: true }] : []),
+    ].filter((x, i, all) => all.findIndex((y) => y.text === x.text) === i).slice(0, 8);
+  };
+  if (!learned) { say(); rules(); return out; }
 
   let best = 0;
   for (let from = 0; from < 24; from++) for (let len = 2; len <= 4 && from + len <= 24; len++) {
@@ -138,13 +158,7 @@ export function insights(m: Model, now: number): Insights {
     const u = mean(range(from, from + 3).map((h) => Math.sqrt(p.inv[h][0])));
     if (u > worst) { worst = u; out.unsure = { from, to: from + 3 }; }
   }
-  // The rules Nhịp lists, from what the planner applies now: a rest that differs from the default, the hours you dragged work away from, the part a kind settled into.
-  const nap = afterBuffer(m);
-  out.learned = [
-    ...(nap !== 15 ? [{ text: t("learnedNap", { m: nap }) }] : []),
-    ...out.avoid.map((x) => ({ text: t("learnedAvoidPart", { p: partAt(x.hour) }), hour: x.hour })),
-    ...out.byKind.map((x) => ({ text: t("learnedKindPart", { k: kindW(x.kind, true), p: partAt(x.from + 1) }), hour: x.from })),
-  ];
   say();
+  rules();
   return out;
 }

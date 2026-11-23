@@ -4,7 +4,7 @@ import { Tap } from "@/components/tap";
 import { day } from "@/lib/when";
 import { font, ff, useTheme } from "@/lib/theme";
 import { hhmm } from "./cal";
-import { DateDrop, LenDrop, lenText, TimeDial, type Anchor, type Parts, type Preset } from "./dial";
+import { DateDrop, TimeDial, type Anchor, type Parts, type Preset } from "./dial";
 
 /** A chip (views.html .pk) that drops its picker under itself; ringed while open. Same on iOS and Android: zen draws both pickers. */
 function useChip(onClose?: () => void) {
@@ -43,17 +43,6 @@ export function DateChip({ value, label, min, past, parts, side = "left", onChan
     <>
       <Chip label={label ?? day(value, 0)} on={!!c.anchor} onPress={c.open} box={c.box} />
       <DateDrop open={!!c.anchor} anchor={c.anchor} value={new Date(value)} min={min !== undefined ? new Date(min) : undefined} past={past} parts={parts && { on: parts.on, onPick: (i) => { parts.onPick(i); c.close(); } }} side={side} onChange={onChange} onClose={c.close} />
-    </>
-  );
-}
-
-/** "45p": a sitting's length, a drum of minutes under the chip. */
-export function LenChip({ value, onChange, onClose }: { value: number; onChange: (m: number) => void; onClose?: () => void }) {
-  const c = useChip(onClose);
-  return (
-    <>
-      <Chip label={lenText(value)} on={!!c.anchor} onPress={c.open} box={c.box} />
-      <LenDrop open={!!c.anchor} anchor={c.anchor} value={value} onChange={onChange} onClose={c.close} />
     </>
   );
 }

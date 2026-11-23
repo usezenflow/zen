@@ -123,7 +123,7 @@ it("a day picked whose time is already gone takes the next quarter hour", async 
 it("another day keeps the whole day", async () => {
   jest.spyOn(Date, "now").mockReturnValue(at(14, 7).getTime());
   await draw(new Date(2026, 10, 21, 9, 0), false);
-  expect(screen.getByText("08")).toBeOnTheScreen();
+  expect(screen.getAllByText("08")[0]).toBeOnTheScreen();
 });
 
 // An end's dial starts 15 minutes after its start, on the start's day; on another day the whole day is offered.
@@ -141,5 +141,14 @@ it("an end offers only times at least 15 minutes after its start", async () => {
 
 it("an end on a later day than its start keeps the whole day", async () => {
   await render(<View><TimeDial open anchor={A} value={new Date(2026, 10, 21, 9, 0)} min={new Date(at(17, 0).getTime() + 15 * 60_000)} onChange={jest.fn()} onClose={jest.fn()} /></View>);
-  expect(screen.getByText("08")).toBeOnTheScreen();
+  expect(screen.getAllByText("08")[0]).toBeOnTheScreen();
+});
+
+it("the minutes run on from 55 into 00 and the hours from 23 into 00", async () => {
+  const onChange = jest.fn();
+  await draw(at(17, 55), false, onChange);
+  await settle(drums()[1], 12); // one row past 55 in the next copy
+  expect(onChange).toHaveBeenLastCalledWith(at(17, 0));
+  await settle(drums()[0], 24 + 1); // one past 23, in the second copy of the hours
+  expect(onChange).toHaveBeenLastCalledWith(at(1, 0));
 });

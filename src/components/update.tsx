@@ -18,7 +18,7 @@ export function UpdateDialog({ d, onClose }: { d: Dlg; onClose: () => void }) {
   const th = useTheme(), ins = useSafeAreaInsets();
   const up = d.kind === "update";
   // the download runs behind: the dialog closes at once and the top toast shows the ring (DownloadToast)
-  const go = () => { if (up) void install(d.update); onClose(); };
+  const go = (via?: "altstore") => { if (up) void install(d.update, via); onClose(); };
   const label = !up ? t("gotIt") : Platform.OS === "ios" ? t("installSideStore") : t("updateBtn");
   return (
     <Modal transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
@@ -33,7 +33,8 @@ export function UpdateDialog({ d, onClose }: { d: Dlg; onClose: () => void }) {
               <View key={i} style={s.li}><Text style={[s.note, { color: th.ink }]}>•</Text><Text style={[s.note, { color: th.ink, flex: 1 }]}>{n}</Text></View>
             ))}
           </ScrollView>
-          <Tap onPress={go} style={[s.btn, { backgroundColor: th.ink }]} accessibilityRole="button"><Text style={[s.bt, { color: th.bg }]}>{label}</Text></Tap>
+          <Tap onPress={() => go()} style={[s.btn, { backgroundColor: th.ink }]} accessibilityRole="button"><Text style={[s.bt, { color: th.bg }]}>{label}</Text></Tap>
+          {up && Platform.OS === "ios" && <Tap onPress={() => go("altstore")} hitSlop={8} accessibilityRole="button"><Text style={[s.ghost, { color: th.ink }]}>{t("installAltStore")}</Text></Tap>}
           {up && <Tap onPress={onClose} hitSlop={8} accessibilityRole="button"><Text style={[s.ghost, { color: th.muted }]}>{t("notNow")}</Text></Tap>}
         </View>
       </View>

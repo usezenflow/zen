@@ -17,7 +17,7 @@ const H = SHOW * ROW + 2 * PADY;
 const TW = 208; // two presets to a line, each centred with room on both sides
 // A start's usual morning, afternoon, after class, evening; a due's before midnight and midnight.
 const TPRE: [number, number][] = [[8, 0], [14, 0], [17, 0], [20, 0]], DPRE: [number, number][] = [[23, 59], [0, 0]];
-const TH = (n: number) => H + PRE + (Math.ceil(n / 2) - 1) * (PILL + GAP);
+const TH = (n: number) => H + 8 + Math.ceil(n / 2) * PILL + (Math.ceil(n / 2) - 1) * GAP; // drum, the 8 above the presets, the pill lines; the pad adds its own bottom 10
 const HOURS = Array.from({ length: 24 }, (_, i) => i), MINUTES = Array.from({ length: 12 }, (_, i) => i * 5); // any 5p; the presets cover the usual
 const pad = (n: number) => String(n).padStart(2, "0");
 const tick = () => { Haptics.selectionAsync().catch(() => {}); };
@@ -55,10 +55,13 @@ function Cell({ i, y, label }: { i: number; y: SharedValue<number>; label: strin
   );
 }
 
-/** One drum. Ticks a light haptic per row passed; `onPick` once it settles on a new row. */
-function Drum({ values, start, onPick, fmt = pad }: { values: number[]; start: number; onPick: (v: number) => void; fmt?: (v: number) => string }) {
+const COPIES = 5; // a wrapping drum shows its values five times over, the middle copy is home
+
+/** One drum. Ticks a light haptic per row passed; `onPick` once it settles on a new row. `wrap`: 55 runs on into 00 and 23 into 00 (once it stops near an edge copy it jumps back to the middle one). */
+function Drum({ values, start, onPick, fmt = pad, wrap }: { values: number[]; start: number; onPick: (v: number) => void; fmt?: (v: number) => string; wrap?: boolean }) {
   const ref = useAnimatedRef<Animated.ScrollView>();
-  const y = useSharedValue(start * ROW), seen = useSharedValue(start);
+  const n = values.length, base = wrap ? 2 * n : 0, rows = wrap ? COPIES * n : n;
+  const y = useSharedValue((base + start) * ROW), seen = useSharedValue(base + start);
   const settled = useRef(start);
   const onScroll = useAnimatedScrollHandler({
     onScroll: (e) => {
@@ -68,19 +71,20 @@ function Drum({ values, start, onPick, fmt = pad }: { values: number[]; start: n
     },
   });
   const land = (off: number) => {
-    const k = Math.max(0, Math.min(values.length - 1, Math.round(off / ROW)));
-    if (k !== settled.current) { settled.current = k; onPick(values[k]); }
+    const k = Math.max(0, Math.min(rows - 1, Math.round(off / ROW))), j = k % n;
+    if (wrap && (k < n || k >= 4 * n)) { ref.current?.scrollTo({ y: (base + j) * ROW, animated: false }); y.set((base + j) * ROW); seen.set(base + j); }
+    if (j !== settled.current) { settled.current = j; onPick(values[j]); }
   };
   return (
     <Animated.ScrollView
       ref={ref} onScroll={onScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false}
-      snapToInterval={ROW} decelerationRate="fast" contentOffset={{ x: 0, y: start * ROW }}
-      onLayout={() => ref.current?.scrollTo({ y: start * ROW, animated: false })} // Android ignores contentOffset
+      snapToInterval={ROW} decelerationRate="fast" contentOffset={{ x: 0, y: (base + start) * ROW }}
+      onLayout={() => ref.current?.scrollTo({ y: (base + start) * ROW, animated: false })} // Android ignores contentOffset
       onMomentumScrollEnd={(e) => land(e.nativeEvent.contentOffset.y)}
       onScrollEndDrag={(e) => { if (Math.abs(e.nativeEvent.velocity?.y ?? 0) < 0.05) land(e.nativeEvent.contentOffset.y); }} // let go without a flick: no momentum event follows
       contentContainerStyle={{ paddingVertical: ((SHOW - 1) / 2) * ROW }} style={{ width: COL, height: SHOW * ROW }}
     >
-      {values.map((v, i) => <Cell key={v} i={i} y={y} label={fmt(v)} />)}
+      {Array.from({ length: rows }, (_, i) => <Cell key={i} i={i} y={y} label={fmt(values[i % n])} />)}
     </Animated.ScrollView>
   );
 }
@@ -145,33 +149,13 @@ function Clock({ value, due, min, past, presets, onChange, onClose }: { value: D
     <View style={s.pad}>
       <View style={[s.band, { backgroundColor: th.dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" }]} />
       <View style={s.row}>
-        <Drum values={hours} start={hours.indexOf(first.h)} onPick={(v) => set("h", v)} />
+        <Drum values={hours} start={hours.indexOf(first.h)} wrap={hours.length === 24} onPick={(v) => set("h", v)} />
         <Text style={[s.num, s.sep, { color: th.ink }]}>:</Text>
         {/* keyed by its minutes: gaining or losing :59, or today's first hour, starts the drum again on the current minute */}
-        <Drum key={mins.join()} values={mins} start={Math.max(0, mins.indexOf(at.current.m))} onPick={(v) => set("m", v)} />
+        <Drum key={mins.join()} values={mins} start={Math.max(0, mins.indexOf(at.current.m))} wrap={mins.length === 12} onPick={(v) => set("m", v)} />
       </View>
       <Presets style={s.dpre} pill={s.dpill} items={presets ? presets.map((x) => ({ label: x.label, on: x.on, onPress: () => { onChange(x.at); onClose(); } })) : (due ? DPRE : TPRE).map(([h, m]) => ({ label: `${h}:${pad(m)}`, off: gone(h, m), onPress: () => { const d = new Date(value); d.setHours(h, m, 0, 0); onChange(d); onClose(); } }))} />
     </View>
-  );
-}
-
-/** Minutes as "45p", "1h", "1h30" (views.html: p/h units). */
-export const lenText = (m: number) => (m < 60 ? `${m}p` : m % 60 ? `${Math.floor(m / 60)}h${m % 60}` : `${m / 60}h`);
-const LENS = [15, 30, 45, 60, 90, 120], DRUM = Array.from({ length: 47 }, (_, i) => 15 + i * 5); // the presets; the drum: 15p to 4h in 5s
-
-/** A sitting's length dropped from its chip: a drum of minutes and the usual lengths as presets; a tap outside closes. */
-export function LenDrop({ open, anchor, value, side = "right", onChange, onClose }: { open: boolean; anchor?: Anchor; value: number; side?: "left" | "right"; onChange: (m: number) => void; onClose: () => void }) {
-  const th = useTheme();
-  if (!open || !anchor) return null;
-  const start = Math.max(0, Math.min(DRUM.length - 1, Math.round((value - 15) / 5)));
-  return (
-    <Drop anchor={anchor} w={TW} h={TH(LENS.length)} side={side} onClose={onClose}>
-      <View style={s.pad}>
-        <View style={[s.band, { backgroundColor: th.dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" }]} />
-        <View style={s.row}><Drum values={DRUM} start={start} fmt={lenText} onPick={onChange} /></View>
-        <Presets style={s.dpre} pill={s.dpill} items={LENS.map((m) => ({ label: lenText(m), on: m === value, onPress: () => { onChange(m); onClose(); } }))} />
-      </View>
-    </Drop>
   );
 }
 

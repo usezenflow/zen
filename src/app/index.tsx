@@ -25,7 +25,7 @@ import { PdfView, PhotoMenu, PhotoView, TypeBar, Veil } from "@/components/captu
 import { Hold, type Aside, type HoldState } from "@/components/hold";
 import type { Item } from "@/components/menu";
 import { Month } from "@/components/month";
-import { Live, MovesPill, NowCard, Steps, Story, Weekly, type Card, type LaterChoice } from "@/components/nowcard";
+import { Live, MovesPill, NowCard, Steps, Story, Weekly, type Card } from "@/components/nowcard";
 import { RowMenu, menuTop, sittingItems } from "@/components/rowmenu";
 import { fadeIn, fadeOut, glide, popIn, settle, Tap, EASE } from "@/components/tap";
 import { Sweep, useSweep } from "@/components/sweep";
@@ -660,14 +660,6 @@ export default function Home() {
     say(r.toast, r);
     await shuffle(r);
   };
-  // "Dời" on the now card: the task goes to that part of a day (its window kept); Zen picks the hour inside it.
-  const laterOn = async (c: LaterChoice) => {
-    const cur = cardRef.current;
-    if (!cur || shuf.current) return;
-    const r = await moveToDay(cur.task.id, c.day, Date.now(), c.part);
-    say(r.toast, r);
-    await shuffle(r);
-  };
   const restRef = useRef(rest);
   useEffect(() => { restRef.current = rest; }, [rest]);
   // magic.html 17c: swiping the rest card away moves the line 30p past today's work, at once; Hoàn tác puts it back.
@@ -788,7 +780,7 @@ export default function Home() {
   const cardView = card && (
     <GestureDetector gesture={swipe}>
       <Reanimated.View style={flick}>
-        <NowCard card={card} onDone={card.gap ? startNow : () => commit("done")} onStart={startNow} onLater={laterOn} />
+        <NowCard card={card} onDone={card.gap ? startNow : () => commit("done")} onStart={startNow} onLater={() => void finish("later")} />
       </Reanimated.View>
     </GestureDetector>
   );
@@ -874,7 +866,7 @@ export default function Home() {
           {(view === "day" || view === "month") && pillOn && (story
             ? <Story moves={fresh} now={now} onClose={closeStory} />
             : <MovesPill moves={fresh} now={now} onOpen={() => setStory(true)} onDismiss={dismissBrief} />)}
-          {view === "rhythm" && mind && <Rhythm i={mind.i} rules={mind.rules} onForget={async (x) => { const r = await removeRule(x.id); say(r.toast, r); refresh(); }} onForgetHour={async (h) => { const r = await forgetWhen({ hour: h }); say(r.toast, r); refresh(); }} />}
+          {view === "rhythm" && mind && <Rhythm i={mind.i} rules={mind.rules} onForget={async (x) => { const r = await removeRule(x.id); say(r.toast, r); refresh(); }} onForgetWhen={async (w) => { const r = await forgetWhen(w); say(r.toast, r); refresh(); }} />}
           {(view === "week" || view === "month") && (
             <Reanimated.View key={view} entering={fadeIn}>
               {view === "week"
