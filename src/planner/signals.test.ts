@@ -16,7 +16,7 @@ describe("missed: charged once per distinct missed start", () => {
     const t0 = task("m");
     const first = plan([t0], [], newModel(hm(0, 7)), hm(0, 7));
     const placed = first.diff.placed[0];
-    const missedAt = hm(0, 11);
+    const missedAt = hm(0, 11, 30); // past the block's end and its 15 min grace (policy GRACE)
     const stale = task("m", { start: placed.start, end: placed.end });
     const m1 = plan([stale], [], first.model, missedAt).model;
     const misses1 = m1.hist.filter((h) => h.miss).length;

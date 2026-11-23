@@ -45,14 +45,29 @@ export function coldArms(v = 2): Arm[] {
   });
 }
 
-// Evidence fades toward the cold prior, not past it: a model with no outcomes never looks learned.
-export function decayArms(arms: Arm[], dtMs: number) {
-  if (dtMs <= 0) return;
-  const f = 0.5 ** (dtMs / HALF_LIFE), cold = coldArms();
-  arms.forEach((arm, a) => {
-    for (let k = 0; k < D * D; k++) arm.A[k] = cold[a].A[k] + f * (arm.A[k] - cold[a].A[k]);
-    for (let i = 0; i < D; i++) arm.b[i] = cold[a].b[i] + f * (arm.b[i] - cold[a].b[i]);
+// Part arms, with no prior (partIdx order): each hour's theta is its own plus LAMBDA_PART times its part's (prepare), so a part's evidence
+// reaches hours with none of their own. Tuned on the paired bench; a kind x part pool was tried and broke the focus gates (load, buffer, lead).
+export const PARTS = 4;
+export const LAMBDA_PART = 0.5;
+export function coldParts(): Arm[] {
+  return Array.from({ length: PARTS }, () => {
+    const A = new Array(D * D).fill(0);
+    for (let i = 0; i < D; i++) A[i * D + i] = LAMBDA;
+    return { A, b: new Array(D).fill(0) };
   });
+}
+
+const decayTo = (arm: Arm, cold: Arm, f: number) => {
+  for (let k = 0; k < D * D; k++) arm.A[k] = cold.A[k] + f * (arm.A[k] - cold.A[k]);
+  for (let i = 0; i < D; i++) arm.b[i] = cold.b[i] + f * (arm.b[i] - cold.b[i]);
+};
+
+// Evidence fades toward the cold prior, not past it: a model with no outcomes never looks learned.
+export function decayArms(arms: Arm[], dtMs: number, parts?: Arm[]) {
+  if (dtMs <= 0) return;
+  const f = 0.5 ** (dtMs / HALF_LIFE), cold = coldArms(), cp = coldParts();
+  arms.forEach((arm, a) => decayTo(arm, cold[a], f));
+  parts?.forEach((arm, p) => decayTo(arm, cp[p], f));
 }
 
 /** Feature i of a layout with k0 kinds, in this layout: kinds keep their place, the blocks after them shift. */
@@ -120,13 +135,20 @@ function invert(A: number[]): number[] {
 
 export interface Prepared { theta: Float64Array[]; inv: Float64Array[] }
 
-export function prepare(arms: Arm[]): Prepared {
+const thetaOf = (arm: Arm, inv: Float64Array) => {
+  const th = new Float64Array(D);
+  for (let i = 0; i < D; i++) { let s = 0; for (let j = 0; j < D; j++) s += inv[i * D + j] * arm.b[j]; th[i] = s; }
+  return th;
+};
+
+/** theta of each hour arm: its own, plus LAMBDA_PART times its part's (partOf maps hour arm to part). The width stays the hour arm's. */
+export function prepare(arms: Arm[], parts?: Arm[], partOf?: number[]): Prepared {
   const inv = arms.map((a) => Float64Array.from(invert(a.A)));
-  const theta = arms.map((a, k) => {
-    const th = new Float64Array(D);
-    for (let i = 0; i < D; i++) { let s = 0; for (let j = 0; j < D; j++) s += inv[k][i * D + j] * a.b[j]; th[i] = s; }
-    return th;
-  });
+  const theta = arms.map((a, k) => thetaOf(a, inv[k]));
+  if (parts && partOf) {
+    const pt = parts.map((p) => thetaOf(p, Float64Array.from(invert(p.A))));
+    theta.forEach((th, h) => { const q = pt[partOf[h]]; for (let i = 0; i < D; i++) th[i] += LAMBDA_PART * q[i]; });
+  }
   return { theta, inv };
 }
 

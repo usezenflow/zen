@@ -1,14 +1,17 @@
 import type { Kind, Reason, Rule } from "../lib/types";
-import { type Arm, KINDS, D, coldArms, fitArms, mapFeat } from "./linucb";
+import { type Arm, KINDS, D, coldArms, coldParts, fitArms, mapFeat } from "./linucb";
 import type { PartName } from "../lib/parts";
 
 export interface Hist { vec: number[]; hour: number; r: number; at: number; miss?: true } // miss: the planner saw a block pass undone, not a move you made
+// A guess about you from one drag to another part of the day ("việc học để chiều"): n consistent drags, and whether you settled it (Luôn vậy: rule; Chỉ lần này: off).
+export interface Hyp { kind: Kind; part: number; n: number; state: "new" | "rule" | "off"; at: number }
 export interface Placed { arm: number; x: number[]; start: number; policy?: string; at?: number; moved?: boolean; why?: Reason[]; alt?: number; explore?: boolean; missCharged?: number /* the missed start already charged: a stale block is not charged twice */ }
 
 // Plain JSON, safe to store as-is.
 export interface Model {
   at: number;
   arms: Arm[];
+  parts?: Arm[]; // the pooled arms (linucb coldParts): per part of the day, then per kind x part; evidence shared by the hours they cover
   matrix?: number[]; // legacy heuristic cells; no longer read or written
   slip: Record<Kind, { later: number; placed: number }>;
   hist: Hist[];
@@ -25,6 +28,8 @@ export interface Model {
   mix: number; // legacy A/B share; unused since linucb is the only policy
   rules?: Rule[]; // said by the user; absent on models saved before rules
   partSeen?: Partial<Record<PartName, number[]>>; // minute-of-day of done ticks for tasks whose tods named exactly one part (≤50 each)
+  hyps?: Hyp[]; // see Hyp: kept, so a second drag can promote it
+  hypNow?: Hyp; // the hypothesis the last drag gave (learn sets it, a fresh learn clears it), for the toast
   active?: { first: number; last: number; day: number }[]; // per local day (dayStart ms): minute-of-day of the first and last learn() event (≤30 days)
 }
 
@@ -32,7 +37,7 @@ export function newModel(now: number): Model {
   const slip = {} as Model["slip"];
   for (const k of KINDS) slip[k] = { later: 0, placed: 0 };
   return {
-    at: now, arms: coldArms(), slip,
+    at: now, arms: coldArms(), parts: coldParts(), slip,
     hist: [], doneHours: [], moved: [], efforts: [], placed: {}, mix: 1, rules: [], prior: 2,
   };
 }
@@ -48,6 +53,7 @@ export function afterBuffer(m: Model): number {
 /** A saved model from an older layout (fewer kinds): arms, slip counts and placed feature rows move onto this one. */
 export function migrateModel(m: Model): Model {
   m.arms = fitArms(m.arms);
+  m.parts ??= coldParts();
   for (const k of KINDS) m.slip[k] ??= { later: 0, placed: 0 };
   m.moved ??= [];
   m.partSeen ??= {};

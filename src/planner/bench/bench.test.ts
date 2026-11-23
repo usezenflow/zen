@@ -14,7 +14,8 @@ const TIMEOUT = 120_000;
 // column name, metric, value a run that never converges or adapts takes for the display (undefined metric: left out)
 const COLS: [string, (m: Metrics) => number | null | undefined, number?][] = [
   ["keepRate", (m) => m.keepRate], ["earlyKeep", (m) => m.earlyKeep], ["lateKeep", (m) => m.lateKeep], ["coldKeep", (m) => m.coldKeep],
-  ["tapsPerDay", (m) => m.tapsPerDay], ["touchesPerDay", (m) => m.touchesPerDay], ["movesPerDay", (m) => m.movesPerDay],
+  ["tapsPerDay", (m) => m.tapsPerDay], ["dragsPerDay", (m) => m.dragsPerDay], ["dragsToLearn", (m) => m.dragsToLearn], ["transferKeep", (m) => m.transferKeep],
+  ["touchesPerDay", (m) => m.touchesPerDay], ["movesPerDay", (m) => m.movesPerDay],
   ["churn", (m) => m.churn], ["surpriseMoves", (m) => m.surpriseMoves], ["overdueMoves", (m) => m.overdueMoves], ["regretH", (m) => m.regretH],
   ["overloadDays", (m) => m.overloadDays], ["lateRate", (m) => m.lateRate], ["deadlineSlackH", (m) => m.deadlineSlackH],
   ["convergeDay", (m) => m.convergeDay, NEVER], ["adaptDays", (m) => m.adaptDays, NEVER],

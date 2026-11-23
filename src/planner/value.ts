@@ -15,7 +15,7 @@ export interface Piece {
   soon?: boolean; // missed or "later": without a deadline, aim within 2 days, not a week
   ask?: { from?: number; to: number }; // the window said, when it was too packed and the task ran on past it
   cut?: number; // the guessed length, when it was shrunk to fit what is free
-  gap?: { from: number; to: number }; // a pull: the freed time it may take, and only earlier than its prior (unscheduled: a start inside it)
+  gaps?: { from: number; to: number }[]; // a pull: the freed times it may take, and only earlier than its prior (unscheduled: a start inside one)
   avoid?: { from: number; to: number }[]; // slots the user just set a task off by hand: a start over one costs more (moveCost)
   slow?: number; // a guessed length ran past the guess for this kind (fallacy, habits.ts): the length is said so, never a number
   aim?: number; // where in the window this kind is aimed, learned (aimOf, habits.ts); SOFT_AIM when cold
@@ -48,14 +48,14 @@ export function bell(p: Piece, now: number, start: number): number {
 // or worse, so it loses anyway. Inside the score so every solver move pays it.
 // A pull (freed time): a zen-placed piece may take only a start inside the gap, or stay at its prior; an unscheduled one takes any cell,
 // with the gap as a bonus. A start inside the gap is the cause itself, so free; staying put costs one, as a move would.
-const inGap = (p: Piece, start: number) => !!p.gap && start >= p.gap.from && start + dur(p) <= p.gap.to;
-export const pullOk = (p: Piece, start: number) => !p.gap || p.prior === undefined || start === p.prior || inGap(p, start);
+const inGap = (p: Piece, start: number) => !!p.gaps?.some((g) => start >= g.from && start + dur(p) <= g.to);
+export const pullOk = (p: Piece, start: number) => !p.gaps || p.prior === undefined || start === p.prior || inGap(p, start);
 // Soft: a start over a slot the user just left costs 2; an earlier move than its prior costs 0.5 more (drags teach the hour, this keeps the day).
 export const moveCost = (p: Piece, start: number, _now: number) => {
   const hit = ((p.avoid ?? []).some((v) => start < v.to && start + dur(p) > v.from) ? 2 : 0);
-  if (p.gap && p.prior === undefined) return (inGap(p, start) ? 0 : 1) + hit;
+  if (p.gaps && p.prior === undefined) return (inGap(p, start) ? 0 : 1) + hit;
   if (inGap(p, start)) return hit;
-  if (p.prior === undefined || p.prior === start) return (p.gap ? 1 : 0) + hit;
+  if (p.prior === undefined || p.prior === start) return (p.gaps ? 1 : 0) + hit;
   return 1 + hit + (0.5 * Math.min(Math.abs(start - p.prior), 7 * DAY)) / DAY + (start < p.prior ? 0.5 : 0);
 };
 

@@ -1,4 +1,4 @@
-import { HOUR } from "../features";
+import { HOUR, partIdx } from "../features";
 import type { Act, Log, Resp } from "./sim";
 
 /** The keep rule: a placement counts as kept when the persona accepted it (kept or ticked) without a drag, a later, a delete or an ignore. The app can reuse it. */
@@ -15,6 +15,7 @@ export interface Metrics {
   outsideShare: number; bufferShare: number; keepTod: number | null; keepDated: number | null; keepErrand: number | null;
   switchesPerDay: number; lenErrMin: number | null; missBand: number | null; leadShare: number | null;
   overdueMoves: number; // a run's count: Zen moves on tasks already past their deadline
+  dragsPerDay: number; dragsToLearn: number | null; transferKeep: number | null; // a dislike or packed morning: drags until the last unwanted start, and keep rate on unseen hours of the parts learned
 }
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
@@ -62,8 +63,23 @@ export function score(log: Log): Metrics {
     lenErrMin: log.lenErr.length ? mean(log.lenErr) : null, // lenErr is in minutes
     missBand: band.length ? band.filter((r) => r.act === "ignore").length / band.length : null,
     overdueMoves: log.overdueMoves,
+    dragsPerDay: sum((d) => d.drags) / days,
+    ...learnStats(log),
     leadShare: dated_.length ? dated_.filter((r) => r.start - r.created <= 0.8 * (r.deadline! - r.created)).length / dated_.length : null,
   };
+}
+
+/** Drags until the last day with a start the persona must learn away from (null for a persona with none), and the keep rate on the
+ * hours of those parts it had not yet been taught by then (a null, when nothing was placed there, counts as 1: nothing wrong was kept). */
+function learnStats(log: Log): Pick<Metrics, "dragsToLearn" | "transferKeep"> {
+  const { unwanted, unwantedHours, daily, resps, days } = log;
+  if (unwanted.every((x) => x === 0)) return { dragsToLearn: null, transferKeep: null };
+  let last = -1;
+  unwanted.forEach((x, d) => { if (x > 0) last = d; });
+  const dragsToLearn = daily.filter((d) => d.day <= last).reduce((s, d) => s + d.drags, 0);
+  const parts = new Set([...unwantedHours.keys()].map((h) => partIdx(h % 24)));
+  const unseen = resps.filter((r) => r.day >= days / 2 && parts.has(partIdx(r.hour % 24)) && !((unwantedHours.get(Math.floor(r.hour)) ?? Infinity) < r.day));
+  return { dragsToLearn, transferKeep: rateOrNull(unseen) ?? 1 };
 }
 
 /** First day d such that the 5-day rolling keep rate (windows of at least 3 replies) stays at 0.75 or more from d to the end; null if none. */

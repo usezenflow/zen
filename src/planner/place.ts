@@ -77,7 +77,7 @@ export function cells(p: Piece, now: number, rest?: Rest): number[] {
   // The whole task ends by notAfter; a window already gone is dropped, so the task takes the next free slot, not a forced one at `now`.
   if (t.notAfter !== undefined && t.notAfter - dur(p) + 1 > lo) hi = Math.min(hi, t.notAfter - dur(p) + 1);
   // A pull: its prior stays a cell (the solver takes it only if it cannot move into the gap, see pullOk).
-  if (p.gap && p.prior !== undefined) hi = Math.max(hi, p.prior + 1);
+  if (p.gaps && p.prior !== undefined) hi = Math.max(hi, p.prior + 1);
   const out: number[] = [];
   for (let c = lo; c < hi; c += STEP) if (!afterClass(p, c, rest)) out.push(c);
   return out;
@@ -300,6 +300,6 @@ export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
     if (full(back) >= full(S) - 1e-6) S = back;
   }
   // A pull piece that found no cell keeps its prior slot when that is still free: a pull never leaves a placed task unplaced.
-  for (let i = 0; i < n; i++) if (S[i] < 0 && pieces[i].gap && pieces[i].prior !== undefined && fits(i, pieces[i].prior!, S)) S[i] = pieces[i].prior!;
+  for (let i = 0; i < n; i++) if (S[i] < 0 && pieces[i].gaps && pieces[i].prior !== undefined && fits(i, pieces[i].prior!, S)) S[i] = pieces[i].prior!;
   return { starts: new Map(pieces.map((p, i) => [p.id, S[i]])), score: full(S), greedyScore, log };
 }

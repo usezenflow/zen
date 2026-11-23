@@ -24,6 +24,8 @@ export interface Persona {
   noise?: number; // chaotic control: share of replies that are random
   capJitter?: number; // capacity varies by ±this share each day (default 0.2)
   hate?: { from: number; to: number }; // hours it always ignores, never drags off (focus: missed)
+  dislike?: { from: number; to: number }; // hours it never keeps a start in, and drags the start off (no mornings)
+  packedMorning?: number; // from this many tasks already set in the morning, it drags a morning start later (drag later when morning packed)
   batch?: Kind; // it keeps a task of this kind only next to another one of it within an hour (focus: group)
   leadFrac?: number; // it keeps a dated task only when this share of its window is still left (focus: lead)
   holidays?: number[]; // day indices off: no new tasks, and capacity is holidayCapacity (default half)
@@ -159,6 +161,34 @@ export const PERSONAS: Persona[] = [
       { title: "Làm báo cáo", kind: "work", effort: 60, dueInDays: [2, 8], perWeek: 2 },
       { title: "Ôn tập Giải tích", kind: "study", effort: 60, effortGuessed: true, dueInDays: [3, 10], perWeek: 2 },
       { title: "Đi bộ", kind: "exercise", effort: 30, perWeek: 2 },
+    ],
+  },
+  {
+    // Never works 5–12h, for any kind: every start there is dragged to the afternoon or evening. The planner has to learn the part, not each hour.
+    name: "noMornings", wake: 7, sleep: 23, opens: [8, 11, 14, 17.5, 21], spread: 2, deadlineStyle: "even", buffer: 0, capacity: 6, ignoreP: 0.2,
+    dislike: { from: 5, to: 12 },
+    pref: { study: 16, work: 15, chores: 17, errand: 15, exercise: 17, social: 19, self: 20, finance: 14, other: 16 },
+    fallacy: {},
+    mix: [
+      { title: "Làm báo cáo", kind: "work", effort: 60, perWeek: 3 },
+      { title: "Ôn tập Giải tích", kind: "study", effort: 60, perWeek: 3 },
+      { title: "Dọn phòng", kind: "chores", effort: 30, perWeek: 2 },
+      { title: "Đi chợ", kind: "errand", effort: 30, perWeek: 2 },
+      { title: "Tập gym", kind: "exercise", effort: 45, perWeek: 2 },
+    ],
+  },
+  {
+    // Work in the morning is fine until two tasks already sit there; then it drags the next morning start to the afternoon.
+    name: "packedMorning", wake: 7, sleep: 23, opens: [7.5, 9.5, 12, 15, 19.5], spread: 2, deadlineStyle: "even", buffer: 0, capacity: 6, ignoreP: 0.2,
+    packedMorning: 2,
+    pref: { study: 9, work: 10, chores: 16, errand: 15, exercise: 17, social: 19, self: 20, finance: 14, other: 15 },
+    fallacy: {},
+    mix: [
+      { title: "Làm báo cáo", kind: "work", effort: 60, perWeek: 6 },
+      { title: "Ôn tập Giải tích", kind: "study", effort: 60, perWeek: 6 },
+      { title: "Dọn phòng", kind: "chores", effort: 30, perWeek: 3 },
+      { title: "Đi chợ", kind: "errand", effort: 30, perWeek: 2 },
+      { title: "Tập gym", kind: "exercise", effort: 45, perWeek: 2 },
     ],
   },
   {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { D, I_AFTER, I_ENERGY, energy } from "./features";
 import { grounded } from "./grounded";
-import { dayWords, insights } from "./insights";
+import { insights } from "./insights";
 import { update } from "./linucb";
 import { learn, newModel, plan } from "./index";
 
@@ -22,7 +22,7 @@ describe("insights", () => {
     const two = newModel(now); two.doneHours.push({ hour: 20.3, at: at(20) }, { hour: 21.5, at: at(21) });
     expect(insights(two, now).early).toBeUndefined(); // two things are not a habit
     two.doneHours.push({ hour: 20.6, at: at(20) });
-    expect(insights(two, now).guesses).toContainEqual({ text: "Bạn hay làm việc lúc 20h-22h", sure: 0.3 });
+    expect(insights(two, now).early).toMatchObject({ from: 20, to: 22 }); // the data holds; the words are the rhythm's to say
     // two weeks old says nothing; scattered hours name no range
     expect(insights(m, now + 20 * 86400000).seen).toBe(0); expect(insights(m, now + 20 * 86400000).early).toBeUndefined();
     const s = newModel(now);
@@ -39,33 +39,28 @@ describe("insights", () => {
     expect(i.golden).toMatchObject({ from: 20, to: 22 });
     expect(i.golden!.sure).toBeGreaterThan(0.4);
     expect(i.early).toBeUndefined();
-    expect(i.guesses[0].text).toBe("Tối hầu hết các ngày bạn làm tốt nhất, quanh 20h-22h"); // five days, said in the words of the week
-    expect(i.weekly).toBeUndefined(); // five is a guess, not yet a Sunday sentence
     for (let d = 5; d < 13; d++) m.doneHours.push({ hour: 21, at: at(d % 13, 21) });
     expect(insights(m, now).golden!.sure).toBeGreaterThanOrEqual(0.55); // week-old evidence counts for less
-    expect(insights(m, now).weekly).toMatch(/^Bạn làm việc hợp nhất vào tối/);
   });
   it("says nothing when cold", () => {
     const i = insights(newModel(now), now);
     expect(i.golden).toBeUndefined();
     expect(i.pairs).toEqual([]);
-    expect(i.guesses).toEqual([]);
-    expect(i.weekly).toBeUndefined();
+    expect(i.learned).toEqual([]);
   });
   it("stays silent on a model with no outcomes after 6 mornings of planning", () => {
     let m = newModel(now);
     for (let d = 0; d < 6; d++) { const t = now + d * 86400000; m = plan([], [], m, t).model; }
     const i = insights(m, now + 6 * 86400000);
     expect(i.golden).toBeUndefined();
-    expect(i.guesses).toEqual([]);
-    expect(i.weekly).toBeUndefined();
+    expect(i.learned).toEqual([]);
   });
   it("does not name a golden range from a few outcomes", () => {
     const m = newModel(now);
     for (let n = 0; n < 5; n++) for (const h of [8, 9, 10]) { const x = new Array(D).fill(0); x[0] = 1; x[I_ENERGY] = energy(h + 0.5, 15); update(m.arms[h], x, 1); }
     const i = insights(m, now);
     expect(i.golden).toBeUndefined();
-    expect(i.weekly).toBeUndefined();
+    expect(i.learned).toEqual([]);
   });
   it("finds the golden window after rewards on arms 8-10", () => {
     const m = newModel(now);
@@ -73,7 +68,6 @@ describe("insights", () => {
     const i = insights(m, now);
     expect(i.golden!.from).toBeLessThanOrEqual(9);
     expect(i.golden!.to).toBeGreaterThanOrEqual(11);
-    expect(i.weekly).toMatch(/^Bạn/);
   });
   it("learns the best hours for a kind", () => {
     const m = newModel(now);
@@ -81,7 +75,7 @@ describe("insights", () => {
     const k = insights(m, now).byKind.find((e) => e.kind === "study")!;
     expect(k.from).toBeGreaterThanOrEqual(7);
     expect(k.from).toBeLessThanOrEqual(8);
-    expect(insights(m, now).weekly).toMatch(/hợp nhất vào buổi/);
+    expect(insights(m, now).learned).toContainEqual(expect.objectContaining({ text: "Việc học hợp buổi sáng" })); // a part, never a weekday
   });
   it("reports slip and pairs once learned", () => {
     const m = newModel(now);
@@ -184,12 +178,6 @@ describe("the week, as a person says it", () => {
     expect(i.grid).toHaveLength(7);
     expect(Math.max(...i.grid.flat())).toBe(1);
     expect(i.when).toMatchObject({ part: 0 });
-  });
-  it("says days as people do", () => {
-    expect(dayWords([1, 2, 3, 4, 5])).toBe("ngày thường");
-    expect(dayWords([0, 6])).toBe("cuối tuần");
-    expect(dayWords([2, 4])).toBe("T3, T5");
-    expect(dayWords([0, 1, 2, 3, 4, 5, 6])).toBe("mọi ngày");
   });
   it("a drag to another day and part moves a reason's claim: stale ones are dropped", () => {
     const r = { key: "hour" as const, w: 1, vars: { hour: 9, n: 4, pn: "sáng", dt: "ngày thường" } };

@@ -22,6 +22,8 @@ export interface Log {
   surprises: Surprise[];
   overdueMoves: number; // Zen moves of a start still ahead on a task whose deadline had already passed
   shiftDay?: number;
+  unwanted: number[]; // per day: reactions to a start the persona dislikes (dislike band, or a packed morning): the placements it must learn away from
+  unwantedHours: Map<number, number>; // the hours (floor) those unwanted starts were at, and the first day of each
 }
 
 const dayOf = (d: number) => new Date(2026, 10, 16 + d).getTime(); // day 0 is Monday 16/11/2026, local time
@@ -43,6 +45,7 @@ export function run(p: Persona, { days = p.days ?? 30, seed = 1 } = {}): Log {
   const log: Log = {
     persona: p.name, seed, days, end: dayOf(days), resps: [], daily: [], tasks, parents: new Set(), zen: new Map(), placed: new Set(),
     placements: 0, outside: 0, bufferHits: 0, lenErr: [], surprises: [], overdueMoves: 0, shiftDay: p.shift?.day,
+    unwanted: new Array(days).fill(0), unwantedHours: new Map(),
   };
   let n = 0, pull: { from: number; to: number } | undefined;
   let day = 0, accepted = 0, capT = p.capacity;
@@ -150,6 +153,12 @@ export function run(p: Persona, { days = p.days ?? 30, seed = 1 } = {}): Log {
     const tired = r() < Math.min(0.9, Math.max(0, (load - 0.6) / 0.6));
     // A dated task is kept only when placed in the first 80% of its window (lead focus); otherwise it waits.
     const lead = p.leadFrac === undefined || !dated || (start - t.createdAt) <= p.leadFrac * (t.deadline! - t.createdAt);
+    // A dislike is a start the persona must learn away from (it is never kept): every hour of its band, or a morning start while the morning is packed.
+    const disliked = p.dislike !== undefined && h >= p.dislike.from && h < p.dislike.to;
+    const dayOfNow = dayStart(now), morningN = p.packedMorning === undefined || h >= 12 ? 0 : tasks.filter((x) => x !== t && !x.fixed && x.start !== undefined && x.start >= dayOfNow && x.start < dayOfNow + 12 * HOUR && hourOf(x.start) < 12 && !x.doneAt && !x.deletedAt && !log.parents.has(x.id)).length;
+    const packed = p.packedMorning !== undefined && h < 12 && morningN >= p.packedMorning;
+    if ((disliked || packed) && !log.unwantedHours.has(Math.floor(h))) log.unwantedHours.set(Math.floor(h), day);
+    if (disliked || packed) log.unwanted[day]++;
     if (!lead || ((tired || full) && r() < 0.5)) { // postponed when tired or over capacity, or placed too late in its window
       model = learn(model, { id: sid(), taskId: id, type: "later", at: now }, t, true);
       laters++; rec("later"); replan(now, { later: id }); return;
@@ -160,7 +169,7 @@ export function run(p: Persona, { days = p.days ?? 30, seed = 1 } = {}): Log {
     const near = dated && p.deadlineStyle === "late" && left <= 2;
     const batched = p.batch === undefined || t.kind !== p.batch || tasks.some((x) => x !== t && x.kind === p.batch && !x.doneAt && !x.deletedAt && x.start !== undefined && Math.abs(x.start - start) <= HOUR);
     const hated = p.hate !== undefined && h >= p.hate.from && h < p.hate.to;
-    const fits = inside && !buffered && !full && batched && !hated;
+    const fits = inside && !buffered && !full && batched && !hated && !disliked && !packed;
     const chaos = p.noise !== undefined && r() < p.noise;
     const ok = !tooLate && (chaos ? fits && r() < 0.5 : fits && (near || Math.abs(h - pref) <= p.spread));
     if (ok) {

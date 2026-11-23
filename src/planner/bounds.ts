@@ -19,6 +19,11 @@ export function boundsOf(m: Model): Bounds {
     const lo = clamp(q(xs, 0.1) - PAD, a - REACH, b + REACH), hi = clamp(q(xs, 0.9) + PAD, a - REACH, Math.min(b + REACH, 24 * 60)); // a part never crosses midnight
     return [Math.min(a, lo), Math.max(b, hi)];
   });
+  // Two learned parts that widen into each other both keep their default edge: a part never overlaps the next one.
+  for (let k = 1; k < parts.length; k++) {
+    const edge = PARTS[k][0];
+    if (parts[k - 1][1] > parts[k][0]) { parts[k - 1] = [parts[k - 1][0], edge]; parts[k] = [edge, parts[k][1]]; }
+  }
   const days = m.active ?? [];
   if (days.length < MIN_DAYS) return { parts, from: WAKE_FROM, to: WAKE_TO };
   // the awake window only expands: it stops forbidding hours the user really works in. shortcut: awake end capped at 24:00, since a piece never crosses midnight (place.ts).

@@ -1,6 +1,8 @@
 import type { Kind, Task } from "../lib/types";
 import { DAY, hourOf, type Nb } from "./features";
-import type { Model } from "./model";
+import { type Hyp, type Model } from "./model";
+import { coldArms, coldParts } from "./linucb";
+import { partIdx } from "./features";
 import { snapGuess } from "../lib/nlu/size";
 
 const KIND_EFFORT: Record<Kind, number> = { study: 60, exercise: 60, chores: 30, social: 90, other: 30, work: 60, errand: 30, finance: 30, self: 30 };
@@ -65,6 +67,44 @@ export function leadSample(m: Model, task: Task, finish: number): void {
   if (span <= 0) return;
   const l = (m.lead ??= {}), s = [...(l[task.kind] ?? []), Math.min(1, Math.max(0, (task.deadline - finish) / span))];
   l[task.kind] = s.slice(-20);
+}
+
+// One drag to another part of the day is a hypothesis about its kind. Only a note: the pooled arms learn from the drag itself.
+// A second consistent drag makes it a rule; a settled "off" (Chỉ lần này) is never promoted.
+export function noteHyp(m: Model, kind: Kind, from: number, to: number, at: number): Hyp | undefined {
+  const part = partIdx(to);
+  if (partIdx(from) === part) return undefined;
+  const hs = (m.hyps ??= []);
+  let h = hs.find((x) => x.kind === kind && x.part === part);
+  if (!h) hs.push(h = { kind, part, n: 0, state: "new", at });
+  if (h.state === "off") return h;
+  h.n += 1; h.at = at;
+  if (h.state === "new" && h.n >= 2) h.state = "rule";
+  return h;
+}
+
+/** Luôn vậy ("rule") or Chỉ lần này ("off") on a hypothesis. */
+export function settleHyp(m: Model, kind: Kind, part: number, state: "rule" | "off"): void {
+  const h = m.hyps?.find((x) => x.kind === kind && x.part === part);
+  if (h) h.state = state;
+}
+
+/** Forget what was learned for an hour (its arm and drags) or a part of the day (its part arm, its drags, and its hypotheses, switched off). */
+export function forgetWhen(m: Model, when: { hour: number } | { part: number }): void {
+  if ("hour" in when) {
+    m.arms[when.hour] = coldArms()[when.hour];
+    m.left = (m.left ?? []).filter((x) => Math.floor(x.hour) !== when.hour);
+    return;
+  }
+  m.parts![when.part] = coldParts()[when.part];
+  m.left = (m.left ?? []).filter((x) => partIdx(x.hour) !== when.part);
+  for (const h of m.hyps ?? []) if (h.part === when.part) h.state = "off";
+}
+
+// Late hours (21–23h) you dragged work off: their mean learned intercept sits below the cold prior (one hour is not the rule).
+export function lateDragged(m: Model): boolean {
+  const cold = coldArms();
+  return [21, 22, 23].reduce((s, h) => s + (m.arms[h].b[0] - cold[h].b[0]), 0) < 0;
 }
 
 // Share of placements of this kind the user pushed later.

@@ -1,7 +1,7 @@
 import type { Diff, Placement, Reason, ReasonKey, Step, Task, TaskEvent, TaskType, Warn } from "../lib/types";
 import { DAY, HOUR, I_AFTER, I_ENERGY, I_SIM, KINDS, MIN, PART4, type FeatCtx, cdist, dayStart, dayType, dueOf, features, hourOf, partIdx } from "./features";
-import { aimOf, effort, fallacy, leadSample, neighbors, peakHour, slipOf } from "./habits";
-import { ALPHA, D, LAMBDA, N0, type Primed, coldArms, decayArms, prepare, primeBatch, ucb, ucbAt, update } from "./linucb";
+import { aimOf, effort, fallacy, leadSample, lateDragged, neighbors, noteHyp, peakHour, slipOf } from "./habits";
+import { ALPHA, ARMS, D, LAMBDA, N0, type Primed, coldParts, decayArms, prepare, primeBatch, ucb, ucbAt, update } from "./linucb";
 import { grounded } from "./grounded";
 import { type Model, afterBuffer, newModel } from "./model";
 import { PART_NAMES } from "../lib/parts";
@@ -12,10 +12,16 @@ import { minSitting, split } from "./split";
 import { type Piece, bell, dur, lateH, moveCost, pullOk, startValue } from "./value";
 import { snapGuess } from "../lib/nlu/size";
 import { capOf } from "../lib/rest";
+import { TPL as tpl } from "../lib/i18n"; // the insight sentences live in i18n.ts
 
 const LONG_SITTING = 180; // near a deadline sittings merge up to this; longer work still splits
 
-export interface Opts { later?: string; hourOnly?: boolean; pull?: { from: number; to: number }; avoid?: { from: number; to: number }[] } // pull: time freed by a done or delete, from its start (or now) to its end; avoid: slots the user just left by hand
+type Gap = { from: number; to: number };
+export interface Opts { later?: string; hourOnly?: boolean; pull?: Gap | Gap[]; avoid?: { from: number; to: number }[] } // pull: time freed by a done or delete (one gap or several), from its start (or now) to its end; avoid: slots the user just left by hand
+/** A block that ended this long ago is still busy (the user may be finishing it); missed after. */
+export const GRACE = 15 * MIN;
+/** A time set by hand is busy only until its hold ends or its start passes (then a preference the planner may move). */
+export const holding = (t: Task, now: number) => t.holdUntil !== undefined && now < Math.min(t.holdUntil, t.start ?? -Infinity);
 
 const HALF = 21 * DAY;
 const COLD_A0 = LAMBDA + N0;
@@ -30,7 +36,7 @@ const sized = (t: Task, m: number) => (!t.effortGuessed ? m : snapGuess(m)); // 
 function decay(m: Model, now: number) {
   const dt = now - m.at;
   if (dt <= 0) return;
-  decayArms(m.arms, dt);
+  decayArms(m.arms, dt, m.parts);
   const g = 0.5 ** (dt / HALF);
   for (const k of KINDS) { m.slip[k].later *= g; m.slip[k].placed *= g; }
   m.at = now;
@@ -38,17 +44,12 @@ function decay(m: Model, now: number) {
 
 /** A replan of a task whose block ended unfinished (pl.from is its stored start): one more miss. From the third, a guessed length shrinks a step (never below 15, never a said one). */
 export function missedReplan(t: Task, pl: { start: number; end: number; from?: number }, now: number): { misses: number; effort?: number } | undefined {
-  if (t.start === undefined || t.end === undefined || t.end > now || pl.from !== t.start) return undefined;
+  if (t.start === undefined || t.end === undefined || t.end + GRACE > now || pl.from !== t.start) return undefined;
   const misses = (t.misses ?? 0) + 1;
   // effort only when it shrinks: an unshrunk block keeps its exact end (a fractional length is not rounded)
   return { misses, ...(misses >= 3 && t.effortGuessed && t.deadline === undefined ? { effort: Math.max(15, snapGuess(Math.round((pl.end - pl.start) / MIN) - 30)) } : {}) };
 }
 
-const tpl = {
-  after: ["{prev} xong thì {what} nhé", "{title} dời sang {time}"], // cascade "Habit": "Tập thể dục xong thì đọc sách nhé"
-  similar: ["{title} dời sang {time}", "Hợp giờ bạn hay làm việc tương tự"],
-  slip: ["{title} được xếp sớm hơn, lúc {time}", "Bạn hay dời lại việc {kind}"],
-};
 const KIND_VI: Record<string, string> = { study: "học", exercise: "tập thể dục", chores: "làm việc nhà", social: "gặp gỡ", other: "làm việc khác", work: "làm việc", errand: "làm việc vặt", finance: "lo chuyện tiền", self: "chăm bản thân" };
 
 export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opts: Opts = {}): { diff: Diff; model: Model } {
@@ -67,8 +68,8 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
   const fixedEnds: End[] = [];
   const flex: Task[] = [];
   for (const t of live) {
-    const inProgress = t.start !== undefined && t.end !== undefined && t.start <= now && now < t.end && opts.later !== t.id; // "later" on the running task moves it
-    if ((t.fixed || t.pinned || inProgress) && t.start !== undefined && t.end !== undefined) {
+    const inProgress = t.start !== undefined && t.end !== undefined && t.start <= now && now < t.end + GRACE && opts.later !== t.id; // "later" on the running task moves it; a block just ended stays busy through its grace
+    if ((t.fixed || t.pinned || inProgress || holding(t, now)) && t.start !== undefined && t.end !== undefined) {
       allBusy.push({ start: t.start, end: t.end, title: t.title });
       fixedEnds.push({ kind: t.kind, end: t.end });
     } else if (!t.fixed) flex.push(t);
@@ -91,6 +92,7 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
   const ix = (t: Task) => Number(t.id.slice(t.id.lastIndexOf("#") + 1)) || 0; // "p#10" after "p#9", not between 1 and 2
   const pieces: Piece[] = [];
   const splits: Diff["split"] = [];
+  const lateBad = lateDragged(m); // you dragged work off the late hours: the rest of the part past the said window is not offered
   // A said window's end ("trong hôm nay", notAfter) bounds the work as a due does; a repeat's window is per day, not an end.
   const endOf = (t: Task) => t.deadline ?? (t.rrule ? undefined : t.notAfter);
   const mk = (task: Task, eff: number, k: number, n: number, prior?: number, missed?: number): Piece => ({
@@ -111,7 +113,7 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
     }
     return Math.max(best, end - s) / MIN;
   };
-  const lost = (t: Task) => (t.start !== undefined && t.end !== undefined && t.end <= now ? t.start : undefined);
+  const lost = (t: Task) => (t.start !== undefined && t.end !== undefined && t.end + GRACE <= now ? t.start : undefined);
   for (let t of flex) {
     if (t.parentId) continue;
     // An exam's prep is done by 22:00 the evening before, never the morning of, unless that leaves no time at all.
@@ -153,13 +155,12 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
         const same = off >= 1 && j === i, a = same ? sm : B.parts[off === 0 && j === i + 1 ? i : j][0], e = same ? Math.min(B.parts[j][1], (ask.to - D) / MIN) : B.parts[j][1];
         return { ...t, tods: [[a, e]], notBefore: D + off * DAY + a * MIN, notAfter: D + off * DAY + e * MIN };
       };
-      const lateBad = [22, 23].some((h) => m.arms[h].b[0] < coldArms()[h].b[0]); // you dragged work off the late hours: the rest of the part past the said window is not offered
       // the said window can be narrower than its part (tối said as 18-22 is 18-24): the rest of the same part comes first, then the next one
       const order: [number, number][] = i < 0 ? [] : [...(lateBad && B.parts[i][1] > (ask.to - D) / MIN ? [] : [[0, i] as [number, number]]), [0, i + 1], [1, i], [1, i + 1], [0, i - 1]];
       const hit = order.find(([off, j]) => B.parts[j] && D + off * DAY + B.parts[j][1] * MIN > now && (widest(part(off, j)) ?? -1) >= need);
       if (hit) {
         // a late hour may move to tomorrow's said part, but only once the user has dragged work off it (learned below the cold prior); the solver picks by value
-        const [off, j] = hit, late = off === 0 && j > i && B.parts[j][0] >= 18 * 60 && [22, 23].some((h) => m.arms[h].b[0] < coldArms()[h].b[0]);
+        const [off, j] = hit, late = off === 0 && j > i && B.parts[j][0] >= 18 * 60 && lateBad;
         t = late ? { ...t, tods: [[B.parts[i][0], B.parts[j][1]]], notBefore: D + B.parts[i][0] * MIN, notAfter: D + DAY + B.parts[i][1] * MIN } : part(off, j);
       } else t = { ...t, notBefore: dayStart(now) + DAY, notAfter: dayStart(now) + 2 * DAY }; // nothing fits: the rest of tomorrow, still in the said parts
       gapMin = widest(t);
@@ -200,7 +201,7 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
   const fh = new Map<number, number>(), fixedH = (d: number) => fh.get(d) ?? (fh.set(d, fixedHours(allBusy, d)), fh.get(d)!); // once per day, not per cell
   const ctx = (p: Piece, ends: End[]): FeatCtx => ({ fixedH, peak, nb: nbs.get(p.id)!, ends });
   const xOf = (p: Piece, s: number, ends: End[]) => features(p.task, s, ctx(p, ends));
-  const prep = prepare(m.arms);
+  const prep = prepare(m.arms, m.parts, PART_OF); // each hour's theta gets its part's pooled evidence (linucb prepare)
   const seen = (a: number) => m.arms[a].A[0] - COLD_A0 >= SURE;
   const rules = m.rules ?? [];
   const hits = (p: Piece, s: number) => rules.filter((r) => {
@@ -215,13 +216,34 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
     opts.later === p.id && p.task.start !== undefined && s < p.task.start + dur(p) && s + dur(p) > p.task.start;
   // A placed piece whose slot is still good stays put. Only a cause frees it: a clash, a rule, a due date or window it would now miss, "later".
   // A pull: a piece may take the freed time only if it is unscheduled, or its start is later than the gap's (it moves earlier, never later).
-  if (opts.pull) for (const p of pieces) {
+  const pulls: Gap[] = [opts.pull ?? []].flat();
+  // Load per day (hours: lectures half, flexible work as placed now), for the cross-day pull and the overload below.
+  const loadOf = (d: number) => fixedHours(allBusy, d) + pieces.reduce((n, q) => n + (q.prior !== undefined && dayStart(q.prior) === d ? q.effort / 60 : 0), 0);
+  for (const p of pulls.length ? pieces : []) {
     const tk = p.task;
-    if (tk.fixed || tk.pinned || tk.userEdited?.includes("start")) continue;
-    const day = dayStart(opts.pull.from);
-    // Calmer: a piece in the next 24 h keeps its day, and a later day never gives its time to an earlier gap.
-    if (p.prior !== undefined && (dayStart(p.prior) > day || (p.prior < now + DAY && dayStart(p.prior) !== day))) continue;
-    if (p.prior === undefined || p.prior > opts.pull.from) p.gap = opts.pull;
+    // A hand-set time is held (legacy ones without a hold stay held); a hold that ran out is a preference again.
+    if (tk.fixed || tk.pinned || holding(tk, now) || (tk.userEdited?.includes("start") && tk.holdUntil === undefined)) continue;
+    const gaps = pulls.filter((g) => {
+      if (!(p.prior === undefined || p.prior > g.from)) return false;
+      if (p.prior === undefined) return true;
+      const day = dayStart(g.from);
+      // Calmer: a piece in the next 24 h keeps its day, and a later day never gives its time to an earlier gap (a cross-day pull moved too much: bench doubt movesPerDay).
+      if (p.prior < now + DAY && dayStart(p.prior) !== day) return false;
+      return dayStart(p.prior) <= day;
+    });
+    if (gaps.length) p.gaps = gaps;
+  }
+  // Overload is a cause: on a day past its cap, the lightest unpinned pieces with no due go unlocked (lowest load first to keep), so the solver may move them.
+  const dayLoad = new Map<number, number>();
+  for (const p of pieces) if (p.prior !== undefined) dayLoad.set(dayStart(p.prior), (dayLoad.get(dayStart(p.prior)) ?? 0) + dur(p) / HOUR);
+  const unlockOver = new Set<string>();
+  for (const d of dayLoad.keys()) {
+    let h = loadOf(d);
+    if (h <= capH(d)) continue;
+    for (const p of pieces.filter((q) => q.prior !== undefined && dayStart(q.prior) === d && !q.gaps && !q.missed && !q.task.pinned && !q.task.fixed && !q.task.userEdited?.includes("start") && dueOf(q.task) === undefined).sort((a, b) => b.effort - a.effort)) {
+      if (h <= capH(d)) break;
+      unlockOver.add(p.id); h -= dur(p) / HOUR;
+    }
   }
   const held: Busy[] = [...allBusy], own = (p: Piece) => Number(!!p.task.userEdited?.includes("start"));
   // The checks an old slot must pass to be kept: no rule, window or awake hour is broken, and nothing clashes.
@@ -231,13 +253,14 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
   };
   for (const p of [...pieces].sort((a, b) => own(b) - own(a))) { // a time set by hand wins a clash between two plans
     const s = p.prior;
-    if (s === undefined || p.gap || unlock?.has(p.id) || !clear(p, s, held)) continue;
+    if (s === undefined || p.gaps || unlock?.has(p.id) || unlockOver.has(p.id) || !clear(p, s, held)) continue;
     p.lock = true; held.push({ start: s, end: s + dur(p) });
   }
   // Exploring: not while the model is cold, and only the first new piece without a deadline, once a day.
   const explored = m.exploredAt !== undefined && dayStart(m.exploredAt) === dayStart(now);
 
-  const explorer = !explored && m.hist.length + m.doneHours.length >= 5 ? pieces.find((p) => dueOf(p.task) === undefined && p.prior === undefined) : undefined;
+  // Light and short only: a 30-minute undated piece is a cheap place to test an hour.
+  const explorer = !explored && m.hist.length + m.doneHours.length >= 5 ? pieces.find((p) => dueOf(p.task) === undefined && p.prior === undefined && p.effort <= 30) : undefined;
   const alphaOf = (p: Piece) => (p === explorer ? ALPHA : 0);
 
   // Task x Cell x Feature, built once: every feature but "after" is fixed per (piece, cell). "After" depends on
@@ -300,9 +323,10 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
   // shortcut: 5 is a constant, upgrade to a per-user budget once undo rate is tracked
   // (not `soon`: it is true for every undated piece, since `later` undefined matches parentId undefined)
   const movers = pieces.filter((q) => q.prior !== undefined && !q.lock && !q.task.pinned && q.missed === undefined && (opts.later === undefined || (opts.later !== q.id && opts.later !== q.task.parentId)) && at(q) >= 0 && at(q) !== q.prior);
-  if (movers.length > 5) {
+  const moveCap = [...dayLoad.keys()].some((d) => loadOf(d) > capH(d)) ? 8 : 5; // a day over its cap may move more
+  if (movers.length > moveCap) {
     const gain = (q: Piece) => startValue(q, at(q), now, linUtil(q, at(q), fixedEnds)) - startValue(q, q.prior!, now, linUtil(q, q.prior!, fixedEnds));
-    const keep = new Set(movers.sort((a, b) => gain(b) - gain(a)).slice(0, 5));
+    const keep = new Set(movers.sort((a, b) => gain(b) - gain(a)).slice(0, moveCap));
     for (const q of movers) { // the rest go back to their old slot when it is still clear
       if (keep.has(q)) continue;
       const others: Busy[] = [...allBusy, ...pieces.filter((o) => o !== q && at(o) >= 0).map((o) => ({ start: at(o), end: at(o) + dur(o) }))];
@@ -317,7 +341,7 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
   // Only new trouble bumps: a piece still short at its own old slot was short last plan too, and a replan with nothing new moves nothing.
   const fresh = urgent.filter((q) => q.prior === undefined || at(q) !== q.prior);
   let bump: string[] | undefined;
-  if (fresh.length && !opts.pull && !unlock) {
+  if (fresh.length && !pulls.length && !unlock) {
     const dl = (x: Piece) => x.task.deadline ?? Infinity;
     const cand = new Map<string, Piece>();
     for (const q of fresh) for (const p of pieces) {
@@ -560,6 +584,8 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
   return { diff, model: m, bump: bump?.length ? bump : undefined, trouble: urgent.length };
 }
 
+const DRAG_SIGMA = 0.75; // hours: a drag teaches the hours around it (the narrow kernel was 0.5)
+const PART_OF = Array.from({ length: ARMS }, (_, h) => partIdx(h)); // the part of each hour arm
 const kernel = (a: number, h: number, sigma = 0.75) => Math.exp(-(cdist(a, h) ** 2) / (2 * sigma ** 2));
 
 const FIRST_MOVE_BOOST = 1;
@@ -568,6 +594,11 @@ const FIRST_MOVE_TAU = 30;
 const boost = (pl: { at?: number; moved?: boolean }, at: number) =>
   pl.moved || pl.at === undefined ? 1 : 1 + FIRST_MOVE_BOOST * Math.exp(-Math.max(0, at - pl.at) / MIN / FIRST_MOVE_TAU);
 const clampR = (r: number) => Math.max(-2, Math.min(0, r));
+// An outcome teaches its hour's arm and that hour's part arm: the part evidence reaches hours with none of their own (linucb prepare).
+const teach = (m: Model, a: number, x: number[], r: number, w = 1) => {
+  update(m.arms[a], x, r, w);
+  update(m.parts![PART_OF[a]], x, r, w);
+};
 
 // Reward from one outcome; every placed task teaches linucb, whichever policy placed it.
 const R = { kept: 0.25, done: 0.5, later: -0.5, delete: -0.2 };
@@ -594,6 +625,8 @@ export function learn(model: Model, ev: TaskEvent, task: Task, own = false, clas
   if (!["kept", "done", "later", "delete", "drag"].includes(ev.type)) return model;
   const m = own ? model : clone(model);
   decay(m, ev.at);
+  m.parts ??= coldParts();
+  delete m.hypNow;
   // before 05:00 is the night of the day before, counted past 24:00 (a 00:30 tick is 1470), so a night owl's first and last stay on one day
   const nightMin = (t: number) => { const mo = (t - dayStart(t)) / MIN; return mo < 5 * 60 ? mo + 24 * 60 : mo; };
   const dayOfNight = (t: number) => (t - dayStart(t)) / MIN < 5 * 60 ? dayStart(t - DAY) : dayStart(t);
@@ -615,7 +648,7 @@ export function learn(model: Model, ev: TaskEvent, task: Task, own = false, clas
   const start = pl?.start ?? task.start;
   switch (ev.type) {
     case "kept":
-      if (pl) { update(m.arms[pl.arm], pl.x, R.kept); m.kept = [...(m.kept ?? []), ev.at].slice(-300); }
+      if (pl) { teach(m, pl.arm, pl.x, R.kept); m.kept = [...(m.kept ?? []), ev.at].slice(-300); }
       // The user kept the placement where Zen put it: taken as done at the placed end, for the lead share (aimOf).
       if (pl) leadSample(m, task, task.end ?? start ?? ev.at);
       break;
@@ -627,11 +660,11 @@ export function learn(model: Model, ev: TaskEvent, task: Task, own = false, clas
       // A tick far from the block says little about the planned hour: early credits the hour it happened, late credits none.
       const end = task.end ?? (start ?? 0) + HOUR, late = start !== undefined && ev.at > end + HOUR;
       const early = start !== undefined && ev.at < start - HOUR, arm = early ? Math.floor(hourOf(ev.at)) : pl?.arm;
-      if (pl && !late && arm !== undefined) update(m.arms[arm], pl.x, R.done);
-      else if (pl && late) update(m.arms[pl.arm], pl.x, R.done * -0.25); // done far past the block: a small doubt on the planned hour
+      if (pl && !late && arm !== undefined) teach(m, arm, pl.x, R.done);
+      else if (pl && late) teach(m, pl.arm, pl.x, R.done * -0.25); // done far past the block: a small doubt on the planned hour
       // A tick on a task Zen never placed (a time you set, or done at once) still credits the hour you did it in.
       // shortcut: the day's class hours, what ended just before and alike titles are unknown here, so those features are 0; pass the busy list into learn() if this proves too rough.
-      else if (!pl) update(m.arms[Math.floor(hourOf(ev.at))], features(task, ev.at, { fixedH: () => 0, peak: peakHour(m, ev.at), nb: [], ends: [] }), R.done);
+      else if (!pl) teach(m, Math.floor(hourOf(ev.at)), features(task, ev.at, { fixedH: () => 0, peak: peakHour(m, ev.at), nb: [], ends: [] }), R.done);
       if (start !== undefined) {
         if (!late) {
           hist(early ? ev.at : start, 1);
@@ -654,14 +687,14 @@ export function learn(model: Model, ev: TaskEvent, task: Task, own = false, clas
       m.slip[task.kind].later += 1;
       if (pl) {
         const r = clampR(R.later * boost(pl, ev.at));
-        update(m.arms[pl.arm], pl.x, r);
+        teach(m, pl.arm, pl.x, r);
         pl.moved = true;
       }
       if (start !== undefined) hist(start, -1);
       break;
     case "delete":
       if (start !== undefined && ev.at < start) {
-        if (pl) { update(m.arms[pl.arm], pl.x, R.delete); }
+        if (pl) { teach(m, pl.arm, pl.x, R.delete); }
         hist(start, -1);
       }
       break;
@@ -678,8 +711,9 @@ export function learn(model: Model, ev: TaskEvent, task: Task, own = false, clas
       if (pl) pl.x.forEach((v, i) => { x[i] = v; });
       else x[4 + KINDS.indexOf(task.kind)] = 1;
       x[0] = 0.5; // the intercept at half weight: the hour's curve, not every kind's
-      for (let a = 0; a < m.arms.length; a++) { update(m.arms[a], x, -1, 3 * kernel(a + 0.5, hourOf(from), 0.5)); update(m.arms[a], x, 0.5, 3 * kernel(a + 0.5, hourOf(to), 0.5)); }
+      for (let a = 0; a < m.arms.length; a++) { teach(m, a, x, -1, 3 * kernel(a + 0.5, hourOf(from), DRAG_SIGMA)); teach(m, a, x, 0.5, 3 * kernel(a + 0.5, hourOf(to), DRAG_SIGMA)); }
       hist(from, -1);
+      m.hypNow = noteHyp(m, task.kind, hourOf(from), hourOf(to), ev.at);
       if (pl) m.placed[task.id] = { ...pl, start: to, arm: Math.floor(hourOf(to)), moved: true, why: undefined }; // the reasons were for the old time: the next plan says them anew
       break;
     }

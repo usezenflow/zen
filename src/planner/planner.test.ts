@@ -70,8 +70,8 @@ describe("split and deadline", () => {
     it("room in the window: the guess takes what is free there", () => {
       const r = run(guessed, [{ start: at(1, 7) + 30 * MIN, end: at(1, 9) }]);
       expect([r.start, r.len]).toEqual([at(1, 9), 120]);
-      expect(r.why).toBe("Sáng mai trống 2 tiếng");
-      expect(r.long).toBe("Sáng mai trống chừng 2 tiếng, làm trước chừng đó");
+      expect(r.why).toBe("Sáng mai trống 2h");
+      expect(r.long).toBe("Sáng mai trống chừng 2h, làm trước chừng đó");
     });
     it("only a crumb free: study never shrinks under 1h30, it runs on to the next part of the day", () => {
       const r = run(guessed, [{ start: at(1, 7) + 30 * MIN, end: at(1, 11) }]);
