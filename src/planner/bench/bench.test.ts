@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { PERSONAS } from "./personas";
 import { run } from "./sim";
 import { type Metrics, score } from "./score";
@@ -19,12 +19,20 @@ const COLS: [string, (m: Metrics) => number | null | undefined, number?][] = [
   ["churn", (m) => m.churn], ["surpriseMoves", (m) => m.surpriseMoves], ["overdueMoves", (m) => m.overdueMoves], ["regretH", (m) => m.regretH],
   ["overloadDays", (m) => m.overloadDays], ["lateRate", (m) => m.lateRate], ["deadlineSlackH", (m) => m.deadlineSlackH],
   ["convergeDay", (m) => m.convergeDay, NEVER], ["adaptDays", (m) => m.adaptDays, NEVER],
+  ["areaMinShare", (m) => m.areaMinShare], ["earlyDeadlineShare", (m) => m.earlyDeadlineShare], ["stallRate", (m) => m.stallRate],
+  ["silentMovesPerDay", (m) => m.silentMovesPerDay], ["rebalancesPerDay", (m) => m.rebalancesPerDay],
 ];
 // gated on the mean paired delta: [metric, direction that is a regression, tolerance]
 const GATES: Gate[] = [
   ["keepRate", "drop", 0.02], ["movesPerDay", "rise", 0.1],
   ["lateKeep", "drop", 0.02], ["touchesPerDay", "rise", 0.1], ["churn", "rise", 0.02], ["surpriseMoves", "rise", 0.05], ["lateRate", "rise", 0.02],
+  ["areaMinShare", "drop", 0.05], ["earlyDeadlineShare", "drop", 0.05], ["stallRate", "rise", 0.05], ["silentMovesPerDay", "rise", 0],
 ];
+
+// place.ts cuts a solve off after 400 ms of wall clock (a stalled-device net), so a run would depend on the machine's load.
+// The bench freezes Date: the solve then stops on its fixed iteration budget alone, the same on every run.
+beforeAll(() => { vi.useFakeTimers({ toFake: ["Date"] }); });
+afterAll(() => { vi.useRealTimers(); });
 
 const toRow = (m: Metrics): Row => Object.fromEntries(COLS.filter(([, f]) => f(m) !== undefined).map(([k, f]) => [k, f(m) ?? null]));
 const load = (): Record<string, PerSeed> | undefined => { try { return JSON.parse(readFileSync(FILE, "utf8")); } catch { return undefined; } };
@@ -50,9 +58,11 @@ describe("synthetic benchmark", () => {
         return;
       }
       const base = load()?.[p.name];
-      expect(base, `no baseline for ${p.name}: run BENCH_WRITE=1 pnpm vitest run src/planner/bench/bench.test.ts`).toBeDefined();
+      expect(base, `no baseline for ${p.name}: run pnpm bench`).toBeDefined();
       row.keepSE = round3(paired(base!, rows, "keepRate", "drop").se);
       table[p.name] = row;
+      // a fill pass never moves a placed piece that nobody asked to move: no seed may show one, whatever the baseline says
+      expect(SEEDS.map((s) => rows[s].silentMovesPerDay), `${p.name}: silent moves on fill passes`).toEqual(SEEDS.map(() => 0));
       expect(gateFails(base!, rows, GATES, p.name)).toEqual([]);
     }, TIMEOUT);
   }

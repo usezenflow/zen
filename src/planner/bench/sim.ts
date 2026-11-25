@@ -1,7 +1,9 @@
 import { embed } from "../../lib/nlu/embed";
 import type { Kind, Task } from "../../lib/types";
 import { DAY, HOUR, MIN, dayStart, hourOf } from "../features";
+import { capOf } from "../../lib/rest";
 import { learn, missedReplan, newModel, plan, type Opts } from "../index";
+import { GRACE, holding } from "../policy";
 import type { Model } from "../model";
 import type { MixItem, Persona } from "./personas";
 import { gauss, rng } from "./rng";
@@ -9,8 +11,8 @@ import { gauss, rng } from "./rng";
 export type Act = "kept" | "done" | "drag" | "later" | "delete" | "ignore";
 /** A planner move of a unit whose start was within 3 h of now (or whose deadline was): what the plan said about it. */
 export interface Surprise { id: string; title: string; day: number; now: number; from: number; to: number; prior?: number; sitting: boolean; deadline?: number; why: string[]; steps: string[] }
-export interface Resp { day: number; id: string; kind: Kind; hour: number; pref: number; act: Act; start: number; created: number; part: boolean; deadline?: number; doneAt?: number }
-export interface DayLog { day: number; planned: number; capacity: number; opens: number; drags: number; laters: number; undos: number; edits: number; moves: number; surprise: number; switches: number }
+export interface Resp { day: number; id: string; kind: Kind; hour: number; pref: number; act: Act; start: number; created: number; effort: number; part: boolean; deadline?: number; doneAt?: number }
+export interface DayLog { day: number; planned: number; capacity: number; opens: number; drags: number; laters: number; undos: number; edits: number; moves: number; silent: number; rebalances: number; surprise: number; switches: number }
 export interface Log {
   persona: string; seed: number; days: number; end: number;
   resps: Resp[]; daily: DayLog[]; tasks: Task[];
@@ -41,6 +43,7 @@ export function run(p: Persona, { days = p.days ?? 30, seed = 1 } = {}): Log {
   const reacted = new Set<string>(); // `id@start` already decided
   const overdueDone = new Set<string>(); // tasks the overdue rule has already resolved
   const owned = new Set<string>(); // accepted or dragged by hand: the persona has it now
+  const funIds = new Set<string>(); // units of a mix item said to be fun (funFirst keeps them wherever they land)
   const ticks: { at: number; id: string; type: "done" | "kept" }[] = []; // the finish times still ahead
   const log: Log = {
     persona: p.name, seed, days, end: dayOf(days), resps: [], daily: [], tasks, parents: new Set(), zen: new Map(), placed: new Set(),
@@ -49,7 +52,8 @@ export function run(p: Persona, { days = p.days ?? 30, seed = 1 } = {}): Log {
   };
   let n = 0, pull: { from: number; to: number } | undefined;
   let day = 0, accepted = 0, capT = p.capacity;
-  let drags = 0, laters = 0, undos = 0, edits = 0, moves = 0, surprise = 0;
+  let drags = 0, laters = 0, undos = 0, edits = 0, moves = 0, surprise = 0, silent = 0, rebalances = 0;
+  let lengthEdited = false; // a length the user corrected in the last reply: the app replans on that edit
   const add = (t: Task) => { tasks.push(t); byId.set(t.id, t); };
   const sid = () => `e${n++}`;
   const prefAt = () => (p.shift && day >= p.shift.day ? { ...p.pref, ...p.shift.pref } : p.pref);
@@ -68,6 +72,12 @@ export function run(p: Persona, { days = p.days ?? 30, seed = 1 } = {}): Log {
     const pd = Math.max(0, e.day - 4);
     prepsOn.set(pd, [...(prepsOn.get(pd) ?? []), prep]);
   });
+
+  // The timetable is known from the start (the DLU sync gives the week ahead), so a lecture is never a change in the middle of a day.
+  for (let dd = 0; dd < days; dd++) for (const l of p.lectures ?? []) if (l.wd === dd % 7 && (!l.odd || Math.floor(dd / 7) % 2 === 1)) {
+    const d0 = dayOf(dd);
+    add({ id: `lec${dd}-${n++}`, title: l.title, kind: "study", source: "dlu", fixed: "lecture", effort: (l.to - l.from) * 60, start: d0 + l.from * HOUR, end: d0 + l.to * HOUR, createdAt: dayOf(0) });
+  }
 
   const openHours = (): number[] => {
     const k = 2 + Math.floor(r() * 4);
@@ -89,7 +99,8 @@ export function run(p: Persona, { days = p.days ?? 30, seed = 1 } = {}): Log {
         const parent = byId.get(pl.id.slice(0, pl.id.lastIndexOf("#")));
         if (!parent) continue;
         log.parents.add(parent.id);
-        t = { ...parent, id: pl.id, parentId: parent.id, effort: (pl.end - pl.start) / MIN, start: undefined, end: undefined, doneAt: undefined, deletedAt: undefined, userEdited: undefined, pinned: undefined };
+        parent.start = undefined; parent.end = undefined; // the parent keeps no time of its own once it is split (apply.ts sitting())
+        t = { ...parent, id: pl.id, parentId: parent.id, effort: (pl.end - pl.start) / MIN, start: undefined, end: undefined, doneAt: undefined, deletedAt: undefined, userEdited: undefined, pinned: undefined, holdUntil: undefined };
         truth.set(t.id, t.effort * (parent.effortGuessed ? p.fallacy[parent.kind] ?? 1 : 1));
         add(t);
       }
@@ -98,6 +109,7 @@ export function run(p: Persona, { days = p.days ?? 30, seed = 1 } = {}): Log {
       if (old !== undefined && old > now && old !== pl.start && o.later !== t.id) {
         log.zen.set(t.id, (log.zen.get(t.id) ?? 0) + 1);
         moves++;
+        if (o.fill && !o.pull) silent++; // a fill pass (arrival or open) moved a piece no one asked to move
         if (t.deadline !== undefined && t.deadline < now) log.overdueMoves++; // a start still ahead moved on a task already past its deadline
         if (old - now <= 3 * HOUR) { // a surprise: a start within 3 h, moved by Zen (a past deadline does not count)
           surprise++;
@@ -140,17 +152,18 @@ export function run(p: Persona, { days = p.days ?? 30, seed = 1 } = {}): Log {
     const dated = t.deadline !== undefined, left = dated ? (t.deadline! - start) / DAY : Infinity;
     if (dated && p.deadlineStyle === "late" && left > 2) return; // waits: no reply yet
     reacted.add(`${id}@${start}`);
-    const rec = (act: Act, doneAt?: number) => log.resps.push({ day, id, kind: t.kind, hour: h, pref, act, start, created: t.createdAt, part: !!t.tods, deadline: t.deadline, doneAt });
+    const rec = (act: Act, doneAt?: number) => log.resps.push({ day, id, kind: t.kind, hour: h, pref, act, start, created: t.createdAt, effort: t.effort, part: !!t.tods, deadline: t.deadline, doneAt });
     if (doomed.has(id)) {
       model = learn(model, { id: sid(), taskId: id, type: "delete", at: now }, t, true);
       t.deletedAt = now; pull = { from: start, to: t.end! };
-      rec("delete"); replan(now); return;
+      rec("delete"); replan(now, { fill: true }); return;
     }
     if (t.effortGuessed && r() < 0.1) { // the length was a guess: the user corrects it
-      t.effort = Math.round(truth.get(id)! / 5) * 5; delete t.effortGuessed; t.end = start + t.effort * MIN; edits++;
+      t.effort = Math.round(truth.get(id)! / 5) * 5; delete t.effortGuessed; t.end = start + t.effort * MIN; edits++; lengthEdited = true;
     }
-    const load = (accepted + t.effort / 60) / capT, full = load > 1;
-    const tired = r() < Math.min(0.9, Math.max(0, (load - 0.6) / 0.6));
+    const bingeing = p.binge === t.kind; // a binge takes its kind whatever the load says
+    const load = (accepted + t.effort / 60) / capT, full = !bingeing && load > 1;
+    const tired = !bingeing && r() < Math.min(0.9, Math.max(0, (load - 0.6) / 0.6));
     // A dated task is kept only when placed in the first 80% of its window (lead focus); otherwise it waits.
     const lead = p.leadFrac === undefined || !dated || (start - t.createdAt) <= p.leadFrac * (t.deadline! - t.createdAt);
     // A dislike is a start the persona must learn away from (it is never kept): every hour of its band, or a morning start while the morning is packed.
@@ -159,7 +172,8 @@ export function run(p: Persona, { days = p.days ?? 30, seed = 1 } = {}): Log {
     const packed = p.packedMorning !== undefined && h < 12 && morningN >= p.packedMorning;
     if ((disliked || packed) && !log.unwantedHours.has(Math.floor(h))) log.unwantedHours.set(Math.floor(h), day);
     if (disliked || packed) log.unwanted[day]++;
-    if (!lead || ((tired || full) && r() < 0.5)) { // postponed when tired or over capacity, or placed too late in its window
+    const stalls = p.stall !== undefined && t.effort >= p.stall.minutes && r() < p.stall.p; // a long block it puts off: only shorter sittings get done
+    if (!lead || stalls || ((tired || full) && r() < 0.5)) { // postponed when tired or over capacity, or placed too late in its window
       model = learn(model, { id: sid(), taskId: id, type: "later", at: now }, t, true);
       laters++; rec("later"); replan(now, { later: id }); return;
     }
@@ -171,7 +185,8 @@ export function run(p: Persona, { days = p.days ?? 30, seed = 1 } = {}): Log {
     const hated = p.hate !== undefined && h >= p.hate.from && h < p.hate.to;
     const fits = inside && !buffered && !full && batched && !hated && !disliked && !packed;
     const chaos = p.noise !== undefined && r() < p.noise;
-    const ok = !tooLate && (chaos ? fits && r() < 0.5 : fits && (near || Math.abs(h - pref) <= p.spread));
+    const funKept = p.funFirst === true && funIds.has(id); // fun first: a fun task is kept wherever it lands
+    const ok = !tooLate && (chaos ? fits && r() < 0.5 : fits && (near || bingeing || funKept || Math.abs(h - pref) <= p.spread));
     if (ok) {
       accepted += t.effort / 60; owned.add(id);
       if (t.effortGuessed) log.lenErr.push(Math.abs((t.end! - t.start!) / MIN - truth.get(id)!)); // the block Zen planned, not the raw guess
@@ -180,20 +195,27 @@ export function run(p: Persona, { days = p.days ?? 30, seed = 1 } = {}): Log {
       else { ticks.push({ at: doneAt, id, type: "done" }); rec("done", doneAt); }
       return;
     }
-    const to = dayStart(now) + Math.round(pref * HOUR);
+    // The preferred hour today has passed (the app opened after it): the drag goes to tomorrow's, it is not ignored forever.
+    const todayTo = dayStart(now) + Math.round(pref * HOUR), to = todayTo < now ? todayTo + DAY : todayTo;
     const clash = tasks.some((x) => x.fixed && x.start! < to + t.effort * MIN && x.end! > to);
     const restTo = p.buffer > 0 && lectures().some((x) => to >= x.end! && to < x.end! + p.buffer * MIN); // it will not drag into its own rest
     // a persona never drags work into an hour it refuses to work in (the hated band), any more than it keeps work there
     const toH = hourOf(to) < p.wake ? hourOf(to) + 24 : hourOf(to), hatedTo = p.hate !== undefined && toH >= p.hate.from && toH < p.hate.to;
-    if (to < now || to === start || clash || hated || hatedTo || restTo || r() < p.ignoreP) { rec("ignore"); return; }
-    // Drag: the user moves it to the best hour and does it there. Zen never moves a user-set start.
-    const from = start, fromEnd = t.end!, fromUser = t.userEdited, undo = r() < 0.05;
+    if (to === start || clash || hated || hatedTo || restTo || r() < p.ignoreP) { rec("ignore"); return; }
+    // Drag: the user moves it to the best hour and does it there. Zen never moves a user-set start while the hold lasts.
+    const from = start, fromEnd = t.end!, fromUser = t.userEdited, fromHold = t.holdUntil, undo = r() < 0.05;
     const snap = undo ? JSON.parse(JSON.stringify(model)) as Model : undefined;
     model = learn(model, { id: sid(), taskId: id, type: "drag", at: now, data: { fromStart: from, toStart: to } }, t, true);
     t.start = to; t.end = to + t.effort * MIN; t.userEdited = ["start"];
+    t.holdUntil = dayStart(to) + DAY; // a time set by hand holds until its day ends (apply.ts: addDays(dayStart(when), 1))
+    // The newest time set by hand wins (apply.ts transactNow): an older hold under it gives way, a running flexible block is freed; both are planned again.
+    for (const x of tasks) if (x !== t && !x.fixed && !x.doneAt && !x.deletedAt && x.start !== undefined && x.end !== undefined && t.start! < x.end && x.start < t.end!) {
+      if (!holding(x, now)) { if (x.start <= now && now < x.end) { x.start = undefined; x.end = undefined; } continue; }
+      if (x.start > now) { x.holdUntil = undefined; x.userEdited = x.userEdited?.filter((f) => f !== "start"); }
+    }
     drags++; rec("drag");
     if (undo) { // taken back: the model and the old time return, and the persona looks at the plan again
-      model = snap!; t.start = from; t.end = fromEnd; t.userEdited = fromUser; undos++; reacted.delete(`${id}@${from}`);
+      model = snap!; t.start = from; t.end = fromEnd; t.userEdited = fromUser; t.holdUntil = fromHold; undos++; reacted.delete(`${id}@${from}`);
       return;
     }
     accepted += t.effort / 60; owned.add(id);
@@ -216,18 +238,57 @@ export function run(p: Persona, { days = p.days ?? 30, seed = 1 } = {}): Log {
       t.notAfter = dayOf(dd) + b * HOUR;
     }
     truth.set(id, m.effort * (guessed ? p.fallacy[m.kind] ?? 1 : 1));
+    if (m.fun) funIds.add(id);
     if (r() < (p.deleteP ?? 0.03)) doomed.add(id);
     return t;
+  };
+
+  /** apply.ts sweepUndone, mirrored (the original reads the store): at 21:30 what was left undone today moves to tomorrow from 9h, silently.
+   *  Only those tasks are re-placed, as a user-caused pass (not a fill pass), so it is not a silent move. */
+  const sweep = (now: number) => {
+    const from = dayStart(now) + DAY + 9 * HOUR;
+    const pick = (x: Task) => !x.fixed && !x.doneAt && !x.deletedAt && !x.pinned && !holding(x, now) && !x.userEdited?.includes("start")
+      && x.start !== undefined && x.end !== undefined && dayStart(x.start) === dayStart(now) && x.end + GRACE <= now
+      && (x.deadline ?? Infinity) > from && (x.notAfter ?? Infinity) > from;
+    const moved = tasks.filter(pick);
+    if (!moved.length) return;
+    for (const x of moved) x.notBefore = Math.max(x.notBefore ?? 0, from); // start and end stay: the replan sees the lost block and counts the miss
+    replan(now, { only: moved.map((x) => x.id) });
+  };
+
+  /** Days (the next 7, from today) whose booked time is over the day's cap: apply.ts overDays, mirrored (it is not exported). */
+  const overDays = (list: Task[], now: number) => {
+    const out = new Set<number>();
+    for (let i = 0; i < 7; i++) {
+      const d = dayStart(now + i * DAY), e = dayStart(now + (i + 1) * DAY);
+      const load = list.reduce((s, x) => (!x.doneAt && !x.deletedAt && x.start !== undefined && x.end !== undefined && x.start < e && x.end > d ? s + Math.min(x.end, e) - Math.max(x.start, d) : s), 0);
+      if (load > capOf(list, d, now, 0, false).ms) out.add(d);
+    }
+    return out;
+  };
+
+  /** apply.ts proposeRebalance, mirrored (the original reads and writes the store): a dry plan that may move placed work, kept only when it
+   *  moves something and drops an overloaded day. The persona takes the proposal unless it ignores proposals (ignoreP). */
+  const rebalance = (now: number) => {
+    const open = tasks.filter((x) => x.createdAt <= now);
+    const over = overDays(open, now);
+    if (!over.size) return;
+    const res = plan(open, [], model, now, {}); // dry: its model is dropped, as a dry transaction writes nothing
+    const moves = res.diff.placed.map((pl) => ({ t: byId.get(pl.id), to: pl.start }))
+      .filter((m): m is { t: Task; to: number } => !!m.t && m.t.start !== undefined && m.t.start > now && m.to !== m.t.start);
+    if (!moves.length) return;
+    const to = new Map(moves.map((m) => [m.t.id, m.to]));
+    const after = open.map((x) => (to.has(x.id) ? { ...x, start: to.get(x.id), end: to.get(x.id)! + (x.end! - x.start!) } : x));
+    if (overDays(after, now).size >= over.size || r() < p.ignoreP) return;
+    for (const m of moves) { const len = m.t.end! - m.t.start!; m.t.start = m.to; m.t.end = m.to + len; }
+    rebalances += moves.length;
   };
 
   for (day = 0; day < days; day++) {
     const d0 = dayOf(day), weekend = day % 7 >= 5, holiday = !!p.holidays?.includes(day);
     const jit = p.capJitter ?? 0.2;
     capT = (holiday ? p.holidayCapacity ?? p.capacity * 0.5 : p.capacity * (weekend ? p.weekendCapacity ?? 1 : 1)) * (1 + (2 * r() - 1) * jit);
-    accepted = drags = laters = undos = edits = moves = surprise = 0;
-    for (const l of p.lectures ?? []) if (l.wd === day % 7 && (!l.odd || Math.floor(day / 7) % 2 === 1)) {
-      add({ id: `lec${day}-${n++}`, title: l.title, kind: "study", source: "dlu", fixed: "lecture", effort: (l.to - l.from) * 60, start: d0 + l.from * HOUR, end: d0 + l.to * HOUR, createdAt: d0 });
-    }
+    accepted = drags = laters = undos = edits = moves = surprise = silent = rebalances = 0;
 
     // The app opens: 2 to 5 times a day. The gaps between opens are when new tasks arrive.
     const hours = openHours(), opens = hours.map((h) => d0 + Math.round(h * 60) * MIN);
@@ -243,23 +304,29 @@ export function run(p: Persona, { days = p.days ?? 30, seed = 1 } = {}): Log {
     });
     for (const prep of prepsOn.get(day) ?? []) { const g = gaps[0]; prep.createdAt = Math.round(g[0]); add({ ...prep, id: `${prep.id}-${day}` }); truth.set(`${prep.id}-${day}`, 150); }
 
-    for (let k = 0; k < opens.length; k++) {
-      const now = opens[k];
+    // The app's day: the opens (new tasks arrive in the gaps, and a fill pass places them), and the 21:30 sweep between them.
+    const sweepAt = d0 + Math.round(21.5 * 60) * MIN;
+    const stops = [...opens.map((at, k) => ({ at, k })), { at: sweepAt, k: -1 }].sort((a, b) => a.at - b.at);
+    for (const { at: now, k } of stops) {
       applyTicks(now);
+      if (k < 0) { sweep(now); continue; }
       // Overdue rule: a task more than a day past its deadline is finished (60%) or deleted (40%) at the next open. Once only.
       for (const t of tasks) {
         if (t.fixed || log.parents.has(t.id) || t.deadline === undefined || t.deadline + DAY >= now || t.doneAt || t.deletedAt) continue;
-        if (overdueDone.has(t.id) || ticks.some((k) => k.id === t.id)) continue;
+        if (overdueDone.has(t.id) || ticks.some((x) => x.id === t.id)) continue;
         overdueDone.add(t.id);
         if (r() < 0.6) t.doneAt = now; else t.deletedAt = now;
       }
-      replan(now);
+      replan(now, { fill: true });
+      if (k === 0) rebalance(now); // maybeRebalance: once a day, at the first open
       const seen = new Set<string>();
       for (let guard = 0; guard < 40; guard++) {
         const next = tasks.filter((t) => decidable(t, now) && !seen.has(t.id)).sort((a, b) => a.start! - b.start!)[0];
         if (!next) break;
         seen.add(next.id);
+        lengthEdited = false;
         react(next, now);
+        if (lengthEdited) replan(now); // a user-caused pass (not a fill pass): the corrected block may now overlap a placed one
       }
     }
 
@@ -271,7 +338,7 @@ export function run(p: Persona, { days = p.days ?? 30, seed = 1 } = {}): Log {
     log.daily.push({
       // planned is the true time the day's work takes: a guessed length counts as the persona really takes it
       day, planned: dayTasks.reduce((s, t) => s + (truth.get(t.id) ?? t.effort) / 60, 0), capacity: capT, opens: opens.length,
-      drags, laters, undos, edits, moves, surprise, switches,
+      drags, laters, undos, edits, moves, silent, rebalances, surprise, switches,
     });
   }
   for (const k of ticks) byId.get(k.id)!.doneAt = k.at; // finishes after the last open land at the end of the run

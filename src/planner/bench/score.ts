@@ -1,4 +1,6 @@
-import { HOUR, partIdx } from "../features";
+import type { Task } from "../../lib/types";
+import { DEFAULT_AREAS, areaOf, areaShare } from "../../lib/area";
+import { DAY, HOUR, partIdx } from "../features";
 import type { Act, Log, Resp } from "./sim";
 
 /** The keep rule: a placement counts as kept when the persona accepted it (kept or ticked) without a drag, a later, a delete or an ignore. The app can reuse it. */
@@ -16,6 +18,12 @@ export interface Metrics {
   switchesPerDay: number; lenErrMin: number | null; missBand: number | null; leadShare: number | null;
   overdueMoves: number; // a run's count: Zen moves on tasks already past their deadline
   dragsPerDay: number; dragsToLearn: number | null; transferKeep: number | null; // a dislike or packed morning: drags until the last unwanted start, and keep rate on unseen hours of the parts learned
+  // behaviour extras (bench v2)
+  areaMinShare: number | null; // the most starved area that has work: its share of its target over the last 7 days, 1 = on target (hyperfocus)
+  earlyDeadlineShare: number | null; // dated work finished at least a day before its deadline, of all dated work (funFirstCrammer)
+  stallRate: number | null; // replies to blocks of 90 minutes or more that put them off (staller)
+  silentMovesPerDay: number; // moves of a placed piece on a fill pass (an arrival or an open) that the user did not cause: gate 0
+  rebalancesPerDay: number; // rebalance moves the persona took (overloaded days only)
 }
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
@@ -66,7 +74,26 @@ export function score(log: Log): Metrics {
     dragsPerDay: sum((d) => d.drags) / days,
     ...learnStats(log),
     leadShare: dated_.length ? dated_.filter((r) => r.start - r.created <= 0.8 * (r.deadline! - r.created)).length / dated_.length : null,
+    areaMinShare: areaMinShare(units, end),
+    earlyDeadlineShare: dated.length ? dated.filter((t) => t.doneAt !== undefined && t.doneAt <= t.deadline! - DAY).length / dated.length : null,
+    stallRate: stallRate(resps),
+    silentMovesPerDay: sum((d) => d.silent) / days,
+    rebalancesPerDay: sum((d) => d.rebalances) / days,
   };
+}
+
+/** Share of the replies to long blocks (90 min or more) that put them off; null when there were none. */
+function stallRate(resps: Resp[]): number | null {
+  const long = resps.filter((r) => r.effort >= 90);
+  return long.length ? long.filter((r) => r.act === "later").length / long.length : null;
+}
+
+/** The most starved area with work in the run: its share of the last 7 days over its target, capped at 1; null with no area that has a target. */
+function areaMinShare(units: Task[], end: number): number | null {
+  const share = areaShare(units, DEFAULT_AREAS, end);
+  const present = new Set(units.map((t) => areaOf(t, DEFAULT_AREAS)?.id));
+  const ratios = DEFAULT_AREAS.filter((a) => present.has(a.id) && (a.targetPct ?? 0) > 0).map((a) => Math.min(1, share[a.id] / (a.targetPct! / 100)));
+  return ratios.length ? Math.min(...ratios) : null;
 }
 
 /** Drags until the last day with a start the persona must learn away from (null for a persona with none), and the keep rate on the

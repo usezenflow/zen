@@ -4,7 +4,7 @@ import type { Kind } from "../../lib/types";
  * weekdays (0 = Mon) fixes the days; otherwise the item comes on about perWeek days a week.
  * dueInDays: days after the day it comes (a range is drawn per task). part: a said part of the day ("tối nay"), as adapt.ts maps it.
  */
-export interface MixItem { title: string; kind: Kind; effort: number; effortGuessed?: boolean; dueInDays?: number | [number, number]; perWeek: number; weekdays?: number[]; part?: "sáng" | "tối" }
+export interface MixItem { title: string; kind: Kind; effort: number; effortGuessed?: boolean; dueInDays?: number | [number, number]; perWeek: number; weekdays?: number[]; part?: "sáng" | "tối"; fun?: boolean }
 export interface Lecture { wd: number; from: number; to: number; title: string; odd?: boolean } // hours of the day; odd: only in odd weeks
 export interface Exam { day: number; from: number; len: number; title: string } // len in minutes; its prep is made 4 days before
 export interface Persona {
@@ -27,6 +27,9 @@ export interface Persona {
   dislike?: { from: number; to: number }; // hours it never keeps a start in, and drags the start off (no mornings)
   packedMorning?: number; // from this many tasks already set in the morning, it drags a morning start later (drag later when morning packed)
   batch?: Kind; // it keeps a task of this kind only next to another one of it within an hour (focus: group)
+  binge?: Kind; // it takes every task of this kind whatever the load, the hour or its pref (hyperfocus: work)
+  funFirst?: boolean; // it keeps a fun task (MixItem.fun) wherever it lands; its other dated work waits (deadlineStyle late)
+  stall?: { minutes: number; p: number }; // it puts off a block of at least `minutes` with chance p (only shorter sittings get done)
   leadFrac?: number; // it keeps a dated task only when this share of its window is still left (focus: lead)
   holidays?: number[]; // day indices off: no new tasks, and capacity is holidayCapacity (default half)
   holidayCapacity?: number; // hours on a holiday
@@ -189,6 +192,47 @@ export const PERSONAS: Persona[] = [
       { title: "Dọn phòng", kind: "chores", effort: 30, perWeek: 3 },
       { title: "Đi chợ", kind: "errand", effort: 30, perWeek: 2 },
       { title: "Tập gym", kind: "exercise", effort: 45, perWeek: 2 },
+    ],
+  },
+  {
+    // Binges Side Project work for days, and keeps little else: its study and exercise are the share the area metric watches.
+    name: "hyperfocus", wake: 7, sleep: 24, opens: [7.5, 11, 14, 17.5, 21.5], spread: 2, deadlineStyle: "even", buffer: 0, capacity: 7, ignoreP: 0.3,
+    binge: "work",
+    pref: { work: 10, study: 15, exercise: 18, chores: 19, errand: 17, social: 19, self: 20, other: 20 },
+    fallacy: { work: 1.2 },
+    mix: [
+      { title: "Side Project: prototype", kind: "work", effort: 120, perWeek: 4 },
+      { title: "Làm báo cáo", kind: "work", effort: 90, dueInDays: [2, 8], perWeek: 2 },
+      { title: "Ôn tập Giải tích", kind: "study", effort: 60, perWeek: 3 },
+      { title: "Chạy bộ", kind: "exercise", effort: 40, perWeek: 3 },
+      { title: "Gọi bố", kind: "social", effort: 20, perWeek: 1 },
+    ],
+  },
+  {
+    // Arrives with fun tasks, and with deadlines that take several sittings; does the fun first and leaves the rest to the last days.
+    name: "funFirstCrammer", wake: 8, sleep: 24, opens: [9, 12, 15.5, 19, 22.5], spread: 3, deadlineStyle: "late", buffer: 0, capacity: 6, ignoreP: 0.4,
+    funFirst: true,
+    pref: { self: 20, social: 19, study: 20, work: 19, exercise: 17 },
+    fallacy: { study: 1.5 },
+    mix: [
+      { title: "Chơi game", kind: "self", effort: 60, perWeek: 5, fun: true },
+      { title: "Xem phim với bạn", kind: "social", effort: 90, perWeek: 2, fun: true },
+      { title: "Đồ án môn học", kind: "study", effort: 240, dueInDays: [6, 12], perWeek: 1 },
+      { title: "Ôn thi Giải tích", kind: "study", effort: 180, dueInDays: [4, 10], perWeek: 1 },
+      { title: "Làm báo cáo", kind: "work", effort: 120, dueInDays: [3, 9], perWeek: 2 },
+    ],
+  },
+  {
+    // Puts off every block of 90 minutes or more most of the time; the sittings of 45 minutes or less are the ones it does.
+    name: "staller", wake: 7, sleep: 23, opens: [7.5, 11, 14, 17.5, 21], spread: 2, deadlineStyle: "even", buffer: 0, capacity: 6, ignoreP: 0.3,
+    stall: { minutes: 90, p: 0.7 },
+    pref: { study: 10, work: 11, chores: 17, errand: 16, exercise: 18, social: 19, self: 20, finance: 14, other: 16 },
+    fallacy: {},
+    mix: [
+      { title: "Làm báo cáo", kind: "work", effort: 120, dueInDays: [2, 8], perWeek: 3 },
+      { title: "Ôn tập Giải tích", kind: "study", effort: 90, perWeek: 2 },
+      { title: "Dọn phòng", kind: "chores", effort: 30, perWeek: 2 },
+      { title: "Đi chợ", kind: "errand", effort: 30, perWeek: 2 },
     ],
   },
   {
