@@ -1,5 +1,29 @@
 # zen
 
+## 26.1.0-beta.1
+
+### Minor Changes
+
+- Lịch ít xê dịch hơn: việc đã xếp thì đứng yên
+    - Thêm việc, xóa việc hoặc đánh dấu xong sớm chỉ lấp chỗ trống; việc đang có không bị dời, và khoảng trống không còn kéo việc kế tiếp lên sớm
+    - Zen chỉ xếp trong 7 ngày tới; việc xa hơn chờ với dòng "Xếp trước 7 ngày tới". Ôn thi và việc từ trường vẫn xếp theo ngày thi, ngày bạn tự chọn thì giữ nguyên
+    - Việc quá hạn không còn đẩy lịch hôm nay mỗi lần zen xếp lại; lập kế hoạch nhanh hơn khi có nhiều việc ở xa
+- Đề xuất xếp lại: khi tuần quá tải, zen hiện "Có thể xếp thoáng hơn N việc · Xem" với giờ cũ, giờ mới và lý do từng việc. Chỉ đổi khi bạn bấm "Áp dụng"; "Để nguyên" thì không hỏi lại cho đến khi lịch đổi. Cũng có "Sắp lại tuần cho thoáng" ở màn Tuần. Hiện chỉ đề xuất dời việc không có hạn
+- Bớt áp lực
+    - Việc zen tự xếp mà trôi qua giờ không còn hiện đỏ; màu đỏ chỉ dành cho hạn thật, buổi học và kỳ thi
+    - 21:30 việc chưa làm được chuyển sang sau lặng lẽ, không thông báo
+    - Việc đã dời từ 5 lần được hỏi một lần: "Bỏ", "Chia nhỏ" hoặc "Giữ", rồi không hỏi lại
+    - Khi đủ việc cho cả ngày, thẻ "Đủ rồi" thay cho thẻ bây giờ và phần còn lại gom vào "Để tuần sau"
+- Ít thông báo hơn: việc linh hoạt chỉ nhắc khi bạn tự đặt giờ hoặc hạn gần; thêm một thông báo lúc 21:30 "Mai: N việc, 2h30"
+- Thẻ "Bây giờ": nút "Thử 15p" cho việc từ 45 phút (hoặc việc bạn từng để sau); hết 15 phút chọn "Tiếp" hoặc "Nghỉ" (15 phút được ghi lại, việc vẫn mở). Thẻ luôn là việc kế tiếp trong danh sách hôm nay
+- Chọn giờ bằng mặt đồng hồ tròn: chọn giờ (vòng ngoài 1 đến 12, vòng trong 13 đến 23 và 00), thả tay thì chuyển sang phút, mỗi 5 phút
+- Lệnh "xoá gym" khi có hai việc cùng tên có thêm "Xoá cả hai"; các lựa chọn gọn một dòng, tên dài cắt bớt
+- Nhịp gọn hơn
+    - Bỏ tab "Đi cùng nhau" và các dòng bối cảnh ("ngày có lớp", "ngay sau lớp", "gần hạn") ở "Trong ngày"
+    - Bỏ dòng "Dựa trên khoảng N lần"; "Chưa đủ dữ liệu" thành "Zen còn đang học"; câu về việc sau một khối trong lịch nói rõ zen làm gì
+    - Điều zen nhận ra cần ít nhất 10 lần quan sát và mỗi tuần chỉ hiện thêm một điều; thẻ Chủ nhật cũng vậy
+- Sửa lỗi học nhầm: việc xếp xa chưa tới giờ không còn bị tính là "bạn giữ nguyên"; chỉ tính khi bạn thật sự làm xong đúng chỗ đã xếp mà chưa kéo hay để sau
+
 ## 26.1.0-beta.0
 
 ### Minor Changes
