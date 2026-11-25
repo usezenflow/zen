@@ -88,13 +88,12 @@ describe("freed time: later tasks move into it, earlier only", () => {
       expect(db.tasks.get("U").start).toBe(NOW + 3 * H);
       expect(r.sub).toContain("U");
     });
-    it(`${how} early: the next auto task moves into the freed time`, async () => {
+    it(`${how} early: the next auto task keeps its placed time (place once, no silent pull)`, async () => {
       for (const x of [flex("A", NOW + 3 * H), flex("B", NOW + 7 * H)]) db.tasks.set(x.id, x);
       const r = await free("A") as { sub?: string };
-      expect(db.tasks.get("B").start).toBe(NOW + 3 * H);
-      expect(db.tasks.get("B").end).toBe(NOW + 4 * H);
-      expect(r.sub).toContain("B");
-      expect(db.kv.get("plannedAt")).toBe(String(NOW));
+      expect(db.tasks.get("B").start).toBe(NOW + 7 * H);
+      expect(db.tasks.get("B").end).toBe(NOW + 8 * H);
+      expect(r.sub ?? "").not.toContain("B");
     });
     it(`${how}: an unscheduled task due sooner beats a placed lax one for the gap`, async () => {
       for (const x of [flex("A", NOW + 3 * H), flex("L", NOW + 7 * H), { ...flex("U", 0, 60, { deadline: NOW + 6 * H }), start: undefined, end: undefined } as Task]) db.tasks.set(x.id, x);
@@ -106,13 +105,13 @@ describe("freed time: later tasks move into it, earlier only", () => {
       expect(l.start).toBeLessThanOrEqual(NOW + 7 * H);
       expect(over(u, l)).toBe(false);
     });
-    it(`${how}: pinned and hand-timed tasks never move`, async () => {
+    it(`${how}: pinned and hand-timed tasks never move, and an auto task keeps its placed time`, async () => {
       for (const x of [flex("A", NOW + 3 * H), flex("P", NOW + 7 * H, 60, { pinned: true, userEdited: ["start"] }), flex("H", NOW + 6 * H, 60, { userEdited: ["start"] }), flex("B", NOW + 8 * H)]) db.tasks.set(x.id, x);
       const s0 = starts();
       await free("A");
       expect(db.tasks.get("P").start).toBe(s0.P);
       expect(db.tasks.get("H").start).toBe(s0.H);
-      expect(db.tasks.get("B").start).toBe(NOW + 3 * H); // the one auto task still moves, into the freed hour
+      expect(db.tasks.get("B").start).toBe(s0.B); // place once: the freed hour is left for a task with no time
     });
     it(`${how}: no task ever moves later`, async () => {
       for (const x of [flex("A", NOW + 3 * H), flex("B", NOW + 5 * H), flex("C", NOW + 9 * H), flex("E", NOW + D + 2 * H, 90, { deadline: NOW + 3 * D })]) db.tasks.set(x.id, x);
@@ -132,10 +131,10 @@ describe("freed time: later tasks move into it, earlier only", () => {
     await swipeDone("A", NOW);
     expect(db.kv.get("plannedAt")).toBeUndefined();
   });
-  it("a deleted series instance pulls the next task in too", async () => {
+  it("a deleted series instance leaves the next placed task where it is", async () => {
     for (const x of [flex("A", NOW + 3 * H, 60, { rrule: "FREQ=DAILY", seriesId: "s1" }), flex("B", NOW + 7 * H)]) db.tasks.set(x.id, x);
     await removeScope("A", "this", NOW);
-    expect(db.tasks.get("B").start).toBe(NOW + 3 * H);
+    expect(db.tasks.get("B").start).toBe(NOW + 7 * H);
   });
 });
 

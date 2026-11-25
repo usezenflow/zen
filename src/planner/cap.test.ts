@@ -70,7 +70,8 @@ describe("day cap in the planner", () => {
   it("a DLU day with 5 h of lectures still takes 1 h of own work", () => {
     const lec = task("lec", { fixed: "lecture", kind: "study", start: day(11, 8), end: day(11, 13), effort: 300 });
     const own = task("own", { notBefore: day(11, 7), deadline: day(11, 22), effort: 60 });
-    const placed = plan([lec, own], [], newModel(now), now).diff.placed.filter((p) => p.id === "own");
+    const n = day(8, 8); // within the 7-day horizon of the day in question
+    const placed = plan([lec, own], [], newModel(n), n).diff.placed.filter((p) => p.id === "own");
     expect(placed.length).toBe(1);
     expect(dayStart(placed[0].start)).toBe(day(11));
   });

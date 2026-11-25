@@ -13,9 +13,13 @@ const hourly = (p: Piece, s: number) => -Math.abs(new Date(s).getHours() - 10) *
 
 describe("cells", () => {
   const D = 86_400_000;
-  it("a 90-day deadline is cut at the 30-day horizon", () => {
+  it("a 90-day deadline is cut at the 7-day horizon", () => {
     const cs = cells(piece("far", { deadline: now + 90 * D }), now);
-    expect(Math.max(...cs)).toBeLessThan(now + 30 * D);
+    expect(Math.max(...cs)).toBeLessThan(now + 7 * D);
+    expect(Math.max(...cs)).toBeGreaterThanOrEqual(now + 6 * D);
+  });
+  it("a day the user picked by hand keeps the 30-day reach", () => {
+    const cs = cells(piece("far", { deadline: now + 90 * D, userDay: true }), now);
     expect(Math.max(...cs)).toBeGreaterThanOrEqual(now + 29 * D);
   });
   it("a portal (dlu) deadline keeps its own reach past 30 days", () => {

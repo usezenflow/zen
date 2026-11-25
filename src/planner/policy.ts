@@ -9,6 +9,7 @@ import { type Busy, type End, type Rest, type Util, EJECT_CAP, SLOT, STEP, W_BAT
 import { DEFAULT_BOUNDS, boundsOf } from "./bounds";
 import { day, dayLabel, when } from "../lib/when";
 import { minSitting, split } from "./split";
+import { surface } from "./mine";
 import { type Piece, SOFT_AIM, bell, dur, lateH, moveCost, pullOk, startValue } from "./value";
 import { snapGuess } from "../lib/nlu/size";
 import { capOf } from "../lib/rest";
@@ -19,7 +20,7 @@ const LONG_SITTING = 180; // near a deadline sittings merge up to this; longer w
 const SLIP_SITTING = 30;
 
 type Gap = { from: number; to: number };
-export interface Opts { later?: string; hourOnly?: boolean; pull?: Gap | Gap[]; avoid?: { from: number; to: number }[]; only?: string[] } // only: ids (or a split parent's) that may move; every other placed piece holds, unscheduled ones wait // pull: time freed by a done or delete (one gap or several), from its start (or now) to its end; avoid: slots the user just left by hand
+export interface Opts { later?: string; hourOnly?: boolean; pull?: Gap | Gap[]; avoid?: { from: number; to: number }[]; only?: string[]; fill?: boolean } // only: ids (or a split parent's) that may move; every other placed piece holds, unscheduled ones wait // pull: time freed by a done or delete (one gap or several), from its start (or now) to its end; avoid: slots the user just left by hand // fill: place once, never move silently: a placed piece keeps its slot (only what clashes with held time gives way), no overload unlock, no bump; unplaced pieces take open cells
 /** A block that ended this long ago is still busy (the user may be finishing it); missed after. */
 export const GRACE = 15 * MIN;
 /** A time set by hand is busy only until its hold ends or its start passes (then a preference the planner may move). */
@@ -151,6 +152,7 @@ function planPlain(tasks: Task[], busy: Busy[], model: Model, now: number, opts:
 function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: Opts, unlock?: Set<string>): { diff: Diff; model: Model; bump?: string[]; trouble: number } {
   const m = clone(model);
   decay(m, now);
+  const fill = !!opts.fill;
   const B = boundsOf(m); // the user's own parts and awake window once learned; the defaults until then
   const live = tasks.filter((t) => !t.doneAt && !t.deletedAt);
   const allBusy: Titled[] = [...busy];
@@ -333,7 +335,7 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
   const dayLoad = new Map<number, number>();
   for (const p of pieces) if (p.prior !== undefined) dayLoad.set(dayStart(p.prior), (dayLoad.get(dayStart(p.prior)) ?? 0) + dur(p) / HOUR);
   const unlockOver = new Set<string>();
-  for (const d of dayLoad.keys()) {
+  for (const d of fill ? [] : dayLoad.keys()) {
     let h = loadOf(d);
     if (h <= capH(d)) continue;
     for (const p of pieces.filter((q) => q.prior !== undefined && dayStart(q.prior) === d && !q.gaps && !q.missed && !q.task.pinned && !q.task.fixed && !q.task.userEdited?.includes("start") && dueOf(q.task) === undefined).sort((a, b) => b.effort - a.effort)) {
@@ -345,14 +347,17 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
   // The checks an old slot must pass to be kept: no rule, window or awake hour is broken, and nothing clashes.
   const clear = (p: Piece, s: number, others: Busy[]) => {
     const t = p.task, e = s + dur(p);
-    return !(spanLater(p, s) || hits(p, s).length || !awake(p, s, undefined, B) || (t.deadline !== undefined && e > t.deadline) || (t.notAfter !== undefined && e > t.notAfter) || (t.notBefore !== undefined && s < t.notBefore) || others.some((b) => s < b.end && e > b.start));
+    return !(spanLater(p, s) || hits(p, s).length || !awake(p, s, undefined, B) || (t.deadline !== undefined && t.deadline > now && e > t.deadline) || (t.notAfter !== undefined && e > t.notAfter) || (t.notBefore !== undefined && s < t.notBefore) || others.some((b) => s < b.end && e > b.start));
   };
   const scope = opts.only && new Set(opts.only); // only: the rest hold their slot and wait for no time
   const inScope = (p: Piece) => !scope || scope.has(p.task.id) || (p.task.parentId !== undefined && scope.has(p.task.parentId));
   for (const p of [...pieces].sort((a, b) => own(b) - own(a))) { // a time set by hand wins a clash between two plans
     const s = p.prior;
     if (!inScope(p)) { if (s !== undefined) { p.lock = true; held.push({ start: s, end: s + dur(p) }); } continue; }
-    if (s === undefined || p.gaps || unlock?.has(p.id) || unlockOver.has(p.id) || !clear(p, s, held)) continue;
+    if (s === undefined) continue;
+    // fill: a placed piece holds unless it clashes with time already held (a missed one is re-placed as before)
+    const keep = fill && !scope && p.missed === undefined ? !held.some((b) => s < b.end && s + dur(p) > b.start) : !(p.gaps || unlock?.has(p.id) || unlockOver.has(p.id) || !clear(p, s, held));
+    if (!keep) continue;
     p.lock = true; held.push({ start: s, end: s + dur(p) });
   }
   if (scope) pieces = pieces.filter((p) => inScope(p) || p.lock); // unscheduled pieces outside the scope are not placed
@@ -437,11 +442,12 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
   const short = pieces.filter((q) => at(q) < 0 ? cells(q, now, rest).length > 0
     : (q.task.deadline !== undefined && at(q) + dur(q) > q.task.deadline) || (!!q.ask && (at(q) + dur(q) > q.ask.to || (q.ask.from !== undefined && at(q) < q.ask.from))));
   // Only what a due or a said window can use counts: an unplaced piece with no due gains nothing from a bump, so it does not decide one.
-  const urgent = short.filter((q) => q.task.deadline !== undefined || q.ask !== undefined);
+  // A due past the 7-day horizon that does not fit yet only waits: it does not evict anything (that would be a second solve for nothing).
+  const urgent = short.filter((q) => (q.task.deadline !== undefined && q.task.deadline <= now + 7 * DAY) || q.ask !== undefined);
   // Only new trouble bumps: a piece still short at its own old slot was short last plan too, and a replan with nothing new moves nothing.
   const fresh = urgent.filter((q) => !q.task.userDay && (q.prior === undefined || at(q) !== q.prior)); // a day chosen by hand never evicts other tasks
   let bump: string[] | undefined;
-  if (fresh.length && !pulls.length && !unlock) {
+  if (fresh.length && !pulls.length && !unlock && !fill) {
     const dl = (x: Piece) => x.task.deadline ?? Infinity;
     const cand = new Map<string, Piece>();
     for (const q of fresh) for (const p of pieces) {
@@ -669,10 +675,13 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
     // Unplaced with no due date: the end of the days it could have gone in.
     const dl = mine[0].task.deadline ?? Math.max(...mine.map((p) => { const cs = cells(p, now); return cs.length ? cs[cs.length - 1] + dur(p) : now; }));
     const others = pieces.filter((p) => pid(p) !== id);
-    let free = 0;
+    // One sweep over the slots (ascending), not a scan of every block per slot: a block clashes with a slot iff it starts before the slot ends and ends after it starts.
+    const blocks = [...allBusy, ...others.filter((q) => at(q) >= 0).map((q) => ({ start: at(q), end: at(q) + dur(q) }))].sort((a, b) => a.start - b.start);
+    let free = 0, k = 0, furthest = -Infinity; // furthest: the latest end among blocks that start before this slot ends
     for (let c = Math.ceil(now / SLOT) * SLOT; c + SLOT <= dl; c += SLOT) {
+      while (k < blocks.length && blocks[k].start < c + SLOT) furthest = Math.max(furthest, blocks[k++].end);
       const h = hourOf(c);
-      if (h >= 7 && h < 23 && !allBusy.some((b) => c < b.end && c + SLOT > b.start) && !others.some((q) => c < at(q) + dur(q) && c + SLOT > at(q))) free += SLOT / MIN;
+      if (h >= 7 && h < 23 && !(furthest > c)) free += SLOT / MIN;
     }
     const need = mine.reduce((n, q) => n + q.effort, 0);
     // Late with time to spare (a pinned or windowed piece): not short of time, so nothing to push and nothing urgent to say.
@@ -822,6 +831,7 @@ export function learn(model: Model, ev: TaskEvent, task: Task, own = false, clas
     }
     default:
   }
+  surface(m, ev.at);
   return m;
 }
 
