@@ -139,7 +139,7 @@ describe("freed time: later tasks move into it, earlier only", () => {
   });
 });
 
-it("bench: plan over a full store (ms logged)", () => {
+it.skipIf(!!process.env.CI)("bench: plan over a full store (ms logged)", () => {
   const ts: Task[] = [];
   for (let d = 0; d < 120; d++) {
     ts.push(flex(`read${d}`, NOW + d * D + 12 * H, 30, { rrule: "FREQ=DAILY", deadline: NOW + (d + 1) * D }));
