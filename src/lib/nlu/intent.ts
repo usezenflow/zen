@@ -178,7 +178,7 @@ export type Command =
   /** "hoãn gym", "gym để sau": the planner finds each a later time (swipeLater). */
   | { kind: "later"; ids: string[]; label: string }
   /** An option's `series`: a delete of a whole series (or this session on), applied as a scope so top-up does not bring it back. */
-  | { kind: "choose"; verb: Verb; ask?: string; key?: string; options: { label: string; actions: Action[]; series?: SeriesScope }[] }
+  | { kind: "choose"; verb: Verb; ask?: string; key?: string; options: { label: string; detail?: string; actions: Action[]; series?: SeriesScope }[] }
   /** `label`: what the confirm says, naming the days when it is one task's sessions ("Xoá 3 buổi Gym: T2 16/11, T4 18/11, T6 20/11?"). */
   | { kind: "bulk"; verb: Verb; count: number; actions: Action[]; label?: string; series?: SeriesScope }
   /** One session added to a series: `actions` are the one-off (or, if weekly, the new weekday); `alt` makes it weekly. `days`: the series' weekdays after it. */
@@ -542,10 +542,14 @@ export function commandOf(raw: string, now: number, tasks: Task[], l: Learned = 
     return xs.length > 1 ? many(xs) : { kind: "one", actions: [act(xs[0])], key };
   }
   if ((it.trailing || it.fuzzy) && !taught) return undefined; // a typo verb asks nothing: the line reads as a create
-  return { kind: "choose", verb, key, options: cands.slice(0, 3).flatMap((c) => {
+  const opts = cands.slice(0, 3).flatMap((c) => {
     const xs = pick(c);
-    return xs.length ? [{ label: `${it.fuzzy ? VERB_VI[verb] : it.lead} ${xs.length > 1 ? `${xs.length} buổi ` : ""}${c.x.title}`, actions: xs.map(act) }] : [];
-  }) };
+    return xs.length ? [{ label: `${it.fuzzy ? VERB_VI[verb] : it.lead} ${xs.length > 1 ? `${xs.length} buổi ` : ""}${c.x.title}`, ...(c.x.start ? { detail: dayLabel(c.x.start) } : {}), actions: xs.map(act) }] : [];
+  });
+  // "huỷ gym" with two Gym tasks: one more choice removes them all, so nobody picks twice
+  const same = cands.slice(0, 3).every((c) => c.x.title === cands[0].x.title);
+  if (verb === "delete" && opts.length > 1 && same) opts.push({ label: opts.length === 2 ? "Xoá cả hai" : `Xoá cả ${opts.length}`, actions: opts.flatMap((o) => o.actions) });
+  return { kind: "choose", verb, key, options: opts };
 }
 
 // "thêm 1 buổi gym", "học thêm toán", "extra gym session", "one more gym": one more session in a series.

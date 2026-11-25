@@ -46,7 +46,9 @@ describe("commandOf", () => {
   it("two tasks with the same name are a choice", () => {
     const c = commandOf("huỷ gym", now.getTime(), tasks);
     expect(c).toMatchObject({ kind: "choose", verb: "delete" });
-    expect(c?.kind === "choose" && c.options.map((o) => o.label)).toEqual(["huỷ Gym", "huỷ Gym"]);
+    expect(c?.kind === "choose" && c.options.map((o) => o.label)).toEqual(["huỷ Gym", "huỷ Gym", "Xoá cả hai"]);
+    const both = c?.kind === "choose" ? c.options[2] : undefined;
+    expect(both?.actions).toHaveLength(2); // the extra choice removes every match at once
   });
   it("a bulk word asks for a count", () => {
     expect(commandOf("xoá hết gym", now.getTime(), tasks)).toMatchObject({ kind: "bulk", count: 2 });
