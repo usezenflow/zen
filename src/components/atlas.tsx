@@ -1,4 +1,4 @@
-// Inside Nhịp (mockups/calm.html "Day slider", "Lá số", "What goes together"): what the outcomes show, never a habit claim.
+// Inside Nhịp (mockups/calm.html "Day slider", "Lá số"): what the outcomes show, never a habit claim.
 // Bars and cells come from planner/atlas.ts; marks and clauses from planner/mine.ts, so a dot is only where a finding passes its gate.
 import { useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -7,11 +7,10 @@ import { useSharedValue } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { Tap } from "@/components/tap";
 import { t } from "@/lib/i18n";
-import { KIND_SHORT, KIND_VI } from "@/lib/reasons";
-import { useTheme, font, ff } from "@/lib/theme";
+import { KIND_SHORT } from "@/lib/reasons";
+import { useTheme, ff } from "@/lib/theme";
 import type { Kind } from "@/lib/types";
-import { contextCorr, hourView, lasoGrid, type Cell } from "@/planner/atlas";
-import { I_AFTER } from "@/planner/features";
+import { hourView, lasoGrid, type Cell } from "@/planner/atlas";
 import { KINDS } from "@/planner/linucb";
 import { clause, mine as mineFindings, type Finding } from "@/planner/mine";
 import type { Model } from "@/planner/model";
@@ -19,8 +18,6 @@ import type { Model } from "@/planner/model";
 const PARTS = ["Sáng", "Trưa", "Chiều", "Tối"];
 const SCALE = 0.5; // a reward change of 0.5 fills half the axis
 const clamp = (v: number, lo = -1, hi = 1) => Math.max(lo, Math.min(hi, v));
-const ctxLabel = (f: number) => f === 1 ? t("ctxWeekend") : f === 2 ? t("ctxBusy") : f === 3 ? t("ctxDue") : t("ctxAfter", { kind: KIND_VI[KINDS[f - I_AFTER]] });
-const ctxShort = (f: number) => f === 1 ? "Cuối tuần" : f === 2 ? "Dày lịch" : f === 3 ? "Gần hạn" : `Sau ${KIND_SHORT[KINDS[f - I_AFTER]].toLowerCase()}`;
 
 /** The kindPart finding that favours this kind in this part, if one passes the miner's gate. */
 const favours = (fs: Finding[], k: Kind, part: number) => fs.find((f) => f.type === "kindPart" && f.feature === 4 + KINDS.indexOf(k) && ((f.armP === part && f.direction === 1) || (f.armQ === part && f.direction === -1)));
@@ -86,8 +83,6 @@ function DayTab({ m, hour, onHour }: { m: Model; hour: number; onHour: (h: numbe
       <Text style={[s.hr, { color: th.ink }]}>{t("atlasHour", { h: hour })}</Text>
       <View style={s.ends}><Text style={[s.end, { color: th.muted }]}>{t("atlasDrop")}</Text><Text style={[s.end, { color: th.muted }]}>{t("atlasWell")}</Text></View>
       {v.kinds.map((c) => <Bar key={c.kind} label={KIND_SHORT[c.kind]} c={c} />)}
-      {v.ctx.length > 0 && <Text style={[s.lab, { color: th.muted }]}>{t("atlasCtx")}</Text>}
-      <View style={s.chips}>{v.ctx.map((c) => <View key={c.feature} style={[s.chip, { backgroundColor: th.chip }]}><Text style={[s.chipT, { color: th.ink }]}>{ctxLabel(c.feature)}</Text></View>)}</View>
     </View>
   );
 }
@@ -122,47 +117,23 @@ function ChartTab({ m, fs }: { m: Model; fs: Finding[] }) {
       {cur && (
         <View style={[s.card, { borderColor: th.line }]}>
           <Text style={[s.cardT, { color: th.ink }]}>{f ? clause(f) : cur.enough ? t("atlasFlat") : t("atlasThin")}</Text>
-          {cur.n >= 1 && <Text style={[s.cardS, { color: th.muted }]}>{t("atlasBasis", { n: Math.round(cur.n) })}</Text>}
         </View>
       )}
     </View>
   );
 }
 
-function TogetherTab({ m, part, onPart }: { m: Model; part: number; onPart: (p: number) => void }) {
-  const th = useTheme();
-  const g = useMemo(() => contextCorr(m, part), [m, part]);
-  const col = (r: number | null) => r === null ? undefined : r >= 0 ? `rgba(47,90,200,${(0.1 + 0.9 * r).toFixed(2)})` : `rgba(217,67,43,${(0.1 + 0.9 * -r).toFixed(2)})`;
-  return (
-    <View>
-      <Seg items={PARTS} on={part} onPick={onPart} />
-      {!g.kinds.length || !g.ctx.length ? <Text style={[s.calm, { color: th.ink }]}>{t("atlasEmpty")}</Text> : <>
-        <View style={s.row}><View style={s.rk} />{g.ctx.map((c) => <Text key={c} style={[s.cx, { color: th.muted }]} numberOfLines={2}>{ctxShort(c)}</Text>)}</View>
-        {g.kinds.map((k, i) => (
-          <View key={k} style={s.row}>
-            <Text style={[s.rk, s.rkT, { color: th.ink }]} numberOfLines={2}>{KIND_SHORT[k]}</Text>
-            {g.r[i].map((r, j) => <View key={j} style={[s.cell, s.small, r === null ? [s.un, { borderColor: th.line }] : { backgroundColor: col(r) }]} />)}
-          </View>
-        ))}
-        <Text style={[s.end, { color: th.muted, marginTop: 10 }]}>{t("atlasTogetherR")}</Text>
-      </>}
-      <Text style={[s.cardS, { color: th.muted, marginTop: 10 }]}>{t("atlasNote")}</Text>
-    </View>
-  );
-}
-
-/** The three views, mined once per model. `hour` opens the day view at that hour (from "Vì sao giờ này"). */
+/** The two views, mined once per model. `hour` opens the day view at that hour (from "Vì sao giờ này"). */
 export function Atlas({ m, hour: h0 }: { m: Model; hour?: number }) {
   const [tab, setTab] = useState(0);
   const [hour, setHour] = useState(h0 ?? new Date().getHours());
-  const [part, setPart] = useState(0);
   const [now] = useState(() => Date.now()); // mined as of opening
   const fs = useMemo(() => mineFindings(m, now), [m, now]);
   return (
     <View style={{ marginTop: 18 }}>
-      <Seg items={[t("atlasDay"), t("atlasChart"), t("atlasTogether")]} on={tab} onPick={setTab} />
+      <Seg items={[t("atlasDay"), t("atlasChart")]} on={tab} onPick={setTab} />
       <View style={{ marginTop: 14 }}>
-        {tab === 0 ? <DayTab m={m} hour={hour} onHour={setHour} /> : tab === 1 ? <ChartTab m={m} fs={fs} /> : <TogetherTab m={m} part={part} onPart={setPart} />}
+        {tab === 0 ? <DayTab m={m} hour={hour} onHour={setHour} /> : <ChartTab m={m} fs={fs} />}
       </View>
     </View>
   );
@@ -188,22 +159,15 @@ const s = StyleSheet.create({
   bar: { position: "absolute", top: 3, height: 12, borderRadius: 6 },
   thin: { borderWidth: 1.5, borderStyle: "dashed" },
   wh: { position: "absolute", top: 8, height: 2, opacity: 0.6 },
-  lab: { fontSize: font.label, fontFamily: ff("500"), marginTop: 22 },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
-  chip: { height: 34, paddingHorizontal: 14, borderRadius: 99, justifyContent: "center" },
-  chipT: { fontSize: 14, fontFamily: ff("500") },
   row: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },
   rk: { width: 64 },
   rkT: { fontSize: 13, fontFamily: ff("600") },
   hd: { flex: 1, textAlign: "center", fontSize: 13, fontFamily: ff("600") },
-  cx: { flex: 1, textAlign: "center", fontSize: 11, fontFamily: ff("600") },
   cellW: { flex: 1, aspectRatio: 1 },
   cell: { flex: 1, aspectRatio: 1, borderRadius: 12 },
-  small: { borderRadius: 5 },
   un: { borderWidth: 1.5, borderStyle: "dashed" },
   dot: { position: "absolute", top: 6, right: 6, width: 7, height: 7, borderRadius: 4 },
   calm: { marginTop: 18, fontSize: 16, fontFamily: ff("500"), lineHeight: 22 },
   card: { marginTop: 16, borderWidth: 1, borderRadius: 22, padding: 16 },
   cardT: { fontSize: 17, fontFamily: ff("600"), lineHeight: 23 },
-  cardS: { fontSize: 15, fontFamily: ff("500"), marginTop: 6, lineHeight: 21 },
 });

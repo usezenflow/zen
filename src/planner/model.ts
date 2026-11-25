@@ -30,6 +30,7 @@ export interface Model {
   partSeen?: Partial<Record<PartName, number[]>>; // minute-of-day of done ticks for tasks whose tods named exactly one part (≤50 each)
   hyps?: Hyp[]; // see Hyp: kept, so a second drag can promote it
   hypNow?: Hyp; // the hypothesis the last drag gave (learn sets it, a fresh learn clears it), for the toast
+  surfaced?: { key: string; at: number }[]; // insights said to the user (mine.surface): one new a week, the last 50
   active?: { first: number; last: number; day: number }[]; // per local day (dayStart ms): minute-of-day of the first and last learn() event (≤30 days)
 }
 

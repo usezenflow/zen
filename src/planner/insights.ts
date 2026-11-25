@@ -21,11 +21,14 @@ export interface Insights {
   seen: number; // done or moved tasks in the last two weeks: the first days show these, never a bare "still learning"
   avoid: { hour: number; n: number }[]; // hours you dragged work away from in the last two weeks, most first: one drag shows it
   early?: { from: number; to: number; n: number }; // with EARLY of them and no golden yet: the two hours where you finished or dragged work most
+  sunday?: string; // the one learned row surfaced this week (mine.surface): the only new row the Sunday card may say
 }
+
+export const ROW_KEY = "row:"; // surfaced-key prefix of a learned row (mine.surface records them)
 
 export const EARLY = 3; // three things you did name a stretch, as a guess
 export const PROMOTE = 5; // five in one stretch make it the golden range
-export const WHEN_MIN = 4; // a part of the day needs this many (on two or more days) before it is said as yours
+export const MIN_OUTCOMES = 10; // outcomes behind any insight (a part, a stretch, a drag row, a slip rate, a learned hour) before it is said
 const FRESH = 7 * DAY; // evidence halves every week: a new habit leads, one odd day does not flip it
 
 const n5 = (n: number) => n / (n + 5);
@@ -67,7 +70,7 @@ export function insights(m: Model, now: number): Insights {
   const gsum = grid.flat().reduce((a, b) => a + b, 0);
   const pw = [0, 1, 2, 3].map((p) => grid.reduce((a, r) => a + r[p], 0)), pn = [0, 1, 2, 3].map((p) => cnt.reduce((a, r) => a + r[p], 0));
   const top4 = pw.indexOf(Math.max(...pw));
-  const when = pn[top4] >= WHEN_MIN && dates[top4].size >= 2 && pw[top4] / (gsum || 1) >= 0.4 ? { part: top4, wds: [0, 1, 2, 3, 4, 5, 6].filter((d) => grid[d][top4] >= 0.35 * Math.max(...grid.map((r) => r[top4]))), n: pn[top4], sure: clamp(pw[top4] / (pw[top4] + PROMOTE)) } : undefined;
+  const when = pn[top4] >= MIN_OUTCOMES && dates[top4].size >= 2 && pw[top4] / (gsum || 1) >= 0.4 ? { part: top4, wds: [0, 1, 2, 3, 4, 5, 6].filter((d) => grid[d][top4] >= 0.35 * Math.max(...grid.map((r) => r[top4]))), n: pn[top4], sure: clamp(pw[top4] / (pw[top4] + PROMOTE)) } : undefined;
   const left = new Map<number, number>();
   for (const d of m.left ?? []) if (recent(d.at)) left.set(Math.floor(d.hour), (left.get(Math.floor(d.hour)) ?? 0) + 1);
   const out: Insights = { grid, hours, pairs: [], slip: [], byKind: [], learned: [], avoid: [...left].map(([hour, n]) => ({ hour, n })).filter((x) => x.n >= 2).sort((a, b) => b.n - a.n || a.hour - b.hour).slice(0, 3), seen: done.length + m.hist.filter((x) => x.r < 0 && !x.miss && recent(x.at)).length };
@@ -84,7 +87,7 @@ export function insights(m: Model, now: number): Insights {
   const good = [...done, ...dragged].map((d) => ({ h: Math.floor(d.hour), w: age(d.at) }));
   const total = good.reduce((n, g) => n + g.w, 0);
   let top = 0; // weighted: recent evidence leads
-  if (out.seen >= EARLY && good.length >= 2) {
+  if (good.length >= MIN_OUTCOMES) {
     for (let f = 6; f <= 22; f++) {
       const hit = good.filter((g) => g.h === f || g.h === f + 1), w = hit.reduce((n, g) => n + g.w, 0);
       if (w > top) { top = w; out.early = { from: f, to: f + 2, n: hit.length }; }
@@ -103,20 +106,25 @@ export function insights(m: Model, now: number): Insights {
   const rules = () => {
     const nap = afterBuffer(m);
     // One row per part of the day: drags at 21h and 23h are one "Tránh buổi tối", whatever hours the older history spread them over.
-    const avoidParts = [...new Set(out.avoid.map((x) => partIdx(x.hour)))];
+    const avoidN = (part: number) => out.avoid.filter((x) => partIdx(x.hour) === part).reduce((a, x) => a + x.n, 0);
+    const avoidParts = [...new Set(out.avoid.map((x) => partIdx(x.hour)))].filter((part) => avoidN(part) >= MIN_OUTCOMES);
     out.learned = [
       ...(nap !== 15 ? [{ text: t("learnedNap", { m: nap }), icon: "moon" as const, v: clamp(n5(m.afterClass?.length ?? 0)) }] : []),
       // Counted from what is already stored (ticks and drags), so an older history shows it too. Sure = n / (n + k): more evidence, nearer 1 (the bandit's own sureness is used where it has one, below).
-      ...(pn[top4] >= EARLY && dates[top4].size >= 2 ? [{ text: t("learnedBusy", { p: PART_WORD[top4] }), part: top4, icon: (top4 === 3 ? "moon" : "sun") as "moon" | "sun", v: clamp(pw[top4] / (pw[top4] + PROMOTE)) }] : []),
+      ...(pn[top4] >= MIN_OUTCOMES && dates[top4].size >= 2 ? [{ text: t("learnedBusy", { p: PART_WORD[top4] }), part: top4, icon: (top4 === 3 ? "moon" : "sun") as "moon" | "sun", v: clamp(pw[top4] / (pw[top4] + PROMOTE)) }] : []),
       ...(out.golden && (out.golden.sure ?? 0) >= 0.5 ? [{ text: t("learnedGolden", { a: out.golden.from, b: out.golden.to }), icon: "clock" as const, v: out.golden.sure }] : []),
       ...(out.early ? [{ text: t("learnedEarly", { a: out.early.from, b: out.early.to }), icon: "clock" as const, v: clamp(out.early.n / PROMOTE), guess: true }] : []),
-      ...avoidParts.map((part) => ({ text: t("learnedAvoidPart", { p: PART_WORD[part] }), part, icon: "minus" as const, v: clamp(out.avoid.filter((x) => partIdx(x.hour) === part).reduce((a, x) => a + x.n, 0) / (out.avoid.filter((x) => partIdx(x.hour) === part).reduce((a, x) => a + x.n, 0) + 3)) })),
+      ...avoidParts.map((part) => ({ text: t("learnedAvoidPart", { p: PART_WORD[part] }), part, icon: "minus" as const, v: clamp(avoidN(part) / (avoidN(part) + 3)) })),
       ...out.byKind.map((x) => ({ text: t("learnedKindPart", { k: kindW(x.kind, true), p: partAt(x.from + 1) }), hour: x.from, kind: x.kind, v: x.sure })),
       ...out.slip.slice(0, 2).map((x) => ({ text: t("learnedSlip", { k: kindW(x.kind, true) }), kind: x.kind, icon: "undo" as const, v: clamp(m.slip[x.kind].placed / (m.slip[x.kind].placed + 5)) })),
       ...(out.unsure && learned ? [{ text: t("learnedTry", { p: partAt(out.unsure.from + 1) }), icon: "search" as const, v: 0.25, guess: true }] : []),
     ].filter((x, i, all) => all.findIndex((y) => y.text === x.text) === i).slice(0, 8);
+    // Sunday card: only the row surfaced within the week (surface records one new row a week); the rhythm page keeps every row.
+    const fresh = (m.surfaced ?? []).find((s) => s.key.startsWith(ROW_KEY) && now - s.at < 7 * DAY);
+    out.sunday = fresh && out.learned.find((x) => ROW_KEY + x.text === fresh.key)?.text;
   };
-  if (!learned) { say(); rules(); return out; }
+  // The bandit-based rows (golden, per-kind hours, pairs, slip, unsure) also need MIN_OUTCOMES recorded outcomes, not just a moved arm.
+  if (!learned || m.hist.length < MIN_OUTCOMES) { say(); rules(); return out; }
 
   let best = 0;
   for (let from = 0; from < 24; from++) for (let len = 2; len <= 4 && from + len <= 24; len++) {
@@ -150,7 +158,7 @@ export function insights(m: Model, now: number): Insights {
     }
   });
 
-  out.slip = KINDS.filter((k) => m.slip[k].placed >= 3 && slipOf(m, k) >= 0.25)
+  out.slip = KINDS.filter((k) => m.slip[k].placed >= MIN_OUTCOMES && slipOf(m, k) >= 0.25)
     .map((kind) => ({ kind, rate: slipOf(m, kind) })).sort((a, b) => b.rate - a.rate);
 
   let worst = -1;

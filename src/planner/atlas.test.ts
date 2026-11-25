@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { partIdx } from "./features";
 import { D, KINDS, update } from "./linucb";
 import { type Model, newModel } from "./model";
-import { contextCorr, hourView, lasoGrid } from "./atlas";
+import { hourView, lasoGrid } from "./atlas";
 
-const STUDY = KINDS.indexOf("study"), WORK = KINDS.indexOf("work");
+const STUDY = KINDS.indexOf("study");
 const vec = (kind: number, busy = 0) => { const v = new Array(D).fill(0); v[0] = 1; v[4 + kind] = 1; v[2] = busy; return v; };
 const model = (): Model => newModel(0);
 const plant = (m: Model, hour: number, kind: number, r: number, busy = 0) => {
@@ -22,14 +22,12 @@ describe("atlas", () => {
       expect(v.ctx).toEqual([]);
     }
     for (const c of lasoGrid(m)) { expect(c.enough).toBe(false); expect(Math.abs(c.mu)).toBeLessThan(1e-9); }
-    for (let p = 0; p < 4; p++) expect(contextCorr(m, p).r).toEqual([]);
   });
 
   it("is neutral when the model has no arms or parts", () => {
     const m = { ...model(), arms: undefined, parts: undefined } as unknown as Model;
     expect(hourView(m, 9).kinds.every((c) => !c.enough)).toBe(true);
     expect(lasoGrid(m).every((c) => !c.enough)).toBe(true);
-    expect(contextCorr(m, 0).r).toEqual([]);
   });
 
   it("says what the planted outcomes support", () => {
@@ -54,18 +52,5 @@ describe("atlas", () => {
     const busy = hourView(m, 9).ctx.find((c) => c.feature === 2);
     expect(busy).toBeDefined();
     expect(busy!.share).toBeCloseTo(0.8, 1);
-  });
-
-  it("correlates a kind with the busy context in its part", () => {
-    const m = model();
-    for (let i = 0; i < 30; i++) {
-      update(m.parts![0], vec(STUDY, 1), 0.5);
-      update(m.parts![0], vec(WORK, 0), 0.5);
-    }
-    const c = contextCorr(m, 0);
-    const bi = c.ctx.indexOf(2);
-    const study = c.r[c.kinds.indexOf("study")][bi], work = c.r[c.kinds.indexOf("work")][bi];
-    expect(study).toBeGreaterThan(0.8);
-    expect(work).toBeLessThan(-0.8);
   });
 });

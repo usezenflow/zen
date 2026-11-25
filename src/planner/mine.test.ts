@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { D, KINDS, update } from "./linucb";
 import { newModel, type Model } from "./model";
-import { clause, findingsFor, mine, type Finding } from "./mine";
+import { candidates, clause, findingsFor, mine, surface, type Finding } from "./mine";
 
 // Feature vector: intercept, plus the kind's one-hot, plus optional weekend.
 const x = (ki: number, weekend = 0) => { const v = new Array(D).fill(0); v[0] = 1; v[1] = weekend; v[4 + ki] = 1; return v; };
@@ -9,14 +9,20 @@ const STUDY = KINDS.indexOf("study"), WORK = KINDS.indexOf("work");
 // Neutral outcomes (reward 0) of other kinds in both parts: they pin the shared intercept, so a kind's effect is identifiable.
 const background = (m: Model) => { for (const p of [0, 3]) for (const ki of [1, 2, 3, 5]) for (let i = 0; i < 20; i++) update(m.parts![p], x(ki), 0); };
 
+const DAY_MS = 86400_000;
+// A planted study contrast (morning good, evening bad), 20 and 24 outcomes behind it.
+const planted = (): Model => {
+  const m: Model = newModel(0);
+  for (let i = 0; i < 20; i++) update(m.parts![0], x(STUDY), 0.5);
+  for (let i = 0; i < 24; i++) update(m.parts![3], x(STUDY), -0.5);
+  background(m);
+  return m;
+};
+
 describe("mine", () => {
   it("finds a planted kind x part effect with its direction", () => {
-    const m: Model = newModel(0);
-    // morning: study rewarded; evening: study not done
-    for (let i = 0; i < 20; i++) update(m.parts![0], x(STUDY), 0.5);
-    for (let i = 0; i < 24; i++) update(m.parts![3], x(STUDY), -0.5);
-    background(m);
-    const f = mine(m, 0).find((g) => g.type === "kindPart" && g.feature === 4 + STUDY);
+    const m = planted();
+    const f = candidates(m).find((g) => g.type === "kindPart" && g.feature === 4 + STUDY);
     expect(f).toBeDefined();
     expect(f!.armP).toBe(0);
     expect(f!.armQ).toBe(3);
@@ -38,7 +44,7 @@ describe("mine", () => {
     // every outcome is a weekend study: weekend and study move together, so neither is named alone
     for (let i = 0; i < 10; i++) update(m.parts![0], x(STUDY, 1), 0.5);
     for (let i = 0; i < 12; i++) update(m.parts![3], x(STUDY, 1), -0.5);
-    const named = mine(m, 0).filter((g) => g.feature === 1 || g.feature === 4 + STUDY);
+    const named = candidates(m).filter((g) => g.feature === 1 || g.feature === 4 + STUDY);
     expect(named).toEqual([]);
   });
 
@@ -47,22 +53,45 @@ describe("mine", () => {
     for (let i = 0; i < 20; i++) update(m.parts![0], x(STUDY), 0.5);
     for (let i = 0; i < 24; i++) update(m.parts![3], x(STUDY), -0.5);
     background(m);
-    const pick = () => mine(m, 0).find((g) => g.type === "kindPart" && g.feature === 4 + STUDY)!;
+    const pick = () => candidates(m).find((g) => g.type === "kindPart" && g.feature === 4 + STUDY)!;
     expect(pick().behaviour).toBeUndefined();
     // the user drags study to the evening (tối, hour 20) four times: against the effect
-    m.moved = [0, 1, 2, 3].map(() => ({ hour: 20, at: 0, kind: "study" }) as never);
+    m.moved = Array.from({ length: 10 }, () => ({ hour: 20, at: 0, kind: "study" }) as never);
     expect(pick().behaviour).toBe("contradicts");
     expect(pick().surprise).toBeCloseTo(2 * Math.abs(pick().z));
   });
 
   it("finds a length that runs over the guesses, and none that matches", () => {
     const m: Model = newModel(0);
-    m.efforts = [0, 1, 2, 3].map((i) => ({ vec: [], minutes: 90, at: i, kind: "study" as const, guess: 60 }));
-    const f = mine(m, 0).find((g) => g.type === "length");
+    m.efforts = Array.from({ length: 10 }, (_, i) => ({ vec: [], minutes: 90, at: i, kind: "study" as const, guess: 60 }));
+    const f = candidates(m).find((g) => g.type === "length");
     expect(f).toBeDefined();
     expect(f!.direction).toBe(1);
-    m.efforts = [0, 1, 2, 3].map((i) => ({ vec: [], minutes: 60, at: i, kind: "study" as const, guess: 60 }));
-    expect(mine(m, 0).some((g) => g.type === "length")).toBe(false);
+    m.efforts = Array.from({ length: 10 }, (_, i) => ({ vec: [], minutes: 60, at: i, kind: "study" as const, guess: 60 }));
+    expect(candidates(m).some((g) => g.type === "length")).toBe(false);
+  });
+
+  it("says a contrast only with 10 outcomes on each side", () => {
+    const m: Model = newModel(0);
+    for (let i = 0; i < 9; i++) update(m.parts![0], x(STUDY), 0.5);
+    for (let i = 0; i < 9; i++) update(m.parts![3], x(STUDY), -0.5);
+    background(m);
+    expect(candidates(m).some((g) => g.type === "kindPart" && g.feature === 4 + STUDY)).toBe(false);
+  });
+
+  it("says nothing until surfaced, then one new insight a week", () => {
+    const m = planted();
+    m.efforts = Array.from({ length: 10 }, (_, i) => ({ vec: [], minutes: 90, at: i, kind: "study" as const, guess: 60 }));
+    expect(candidates(m).length).toBe(2);
+    expect(mine(m, 0)).toEqual([]);
+    surface(m, 0);
+    expect(mine(m, 0)).toEqual([candidates(m)[0]]); // the strongest first
+    surface(m, DAY_MS);
+    expect(mine(m, DAY_MS)).toHaveLength(1); // within the week: no new one
+    surface(m, 8 * DAY_MS);
+    expect(mine(m, 8 * DAY_MS)).toHaveLength(2); // a week on, the next one
+    surface(m, 16 * DAY_MS);
+    expect(mine(m, 16 * DAY_MS)).toHaveLength(2); // nothing left to say
   });
 });
 

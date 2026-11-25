@@ -4,7 +4,8 @@ import { PART_NAMES } from "../lib/parts";
 import { KIND_VI, kindW } from "../lib/reasons";
 import { INSIGHT, fill } from "../lib/i18n";
 import { D, KINDS, PARTS, coldParts, invert, type Arm } from "./linucb";
-import { I_AFTER, partIdx } from "./features";
+import { DAY, I_AFTER, partIdx } from "./features";
+import { ROW_KEY, insights } from "./insights";
 import type { Model } from "./model";
 
 export interface Finding {
@@ -20,7 +21,8 @@ export interface Finding {
 }
 
 const SIGMA = 0.5; // shortcut: fixed at the reward scale; upgrade to the residual sigma from m.hist once there are 50+ outcomes
-const SURE = 3; // outcomes a feature must have on each side before it is said
+const SURE = 10; // outcomes behind any insight, on each side of a contrast, before it is said (decayed counts, so the real number is higher)
+const WEEK = 7 * DAY;
 const GATE_Z = 3; // ~100 candidates are tested: at |z|≥3 well under one is expected by chance
 const CONF = 0.8; // |corr| above this with another active feature: the data cannot separate them, so nothing is said
 const LEN_LO = 0.85, LEN_HI = 1.15;
@@ -74,9 +76,11 @@ function behaviour(m: Model, ki: number, p: number, q: number, dir: 1 | -1): Fin
   return (mp > mq) === (dir === 1) ? "agrees" : "contradicts";
 }
 
-/** The findings the model supports now, strongest |z| first. Empty when there is no model or no significant contrast. */
-export function mine(m: Model, now: number): Finding[] {
-  void now;
+const keyOf = (f: Finding) => `${f.type}:${f.feature}:${f.armP}:${f.armQ ?? ""}:${f.direction}`;
+const learnedKeys = (m: Model, now: number) => insights(m, now).learned.map((x) => ROW_KEY + x.text);
+
+/** Every finding the model supports now, strongest |z| first (pure; not yet surfaced). Empty when there is no model or no significant contrast. */
+export function candidates(m: Model): Finding[] {
   if (!m.parts || m.parts.length !== PARTS) return [];
   const cold = coldParts();
   const fits = m.parts.map((arm, p) => fitPart(arm, cold[p]));
@@ -124,6 +128,27 @@ export function mine(m: Model, now: number): Finding[] {
   });
 
   return out.sort((a, b) => Math.abs(b.z) - Math.abs(a.z));
+}
+
+/** The findings said to the user: those already surfaced (see surface). */
+export function mine(m: Model, now: number): Finding[] {
+  void now;
+  const said = new Set((m.surfaced ?? []).map((s) => s.key));
+  return candidates(m).filter((f) => said.has(keyOf(f)));
+}
+
+/** Surfaces at most one new finding and one new learned row (insights.learned, the Sunday card's) a week: the strongest not said before.
+ *  Called by learn, so the model is the only state. Findings and rows keep their own week, so one never holds back the other. */
+export function surface(m: Model, now: number): void {
+  const said = m.surfaced ?? [];
+  const next = (keys: () => string[], row: boolean) => {
+    if (said.some((s) => s.key.startsWith(ROW_KEY) === row && now - s.at < WEEK)) return [];
+    const known = new Set(said.map((s) => s.key));
+    const k = keys().find((x) => !known.has(x));
+    return k ? [{ key: k, at: now }] : [];
+  };
+  const add = [...next(() => candidates(m).map(keyOf), false), ...next(() => learnedKeys(m, now), true)];
+  if (add.length) m.surfaced = [...said, ...add].slice(-50);
 }
 
 /** One literal Vietnamese clause for a finding: the measured contrast and nothing else. */

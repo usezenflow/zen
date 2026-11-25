@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { D, I_AFTER, I_ENERGY, energy } from "./features";
+import { D, DAY, I_AFTER, I_ENERGY, energy } from "./features";
 import { grounded } from "./grounded";
 import { insights } from "./insights";
 import { update } from "./linucb";
 import { learn, newModel, plan } from "./index";
+import { surface } from "./mine";
 
 const now = new Date(2026, 10, 16, 8, 0).getTime();
+// Ten recorded outcomes (rewarded ticks), the minimum for any insight from the history.
+const outcomes = (m: ReturnType<typeof newModel>) => { for (let i = 0; i < 10; i++) m.hist.push({ vec: [], hour: 9, r: 1, at: now - 1000 }); };
 
 describe("insights", () => {
   it("counts what it has seen, and after three names the stretch you finished or dragged work to, as a guess", () => {
@@ -14,15 +17,15 @@ describe("insights", () => {
     m.doneHours.push({ hour: 20.3, at: at(20) });
     m.hist.push({ vec: [], hour: 9, r: -1, at: at(9) }); // moved away from 9h: seen, not a good hour
     expect(insights(m, now).seen).toBe(2); expect(insights(m, now).early).toBeUndefined();
-    m.moved!.push({ hour: 21.3, at: at(21) }); // dragged to 21h
-    m.doneHours.push({ hour: 21.5, at: at(21) });
+    // a stretch is named as a guess only from ten things done or dragged (nine is not enough)
+    for (let i = 0; i < 8; i++) m.doneHours.push({ hour: 20.5 + (i % 2), at: at(20 + (i % 2)) });
+    expect(insights(m, now).early).toBeUndefined();
+    m.moved!.push({ hour: 21.3, at: at(21) }); // the tenth: dragged to 21h
     const i = insights(m, now);
-    expect(i).toMatchObject({ seen: 3, early: { from: 20, to: 22, n: 3 } }); // three name the stretch, as a guess; the range itself waits for five
-    expect(i.golden).toBeUndefined();
+    expect(i).toMatchObject({ seen: 10, golden: { from: 20, to: 22 } }); // ten in one stretch are the golden range (the counted path)
+    expect(i.early).toBeUndefined();
     const two = newModel(now); two.doneHours.push({ hour: 20.3, at: at(20) }, { hour: 21.5, at: at(21) });
     expect(insights(two, now).early).toBeUndefined(); // two things are not a habit
-    two.doneHours.push({ hour: 20.6, at: at(20) });
-    expect(insights(two, now).early).toMatchObject({ from: 20, to: 22 }); // the data holds; the words are the rhythm's to say
     // two weeks old says nothing; scattered hours name no range
     expect(insights(m, now + 20 * 86400000).seen).toBe(0); expect(insights(m, now + 20 * 86400000).early).toBeUndefined();
     const s = newModel(now);
@@ -31,11 +34,11 @@ describe("insights", () => {
   });
   it("names the golden range from five ticks in one stretch, and planner misses are not moves you made", () => {
     const m = newModel(now), at = (d: number, h: number) => new Date(2026, 10, 15 - d, h, 20).getTime();
-    for (let d = 0; d < 5; d++) m.doneHours.push({ hour: 20.4 + (d % 2), at: at(d, 20) });
+    for (let d = 0; d < 9; d++) m.doneHours.push({ hour: 20.4 + (d % 2), at: at(d, 20) });
     m.doneHours.push({ hour: 9.2, at: at(1, 9) });
     for (let n = 0; n < 50; n++) m.hist.push({ vec: [], hour: 10, r: -1, at: at(0, 10), miss: true });
     const i = insights(m, now);
-    expect(i.seen).toBe(6);
+    expect(i.seen).toBe(10);
     expect(i.golden).toMatchObject({ from: 20, to: 22 });
     expect(i.golden!.sure).toBeGreaterThan(0.4);
     expect(i.early).toBeUndefined();
@@ -63,14 +66,14 @@ describe("insights", () => {
     expect(i.learned.every((x) => x.guess)).toBe(true); // exploring rows only, drawn dashed; no sure rule yet
   });
   it("finds the golden window after rewards on arms 8-10", () => {
-    const m = newModel(now);
+    const m = newModel(now); outcomes(m);
     for (let n = 0; n < 60; n++) for (const h of [8, 9, 10]) { const x = new Array(D).fill(0); x[0] = 1; x[I_ENERGY] = energy(h + 0.5, 15); update(m.arms[h], x, 1); }
     const i = insights(m, now);
     expect(i.golden!.from).toBeLessThanOrEqual(9);
     expect(i.golden!.to).toBeGreaterThanOrEqual(11);
   });
   it("learns the best hours for a kind", () => {
-    const m = newModel(now);
+    const m = newModel(now); outcomes(m);
     for (let n = 0; n < 60; n++) for (const h of [8, 9, 10]) { const x = new Array(D).fill(0); x[0] = 1; x[4] = 1; update(m.arms[h], x, 1); }
     const k = insights(m, now).byKind.find((e) => e.kind === "study")!;
     expect(k.from).toBeGreaterThanOrEqual(7);
@@ -79,19 +82,19 @@ describe("insights", () => {
   });
   it("drags away from 21h, 22h and 23h are one 'Tránh buổi tối', which forgets the part", () => {
     const m = newModel(now);
-    m.left = [21, 21, 22, 22, 23, 23].map((hour) => ({ hour, at: now - 1000 }));
+    m.left = [21, 21, 22, 22, 23, 23, 21, 22, 23, 21].map((hour) => ({ hour, at: now - 1000 }));
     const rows = insights(m, now).learned.filter((x) => x.text === "Tránh buổi tối");
     expect(rows).toEqual([expect.objectContaining({ text: "Tránh buổi tối", part: 3 })]);
   });
   it("an older history of ticks alone still names the part you finish in", () => {
     const m = newModel(now);
-    m.doneHours = [8, 9, 10].map((hour, i) => ({ hour, at: now - (i + 1) * 86400000 }));
+    m.doneHours = Array.from({ length: 10 }, (_, i) => ({ hour: 8 + (i % 3), at: now - (i % 5 + 1) * 86400000 }));
     expect(insights(m, now).learned).toContainEqual(expect.objectContaining({ text: "Hay xong việc buổi sáng", part: 0 }));
   });
   it("reports slip and pairs once learned", () => {
     const m = newModel(now);
     for (let h = 7; h < 23; h++) for (let n = 0; n < 5; n++) { const x = new Array(D).fill(0); x[0] = 1; x[I_AFTER] = 1; update(m.arms[h], x, 1); }
-    m.slip.study = { later: 4, placed: 10 };
+    m.slip.study = { later: 4, placed: 10 }; outcomes(m);
     const i = insights(m, now);
     expect(i.pairs[0].before).toBe("study");
     expect(i.slip).toEqual([{ kind: "study", rate: 0.4 }]);
@@ -104,7 +107,7 @@ describe("insights from moves", () => {
     let m = newModel(now);
     const task = { id: "a", kind: "study", title: "x", source: "user", effort: 30, createdAt: 0 } as Parameters<typeof learn>[2];
     const x = new Array(D).fill(0); x[0] = 1; x[4] = 1;
-    for (let k = 0; k < 6; k++) {
+    for (let k = 0; k < 10; k++) {
       m.placed.a = { start: now + 6 * 3600e3, arm: 14, x, policy: "linucb" } as (typeof m.placed)[string];
       m = learn(m, { id: `e${k}`, taskId: "a", type: "drag", at: now, data: { fromStart: now + 6 * 3600e3, toStart: now + 3600e3 } }, task);
     }
@@ -117,7 +120,7 @@ describe("insights from moves", () => {
     const m0 = newModel(now), at = (h: number) => new Date(2026, 10, 15, h, 20).getTime();
     for (const h of [8, 8, 9]) m0.doneHours.push({ hour: h + 0.3, at: at(h) });
     let m = m0;
-    for (let n = 0; n < 6; n++) {
+    for (let n = 0; n < 10; n++) {
       const task = { id: `u${n}`, title: "x", kind: "work" as const, source: "user" as const, effort: 60, createdAt: now, start: at(9), end: at(10), pinned: true };
       m = learn(m, { id: `e${n}`, taskId: task.id, type: "drag", at: now, data: { fromStart: at(9), toStart: at(15) } } as never, task);
     }
@@ -125,9 +128,9 @@ describe("insights from moves", () => {
     expect(i.golden ?? i.early).toMatchObject({ from: 14, to: 16 });
     // what you did today outweighs older mornings: three drags flip a settled morning range
     const old = newModel(now);
-    for (let d = 0; d < 5; d++) old.doneHours.push({ hour: 8.4, at: new Date(2026, 10, 15 - d, 8, 20).getTime() });
+    for (let d = 0; d < 10; d++) old.doneHours.push({ hour: 8.4, at: new Date(2026, 10, 15 - (d % 5), 8, 20).getTime() });
     expect(insights(old, now).golden ?? insights(old, now).early).toMatchObject({ to: 9 });
-    for (let n = 0; n < 4; n++) old.moved!.push({ hour: 15.3, at: now - n * 3600_000 });
+    for (let n = 0; n < 8; n++) old.moved!.push({ hour: 15.3, at: now - n * 3600_000 });
     expect(insights(old, now).golden ?? insights(old, now).early).toMatchObject({ from: 14 });
   
   });
@@ -178,12 +181,12 @@ describe("the week, as a person says it", () => {
   it("names the part and the days that are yours, only with several things on several days", () => {
     expect(insights(mk([0, 1, 2], 9), sun).when).toBeUndefined(); // three is not enough
     expect(insights(mk([6, 6, 6, 6], 9), sun).when).toBeUndefined(); // four on one day is one day
-    const w = insights(mk([6, 5, 4, 3, 2], 9), sun).when!; // Mon..Fri mornings (15 Nov is a Sunday)
+    const w = insights(mk([6, 5, 4, 3, 2, 6, 5, 4, 3, 2], 9), sun).when!; // Mon..Fri mornings, ten times (15 Nov is a Sunday)
     expect(w).toMatchObject({ part: 0, wds: [1, 2, 3, 4, 5] });
-    expect(insights(mk([1, 8, 15, 22], 20), sun).when).toMatchObject({ part: 3, wds: [6] }); // four Saturday evenings
+    expect(insights(mk([1, 8, 15, 22, 1, 8, 15, 22, 1, 8], 20), sun).when).toMatchObject({ part: 3, wds: [6] }); // ten Saturday evenings
   });
   it("grid is weekday by part, 0..1, and one odd day does not outweigh a habit", () => {
-    const m = mk([6, 5, 4, 3, 2], 9);
+    const m = mk([6, 5, 4, 3, 2, 6, 5, 4, 3, 2], 9);
     m.doneHours.push({ hour: 20.3, at: sun - 3600_000, wd: 0 }); // one late-night Sunday
     const i = insights(m, sun);
     expect(i.grid).toHaveLength(7);
@@ -197,5 +200,21 @@ describe("the week, as a person says it", () => {
     expect(grounded([r], f(at(10, 16)))).toHaveLength(1);
     expect(grounded([r], f(at(15, 16)))).toHaveLength(0); // afternoon
     expect(grounded([r], f(at(10, 21)))).toHaveLength(0); // weekend
+  });
+});
+
+describe("the Sunday card's one new row a week", () => {
+  it("names only the learned row surfaced this week; the rows themselves stay all there", () => {
+    const m = newModel(now);
+    m.left = Array.from({ length: 10 }, () => ({ hour: 21, at: now - 1000 })); // ten drags away from the evening: a row
+    const rows = insights(m, now).learned;
+    expect(rows.length).toBeGreaterThan(0);
+    expect(insights(m, now).sunday).toBeUndefined(); // nothing surfaced yet
+    surface(m, now);
+    expect(insights(m, now).sunday).toBe(rows[0].text);
+    expect(insights(m, now).learned).toEqual(rows); // the rhythm page still lists every row
+    surface(m, now + 2 * DAY); // within the week: no second new row
+    expect(m.surfaced!.filter((s) => s.key.startsWith("row:"))).toHaveLength(1);
+    expect(insights(m, now + 8 * DAY).sunday).toBeUndefined(); // a week on, the Sunday card says nothing old
   });
 });

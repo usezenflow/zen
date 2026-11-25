@@ -9,7 +9,6 @@ export interface Cell { mu: number; se: number; n: number; enough: boolean }
 const SIGMA = 0.5; // same reward scale as mine.ts
 const ENOUGH_N = 3, ENOUGH_SE = 0.25; // outcomes for a kind, and the largest error bar it may have, before it is said
 const CTX_N = 3, CTX_SHARE = 0.4; // outcomes at an hour, and the share of them a context must cover, before it is listed
-const CORR_SURE = 3, CORR_N = 8; // evidence per kind or context column, and outcomes in the part, before a correlation is said
 // Context features: weekend, busy, due, then the "right after a block of kind j" block.
 const CTX = [1, 2, 3, ...KINDS.map((_, k) => I_AFTER + k)];
 
@@ -65,26 +64,4 @@ export function lasoGrid(m: Model): (Cell & { kind: Kind; part: number })[] {
     const th = thetaOf(arm), thCold = thetaOf(cold);
     return KINDS.map((kind, k) => ({ kind, part: p, ...cell(arm.A, Ae, th, thCold, 4 + k) }));
   });
-}
-
-/** Pearson correlation of each kind indicator with each context feature, from one part's evidence. null where a side has no variance or the part is too thin. */
-export function contextCorr(m: Model, part: number): { kinds: Kind[]; ctx: number[]; r: (number | null)[][] } {
-  const arm = m.parts?.[part];
-  if (!arm) return { kinds: [], ctx: [], r: [] };
-  const cold = coldParts()[part];
-  const Ae = arm.A.map((v, i) => v - cold.A[i]);
-  const n = Ae[0];
-  const kinds = KINDS.filter((_, k) => Ae[(4 + k) * D + 4 + k] >= CORR_SURE);
-  const ctx = CTX.filter((j) => Ae[j * D + j] >= CORR_SURE);
-  const cov = (i: number, j: number) => Ae[i * D + j] / n - (Ae[i] / n) * (Ae[j] / n);
-  const r = kinds.map((kind) => {
-    const i = 4 + KINDS.indexOf(kind);
-    return ctx.map((j) => {
-      if (n < CORR_N) return null;
-      const vi = cov(i, i), vj = cov(j, j);
-      if (vi < 1e-9 || vj < 1e-9) return null;
-      return Math.max(-1, Math.min(1, cov(i, j) / Math.sqrt(vi * vj)));
-    });
-  });
-  return { kinds, ctx, r };
 }
