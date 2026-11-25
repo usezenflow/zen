@@ -1,5 +1,20 @@
 # zen
 
+## 26.1.0 (beta)
+
+### Minor Changes
+
+- Nhịp biết cho bạn xem điều đã diễn ra, không chỉ điều zen đoán
+    - "Lá số": bảng của bạn theo buổi và loại việc, vẽ từ đúng những gì bạn đã làm. Ô đậm là hay xong, ô viền đứt là chưa đủ dữ liệu; chạm một ô để xem con số đằng sau
+    - "Trong ngày": kéo qua từng giờ để xem loại việc nào hay xong, loại nào hay bỏ dở ở giờ đó, kèm vài bối cảnh thường đi cùng (ngày có lớp, ngay sau lớp, gần hạn)
+    - "Đi cùng nhau": các hoàn cảnh hay xuất hiện cùng lúc trong lịch của bạn, theo từng buổi. Chỉ cho biết điều hay đi cùng nhau, không phải điều giúp bạn xong việc
+- Giải thích lịch bằng câu đo được, không đoán lý do: mỗi câu nói đúng một so sánh (ví dụ "Học buổi chiều xong nhiều hơn buổi tối"). Chỉ hiện khi số liệu đủ rõ; không có thì không nói gì
+- Bỏ các câu lý do chung chung theo giờ, loại việc và năng lượng; không còn dấu "·" trong câu lý do và câu dời việc
+- Xếp lại theo đúng lúc: zen chỉ đổi lịch khi bạn thêm, sửa hạn, sửa giờ, xóa, đánh dấu xong sớm, hoặc khi việc trùng nhau; đồng hồ và việc chờ không còn tự dời việc đang có
+- Kéo việc nhỏ (vài phút) không còn bị coi là quy tắc; kéo lớn mới để lại dấu, và một lần kéo không tạo quy tắc cứng
+- Đồng bộ thời khóa biểu và LMS đã sửa: thay đổi từ trường chỉ đổi đúng buổi đó, không ghi đè việc bạn vừa chỉnh
+- Nói giờ viết liền cũng hiểu: "lúc 0800", "1430 chiều", "0800 đến 0930" thành 08:00, 14:30, 08:00 đến 09:30. Cần "lúc", "từ", "đến" hoặc sáng/chiều/tối đi kèm; số bắt đầu bằng 0 thì không cần. Số điện thoại và mã phòng giữ nguyên
+
 ## 26.0.13
 
 ### Patch Changes

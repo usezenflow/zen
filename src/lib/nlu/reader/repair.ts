@@ -246,6 +246,17 @@ function joinDigits(src: Repaired, source: ReaderSource): Repaired {
   return splice(src, edits);
 }
 
+// 5 dictation writes a clock glued: "lúc 0800", "1430 chiều" become 08:00, 14:30. Without a cue only a leading zero makes a clock (years, rooms stay text).
+const GLUED = String.raw`([01]?\d|2[0-3])([0-5]\d)(?![\d/:]|\.\d)`;
+const GLUE_BEFORE = new RegExp(String.raw`(?<=(?<!\p{L})(?:lúc|luc|vào|vao|từ|tu|đến|den|tới|at|from|until|before|trước|truoc)\s+)(?<![\p{L}\d/.:-])${GLUED}`, "giu");
+const GLUE_AFTER = new RegExp(String.raw`(?<![\p{L}\d/.:-])${GLUED}(?=\s*(?:sáng|sang|chiều|chieu|tối|trưa|trua|am|pm)(?!\p{L}))`, "giu");
+// A leading zero is a clock on its own ("0800"): no year, room or count starts that way. Phone numbers have more digits, so the digit guards skip them.
+const GLUE_ZERO = new RegExp(String.raw`(?<![\p{L}\d/.:-])(0\d)([0-5]\d)(?![\d/:]|\.\d)`, "gu");
+function glueClock(src: Repaired): Repaired {
+  const clock = (m: RegExpExecArray) => `${m[1]}:${m[2]}`;
+  return sub(sub(sub(src, GLUE_BEFORE, clock), GLUE_AFTER, clock), GLUE_ZERO, clock);
+}
+
 // 5 OCR: O Q o -> 0, I l | ! -> 1 (a final ! is a mark), S -> 5, Z -> 2, B -> 8, and , ; or spaced / -> / inside a date or time shape
 const COMMA_DATE = /^\d{1,2}[,;]\d{1,2}([,;]\d{2,4})?$/;
 const OCR_FIX: Record<string, string> = {
@@ -1798,6 +1809,7 @@ export function repair(raw: string, source: ReaderSource): Repaired {
     (m) => `${m[1]} ${m[2]}${m[3]}`,
   );
   // "21h tới nửa đêm": the range word, not the evening (which would split it into two parts)
+  r = glueClock(r);
   r = sub(r, /(?<=(?:\d\s*(?:h|g|giờ)\s*\d{0,2}|:\d\d)\s*)tới(?=\s+nửa đêm)/gu, () => "đến");
   // a tilde between two clocks is a range dash: "22h ~ 1h sáng"
   r = sub(r, /(?<=\d[hHgG]?|\d[hHgG]\d\d)\s*~\s*(?=\d|nửa đêm)/g, () => " - ");
