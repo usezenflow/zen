@@ -2,6 +2,8 @@
 export type Lang = "vi";
 export const getLang = (): Lang => "vi";
 
+export const WEEKDAY_VI = ["Chủ nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"];
+
 const S = {
   planned: "Xếp xong {n} việc",
   plannedSplit: "{title} chia {k} buổi",
@@ -199,7 +201,7 @@ const S = {
   nearest: "Gần nhất: {when}, {title}",
   nothingYet: "Chưa có gì",
   startLab: "Bắt đầu",
-  laterBtn: "Dời", // the now card's second action: one tap, Zen picks the day and hour (views.html "Day, move")
+  laterBtn: "Để sau", // the now card's second action: logs it as later, and the next card shows (calm.html "Now, ready")
   overrunQ: "Xong chưa?", // a block ended and nothing is ticked: one calm question (magic.html 7p)
   overrunSub: "{title} đã quá giờ",
   finishDone: "Xong",
@@ -255,6 +257,7 @@ const S = {
   addNote: "Thêm ghi chú",
   delete: "Xoá",
   cancel: "Huỷ",
+  commandCancelled: "Đã bỏ qua, không đổi gì",
   marks: "Điểm",
   cumulative: "Tích luỹ",
   creditsGpa: "{n} TC, hệ 4",
@@ -293,6 +296,15 @@ const S = {
   unpinned: "Đã bỏ ghim {title}",
   madeRoom: "Đã dời {title} sau hạn",
   ruleKept: "Mình sẽ giữ {text}",
+  sessionAsk: "Thêm buổi cho chuỗi nào?",
+  notFound: "Không thấy {what}",
+  reopened: "Đã mở lại {title}",
+  nothingToUndo: "Chưa có gì để hoàn tác",
+  commandsDone: "Đã {list}",
+  sessionAdded: "Đã thêm {n} buổi {title}",
+  sessionSub: "{when}, trong chuỗi {title}",
+  sessionAlt: "mỗi tuần",
+  seriesDays: "{title} giờ là {days}",
   ruleSub: "{title} sang {when}",
   ruleGone: "Đã quên: {text}",
   trailFrom: "từ {when}",
@@ -321,6 +333,11 @@ const S = {
   hoursMins: "{h}h{n}p",
   minsN: "{n}p",
   sundayLab: "Tuần này mình hiểu thêm",
+  seriesLab: "Mình để ý thấy",
+  seriesAsk: "Lặp lại {title} hằng tuần?",
+  seriesSub: "Bạn đã làm {title} vào {day} ba tuần liền.",
+  seriesYes: "{day} hằng tuần",
+  seriesNo: "Không",
   sundaySub: "{done} việc xong, {moved} lần dời",
   sundayKeep: "Giữ {pct}% giờ Zen xếp, {delta}",
   whyNow: "Vì sao lúc này",
@@ -378,6 +395,25 @@ const S = {
   repeatPerWeek: "{n} buổi/tuần",
   repeatEveryWeek: "Mỗi tuần",
   // Rhythm: "Zen đã học được gì" (rules the planner applies, each forgettable)
+  // Atlas inside Nhịp: what the outcomes show, by hour, by kind and part, and what goes together (planner/atlas.ts)
+  atlasDay: "Trong ngày",
+  atlasChart: "Lá số",
+  atlasTogether: "Đi cùng nhau",
+  atlasHour: "{h} giờ",
+  atlasWell: "Hay xong",
+  atlasDrop: "Hay bỏ dở",
+  atlasThin: "Chưa đủ dữ liệu",
+  atlasCtx: "Lúc này thường là",
+  atlasFlat: "Chưa thấy khác biệt rõ",
+  atlasBasis: "Dựa trên khoảng {n} lần",
+  atlasNote: "Chỉ cho biết điều gì hay đi cùng nhau, không phải điều gì giúp bạn xong việc.",
+  atlasEmpty: "Zen chưa đủ dữ liệu để vẽ. Cứ dùng tiếp, nhịp của bạn sẽ hiện dần.",
+  atlasTogetherR: "Xanh: hay cùng lúc. Đỏ: ít khi cùng lúc.",
+  ctxWeekend: "Cuối tuần",
+  ctxBusy: "Ngày dày lịch",
+  ctxDue: "Gần hạn",
+  ctxAfter: "Ngay sau {kind}",
+  seeRhythm: "Xem nhịp của bạn",
   learnedTitle: "Zen đã học được gì",
   learnedN: "{n} quy tắc",
   learnedSaid: "Bạn dặn",
@@ -403,6 +439,19 @@ const S = {
   planSimilar: "Hợp buổi giống việc trước",
   planSlipEarly: "{title} được xếp sớm hơn, lúc {time}",
   planSlip: "Xếp sớm để khỏi dời tiếp",
+  // Insight clauses (planner/mine.ts): one literal contrast each, up then down; no causes, no numbers
+  insKindPartUp: "{kind} buổi {part} xong nhiều hơn buổi {to}",
+  insKindPartDown: "{kind} buổi {part} xong ít hơn buổi {to}",
+  insSeqUp: "Buổi {part}, việc xếp ngay sau một khối {prev} trong lịch xong nhiều hơn",
+  insSeqDown: "Buổi {part}, việc xếp ngay sau một khối {prev} trong lịch xong ít hơn",
+  insBusyUp: "Ngày nhiều việc cố định, buổi {part} vẫn xong nhiều hơn",
+  insBusyDown: "Ngày nhiều việc cố định, buổi {part} xong ít hơn",
+  insWeekendUp: "Cuối tuần, buổi {part} xong nhiều hơn",
+  insWeekendDown: "Cuối tuần, buổi {part} xong ít hơn",
+  insDeadlineUp: "Việc gần hạn xong nhiều hơn, buổi {part}",
+  insDeadlineDown: "Việc gần hạn xong ít hơn, buổi {part}",
+  insLengthUp: "{kind} thường dài hơn lúc ước lượng",
+  insLengthDown: "{kind} thường ngắn hơn lúc ước lượng",
 } as const;
 export type Key = keyof typeof S;
 
@@ -417,6 +466,15 @@ export const TPL = {
   after: [S.planAfter, S.planMoved],
   similar: [S.planMoved, S.planSimilar],
   slip: [S.planSlipEarly, S.planSlip],
+} as const;
+/** Insight clauses (planner/mine.ts clause) by finding type: [up, down]. Each restates one measured contrast. */
+export const INSIGHT = {
+  kindPart: [S.insKindPartUp, S.insKindPartDown],
+  sequence: [S.insSeqUp, S.insSeqDown],
+  busy: [S.insBusyUp, S.insBusyDown],
+  weekend: [S.insWeekendUp, S.insWeekendDown],
+  deadline: [S.insDeadlineUp, S.insDeadlineDown],
+  length: [S.insLengthUp, S.insLengthDown],
 } as const;
 
 // "Hôm nay"/"Ngày mai" open a line capitalised; inside a sentence they are plain words ("Hạn hôm nay 23:59", not "Hạn Hôm nay").

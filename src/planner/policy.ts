@@ -9,15 +9,17 @@ import { type Busy, type End, type Rest, type Util, EJECT_CAP, SLOT, STEP, W_BAT
 import { DEFAULT_BOUNDS, boundsOf } from "./bounds";
 import { day, dayLabel, when } from "../lib/when";
 import { minSitting, split } from "./split";
-import { type Piece, bell, dur, lateH, moveCost, pullOk, startValue } from "./value";
+import { type Piece, SOFT_AIM, bell, dur, lateH, moveCost, pullOk, startValue } from "./value";
 import { snapGuess } from "../lib/nlu/size";
 import { capOf } from "../lib/rest";
 import { TPL as tpl } from "../lib/i18n"; // the insight sentences live in i18n.ts
 
 const LONG_SITTING = 180; // near a deadline sittings merge up to this; longer work still splits
+// A slipping kind's sitting: split() works in half hours, so 45 would round up to 60; 30 keeps every sitting within the 45 the user needs.
+const SLIP_SITTING = 30;
 
 type Gap = { from: number; to: number };
-export interface Opts { later?: string; hourOnly?: boolean; pull?: Gap | Gap[]; avoid?: { from: number; to: number }[] } // pull: time freed by a done or delete (one gap or several), from its start (or now) to its end; avoid: slots the user just left by hand
+export interface Opts { later?: string; hourOnly?: boolean; pull?: Gap | Gap[]; avoid?: { from: number; to: number }[]; only?: string[] } // only: ids (or a split parent's) that may move; every other placed piece holds, unscheduled ones wait // pull: time freed by a done or delete (one gap or several), from its start (or now) to its end; avoid: slots the user just left by hand
 /** A block that ended this long ago is still busy (the user may be finishing it); missed after. */
 export const GRACE = 15 * MIN;
 /** A time set by hand is busy only until its hold ends or its start passes (then a preference the planner may move). */
@@ -53,6 +55,93 @@ export function missedReplan(t: Task, pl: { start: number; end: number; from?: n
 const KIND_VI: Record<string, string> = { study: "học", exercise: "tập thể dục", chores: "làm việc nhà", social: "gặp gỡ", other: "làm việc khác", work: "làm việc", errand: "làm việc vặt", finance: "lo chuyện tiền", self: "chăm bản thân" };
 
 export function plan(tasks: Task[], busy: Busy[], model: Model, now: number, opts: Opts = {}): { diff: Diff; model: Model } {
+  // shortcut: repair is iterative, not in the solver; upgrade to an in-solver constraint if the bench shows chains often missing deadlines
+  let ts = pulled(tasks);
+  let res = planPlain(ts, busy, model, now, opts);
+  const bounded = new Set<string>(); // successors a round found before their predecessor's end
+  for (let round = 0; round < 5; round++) {
+    const late = lateAfter(ts, res.diff.placed);
+    if (!late.size) break;
+    for (const k of late.keys()) bounded.add(k);
+    // the other pieces keep their slots; a late successor may not start before its predecessor's last piece ends
+    // a late task's sittings carry the bound too: the scoped solve re-places them, not the parent
+    const bound = (t: Task) => late.get(t.id) ?? (t.parentId !== undefined ? late.get(t.parentId) : undefined);
+    ts = pinTo(ts, res.diff.placed).map((t) => (bound(t) !== undefined ? { ...t, notBefore: Math.max(t.notBefore ?? 0, bound(t)!) } : t));
+    const next = planPlain(ts, busy, model, now, { ...opts, only: [...late.keys(), ...(opts.only ?? [])] });
+    // a scoped solve reports only what it re-placed: keep the earlier rounds' placements of everything else
+    const redo = new Set(next.diff.placed.map((p) => p.id)), gone = (id: string) => redo.has(id) || next.diff.unplaced?.some((u) => u.id === id);
+    res = { model: next.model, diff: { ...next.diff,
+      placed: [...res.diff.placed.filter((p) => !gone(p.id)), ...next.diff.placed],
+      displaced: [...res.diff.displaced.filter((p) => !gone(p.id)), ...next.diff.displaced],
+      split: [...res.diff.split.filter((s) => !next.diff.split.some((n) => n.parentId === s.parentId)), ...next.diff.split],
+      unplaced: [...(res.diff.unplaced ?? []).filter((u) => !redo.has(u.id)), ...(next.diff.unplaced ?? [])] } };
+  }
+  // A successor still before its predecessor's end after the rounds, or held to that end and placed past its own deadline (no slot
+  // between them), waits unplaced rather than run out of order or late.
+  const bad = lateAfter(ts, res.diff.placed), due = new Map(tasks.map((t) => [t.id, t.deadline]));
+  const off = (p: Placement) => { const root = p.id.split("#")[0], d = due.get(root); return bad.has(root) || (bounded.has(root) && d !== undefined && p.end > d); };
+  const cut = res.diff.placed.filter(off);
+  if (cut.length) res = { ...res, diff: { ...res.diff, placed: res.diff.placed.filter((p) => !off(p)), displaced: res.diff.displaced.filter((d) => !cut.some((p) => p.id === d.id)),
+    unplaced: [...(res.diff.unplaced ?? []), ...cut.map((p) => ({ id: p.id, effort: (p.end - p.start) / MIN }))] } };
+  return res;
+}
+
+/** A predecessor's deadline is pulled to its successor's, less the successor's length, down the chain: it must end in time for it. */
+function pulled(tasks: Task[]): Task[] {
+  const live = new Map(tasks.filter((t) => !t.doneAt && !t.deletedAt).map((t) => [t.id, t]));
+  const due = new Map<string, number>();
+  for (const t of live.values()) if (t.deadline !== undefined) due.set(t.id, t.deadline);
+  for (let pass = 0; pass < live.size; pass++) { // one pass per link of the longest chain
+    let moved = false;
+    for (const s of live.values()) {
+      const d = due.get(s.id);
+      if (d === undefined) continue;
+      for (const pid of s.after ?? []) {
+        if (live.has(pid) && d - s.effort * MIN < (due.get(pid) ?? Infinity)) { due.set(pid, d - s.effort * MIN); moved = true; }
+      }
+    }
+    if (!moved) break;
+  }
+  return tasks.map((t) => (due.has(t.id) && due.get(t.id) !== t.deadline ? { ...t, deadline: due.get(t.id) } : t));
+}
+
+/** Successors whose pieces start before their predecessor's last piece ends, with that end. A done or deleted predecessor counts for nothing. */
+function lateAfter(tasks: Task[], placed: Placement[]): Map<string, number> {
+  const by = new Map(tasks.map((t) => [t.id, t]));
+  const pieces = (id: string) => placed.filter((p) => p.id === id || p.id.startsWith(`${id}#`));
+  const out = new Map<string, number>();
+  for (const s of tasks) {
+    if (!s.after?.length || s.doneAt || s.deletedAt) continue;
+    const mine = [...pieces(s.id), ...tasks.filter((x) => (x.id === s.id || x.parentId === s.id) && !x.doneAt && x.start !== undefined && !placed.some((p) => p.id === x.id)) as { start: number }[]];
+    if (!mine.length) continue;
+    const first = Math.min(...mine.map((p) => p.start));
+    for (const pid of s.after) {
+      const p = by.get(pid);
+      if (!p || p.doneAt || p.deletedAt) continue;
+      // a predecessor this solve did not touch keeps its own slot (or its sittings'): it still counts
+      // every piece counts, placed here or kept: a solve that re-places some sittings must not hide the others
+      const own = pieces(pid), kept = tasks.filter((x) => (x.id === pid || x.parentId === pid) && !x.doneAt && !x.deletedAt && x.start !== undefined && x.end !== undefined && !placed.some((p) => p.id === x.id));
+      const ends = [...own.map((x) => x.end), ...kept.map((x) => x.end!)];
+      const end = ends.length ? Math.max(...ends) : undefined;
+      if (end !== undefined && first < end) out.set(s.id, Math.max(out.get(s.id) ?? 0, end));
+    }
+  }
+  return out;
+}
+
+/** The tasks as a solve left them: each placed piece holds its start, and a split's new sitting becomes a sitting of its parent, so a scoped solve keeps it. */
+function pinTo(tasks: Task[], placed: Placement[]): Task[] {
+  const at = new Map(placed.map((p) => [p.id, p]));
+  const ids = new Set(tasks.map((t) => t.id));
+  const out = tasks.map((t) => (at.has(t.id) && !t.fixed ? { ...t, start: at.get(t.id)!.start, end: at.get(t.id)!.end } : t));
+  for (const p of placed) {
+    const parent = p.id.includes("#") && !ids.has(p.id) ? tasks.find((t) => t.id === p.id.slice(0, p.id.lastIndexOf("#"))) : undefined;
+    if (parent) out.push({ ...parent, id: p.id, parentId: parent.id, effort: (p.end - p.start) / MIN, start: p.start, end: p.end });
+  }
+  return out;
+}
+
+function planPlain(tasks: Task[], busy: Busy[], model: Model, now: number, opts: Opts): { diff: Diff; model: Model } {
   const first = planOnce(tasks, busy, model, now, opts);
   if (!first.bump) return first;
   const second = planOnce(tasks, busy, model, now, opts, new Set(first.bump));
@@ -90,13 +179,16 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
   const ever = new Map<string, Task[]>();
   for (const t of tasks) if (t.parentId) (ever.get(t.parentId) ?? ever.set(t.parentId, []).get(t.parentId)!).push(t);
   const ix = (t: Task) => Number(t.id.slice(t.id.lastIndexOf("#") + 1)) || 0; // "p#10" after "p#9", not between 1 and 2
-  const pieces: Piece[] = [];
+  let pieces: Piece[] = [];
   const splits: Diff["split"] = [];
   const lateBad = lateDragged(m); // you dragged work off the late hours: the rest of the part past the said window is not offered
+  // Anti-avoidance: a deadline kind the user keeps pushing (slip > 0.4) gets short sittings and an earlier aim; prep (forId) is exempt.
+  const slipping = (t: Task) => dueOf(t) !== undefined && !t.forId && slipOf(m, t.kind) > 0.4;
   // A said window's end ("trong hôm nay", notAfter) bounds the work as a due does; a repeat's window is per day, not an end.
   const endOf = (t: Task) => t.deadline ?? (t.rrule ? undefined : t.notAfter);
   const mk = (task: Task, eff: number, k: number, n: number, prior?: number, missed?: number): Piece => ({
-    id: task.id, task, effort: eff, k, n, slip: dueOf(task) === undefined ? 0 : slipOf(m, task.kind), avoid: opts.avoid, aim: aimOf(m, task.kind),
+    id: task.id, task, effort: eff, k, n, slip: dueOf(task) === undefined ? 0 : slipOf(m, task.kind), avoid: opts.avoid,
+    aim: slipping(task) ? (aimOf(m, task.kind) ?? SOFT_AIM) - 0.15 : aimOf(m, task.kind),
     prior: prior !== undefined && prior >= now ? prior : undefined, missed, soon: missed !== undefined || (opts.later !== undefined && (opts.later === task.id || opts.later === task.parentId)), // no "later": undefined === undefined made every unsplit piece "soon" (2-day reach)
   });
   // Longest free, awake stretch inside a window that lies within one day; undefined for anything wider.
@@ -163,11 +255,14 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
         const [off, j] = hit, late = off === 0 && j > i && B.parts[j][0] >= 18 * 60 && lateBad;
         t = late ? { ...t, tods: [[B.parts[i][0], B.parts[j][1]]], notBefore: D + B.parts[i][0] * MIN, notAfter: D + DAY + B.parts[i][1] * MIN } : part(off, j);
       } else t = { ...t, notBefore: dayStart(now) + DAY, notAfter: dayStart(now) + 2 * DAY }; // nothing fits: the rest of tomorrow, still in the said parts
+      // a step that waits for another keeps that bound: a neighbouring part may widen the window, never start it before its predecessor ends
+      if (t.after?.length && ask.from !== undefined && (t.notBefore ?? 0) < ask.from) t = { ...t, notBefore: ask.from };
       gapMin = widest(t);
     }
     // shrunk to the gap on the same grid: half hours, or 15 for minor work when only 15 to 29 minutes are free
     const fitGap = (g: number) => (g >= 30 ? Math.floor(g / 30) * 30 : g >= 15 ? 15 : 0);
     if (t.effortGuessed && gapMin !== undefined && fitGap(gapMin) >= need && eff > gapMin) { eff = fitGap(gapMin); cap = eff; }
+    if (slipping(t)) cap = Math.min(cap, SLIP_SITTING);
     const slow = t.effortGuessed ? fallacy(m, t.kind) : 1;
     const fit: Partial<Piece> = { ...(ask && t.notAfter !== ask.to ? { ask } : {}), ...(eff < guess && t.effortGuessed ? { cut: guess } : {}), ...(slow > 1 ? { slow } : {}) };
     if (eff > cap || old) {
@@ -179,7 +274,8 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
       const freeH = (d: number) => Math.max(0, capH(d) - fixedHours(allBusy, d) - (d === dayStart(now) ? Math.max(0, (now - d) / HOUR - B.from / 60) / 3 : 0));
       const light = days.filter((d) => freeH(d) > 0);
       // Fewer light days than sittings: fewer, longer sittings (up to 2 h) on the light days, not two a day or a short one on a full day.
-      const cap2 = light.length && light.length < cnt ? Math.min(Math.max(cap, 120), Math.max(cap, Math.ceil(eff / light.length / 30) * 30)) : cap;
+      const top = slipping(t) ? SLIP_SITTING : 120;
+      const cap2 = light.length && light.length < cnt ? Math.min(Math.max(cap, top), Math.max(cap, Math.ceil(eff / light.length / 30) * 30)) : cap;
       const cnt2 = split(eff, cap2).length;
       const pick = days.length > cnt2 ? days.map((d) => [freeH(d), d] as const).sort((a, b) => b[0] - a[0] || a[1] - b[1]).slice(0, cnt2).sort((a, b) => a[1] - b[1]) : undefined;
       const sizes = split(eff, cap2, pick?.map(([h]) => h)), from = old ? Math.max(...old.map(ix)) : 0, d = done.length;
@@ -251,11 +347,15 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
     const t = p.task, e = s + dur(p);
     return !(spanLater(p, s) || hits(p, s).length || !awake(p, s, undefined, B) || (t.deadline !== undefined && e > t.deadline) || (t.notAfter !== undefined && e > t.notAfter) || (t.notBefore !== undefined && s < t.notBefore) || others.some((b) => s < b.end && e > b.start));
   };
+  const scope = opts.only && new Set(opts.only); // only: the rest hold their slot and wait for no time
+  const inScope = (p: Piece) => !scope || scope.has(p.task.id) || (p.task.parentId !== undefined && scope.has(p.task.parentId));
   for (const p of [...pieces].sort((a, b) => own(b) - own(a))) { // a time set by hand wins a clash between two plans
     const s = p.prior;
+    if (!inScope(p)) { if (s !== undefined) { p.lock = true; held.push({ start: s, end: s + dur(p) }); } continue; }
     if (s === undefined || p.gaps || unlock?.has(p.id) || unlockOver.has(p.id) || !clear(p, s, held)) continue;
     p.lock = true; held.push({ start: s, end: s + dur(p) });
   }
+  if (scope) pieces = pieces.filter((p) => inScope(p) || p.lock); // unscheduled pieces outside the scope are not placed
   // Exploring: not while the model is cold, and only the first new piece without a deadline, once a day.
   const explored = m.exploredAt !== undefined && dayStart(m.exploredAt) === dayStart(now);
 
@@ -345,7 +445,7 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
     const dl = (x: Piece) => x.task.deadline ?? Infinity;
     const cand = new Map<string, Piece>();
     for (const q of fresh) for (const p of pieces) {
-      if (p === q || p.prior === undefined || dl(p) <= dl(q) || p.task.pinned || p.task.fixed || p.task.userEdited?.includes("start")) continue;
+      if (p === q || p.prior === undefined || !inScope(p) || dl(p) <= dl(q) || p.task.pinned || p.task.fixed || p.task.userEdited?.includes("start")) continue;
       const inWin = !!q.ask && p.prior >= (q.ask.from ?? -Infinity) && p.prior < q.ask.to;
       if (inWin || (q.task.deadline !== undefined && p.prior < q.task.deadline)) cand.set(p.id, p);
     }
@@ -474,8 +574,6 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
     const changed = p.prior !== s, known0 = m.placed[p.id];
     // a repeat placed before its day bound stopped counting as a due drops the "Hạn 0:00" reason it was kept for
     if (known0?.why && dueOf(p.task) === undefined) known0.why = known0.why.filter((r) => r.key !== "deadline");
-    // held where it was placed: it keeps the reasons it was placed for. Moved by hand since, those reasons were for another time: say them anew.
-    if (!changed && known0?.why && p.lock && known0.start === s) continue;
     const alt = altOf(p, s);
     const c = changed && p.prior !== undefined ? p.prior : alt;
     const r = c === undefined ? { why: [guessOf(p, s)], explore: false } : whyOf(p, s, c);
@@ -501,8 +599,13 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
     r.why = grounded(r.why, { task: p.task, start: s, rules: m.rules ?? [], tasks: [...near, ...tasks.filter((t) => t.fixed)] }); // only what is true of the task is said
     if (!r.why.length) r.why = [guessOf(p, s)];
     const known = m.placed[p.id];
-    // a held piece keeps the reasons it was placed for; one moved by hand learns its new hour, so a tick credits the hour it really ran
-    if (!changed && known) { if (!p.lock || known.start !== s) Object.assign(known, { why: r.why, alt, explore: r.explore, start: s, arm: Math.floor(hourOf(s)), x: xz(p, s, ends) }); continue; }
+    // Every plan refreshes the reasons, held or not, so none outlives what it said; a time set by hand says only that. A held piece keeps the
+    // hour and features it was placed with (a tick credits those); one moved by hand learns its new hour, so a tick credits the hour it really ran.
+    if (!changed && known) {
+      const chose = !!p.task.userEdited?.includes("start") && p.task.start === s;
+      Object.assign(known, { why: chose ? [{ key: "chose", w: 1 }] : r.why, alt, explore: chose ? false : r.explore }, p.lock && known.start === s ? {} : { start: s, arm: Math.floor(hourOf(s)), x: xz(p, s, ends) });
+      continue;
+    }
     const x = xz(p, s, ends), arm = Math.floor(hourOf(s)), from = p.missed ?? p.prior ?? (opts.later === p.id ? p.task.start : undefined);
     diff.placed.push({ id: p.id, start: s, end: s + dur(p), policy: "linucb", arm, x, alt, why: r.why, explore: r.explore, ...(from !== undefined && from !== s ? { from } : {}) });
     m.placed[p.id] = { arm, x, start: s, policy: "linucb", at: now, why: r.why, alt, explore: r.explore, ...(p.missed !== undefined ? { missCharged: p.missed } : {}) };
@@ -585,7 +688,7 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
 }
 
 const DRAG_SIGMA = 0.75; // hours: a drag teaches the hours around it (the narrow kernel was 0.5)
-const PART_OF = Array.from({ length: ARMS }, (_, h) => partIdx(h)); // the part of each hour arm
+export const PART_OF = Array.from({ length: ARMS }, (_, h) => partIdx(h)); // the part of each hour arm
 const kernel = (a: number, h: number, sigma = 0.75) => Math.exp(-(cdist(a, h) ** 2) / (2 * sigma ** 2));
 
 const FIRST_MOVE_BOOST = 1;
@@ -714,7 +817,7 @@ export function learn(model: Model, ev: TaskEvent, task: Task, own = false, clas
       for (let a = 0; a < m.arms.length; a++) { teach(m, a, x, -1, 3 * kernel(a + 0.5, hourOf(from), DRAG_SIGMA)); teach(m, a, x, 0.5, 3 * kernel(a + 0.5, hourOf(to), DRAG_SIGMA)); }
       hist(from, -1);
       m.hypNow = noteHyp(m, task.kind, hourOf(from), hourOf(to), ev.at);
-      if (pl) m.placed[task.id] = { ...pl, start: to, arm: Math.floor(hourOf(to)), moved: true, why: undefined }; // the reasons were for the old time: the next plan says them anew
+      if (pl) m.placed[task.id] = { ...pl, start: to, arm: Math.floor(hourOf(to)), moved: true, why: [{ key: "chose", w: 1 }], explore: false }; // the old reasons were for the old time: a time set by hand says only that
       break;
     }
     default:

@@ -1,0 +1,24 @@
+{
+  "groups": [
+    {
+      "title": "Tuần 1",
+      "items": [
+        { "title": "Giới thiệu hệ quản trị CSDL", "done": false, "minutes": 120, "sized": "said" },
+        { "title": "Mô hình quan hệ", "done": false, "minutes": 120, "sized": "said" }
+      ]
+    },
+    {
+      "title": "Tuần 2",
+      "items": [
+        { "title": "Đại số quan hệ", "done": false, "minutes": 120, "sized": "said" },
+        { "title": "Bài tập chương 1", "done": false, "minutes": 60, "sized": "said" }
+      ]
+    },
+    {
+      "title": "Tuần 3",
+      "items": [
+        { "title": "SQL cơ bản", "done": false, "minutes": 180, "sized": "said" }
+      ]
+    }
+  ]
+}

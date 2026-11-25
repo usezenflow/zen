@@ -1,0 +1,299 @@
+{"text":"xoá việc giặt đồ","ops":[{"op":"delete","target":"laundry"}]}
+{"text":"xoá giặt đồ","ops":[{"op":"delete","target":"laundry"}]}
+{"text":"xong giặt đồ","ops":[{"op":"done","target":"laundry"}]}
+{"text":"giặt đồ xong rồi","ops":[{"op":"done","target":"laundry"}]}
+{"text":"doi hop nhom sang 3h","ops":[{"op":"edit","target":"meet","when":true}],"noisy":true}
+{"text":"dời họp nhóm sang 3h chiều","ops":[{"op":"edit","target":"meet","when":true}]}
+{"text":"đổi tên Đọc sách thành Đọc báo","ops":[{"op":"edit","target":"read","title":"Đọc báo"}]}
+{"text":"đổi yoga thành tập thể dục","ops":[{"op":"edit","target":"yoga","title":"tập thể dục"}]}
+{"text":"move báo cáo to tomorrow","ops":[{"op":"edit","target":"report","when":true}]}
+{"text":"huy kham rang","ops":[{"op":"delete","target":"dentist"}],"noisy":true}
+{"text":"xoá hết gym","ask":true}
+{"text":"huỷ gym","ask":true}
+{"text":"dời gym sang 9h","ask":true}
+{"text":"delete yoga","ops":[{"op":"delete","target":"yoga"}]}
+{"text":"xoa cai yoga","ops":[{"op":"delete","target":"yoga"}],"noisy":true}
+{"text":"mark yoga done","ops":[{"op":"done","target":"yoga"}]}
+{"text":"yoga done","ops":[{"op":"done","target":"yoga"}]}
+{"text":"doi kham rang sang thu 5","ops":[{"op":"edit","target":"dentist","when":true}],"noisy":true}
+{"text":"day yoga sang mai","ops":[{"op":"edit","target":"yoga","when":true}],"noisy":true}
+{"text":"yoga để T2","ops":[{"op":"edit","target":"yoga","when":true}]}
+{"text":"doi gio hop nhom sang 2h chieu","ops":[{"op":"edit","target":"meet","when":true}],"noisy":true}
+{"text":"xoá giặt đồ, thêm học toán 3h chiều mai","ops":[{"op":"delete","target":"laundry"}],"creates":["hoc toan"]}
+{"text":"xoá giặt đồ và dời họp nhóm sang 4h","ops":[{"op":"delete","target":"laundry"},{"op":"edit","target":"meet","when":true}]}
+{"text":"dời họp nhóm sang 3h rồi xoá giặt đồ","ops":[{"op":"edit","target":"meet","when":true},{"op":"delete","target":"laundry"}]}
+{"text":"bỏ rác, dời họp nhóm sang 3h","ops":[{"op":"edit","target":"meet","when":true}],"creates":["bo rac"]}
+{"text":"xong báo cáo và đọc sách","ops":[{"op":"done","target":"report"},{"op":"done","target":"read"}]}
+{"text":"xoa giat do, them hoc toan 3h chieu mai","ops":[{"op":"delete","target":"laundry"}],"creates":["hoc toan"],"noisy":true}
+{"text":"giặt đồ xong r, thêm học toán 3h chiều mai","ops":[{"op":"done","target":"laundry"}],"creates":["hoc toan"],"noisy":true}
+{"text":"xoá giặt đồ r dời họp nhóm sang 4h","ops":[{"op":"delete","target":"laundry"},{"op":"edit","target":"meet","when":true}],"noisy":true}
+{"text":"xoá giặt đồ nhé","ops":[{"op":"delete","target":"laundry"}],"noisy":true}
+{"text":"xoa giat do nhe","ops":[{"op":"delete","target":"laundry"}],"noisy":true}
+{"text":"xao viec giat do","ops":[{"op":"delete","target":"laundry"}],"noisy":true}
+{"text":"mvoe bao cao to tomorrow","ops":[{"op":"edit","target":"report","when":true}],"noisy":true}
+{"text":"xong giat do","ops":[{"op":"done","target":"laundry"}],"noisy":true}
+{"text":"giat do xong rui","ops":[{"op":"done","target":"laundry"}],"noisy":true}
+{"text":"giat do xog r","ops":[{"op":"done","target":"laundry"}],"noisy":true}
+{"text":"bo cai yoga di","ops":[{"op":"delete","target":"yoga"}],"noisy":true}
+{"text":"k can giat do nua","ops":[{"op":"delete","target":"laundry"}],"noisy":true}
+{"text":"ko cần giặt đồ nữa","ops":[{"op":"delete","target":"laundry"}],"noisy":true}
+{"text":"khog can giat do nua","ops":[{"op":"delete","target":"laundry"}],"noisy":true}
+{"text":"khôg cần giặt đồ nữa","ops":[{"op":"delete","target":"laundry"}],"noisy":true}
+{"text":"thoi khoi hop nhom","ops":[{"op":"delete","target":"meet"}],"noisy":true}
+{"text":"khoi hop nhom di","ops":[{"op":"delete","target":"meet"}],"noisy":true}
+{"text":"yoga de mai","ops":[{"op":"edit","target":"yoga","when":true}],"noisy":true}
+{"text":"doi bao cao sang t2","ops":[{"op":"edit","target":"report","when":true}],"noisy":true}
+{"text":"họp nhóm lùi 1 tiếng","ops":[{"op":"edit","target":"meet","when":true}]}
+{"text":"hop nhom lui 1 tieng","ops":[{"op":"edit","target":"meet","when":true}],"noisy":true}
+{"text":"họp nhóm lùi 30 p","ops":[{"op":"edit","target":"meet","when":true}],"noisy":true}
+{"text":"họp nhóm sớm 1h","ops":[{"op":"edit","target":"meet","when":true}],"noisy":true}
+{"text":"đổi yoga thàh chạy bộ","ops":[{"op":"edit","target":"yoga","title":"chạy bộ"}],"noisy":true}
+{"text":"đổi yoga thanh chạy bộ","ops":[{"op":"edit","target":"yoga","title":"chạy bộ"}]}
+{"text":"delete laundry and add study math tomorrow 3pm","tasks":"en","ops":[{"op":"delete","target":"laundry"}],"creates":["study math"]}
+{"text":"cancel report","tasks":"en","ops":[{"op":"delete","target":"report"}]}
+{"text":"cancle report","tasks":"en","ops":[{"op":"delete","target":"report"}],"noisy":true}
+{"text":"delte report","tasks":"en","ops":[{"op":"delete","target":"report"}],"noisy":true}
+{"text":"move gym to friday, then add read book","tasks":"en","ops":[{"op":"edit","target":"gym","when":true}],"creates":["read book"]}
+{"text":"move read book to friday","tasks":"en","ops":[{"op":"edit","target":"read","when":true}]}
+{"text":"rename report to Final report","tasks":"en","ops":[{"op":"edit","target":"report","title":"Final report"}]}
+{"text":"report done","tasks":"en","ops":[{"op":"done","target":"report"}]}
+{"text":"laundry done","tasks":"en","ops":[{"op":"done","target":"laundry"}]}
+{"text":"giặt đồ xong r đi","ops":[{"op":"done","target":"laundry"}],"noisy":true}
+{"text":"bao cao xong r","ops":[{"op":"done","target":"report"}],"noisy":true}
+{"text":"yoga xong","ops":[{"op":"done","target":"yoga"}]}
+{"text":"huỷ khám răng nhé, học toán 3h chiều mai","ops":[{"op":"delete","target":"dentist"}],"creates":["hoc toan"],"noisy":true}
+{"text":"xoá yoga và đọc sách lùi 1 tiếng","ops":[{"op":"delete","target":"yoga"},{"op":"edit","target":"read","when":true}]}
+{"text":"xong yoga, xong báo cáo","ops":[{"op":"done","target":"yoga"},{"op":"done","target":"report"}]}
+{"text":"xong yoga và xoá khám răng","ops":[{"op":"done","target":"yoga"},{"op":"delete","target":"dentist"}]}
+{"text":"học toán rồi xoá yoga","ops":[{"op":"delete","target":"yoga"}],"creates":["hoc toan"]}
+{"text":"thêm 1 buổi gym T7","tasks":"series","creates":["gym"]}
+{"text":"them 1 buoi gym t7","tasks":"series","creates":["gym"],"noisy":true}
+{"text":"học thêm gym","tasks":"series","creates":["gym"]}
+{"text":"thêm buổi piano hằng tuần","tasks":"series","creates":["piano"]}
+{"text":"thêm 1 buổi gym T7 nhé","tasks":"series","creates":["gym"],"noisy":true}
+{"text":"extra gym session","tasks":"series","creates":["gym"]}
+{"text":"one more piano","tasks":"series","creates":["piano"]}
+{"text":"them buoi piano t5","tasks":"series","creates":["piano"],"noisy":true}
+{"text":"xoá cái yoga đi","ops":[{"op":"delete","target":"yoga"}],"noisy":true}
+{"text":"mark khám răng done","ops":[{"op":"done","target":"dentist"}]}
+{"text":"khám răng xong r","ops":[{"op":"done","target":"dentist"}],"noisy":true}
+{"text":"bỏ khám răng đi","ops":[{"op":"delete","target":"dentist"}],"noisy":true}
+{"text":"bo kham rang di","ops":[{"op":"delete","target":"dentist"}],"noisy":true}
+{"text":"hủy khám răng","ops":[{"op":"delete","target":"dentist"}]}
+{"text":"dời yoga sang 6h sáng mai","ops":[{"op":"edit","target":"yoga","when":true}]}
+{"text":"dời báo cáo sang 4h","ops":[{"op":"edit","target":"report","when":true}]}
+{"text":"dời họp nhóm sang 4h","ops":[{"op":"edit","target":"meet","when":true}]}
+{"text":"hop nhom lui 2 tieng","ops":[{"op":"edit","target":"meet","when":true}],"noisy":true}
+{"text":"bo cai gym di","ask":true,"noisy":true}
+{"text":"xoa het gym","ask":true,"noisy":true}
+{"text":"huy gym nhe","ask":true,"noisy":true}
+{"text":"xoá tất cả gym","ask":true}
+{"text":"bo rac","create":true,"creates":["bo rac"],"noisy":true}
+{"text":"do rac","create":true,"noisy":true}
+{"text":"chuyen nha","create":true,"creates":["chuyen nha"],"noisy":true}
+{"text":"chuyen khoan cho me","create":true,"noisy":true}
+{"text":"chuyển tiền cho bạn","create":true}
+{"text":"cancel subscription","create":true}
+{"text":"delete account","create":true}
+{"text":"remove stains from shirt","create":true}
+{"text":"move out this weekend","create":true}
+{"text":"done laundry","create":true}
+{"text":"học toán rồi làm bài tập","create":true,"creates":["hoc toan","lam bai tap"]}
+{"text":"làm bài 1 xong rồi làm bài 2","create":true}
+{"text":"don phong vao thu 7","create":true,"noisy":true}
+{"text":"xoa viec chang co","create":true,"noisy":true}
+{"text":"mua sua","create":true,"noisy":true}
+{"text":"goi me","create":true,"noisy":true}
+{"text":"họp nhóm mai 9h","create":true}
+{"text":"xem phim với bạn","create":true}
+{"text":"di an voi minh","create":true,"noisy":true}
+{"text":"bổ sung tài liệu","create":true}
+{"text":"xong việc nhà","create":true}
+{"text":"tập yoga 30 phút","create":true}
+{"text":"thêm học toán","create":true,"creates":["hoc toan"]}
+{"text":"dời đồ đạc sang nhà mới","create":true}
+{"text":"huỷ đăng ký gym","create":true}
+{"text":"bỏ cuộc","create":true}
+{"text":"đổi mới phòng tắm","create":true}
+{"text":"đổi mật khẩu wifi","create":true}
+{"text":"đổi tên con mèo","create":true}
+{"text":"chuyển sang tiếng Anh học","create":true}
+{"text":"giặt đồ","create":true}
+{"text":"thêm việc mới","create":true}
+{"text":"hoc them tieng anh","create":true,"noisy":true}
+{"text":"xoá sổ thu chi","create":true}
+{"text":"thôi đi ngủ sớm","create":true}
+{"text":"cancel my gym membership","create":true}
+{"text":"bo tui vao cap","create":true,"noisy":true}
+{"text":"ko thich hop nhom","create":true,"noisy":true}
+{"text":"k biet","create":true,"noisy":true}
+{"text":"khoi dong may tinh","create":true,"noisy":true}
+{"text":"doi do dac sang nha moi","create":true,"noisy":true}
+{"text":"xem bai tap r nop","create":true,"noisy":true}
+{"text":"bo rac di","create":true,"noisy":true}
+{"text":"chuyen nha thang sau","create":true,"noisy":true}
+{"text":"chuyen khoan cho me","create":true,"noisy":true}
+{"text":"bo qua buoi hoc","create":true,"noisy":true}
+{"text":"xoa nhom zalo","create":true,"noisy":true}
+{"text":"giat do","create":true,"noisy":true}
+{"text":"gym hom nay","create":true,"noisy":true}
+{"text":"xong roi","create":true,"noisy":true}
+{"text":"mai di hoc them toan","create":true,"noisy":true}
+{"text":"de mai nay di choi","create":true,"noisy":true}
+{"text":"thoi tiet hom nay","create":true,"noisy":true}
+{"text":"nho mua sua","create":true,"noisy":true}
+{"text":"xoa vi tien","create":true,"noisy":true}
+{"text":"tim gym gan nha","create":true,"noisy":true}
+{"text":"hok can di hoc","create":true,"noisy":true}
+{"text":"dọn phòng vào thứ 7","tasks":"coord","create":true,"creates":["don phong"]}
+{"text":"gym xong rồi đi ăn","tasks":"coord","create":true,"creates":["di an"]}
+{"text":"xong việc thì đi ngủ","tasks":"coord","create":true,"creates":["xong viec thi di ngu"]}
+{"text":"họp nhóm lùi 1 tiếng","tasks":"coord","ops":[{"op":"edit","target":"meet","when":true}],"whenIs":"2026-11-14T16:00:00"}
+{"text":"hop nhom som 30p","tasks":"coord","ops":[{"op":"edit","target":"meet","when":true}],"whenIs":"2026-11-14T14:30:00","noisy":true}
+{"text":"gym để mai","tasks":"coord","ops":[{"op":"edit","target":"gym","when":true}],"whenIs":"2026-11-14T18:00:00"}
+{"text":"gym de t7 nhe","tasks":"coord","ops":[{"op":"edit","target":"gym","when":true}],"whenIs":"2026-11-14T18:00:00","noisy":true}
+{"text":"bo hop nhom vs gym","tasks":"coord","ops":[{"op":"delete","target":"meet"},{"op":"delete","target":"gym"}],"noisy":true}
+{"text":"xog r giat do","tasks":"coord","ops":[{"op":"done","target":"laundry"}],"noisy":true}
+{"text":"khỏi lo, mai nộp báo cáo","tasks":"coord","create":true,"creates":["nop bao cao"],"absent":["khoi lo"],"noisy":true}
+{"text":"thôi mai học bù","tasks":"coord","create":true,"creates":["hoc bu"],"absent":["thoi"],"noisy":true}
+{"text":"mvoe hop nhom to 5pm","tasks":"coord","ops":[{"op":"edit","target":"meet","when":true}],"whenIs":"2026-11-14T17:00:00","noisy":true}
+{"text":"đổi giặt đồ thành 8h tối","tasks":"coord","ops":[{"op":"edit","target":"laundry","when":true}],"whenIs":"2026-11-14T20:00:00","noisy":true}
+{"text":"xoá cái họp hôm qua","tasks":"coord","ask":true,"noisy":true}
+{"text":"xoá","tasks":"coord","ask":true,"noisy":true}
+{"text":"dời","tasks":"coord","ask":true,"noisy":true}
+{"text":"xoá hết","tasks":"coord","ask":true,"noisy":true}
+{"text":"xoá gym buổi tối tuần này","tasks":"weekly","ask":true,"targets":["g11","g13"]}
+{"text":"xoa gym buoi toi tuan nay","tasks":"weekly","ask":true,"targets":["g11","g13"],"noisy":true}
+{"text":"xoá gym buổi tối tuần sau","tasks":"weekly","ask":true,"targets":["g16","g18","g20"]}
+{"text":"xoá gym tuần sau","tasks":"weekly","ask":true,"targets":["g16","g18","g20"]}
+{"text":"xoá gym buổi tối T2 và T4","tasks":"weekly","ask":true,"targets":["g16","g18"]}
+{"text":"xoá gym buổi tối T2, T4","tasks":"weekly","ask":true,"targets":["g16","g18"]}
+{"text":"xoá gym buổi tối thứ 2 với thứ 6","tasks":"weekly","ask":true,"targets":["g16","g13"]}
+{"text":"xoá gym buổi tối từ T2 đến T4","tasks":"weekly","ask":true,"targets":["g16","g18"]}
+{"text":"xoá gym buổi tối T2-T4","tasks":"weekly","ask":true,"targets":["g16","g18"]}
+{"text":"xoá gym buổi tối từ 16 đến 20/11","tasks":"weekly","ask":true,"targets":["g16","g18","g20"]}
+{"text":"xoá gym buổi tối từ 16/11 đến 20/11","tasks":"weekly","ask":true,"targets":["g16","g18","g20"]}
+{"text":"xoá gym buổi tối tuần sau trừ T6","tasks":"weekly","ask":true,"targets":["g16","g18"]}
+{"text":"xoá gym buổi tối 2 tuần tới","tasks":"weekly","ask":true,"targets":["g13","g16","g18","g20","g23","g25"]}
+{"text":"xoá gym buổi tối 3 ngày tới","tasks":"weekly","ops":[{"op":"delete","target":"g13"}]}
+{"text":"xoá gym buổi tối từ nay đến cuối tuần sau","tasks":"weekly","ask":true,"targets":["g13","g16","g18","g20"]}
+{"text":"xoá gym buổi tối tháng này","tasks":"weekly","ask":true,"targets":["g11","g13","g16","g18","g20","g23","g25","g27"]}
+{"text":"xoá gym buổi tối sau 5h chiều tuần sau","tasks":"weekly","ask":true,"targets":["g16","g20"]}
+{"text":"xoá gym buổi tối buổi sáng","tasks":"weekly","ops":[{"op":"delete","target":"g18"}]}
+{"text":"xoá hết gym","tasks":"weekly","ask":true,"targets":["g11","g13","g16","g18","g20","g23","g25","g27"]}
+{"text":"xong gym buổi tối tuần này","tasks":"weekly","ask":true,"targets":["g11","g13"]}
+{"text":"dời gym buổi tối tuần sau sang 7h","tasks":"weekly","ask":true,"targets":["g16","g18","g20"]}
+{"text":"dời gym buổi tối 16/11 sang 17/11","tasks":"weekly","ops":[{"op":"edit","target":"g16","when":true}],"whenIs":"2026-11-17T18:00:00"}
+{"text":"xoá gym buổi tối T6 và yoga","tasks":"weekly","ops":[{"op":"delete","target":"g13"},{"op":"delete","target":"yoga"}]}
+{"text":"xoá yoga, dời gym buổi tối T2 sang 7h","tasks":"weekly","ops":[{"op":"delete","target":"yoga"},{"op":"edit","target":"g16","when":true}]}
+{"text":"xoá gym buổi tối CN","tasks":"weekly","ask":true}
+{"text":"tuần này đi gym 3 buổi","tasks":"weekly","create":true}
+{"text":"tập gym buổi tối T2 và T4","tasks":"weekly","create":true}
+{"text":"xoá gym buổi tối","tasks":"weekly","ask":true}
+{"text":"xoá gym buổi tối từ giờ","tasks":"weekly","ask":true,"targets":["g13","g16","g18","g20","g23","g25","g27"]}
+{"text":"xoá gym buổi tối từ T4 trở đi","tasks":"weekly","ask":true,"targets":["g18","g20","g23","g25","g27"]}
+{"text":"xoá gym buổi tối mỗi tuần","tasks":"weekly","ask":true,"targets":["g11","g13","g16","g18","g20","g23","g25","g27"]}
+{"text":"dời họp nhóm sang 3h à không 4h","ops":[{"op":"edit","target":"meet","when":true}],"whenIs":"2026-11-14T16:00:00"}
+{"text":"dời họp nhóm sang 3h, à không, 4h","ops":[{"op":"edit","target":"meet","when":true}],"whenIs":"2026-11-14T16:00:00"}
+{"text":"doi hop nhom sang 3h a khong 4h","ops":[{"op":"edit","target":"meet","when":true}],"whenIs":"2026-11-14T16:00:00","noisy":true}
+{"text":"dời họp nhóm sang 3h ý là 5h","ops":[{"op":"edit","target":"meet","when":true}],"whenIs":"2026-11-14T17:00:00"}
+{"text":"dời họp nhóm sang 3h à không sang 4h chiều","ops":[{"op":"edit","target":"meet","when":true}],"whenIs":"2026-11-14T16:00:00"}
+{"text":"xoá yoga à nhầm khám răng","ops":[{"op":"delete","target":"dentist"}]}
+{"text":"xoa yoga a nham kham rang","ops":[{"op":"delete","target":"dentist"}],"noisy":true}
+{"text":"bỏ cái yoga à nhầm khám răng","ops":[{"op":"delete","target":"dentist"}]}
+{"text":"dời yoga sang 7h à nhầm đọc sách","ops":[{"op":"edit","target":"read","when":true}]}
+{"text":"xoá yoga à không dời yoga sang mai","ops":[{"op":"edit","target":"yoga","when":true}]}
+{"text":"đổi tên yoga thành chạy à không thành bơi","ops":[{"op":"edit","target":"yoga","title":"boi"}]}
+{"text":"yoga xong rồi à nhầm đọc sách","ops":[{"op":"done","target":"read"}]}
+{"text":"xoá yoga, dời họp nhóm sang 3h à không 4h","ops":[{"op":"delete","target":"yoga"},{"op":"edit","target":"meet","when":true}],"whenIs":"2026-11-14T16:00:00"}
+{"text":"xoá giặt đồ, à thôi","absent":["giat do"]}
+{"text":"xoá giặt đồ à thôi, dời họp nhóm sang 4h","ops":[{"op":"edit","target":"meet","when":true}]}
+{"text":"xoa giat do, thoi khoi","absent":["giat do"],"noisy":true}
+{"text":"delete yoga, never mind","absent":["yoga"]}
+{"text":"xoá giặt đồ thôi","ops":[{"op":"delete","target":"laundry"}]}
+{"text":"họp nhóm 9h à quên 10h sáng mai","create":true}
+{"text":"không phải họp nhóm mà là đi học","create":true}
+{"text":"dời yoga và đọc sách sang 7h","ops":[{"op":"edit","target":"yoga","when":true},{"op":"edit","target":"read","when":true}]}
+{"text":"dời yoga, đọc sách và khám răng sang mai","ops":[{"op":"edit","target":"yoga","when":true},{"op":"edit","target":"read","when":true},{"op":"edit","target":"dentist","when":true}]}
+{"text":"doi yoga va doc sach sang mai","ops":[{"op":"edit","target":"yoga","when":true},{"op":"edit","target":"read","when":true}],"noisy":true}
+{"text":"dời yoga sang 7h và đọc sách","ops":[{"op":"edit","target":"yoga","when":true},{"op":"edit","target":"read","when":true}]}
+{"text":"xoá yoga, đọc sách, khám răng","ops":[{"op":"delete","target":"yoga"},{"op":"delete","target":"read"},{"op":"delete","target":"dentist"}]}
+{"text":"xoá yoga, đọc sách và khám răng nhé","ops":[{"op":"delete","target":"yoga"},{"op":"delete","target":"read"},{"op":"delete","target":"dentist"}],"noisy":true}
+{"text":"xong yoga và báo cáo","ops":[{"op":"done","target":"yoga"},{"op":"done","target":"report"}]}
+{"text":"xoá giặt đồ và mua sữa 3h chiều","ops":[{"op":"delete","target":"laundry"}],"creates":["mua sua"]}
+{"text":"xoas giặt đồ","ops":[{"op":"delete","target":"laundry"}],"noisy":true}
+{"text":"xoaf giat do","ops":[{"op":"delete","target":"laundry"}],"noisy":true}
+{"text":"dowfi họp nhóm sang 4h","ops":[{"op":"edit","target":"meet","when":true}],"noisy":true}
+{"text":"sóa giặt đồ","ops":[{"op":"delete","target":"laundry"}],"noisy":true}
+{"text":"truyển họp nhóm sang 4h","ops":[{"op":"edit","target":"meet","when":true}],"noisy":true}
+{"text":"doi tne yoga thanh boi","ops":[{"op":"edit","target":"yoga","title":"boi"}],"noisy":true}
+{"text":"hoan thnah bao cao","ops":[{"op":"done","target":"report"}],"noisy":true}
+{"text":"khong cna giat do nua","ops":[{"op":"delete","target":"laundry"}],"noisy":true}
+{"text":"xoagiat do","ops":[{"op":"delete","target":"laundry"}],"noisy":true}
+{"text":"xoá dùm giặt đồ","ops":[{"op":"delete","target":"laundry"}],"noisy":true}
+{"text":"xoá giúp mình giặt đồ nhé","ops":[{"op":"delete","target":"laundry"}],"noisy":true}
+{"text":"xoá giặt đồ lun","ops":[{"op":"delete","target":"laundry"}],"noisy":true}
+{"text":"xoá bỏ yoga","ops":[{"op":"delete","target":"yoga"}]}
+{"text":"đổi lịch yoga sang T2","ops":[{"op":"edit","target":"yoga","when":true}]}
+{"text":"finish report","tasks":"en","ops":[{"op":"done","target":"report"}]}
+{"text":"postpone report to friday","tasks":"en","ops":[{"op":"edit","target":"report","when":true}]}
+{"text":"lùi họp nhóm 1 tiếng","ops":[{"op":"edit","target":"meet","when":true}],"whenIs":"2026-11-14T16:00:00"}
+{"text":"dời họp nhóm 30p","ops":[{"op":"edit","target":"meet","when":true}],"whenIs":"2026-11-14T15:30:00","noisy":true}
+{"text":"dời họp nhóm sớm 30p","ops":[{"op":"edit","target":"meet","when":true}],"whenIs":"2026-11-14T14:30:00","noisy":true}
+{"text":"họp nhóm lùi một tiếng rưỡi","ops":[{"op":"edit","target":"meet","when":true}],"whenIs":"2026-11-14T16:30:00"}
+{"text":"hop nhom som nua tieng","ops":[{"op":"edit","target":"meet","when":true}],"whenIs":"2026-11-14T14:30:00","noisy":true}
+{"text":"dời họp nhóm 3 giờ","ops":[{"op":"edit","target":"meet","when":true}],"whenIs":"2026-11-14T15:00:00"}
+{"text":"đừng xoá giặt đồ","create":true}
+{"text":"không xoá giặt đồ nữa","create":true}
+{"text":"dung xoa giat do","create":true,"noisy":true}
+{"text":"don't delete laundry","tasks":"en","create":true}
+{"text":"chưa xong báo cáo","create":true}
+{"text":"báo cáo chưa xong","create":true}
+{"text":"xoài","create":true}
+{"text":"huyền thoại","create":true}
+{"text":"đọc sách 30 phút","create":true}
+{"text":"xoá buổi gym tiếp theo","tasks":"weekly","ops":[{"op":"delete","target":"g13"}]}
+{"text":"xoa buoi gym tiep theo","tasks":"weekly","ops":[{"op":"delete","target":"g13"}],"noisy":true}
+{"text":"xoá 2 buổi gym tới","tasks":"weekly","ask":true,"targets":["g13","g16"]}
+{"text":"xoá buổi cuối gym tuần sau","tasks":"weekly","ops":[{"op":"delete","target":"g20"}]}
+{"text":"xoá các buổi gym tuần sau","tasks":"weekly","ask":true,"targets":["g16","g18","g20"]}
+{"text":"xoá mấy cái gym tuần này","tasks":"weekly","ask":true,"targets":["g11","g13"]}
+{"text":"dời hết việc mai sang CN","ask":true,"targets":["laundry","meet"]}
+{"text":"lùi hết lịch chiều mai 30 phút","ask":true,"targets":["meet"]}
+{"text":"xong hết việc mai","ask":true,"targets":["laundry","meet"]}
+{"text":"rút họp nhóm còn 30p","ops":[{"op":"edit","target":"meet"}]}
+{"text":"rut hop nhom con 30p","ops":[{"op":"edit","target":"meet"}],"noisy":true}
+{"text":"bớt 15p họp nhóm","ops":[{"op":"edit","target":"meet"}]}
+{"text":"họp nhóm kết thúc lúc 5h","ops":[{"op":"edit","target":"meet"}]}
+{"text":"đổi phòng họp nhóm sang B2","ops":[{"op":"edit","target":"meet"}]}
+{"text":"ghi chú giặt đồ: dùng nước xả","ops":[{"op":"edit","target":"laundry"}]}
+{"text":"đổi chỗ giặt đồ và họp nhóm","ops":[{"op":"edit","target":"laundry","when":true},{"op":"edit","target":"meet","when":true}]}
+{"text":"dời hạn báo cáo sang 25/11","ops":[{"op":"edit","target":"report"}]}
+{"text":"bỏ qua gym buổi tối hôm nay","tasks":"weekly","ops":[{"op":"delete","target":"g13"}]}
+{"text":"tạm dừng gym 2 tuần","tasks":"weekly","ask":true,"targets":["g13","g16","g18","g20","g23","g25"]}
+{"text":"dời yoga sang 8h","ops":[{"op":"edit","target":"yoga"}],"whenIs":"2026-11-17T08:00:00"}
+{"text":"xong gym buổi tối T4","tasks":"weekly","ops":[{"op":"done","target":"g11"}]}
+{"text":"xoá giặt đồ tuần sau","ask":true,"targets":[]}
+{"text":"delete gym tuần sau","tasks":"weekly","ask":true,"targets":["g16","g18","g20"]}
+{"text":"move họp nhóm to 5pm","ops":[{"op":"edit","target":"meet","when":true}],"whenIs":"2026-11-14T17:00:00"}
+{"text":"xoá khám răng 19/11","ops":[{"op":"delete","target":"dentist"}]}
+{"text":"xoá khám răng ngày 19","ops":[{"op":"delete","target":"dentist"}]}
+{"text":"xoá khám răng 19-11","ops":[{"op":"delete","target":"dentist"}]}
+{"text":"bớt ăn vặt","create":true}
+{"text":"rút tiền 500k","create":true}
+{"text":"giảm cân 2kg","create":true}
+{"text":"mở lại cửa hàng online","create":true}
+{"text":"tạm dừng học tiếng anh","create":true}
+{"text":"đổi chỗ ngồi","create":true}
+{"text":"bỏ qua bữa sáng","create":true}
+{"text":"máy giặt hỏng gọi thợ","create":true}
+{"text":"xoá cái lúc 3h chiều mai","ops":[{"op":"delete","target":"meet"}]}
+{"text":"dời cái lúc 9h mai sang 10h","ops":[{"op":"edit","target":"laundry","when":true}],"whenIs":"2026-11-14T10:00:00"}
+{"text":"họp nhóm 45 phút thôi","ops":[{"op":"edit","target":"meet"}]}
+{"text":"hop nhom 45p thoi nhe","ops":[{"op":"edit","target":"meet"}],"noisy":true}
+{"text":"từ tuần sau gym chuyển sang T3, T5","tasks":"series","ask":true}
+{"text":"đổi lịch piano sang T2 và T6","tasks":"series","ask":true}
+{"text":"đọc sách 30 phút","create":true}
+{"text":"làm bài tập","create":true}
+{"text":"làm lại CV","create":true}
+{"text":"chuyển sang học online T3, T5","tasks":"series","create":true}

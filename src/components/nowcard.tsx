@@ -232,6 +232,25 @@ function Spin() {
 }
 
 // magic 4: real solver steps above the dock, newest last; older ones muted with a check.
+// calm.html "Weekly, noticed": the same task done on one weekday three weeks running; yes makes it a weekly repeat.
+export function SeriesAsk({ title, sub, yes, onYes, onNo }: { title: string; sub: string; yes: string; onYes: () => void; onNo: () => void }) {
+  const th = useTheme();
+  return (
+    <View style={[s.art, { backgroundColor: th.chip }]}>
+      <View style={StyleSheet.absoluteFill}><TypeArt type="lecture" w={264} h={220} seed={8} /></View>
+      <Text style={[s.lab, { color: th.onart }]}>{t("seriesLab")}</Text>
+      <Text style={[s.t, { color: th.onart }]} numberOfLines={3}>{title}</Text>
+      <View style={s.foot}>
+        <Text style={[s.small, { color: th.onart, fontFamily: ff("600"), flexShrink: 1 }]} numberOfLines={2}>{sub}</Text>
+        <View style={s.acts2}>
+          <Tap onPress={onNo} scale={0.94} accessibilityRole="button" accessibilityLabel={t("seriesNo")} style={[s.glass, s.start, s.soft]}><Glass /><Text style={s.startT}>{t("seriesNo")}</Text></Tap>
+          <Tap onPress={onYes} scale={0.94} accessibilityRole="button" accessibilityLabel={yes} style={[s.glass, s.start]}><Glass /><Text style={s.startT}>{yes}</Text></Tap>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 export function Steps({ lines }: { lines: string[] }) {
   const th = useTheme();
   return (

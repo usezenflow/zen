@@ -35,6 +35,7 @@ export interface Task {
   rrule?: string;
   seriesId?: string; // one repeat said once: its occurrences, so renaming one keeps it in the series
   parentId?: string; // sitting of a split task
+  after?: string[]; // ids of tasks this one waits for: it starts after their last sitting ends
   start?: number;
   end?: number;
   doneAt?: number;
@@ -47,6 +48,9 @@ export interface Task {
   createdAt: number;
 }
 
+
+/** Why a write plans. No cause (a title or note edit, a rule, a pin, a clock tick) plans nothing. */
+export type Cause = "create" | "deadline" | "timetable" | "early-done" | "delete" | "time-edit" | "conflict" | "kind-change" | "user-task";
 
 export type EventType = "placed" | "kept" | "done" | "drag" | "later" | "delete" | "edit";
 export interface TaskEvent {
@@ -69,10 +73,12 @@ export interface Action {
   cls?: string; // the frame class of a guessed length
   guessMin?: number; // the guess before the class multiplier
   maxSitting?: number; // longest sitting in minutes: the task is split into sittings of at most this
-  anchor?: string; // "YYYY-MM-DD": an exam this prep is due the day before
+  anchor?: string; // "YYYY-MM-DD": an exam this prep is due the day before; or an exam task id (forId)
   deadline?: string; // ISO
   repeat?: string; // rrule
+  seriesId?: string; // a one-off session of this series (no rule): it shares the series' id
   note?: string; // the task's note: create sets it, edit replaces it
+  reopen?: boolean; // edit: a done task is open again ("chưa xong gym")
   kind?: Kind;
   fixed?: Fixed; // an exact said time ("6 giờ chiều thứ 4 đi gym"): a busy block at `when`, never a flexible plan
   notAfter?: string; // ISO; end of a said part of day or day, for a flexible plan

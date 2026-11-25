@@ -25,9 +25,10 @@ const loadRecent = async () => { try { const v = JSON.parse((await store.kvGet("
  * views.html "Search, opening": like Spotlight, the search circle grows leftward into the field while the view behind blurs.
  * Tap outside (or back) shrinks it home and closes; the cross in the field only clears it.
  */
-export function Search({ origin, tasks, now, acts, onClose }: { origin: Origin; tasks: Task[]; now: number; acts: RowActions; onClose: () => void }) {
+/** `initial`: a question said on home ("mai có gì" → "mai"), searched at once. */
+export function Search({ origin, tasks, now, acts, initial, onClose }: { origin: Origin; tasks: Task[]; now: number; acts: RowActions; initial?: string; onClose: () => void }) {
   const th = useTheme();
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(initial ?? "");
   const dq = useDeferredValue(q), qRef = useRef(q);
   useEffect(() => { qRef.current = q; });
   const [recent, setRecent] = useState<string[]>([]);

@@ -74,3 +74,6 @@ export function vocab(tasks: Task[]): string[] {
   const own = live.flatMap((x) => [x.title, x.course, x.location, x.teacher]);
   return [...new Set([...own, ...TERMS].map((x) => x?.trim()).filter((x): x is string => !!x && x.length < 60))].slice(0, HINTS);
 }
+
+/** A task's instant as the reader's wall clock string ("YYYY-MM-DDTHH:mm:ss", UTC+7), the form Action times use. */
+export const wallIso = (ms: number) => wall(ms).toISOString().slice(0, 19);

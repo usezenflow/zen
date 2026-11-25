@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ReaderItem } from "../../shared";
 import { read } from "../reader";
+import { commandScore } from "./cmdscore";
 import { hardScores } from "./hard-score";
 import { FAMILIES, NOISY, score, scoreNoisy } from "./mutate";
 import { NEGATIVES } from "./negatives";
@@ -102,6 +103,7 @@ export function scorecard() {
     mutationPassPct: mutation,
     metrics: metrics(all),
     passing: { golden: rows.filter((r) => r.ok).map((r) => r.c.name), hard: hard.filter((h) => h.s.pass).map((h) => h.c.id) },
+    commands: commandScore(),
     hardFieldAcc: pct(Math.round(hard.reduce((a, h) => a + h.s.fieldAcc, 0) * 1000), hard.length * 1000),
   };
 }
@@ -110,4 +112,4 @@ export const readBaseline = (): { passing: { golden: string[]; hard: string[] };
   try { return JSON.parse(readFileSync(BASELINE, "utf8")); } catch { return undefined; }
 };
 export const writeBaseline = (card: ReturnType<typeof scorecard>) =>
-  writeFileSync(BASELINE, JSON.stringify({ passing: card.passing, mutationPassPct: card.mutationPassPct, summary: card.summary }, null, 1) + "\n");
+  writeFileSync(BASELINE, JSON.stringify({ passing: card.passing, mutationPassPct: card.mutationPassPct, summary: card.summary, commands: card.commands }, null, 1) + "\n");

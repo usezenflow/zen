@@ -112,7 +112,7 @@ export function update(arm: Arm, x: number[], r: number, w = 1) {
   }
 }
 
-function invert(A: number[]): number[] {
+export function invert(A: number[]): number[] {
   const n = D;
   const M = Array.from({ length: n }, (_, i) => [
     ...A.slice(i * n, i * n + n),

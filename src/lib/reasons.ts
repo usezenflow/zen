@@ -4,6 +4,9 @@ import type { Kind, Reason, ReasonKey, Step } from "./types";
 
 export const KIND_VI: Record<Kind, string> = { study: "học", exercise: "tập thể dục", chores: "việc nhà", social: "gặp gỡ", other: "việc khác", work: "công việc", errand: "việc vặt", finance: "tài chính", self: "bản thân" };
 
+/** A kind as a short label for grids and bars. */
+export const KIND_SHORT: Record<Kind, string> = { study: "Học", exercise: "Thể dục", chores: "Việc nhà", social: "Gặp gỡ", other: "Khác", work: "Công việc", errand: "Việc vặt", finance: "Tài chính", self: "Bản thân" };
+
 /** A kind as "việc …" ("việc học", "công việc", "việc nhà"), capitalised on ask: one wording for reasons and rhythm. */
 export const kindW = (k: Kind, up = false) => { const w = /việc/.test(KIND_VI[k]) ? KIND_VI[k] : `việc ${KIND_VI[k]}`; return up ? w[0].toLocaleUpperCase("vi") + w.slice(1) : w; };
 
@@ -24,7 +27,7 @@ const R: Record<ReasonKey, W> = {
   gap: { short: ["Có khoảng nghỉ"], long: ["Có nghỉ trước và sau"], neg: "Hơi sát {title}" },
   stable: { short: ["Giữ giờ cũ"], long: ["Gần giờ cũ"] },
   late: { short: ["{ahead}", "Kịp hạn"], long: ["Hạn {due}, {aheadLong}", "Xong trước hạn"], neg: "Có thể trễ hạn {due}" },
-  explore: { short: ["Thử giờ mới"], long: ["Thử giờ này xem sao"] },
+  explore: { short: ["Đang thử giờ này"], long: ["Zen chưa có đủ dữ liệu về loại việc này nên đang thử giờ này"] },
   rule: { short: ["Theo lời bạn dặn"], long: ["Bạn dặn: {text}"] },
   missed: { short: ["Lỡ {time}, không sao"], long: ["Lúc {time} chưa làm được, dời sang đây"] },
   missed3: { short: ["Lỡ {n} lần, đổi giờ"], long: ["Lỡ {n} lần buổi {part}, thử giờ khác"] },
@@ -64,8 +67,13 @@ export function reasonText(r: Reason, long = false): string {
   return fill(r.w < 0 && e.neg ? e.neg : pick(long ? e.long : e.short, v), v);
 }
 
+/** Reasons that word a model weight as a habit ("Bạn hay…", "Hợp…"): never said. What the outcomes really show comes from the
+ *  insight miner (planner/mine.ts), checked when it is shown. They stay in the planner's score and its stored why for its own use. */
+export const LEARNED: ReadonlySet<ReasonKey> = new Set<ReasonKey>(["hour", "after", "similar", "energy", "weekend", "busy", "kind"]);
+export const sayable = (why?: Reason[]) => (why ?? []).filter((r) => !LEARNED.has(r.key));
+
 /** The top positive reason for the row's sub line, if it is worth saying. */
-export const topReason = (why?: Reason[]) => why?.find((r) => r.w > 0);
+export const topReason = (why?: Reason[]) => sayable(why).find((r) => r.w > 0);
 
 const S: Record<Step["key"], string> = {
   read: "Đọc lịch {what}",

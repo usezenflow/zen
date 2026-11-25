@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Zen calm</title>
+<link rel="stylesheet" href="ui.css" />
+<style>
+/* Calm: the plan holds still, says only what is true, and learns from what really happened. */
+.kc { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 99px; background: rgba(255,255,255,.22); color: #fff; font-size: 14px; font-weight: 600; }
+.kc.ink { background: var(--chip); color: var(--ink); }
+.gbtn { height: 52px; padding: 0 18px; border-radius: 99px; display: grid; place-items: center; font-size: 15px; font-weight: 700; background: rgba(255,255,255,.22); color: #fff; backdrop-filter: blur(10px); }
+.gbtn.solid { background: rgba(255,255,255,.9); color: #0b0b0c; }
+.strip { margin-top: 16px; border-radius: 24px; background: var(--chip); padding: 16px 18px 8px; }
+.strip .q { font-size: 15px; font-weight: 600; }
+.yn { display: flex; gap: 8px; }
+.yn span { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--line); background: var(--bg); }
+.yn span.y { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.why { margin-top: 22px; }
+.why p { font-size: 16px; line-height: 1.45; margin-top: 8px; }
+.why p.m { color: var(--muted); font-size: 15px; }
+.why .more { margin-top: 10px; font-size: 15px; font-weight: 600; color: var(--muted); display: inline-flex; align-items: center; gap: 4px; }
+.find { border-radius: 22px; border: 1px solid var(--line); padding: 16px 18px; margin-top: 12px; }
+.find .c { font-size: 17px; font-weight: 600; line-height: 1.35; }
+.find .c2 { font-size: 15px; color: var(--muted); margin-top: 6px; line-height: 1.4; }
+.find .acts { display: flex; gap: 8px; margin-top: 14px; }
+.find .acts span { height: 40px; padding: 0 16px; border-radius: 99px; border: 1px solid var(--line); display: grid; place-items: center; font-size: 15px; font-weight: 600; }
+.find .acts span.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.ev { margin-top: 12px; display: grid; grid-template-columns: 1fr auto auto; gap: 6px 14px; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ev b { color: var(--ink); font-weight: 600; }
+.chg { display: flex; gap: 12px; padding: 14px 0; align-items: flex-start; }
+.chg + .chg { border-top: 1px solid var(--line); }
+.chg .tx { flex: 1; min-width: 0; }
+.chg b { font-size: 17px; font-weight: 600; }
+.chg .t2 { font-size: 15px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+.chg .tm { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.chg .tm s { color: var(--muted); font-weight: 400; margin-right: 6px; }
+.undo { height: 36px; padding: 0 14px; border-radius: 99px; border: 1px solid var(--line); display: grid; place-items: center; font-size: 14px; font-weight: 600; margin-top: 8px; width: max-content; }
+.grp { margin-top: 20px; }
+.grp .gh { display: flex; justify-content: space-between; font-size: 15px; font-weight: 600; }
+.grp .gh span { color: var(--muted); font-weight: 500; }
+.lf { display: flex; gap: 12px; align-items: center; padding: 11px 0; font-size: 16px; }
+.lf + .lf { border-top: 1px solid var(--line); }
+.lf .n { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lf .m { font-variant-numeric: tabular-nums; font-weight: 600; }
+.lf .m.g { color: var(--muted); font-weight: 400; }
+.lf.done .n { color: var(--muted); text-decoration: line-through; }
+.lf .ck { width: 26px; height: 26px; }
+.lock { position: absolute; inset: 0; background: linear-gradient(160deg, #2b3a67, #121314 70%); color: #fff; }
+.lock .clk { text-align: center; margin-top: 96px; font-size: 84px; font-weight: 300; letter-spacing: -.03em; }
+.lock .dt { text-align: center; font-size: 18px; font-weight: 500; opacity: .85; }
+.note { position: absolute; left: 12px; right: 12px; top: 300px; border-radius: 22px; padding: 14px 16px; background: rgba(250,250,248,.82); color: #0b0b0c; backdrop-filter: blur(24px); }
+.note .ap { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #6d7378; }
+.note .ap i { width: 20px; height: 20px; border-radius: 5px; background: #16181b; display: grid; place-items: center; color: #fff; font-style: normal; }
+.note b { display: block; margin-top: 6px; font-size: 16px; }
+.note span { display: block; font-size: 15px; margin-top: 2px; line-height: 1.35; }
+.note.x { top: 300px; }
+.nacts { position: absolute; left: 12px; right: 12px; top: 420px; border-radius: 16px; overflow: hidden; background: rgba(250,250,248,.82); color: #0b0b0c; backdrop-filter: blur(24px); }
+.nacts div { height: 50px; display: flex; align-items: center; padding: 0 18px; font-size: 17px; }
+.nacts div + div { border-top: .5px solid rgba(127,127,127,.3); }
+.kinds { display: grid; grid-template-columns: 1fr 1fr; }
+.laso { margin-top: 18px; display: grid; grid-template-columns: 54px repeat(4, 1fr); gap: 6px; font-size: 13px; }
+.laso .hd { color: var(--muted); font-weight: 600; text-align: center; padding-bottom: 2px; }
+.laso .rk { color: var(--ink); font-weight: 600; display: flex; align-items: center; font-size: 13px; }
+.laso .c { position: relative; aspect-ratio: 1; border-radius: 12px; background: var(--ink); }
+.laso .c.mk::after { content: ""; position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--seal); }
+.laso .c.un { background: none; box-shadow: inset 0 0 0 1.5px var(--line); border: 1.5px dashed var(--muted); opacity: 1 !important; }
+.laso .c.sel { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--seal); }
+.lg { margin-top: 12px; display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); }
+.track { margin-top: 18px; border-radius: 22px; background: var(--chip); padding: 16px 18px; }
+.track .big { font-size: 28px; font-weight: 600; letter-spacing: -.02em; }
+.track .dots { display: flex; gap: 5px; margin-top: 10px; }
+.track .dots i { width: 14px; height: 14px; border-radius: 50%; background: var(--ink); }
+.track .dots i.no { background: none; box-shadow: inset 0 0 0 1.5px var(--muted); }
+.odds { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px; border-radius: 99px; background: rgba(255,255,255,.22); color: #fff; font-size: 14px; font-weight: 600; }
+.odds i { display: inline-flex; gap: 3px; } .odds i b { width: 6px; height: 12px; border-radius: 3px; background: #fff; } .odds i b.o { opacity: .35; }
+.sl { margin-top: 20px; }
+.sl .tr { position: relative; height: 6px; border-radius: 6px; background: var(--line); margin: 14px 4px 6px; }
+.sl .tr i { position: absolute; top: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; background: var(--ink); box-shadow: 0 2px 8px rgba(0,0,0,.2); }
+.sl .ticks { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.hr { font-size: 40px; font-weight: 600; letter-spacing: -.02em; margin-top: 16px; }
+.kbar { display: grid; grid-template-columns: 84px 1fr; align-items: center; gap: 10px; margin-top: 12px; font-size: 14px; font-weight: 600; }
+.kbar .ax { position: relative; height: 18px; }
+.kbar .ax::before { content: ""; position: absolute; left: 50%; top: -4px; bottom: -4px; width: 1px; background: var(--line); }
+.kbar .bar { position: absolute; top: 3px; height: 12px; border-radius: 6px; background: var(--ink); }
+.kbar .bar.neg { background: var(--seal); }
+.kbar .bar.un { background: none; border: 1.5px dashed var(--muted); }
+.kbar .wh { position: absolute; top: 8px; height: 2px; background: var(--muted); opacity: .6; }
+.ctx { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.ctx span { height: 34px; padding: 0 14px; border-radius: 99px; background: var(--chip); display: inline-flex; align-items: center; font-size: 14px; font-weight: 500; }
+.cm { margin-top: 14px; display: grid; grid-template-columns: 70px repeat(8, 1fr); gap: 3px; font-size: 11px; }
+.cm .l { color: var(--muted); font-weight: 600; display: flex; align-items: center; }
+.cm .t { color: var(--muted); font-weight: 600; writing-mode: vertical-rl; transform: rotate(180deg); height: 64px; text-align: left; }
+.cm .x { aspect-ratio: 1; border-radius: 4px; }
+.seg { display: flex; gap: 6px; margin-top: 14px; }
+.seg span { flex: 1; height: 36px; border-radius: 99px; border: 1px solid var(--line); display: grid; place-items: center; font-size: 14px; font-weight: 600; }
+.seg span.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="head">
+  <h1>Calm</h1>
+  <p>The plan holds still until something real happens, says only what is true, and learns lengths from what you actually did. Start records the real start; a started block that runs out is done by itself. Moves come only from a cause, and the cause is said as a plain fact. What Zen has learned about you is shown only when the data really says it.</p>
+  <nav><a href="views.html">Views</a><a href="capture.html">Capture</a><a href="magic.html">Magic</a><a href="settings.html">Settings</a></nav>
+</div>
+<div class="gallery"></div>
+<script src="ui.js"></script>
+<script>
+const tabs = (on) => `<div class="tabs">${["Ngày", "Tuần", "Tháng"].map((v) => `<span class="${v === on ? "on" : ""}">${v}</span>`).join("")}</div>`;
+const row = (tm, title, type, st = "", sub = "") => {
+  const on = st && st !== "late";
+  const box = type === "plan" || type === "assignment" ? `<span class="ck ${st}">${on ? ic(I.check, 16, 2.4) : ""}</span>` : swatch(type);
+  return `<div class="r ${on ? "done" : st} ${type === "busy" ? "busy" : ""}">${box}<div class="tx"><b>${title}</b>${sub ? `<small>${sub}</small>` : ""}</div><span class="tm">${tm.includes("|") ? `<span>${tm.split("|")[0]}</span><small>${tm.split("|")[1]}</small>` : `<span>${tm}</span>`}</span></div>`;
+};
+const chip = (k, name, ink = false) => `<span class="kc ${ink ? "ink" : ""}">${ic(MI[k], 15, 2)}${name}${ic(I.down, 13, 2)}</span>`;
+const HEAD = head("T2", "16/11", "5 việc, 1 tiết học");
+
+// The now card in its three states. Buttons sit bottom right, the meter bottom left.
+const nowCard = (lab, title, big, small, p, btns, k = ["study", "Học"]) => `<div class="art" style="margin-top:16px;height:236px;padding:20px 20px 18px">${art("plan", { w: 354, h: 236, seed: 4, cls: "bgart" })}
+  <div style="display:flex;justify-content:space-between;align-items:center"><div class="lab" style="color:#fff;opacity:.85">${lab}</div>${chip(k[0], k[1])}</div>
+  <div class="t" style="margin-top:10px">${title}</div>
+  <div style="position:absolute;left:20px;right:16px;bottom:16px;display:flex;align-items:flex-end;justify-content:space-between"><div class="meter"><span class="cap2" style="--p:${p}"><i></i></span><div><div class="big">${big}</div><div class="small">${small}</div></div></div><span style="display:flex;gap:8px;align-items:center">${btns}</span></div></div>`;
+const rest = `<div class="lab" style="margin-top:22px">Tiếp theo</div>
+  <div class="list" style="margin-top:6px">${row("17:30|19:00", "Cơ sở dữ liệu", "lecture", "", "A2.104")}</div>
+  <div class="lab" style="margin-top:24px">Hôm nay</div>
+  <div class="list" style="margin-top:6px">${row("19:30|20:30", "Ôn Cơ sở dữ liệu", "plan")}${row("21:00|21:45", "Đọc tài liệu Partitioning", "plan")}</div>`;
+
+const ready = `${HEAD}${tabs("Ngày")}${nowCard("Tiếp theo", "LeetCode", "14:00", "đến 15:00", "0%", `<span class="gbtn">Để sau</span><span class="gbtn solid">Bắt đầu</span>`)}${rest}`;
+const running = `${HEAD}${tabs("Ngày")}${nowCard("Đang làm", "LeetCode", "38 phút", "còn lại, đến 15:00", "40%", `<span class="glass solid">${ic(I.check, 22, 2.2)}</span>`)}${rest}`;
+const over = `${HEAD}${tabs("Ngày")}<div class="art" style="margin-top:16px;height:236px;padding:20px 20px 18px">${art("plan", { w: 354, h: 236, seed: 4, cls: "bgart" })}
+  <div style="display:flex;justify-content:space-between;align-items:center"><div class="lab" style="color:#fff;opacity:.85">Hết giờ, 15:00</div>${chip("study", "Học")}</div>
+  <div class="t" style="margin-top:10px">LeetCode</div>
+  <div style="position:absolute;left:16px;right:16px;bottom:16px;display:flex;gap:8px"><span class="gbtn" style="flex:1">Thêm 15 phút</span><span class="gbtn solid" style="flex:1">Chuyển việc</span></div></div>
+  <div style="margin-top:12px;font-size:15px;color:var(--muted)">Chuyển việc sẽ sang Ôn Cơ sở dữ liệu. Phần LeetCode còn lại được xếp buổi khác.</div>${rest}`;
+
+const lock = `<div class="lock"><div class="sb" style="color:#fff"><span></span><span>●●● ▮</span></div><div class="clk">15:00</div><div class="dt">Thứ Hai, 16 tháng 11</div>
+  <div class="note"><div class="ap"><i>${LOGO(13, "white")}</i>ZEN<span style="margin-left:auto;font-weight:500">bây giờ</span></div><b>LeetCode đã hết giờ</b><span>Chạm để thêm 15 phút hoặc chuyển sang Ôn Cơ sở dữ liệu.</span></div></div><div class="hi" style="background:#fff"></div>`;
+const lockHeld = `<div class="lock" style="background:linear-gradient(160deg,#1d2647,#0b0c0d 70%)"><div class="sb" style="color:#fff"><span></span><span>●●● ▮</span></div>
+  <div class="note" style="top:220px"><div class="ap"><i>${LOGO(13, "white")}</i>ZEN</div><b>LeetCode đã hết giờ</b><span>Chạm để thêm 15 phút hoặc chuyển sang Ôn Cơ sở dữ liệu.</span></div>
+  <div class="nacts" style="top:352px"><div>Thêm 15 phút</div><div>Chuyển sang Ôn Cơ sở dữ liệu</div></div></div><div class="hi" style="background:#fff"></div>`;
+
+const ask = `${HEAD}${tabs("Ngày")}
+  <div class="strip"><div class="q">Những việc này đã làm chưa?</div>
+    <div class="r" style="padding:12px 0"><div class="tx"><b>Đọc chương 3</b><small>Sáng 9:00 đến 10:00</small></div><span class="yn"><span>${ic(I.x, 18, 2)}</span><span class="y">${ic(I.check, 18, 2.4)}</span></span></div>
+    <div class="r" style="padding:12px 0"><div class="tx"><b>Chạy bộ</b><small>Sáng 6:30 đến 7:00</small></div><span class="yn"><span>${ic(I.x, 18, 2)}</span><span>${ic(I.check, 18, 2.4)}</span></span></div>
+  </div>
+  ${nowCard("Tiếp theo", "LeetCode", "14:00", "đến 15:00", "0%", `<span class="gbtn">Để sau</span><span class="gbtn solid">Bắt đầu</span>`)}`;
+
+const dtop = `<div style="display:flex;justify-content:space-between"><span class="o">${ic(I.back, 20)}</span><span class="o">${ic(I.dots, 20)}</span></div>`;
+const detail = (why) => `${dtop}
+  <div style="margin-top:18px;display:flex;gap:8px;align-items:center">${chip("study", "Học", true)}<span style="font-size:15px;color:var(--muted)">Việc của bạn</span></div>
+  <div class="h" style="margin-top:12px">LeetCode</div>
+  <div class="sub">Hôm nay 14:00 đến 15:00</div>
+  <div class="why"><div class="lab">Vì sao giờ này</div>${why}</div>`;
+const whyMoved = detail(`<p>Lớp Cơ sở dữ liệu chuyển sang 9:00 đến 11:00, trùng giờ cũ 10:00.</p>
+  <p>Khoảng trống 11:15 đến 12:00 ngắn hơn một tiếng.</p>
+  <p>Học xong nhiều hơn vào buổi chiều so với buổi tối.</p>
+  <p class="m">Buổi học chiều đã xong 9/11, buổi tối 3/10.</p>`);
+const whyNew = detail(`<p>Bạn vừa thêm việc này.</p><p>Học xong nhiều hơn vào buổi chiều so với buổi tối.</p><p class="m">Buổi học chiều đã xong 9/11, buổi tối 3/10.</p>`);
+const whyTry = detail(`<p>Bạn vừa thêm việc này.</p><p class="m">Zen chưa có đủ dữ liệu về loại việc này nên đang thử giờ này.</p>`);
+const whyNone = detail(`<p>Bạn đã đặt giờ này. Zen giữ nguyên trừ khi có việc trùng.</p>`);
+
+const kindMenu = `${detail(`<p>Bạn vừa thêm việc này.</p>`)}<div class="mscrim"></div><div class="menu" style="top:128px;left:24px"><div class="kinds">${[["study", "Học"], ["work", "Công việc"], ["exercise", "Thể dục"], ["chores", "Việc nhà"], ["social", "Gặp gỡ"], ["errand", "Việc vặt"], ["finance", "Tiền bạc"], ["self", "Bản thân"], ["other", "Khác"]].map(([k, n]) => `<div class="mi" style="${k === "study" ? "font-weight:700" : ""}">${ic(MI[k])}<span>${n}</span></div>`).join("")}</div></div>`;
+
+const changes = `<span class="o">${ic(I.back, 20)}</span><div class="h" style="margin-top:18px">Thay đổi hôm nay</div><div class="sub">2 việc được dời</div>
+  <div style="margin-top:14px">
+    <div class="chg"><div class="tx"><b>LeetCode</b><div class="t2">Lớp Cơ sở dữ liệu chuyển sang 9:00 đến 11:00.</div><span class="undo">Hoàn tác</span></div><span class="tm"><s>10:00</s>14:00</span></div>
+    <div class="chg"><div class="tx"><b>Đọc tài liệu Partitioning</b><div class="t2">Báo cáo nhóm xong sớm, còn trống 20:00 đến 21:00.</div><span class="undo">Hoàn tác</span></div><span class="tm"><s>21:30</s>20:00</span></div>
+  </div>
+  <div style="margin-top:18px;font-size:15px;color:var(--muted);line-height:1.45">Những việc bạn tự đặt giờ không bị dời, trừ khi có việc trùng.</div>`;
+
+const learned = `<span class="o">${ic(I.back, 20)}</span><div class="h" style="margin-top:18px">Zen hiểu bạn</div><div class="sub">Chỉ những gì dữ liệu cho thấy rõ</div>
+  <div class="find"><div class="c">Học xong nhiều hơn vào buổi sáng so với buổi tối.</div><div class="c2">Bạn thường dời việc học sang buổi tối.</div>
+    <div class="ev"><span>Buổi học sáng đã xong</span><b>17/20</b><span></span><span>Buổi học tối đã xong</span><b>6/24</b><span></span></div>
+    <div class="acts"><span>Đúng vậy</span><span>Không đúng</span></div></div>
+  <div class="find"><div class="c">Việc học mất nhiều thời gian hơn bạn ước tính.</div>
+    <div class="acts"><span class="on">Đúng vậy</span><span>Không đúng</span></div>
+    <div class="ev"><span>Ước tính trung bình</span><b>60 phút</b><span></span><span>Thực tế trung bình</span><b>85 phút</b><span></span><span>Số lần</span><b>11</b><span></span></div></div>
+  <div class="find"><div class="c">Những ngày lịch trên lớp dày, việc buổi tối xong ít hơn.</div>
+    <div class="ev"><span>Tối ngày dày lịch đã xong</span><b>4/13</b><span></span><span>Tối ngày nhẹ đã xong</span><b>15/19</b><span></span></div>
+    <div class="acts"><span>Đúng vậy</span><span>Không đúng</span></div></div>`;
+
+const importPrev = `<span class="o">${ic(I.back, 20)}</span><div class="h" style="margin-top:18px">PostgreSQL</div><div class="sub">Từ Notion, 13 việc, 6 đã xong</div>
+  <div class="grp"><div class="gh">Query Planning<span>4 giờ</span></div>
+    <div class="lf done"><span class="ck on">${ic(I.check, 14, 2.4)}</span><span class="n">EXPLAIN và EXPLAIN ANALYZE</span><span class="m g">1 giờ 30</span></div>
+    <div class="lf"><span class="ck"></span><span class="n">Seq scan, index scan, bitmap heap scan</span><span class="m">1 giờ</span></div>
+    <div class="lf"><span class="ck"></span><span class="n">Planner statistics</span><span class="m">30 phút</span></div>
+    <div class="lf"><span class="ck"></span><span class="n">Bài tập: sửa một truy vấn chậm</span><span class="m">1 giờ</span></div></div>
+  <div class="grp"><div class="gh">Replication<span>3 giờ</span></div>
+    <div class="lf"><span class="ck"></span><span class="n">Streaming replication, WAL</span><span class="m">1 giờ</span></div>
+    <div class="lf"><span class="ck"></span><span class="n">Read replicas</span><span class="m">1 giờ</span></div>
+    <div class="lf"><span class="ck"></span><span class="n">Bài tập: API đọc từ replica</span><span class="m g">1 giờ</span></div></div>
+  <div class="btn" style="position:absolute;left:24px;right:24px;bottom:40px;background:var(--ink);color:var(--bg)">Thêm 7 việc</div>`;
+
+// Lá số: rows are kinds, columns the parts of the day. Fill = how well that kind goes then for you (the kind's prediction in that part);
+// opacity = how sure (more outcomes, more solid). A dot marks a cell with a significant finding. Numbers below are illustrative.
+const LASO = [["Học", [.9, .5, .6, .25], [1, .5, .9, .9], [1, 0, 0, 1]], ["Công việc", [.7, .6, .75, .3], [.8, .4, .9, .4], [0, 0, 0, 0]], ["Thể dục", [.8, .2, .55, .5], [.6, .2, .3, .5], [0, 0, 0, 0]], ["Việc nhà", [.3, .4, .5, .7], [.3, .3, .5, .7], [0, 0, 0, 0]], ["Bản thân", [.4, .3, .4, .8], [.2, .2, .3, .6], [0, 0, 0, 0]]];
+const laso = (sel = -1) => `<div class="laso"><span></span>${["Sáng", "Trưa", "Chiều", "Tối"].map((p) => `<span class="hd">${p}</span>`).join("")}${LASO.map(([k, v, c, mk], r) => `<span class="rk">${k}</span>${v.map((x, i) => `<span class="c ${mk[i] ? "mk" : ""} ${c[i] < 0.45 ? "un" : ""} ${r === 0 && i === sel ? "sel" : ""}" style="opacity:${(0.12 + 0.88 * x).toFixed(2)}"></span>`).join("")}`).join("")}</div>`;
+const lasoPage = `<span class="o">${ic(I.back, 20)}</span><div class="h" style="margin-top:18px">Lá số của bạn</div><div class="sub">Vẽ từ những gì bạn thật sự đã làm</div>
+  ${laso()}
+  <div class="lg"><span>Đậm: hay xong</span><span>Viền đứt: chưa đủ dữ liệu</span></div>
+  <div class="track"><div class="lab">Zen đoán đúng gần đây</div><div class="big" style="margin-top:4px">8/10 lần</div><div class="dots">${[1,1,0,1,1,1,1,0,1,1].map((x) => `<i class="${x ? "" : "no"}"></i>`).join("")}</div></div>`;
+const lasoCell = `<span class="o">${ic(I.back, 20)}</span><div class="h" style="margin-top:18px">Lá số của bạn</div><div class="sub">Vẽ từ những gì bạn thật sự đã làm</div>
+  ${laso(0)}
+  <div class="find" style="margin-top:16px"><div class="c">Học xong nhiều hơn vào buổi sáng so với buổi tối.</div>
+    <div class="ev"><span>Buổi học sáng đã xong</span><b>17/20</b><span></span><span>Buổi học tối đã xong</span><b>6/24</b><span></span></div>
+    <div class="acts"><span>Đúng vậy</span><span>Không đúng</span></div></div>`;
+const oddsCard = `${HEAD}${tabs("Ngày")}<div class="art" style="margin-top:16px;height:236px;padding:20px 20px 18px">${art("plan", { w: 354, h: 236, seed: 4, cls: "bgart" })}
+  <div style="display:flex;justify-content:space-between;align-items:center"><div class="lab" style="color:#fff;opacity:.85">Tiếp theo</div><span class="odds"><i><b></b><b></b><b class="o"></b></i>Khả năng xong cao</span></div>
+  <div class="t" style="margin-top:10px">Ôn Cơ sở dữ liệu</div>
+  <div style="position:absolute;left:20px;right:16px;bottom:16px;display:flex;align-items:flex-end;justify-content:space-between"><div class="meter"><span class="cap2" style="--p:0%"><i></i></span><div><div class="big">9:00</div><div class="small">đến 10:00</div></div></div><span style="display:flex;gap:8px"><span class="gbtn">Để sau</span><span class="gbtn solid">Bắt đầu</span></span></div></div>${rest}`;
+
+// Day slider: one hour's blended view (the hour with its part, as the planner sees it). Bars from the centre: right goes well, left goes badly;
+// the whisker is the uncertainty; dashed when there is too little data. Values are illustrative.
+const kbars = (rows) => rows.map(([k, v, e, un]) => `<div class="kbar"><span>${k}</span><div class="ax">${un ? `<span class="bar un" style="left:42%;width:16%"></span>` : `<span class="bar ${v < 0 ? "neg" : ""}" style="${v < 0 ? `right:50%;width:${-v * 50}%` : `left:50%;width:${v * 50}%`}"></span><span class="wh" style="left:${50 + (v - e) * 50}%;width:${e * 100}%"></span>`}</div></div>`).join("");
+const slider = (h) => `<div class="sl"><div class="tr"><i style="left:${(h / 23) * 100}%"></i></div><div class="ticks"><span>0h</span><span>6h</span><span>12h</span><span>18h</span><span>23h</span></div></div>`;
+const dayAt = (h, rows, ctx) => `<span class="o">${ic(I.back, 20)}</span><div class="h" style="margin-top:18px">Nhịp trong ngày</div><div class="sub">Kéo để xem từng giờ</div>
+  ${slider(h)}<div class="hr">${h} giờ</div>
+  <div class="lg" style="margin-top:4px"><span>Hay bỏ dở</span><span>Hay xong</span></div>${kbars(rows)}
+  <div class="lab" style="margin-top:22px">Lúc này thường là</div><div class="ctx">${ctx.map((c) => `<span>${c}</span>`).join("")}</div>`;
+const day9 = dayAt(9, [["Học", .7, .2], ["Công việc", .45, .25], ["Thể dục", .3, .35], ["Việc nhà", -.2, .3], ["Gặp gỡ", 0, 0, 1], ["Bản thân", 0, 0, 1]], ["Ngày có lớp", "Ngay sau lớp", "Ngày thường"]);
+const day21 = dayAt(21, [["Học", -.5, .2], ["Công việc", -.3, .3], ["Thể dục", 0, 0, 1], ["Việc nhà", .35, .3], ["Gặp gỡ", .4, .35], ["Bản thân", .6, .25]], ["Sau một ngày dày lịch", "Gần hạn nộp"]);
+// Feature x feature, per part of the day: how situations come together (correlation from A). Blue together, red apart, blank too little data.
+const F = ["Học", "Công việc", "Thể dục", "Việc nhà", "Ngày dày lịch", "Cuối tuần", "Gần hạn", "Sau lớp"];
+const C = [[1,-.3,-.2,-.3,.6,-.5,.4,.7],[-.3,1,-.1,-.2,.2,-.6,.3,.1],[-.2,-.1,1,0,-.3,.4,-.2,null],[-.3,-.2,0,1,-.2,.5,null,null],[.6,.2,-.3,-.2,1,-.7,.3,.8],[-.5,-.6,.4,.5,-.7,1,-.1,null],[.4,.3,-.2,null,.3,-.1,1,.2],[.7,.1,null,null,.8,null,.2,1]];
+const col = (v) => v === null ? "transparent" : v >= 0 ? `rgba(47,90,200,${(0.1 + 0.9 * v).toFixed(2)})` : `rgba(217,67,43,${(0.1 + 0.9 * -v).toFixed(2)})`;
+const corr = `<span class="o">${ic(I.back, 20)}</span><div class="h" style="margin-top:18px">Điều gì đi cùng nhau</div><div class="sub">Trong lịch của bạn, buổi sáng</div>
+  <div class="seg"><span class="on">Sáng</span><span>Trưa</span><span>Chiều</span><span>Tối</span></div>
+  <div class="cm"><span></span>${F.map((f) => `<span class="t">${f}</span>`).join("")}${C.map((r, i) => `<span class="l">${F[i]}</span>${r.map((v) => `<span class="x" style="background:${col(v)};${v === null ? "border:1px dashed var(--line)" : ""}"></span>`).join("")}`).join("")}</div>
+  <div class="lg"><span>Đỏ: ít khi cùng lúc</span><span>Xanh: hay cùng lúc</span></div>
+  <div class="find" style="margin-top:14px"><div class="c">Buổi sáng, ngày dày lịch thường cũng là ngày có việc ngay sau lớp.</div><div class="c2">Chỉ cho biết điều gì hay đi cùng nhau, không phải điều gì giúp bạn xong việc.</div></div>`;
+
+// Free-form commands: a clear single match acts at once, with Undo; anything less sure asks with two literal choices.
+const DAY = `${HEAD}${tabs("Ngày")}<div class="lab" style="margin-top:28px">Hôm nay</div>
+  <div class="list" style="margin-top:6px">${row("14:00|15:00", "LeetCode", "plan")}${row("17:30|19:00", "Cơ sở dữ liệu", "lecture", "A2.104")}${row("19:30|20:30", "Ôn Cơ sở dữ liệu", "plan")}${row("21:00|21:30", "Giặt đồ", "plan")}</div>`;
+const pick = (q, opts) => `<div class="find" style="margin-top:16px"><div class="c">${q}</div><div class="pills blk" style="margin-top:12px">${opts.map(([n, d, on]) => `<span class="pl ${on ? "on" : ""}"><span class="nm">${n}</span>${d ? `<span class="dy">${d}</span>` : ""}</span>`).join("")}</div></div>`;
+const cmdDone = chrome(toast("Đã xoá Giặt đồ", "Tối nay 21:00", [["Hoàn tác"]]) + DAY.replace(row("21:00|21:30", "Giặt đồ", "plan"), ""), { dock: "think" });
+const cmdMove = chrome(toast("Đã dời Họp nhóm", "Sang 15:00 hôm nay", [["Hoàn tác"]]) + DAY, { dock: "think" });
+const cmdWhich = chrome(`${DAY}${pick("Huỷ việc nào?", [["Gym", "Chiều nay 17:00"], ["Gym", "Thứ 4 6:30"], ["Tạo việc mới \"Huỷ gym\"", ""]])}`, { dock: null });
+const cmdOrNew = chrome(`${DAY}${pick("\"xoa gym\"", [["Xoá Gym", "Chiều nay 17:00", 1], ["Tạo việc mới \"xoa gym\"", ""]])}`, { dock: null });
+const cmdBulk = chrome(`${DAY}<div class="find" style="margin-top:16px"><div class="c">Xoá 6 tiết học tuần này?</div><div class="c2">Cơ sở dữ liệu 3 tiết, Giải tích 2 tiết, Mạng máy tính 1 tiết</div><div class="acts"><span>Thôi</span><span class="on">Xoá 6 tiết</span></div></div>`, { dock: null });
+const createKept = chrome(toast("Bỏ rác", "<b>Mình hiểu:</b> tối nay, 10 phút", [["Hoàn tác"]]) + DAY, { dock: "think" });
+
+// Order: "học lý thuyết rồi làm bài tập". The second task says what it waits for, literally.
+const orderDetail = `${dtop}
+  <div style="margin-top:18px;display:flex;gap:8px;align-items:center">${chip("study", "Học", true)}<span style="font-size:15px;color:var(--muted)">Việc của bạn</span></div>
+  <div class="h" style="margin-top:12px">Làm bài tập Giải tích</div>
+  <div class="sub">Thứ 4 19:30 đến 21:30</div>
+  <div class="ctx" style="margin-top:16px"><span>Sau: Học lý thuyết Giải tích</span></div>
+  <div class="why"><div class="lab">Vì sao giờ này</div><p>Học lý thuyết Giải tích xếp xong lúc 18:00 Thứ 4.</p></div>`;
+const orderToast = chrome(toast("Đã thêm 2 việc", "Học lý thuyết Giải tích, rồi Làm bài tập Giải tích", [["Hoàn tác"]]) + DAY, { dock: "think" });
+
+// Anchors: "ôn trước kỳ thi Toán" with two Toán exams ahead.
+const anchorPick = chrome(`${DAY}${pick("Kỳ thi Toán nào?", [["Thi Giải tích", "T5 26/11 7:30"], ["Thi Đại số tuyến tính", "T3 1/12 9:30"]])}`, { dock: null });
+const anchorOk = chrome(toast("Ôn Cơ sở dữ liệu", "<b>Mình hiểu:</b> 3h, xong trước Thi Cơ sở dữ liệu T5 7:30", [["Hoàn tác"]]) + DAY, { dock: "think" });
+
+// Import with order: numbered groups show their steps; plain bullets stay unnumbered.
+const importOrd = importPrev
+  .replace("Từ Notion, 13 việc, 6 đã xong", "Từ Notion, 7 việc, 1 đã xong, có thứ tự")
+  .replace(/(<div class="grp"><div class="gh">Query Planning[\s\S]*?<\/div><\/div>)/, (g) => { let i = 0; return g.replace(/<span class="n">/g, () => `<span class="m g" style="width:18px">${++i}</span><span class="n">`); });
+
+// Phase 2: a weekly habit noticed from done history.
+const seriesCard = `${HEAD}${tabs("Ngày")}<div class="find" style="margin-top:16px"><div class="c">Lặp lại Chạy bộ hằng tuần?</div><div class="c2">Bạn đã chạy bộ sáng Thứ 2 ba tuần liền.</div><div class="acts"><span>Không</span><span class="on">Thứ 2 hằng tuần</span></div></div>${rest}`;
+
+// Phase 4: voice engine in settings. The phone's own recognizer stays the fallback.
+const sttPage = (state) => `<span class="o">${ic(I.x, 20)}</span><div class="h" style="margin-top:18px">Cài đặt</div>
+  <div class="lab" style="margin-top:26px">Giọng nói</div>
+  ${[["os", "Của máy", "Nhận giọng có sẵn trên máy", ""], ["base", "Nhẹ", "Zen nghe trên máy, nhanh", "148 MB"], ["ok", "Chính xác", "Zen nghe trên máy, ít sai hơn", state === "dl" ? "Đang tải 42%" : state === "ok" ? "Đã tải" : "488 MB"]].map(([k, n, d, v]) => {
+    const on = k === state || (k === "ok" && state === "dl");
+    return `<div class="set" style="align-items:center"><div style="flex:1;min-width:0"><div>${n}</div><div style="font-size:14px;font-weight:500;color:var(--muted);margin-top:2px">${d}</div></div><span class="v" style="color:var(--muted);font-weight:500;font-size:15px;font-variant-numeric:tabular-nums">${v}</span><span style="width:22px;display:grid;place-items:center">${on ? ic(I.check, 20, 2.4) : ""}</span></div>`;
+  }).join("")}
+  <div style="margin-top:12px;font-size:15px;color:var(--muted);line-height:1.45">${state === "os" ? "Máy này ít bộ nhớ, nên dùng nhận giọng của máy." : "Nghe ngay trên máy, không gửi đi đâu. Lỗi thì tự chuyển về nhận giọng của máy."}</div>`;
+
+mount([
+  { tag: "Now, ready", sub: "One card: what to do and until when. Bắt đầu records the real start. The kind sits as a chip on the card; tap it to fix.", html: chrome(ready, { dock: "idle" }) },
+  { tag: "Now, running", sub: "Started: the meter runs. No need to tick at the end, a started block that runs out counts as done.", html: chrome(running, { dock: "idle", time: "14:22" }) },
+  { tag: "Now, time's up", sub: "At the end: add 15 minutes or switch to what's next. Either way the real minutes go to the length learner. Only the blocks after it shift.", html: chrome(over, { dock: "idle", time: "15:00" }) },
+  { tag: "Time's up, lock screen", sub: "The body says what a tap does. A plain tap opens the card above; iOS hides the buttons until a long press.", html: lock },
+  { tag: "Time's up, long press", sub: "The same two choices as buttons, for whoever presses and holds.", html: lockHeld },
+  { tag: "Did these happen?", sub: "Blocks that ended without a start wait here, quietly. Nothing is moved or counted against you until you answer; ignored for a day, they are dropped.", html: chrome(ask, { dock: "idle", time: "13:40" }) },
+  { tag: "Why this time, after a move", sub: "First the cause, as a fact. Then why not the nearest other time. Then a pattern, only if the data clearly shows it. No guesses about you.", html: chrome(whyMoved, { dock: null }) },
+  { tag: "Why this time, new task", sub: "A new task: the trigger, then one measured pattern.", html: chrome(whyNew, { dock: null }) },
+  { tag: "Why this time, still learning", sub: "Too little data and the slot was a try: it says so. Never dressed up as a preference.", html: chrome(whyTry, { dock: null }) },
+  { tag: "Why this time, set by you", sub: "A time you set stays. Only a clash moves it, and then the clash is the reason.", html: chrome(whyNone, { dock: null }) },
+  { tag: "Kind chip", sub: "The detected kind is visible. A wrong one is one tap to fix, and the fix replans this task.", html: chrome(kindMenu, { dock: null }) },
+  { tag: "Changes today", sub: "Every move once, with its cause and Undo. Times you set yourself are left alone.", html: chrome(changes, { dock: null }) },
+  { tag: "Zen hiểu bạn", sub: "Only patterns the numbers clearly support, in plain clauses. A second line appears when what you do differs. Each shows its counts as is; confirm or reject.", html: chrome(learned, { dock: null }) },
+  { tag: "Import from anywhere", sub: "Paste or share any plan, from Notion, a doc, a chat or a photo. Sections, sizes and done items are read; grey sizes were filled in by Zen.", html: chrome(importPrev, { dock: null }) },
+  { tag: "Lá số", sub: "A chart of you, drawn only from outcomes. Shade is how well a kind goes at that time; a dashed outline means too little data to say; a red dot means a pattern the numbers clearly support. Below, how often Zen's guesses came true.", html: chrome(lasoPage, { dock: null }) },
+  { tag: "Lá số, a cell", sub: "Tap a cell: the literal finding and the counts behind it. Reject it if it is wrong for you.", html: chrome(lasoCell, { dock: null }) },
+  { tag: "Day slider, 9h", sub: "Drag through the day. Each kind: right if it tends to get done at this hour, left if it tends to be dropped; the line is the uncertainty, dashed means too little data. The hour is blended with its part of the day, as the planner sees it.", html: chrome(day9, { dock: null }) },
+  { tag: "Day slider, 21h", sub: "Same view at 9pm. Chips below: situations that usually come with this hour, from A.", html: chrome(day21, { dock: null }) },
+  { tag: "What goes together", sub: "Feature by feature correlation from A, per part of the day (an hour alone has too little data). Background on how your days are shaped, not what works.", html: chrome(corr, { dock: null }) },
+  { tag: "Now, with a forecast", sub: "How likely this block gets done, from your own history, in three steps. The track record on the Lá số keeps it honest.", html: chrome(oddsCard, { dock: "idle", time: "8:40" }) },
+  { tag: "Command, one match", sub: 'Said "xoá giặt đồ": one task clearly matches, so it is gone at once. Hoàn tác brings it back.', html: cmdDone },
+  { tag: "Command, move", sub: 'Said "dời họp sang 3h": the one Họp nhóm moves to 15:00. Same Undo.', html: cmdMove },
+  { tag: "Command, which one", sub: 'Said "huỷ gym" with two Gym tasks: pick one, or keep the words as a new task. Nothing happens until a tap.', html: cmdWhich },
+  { tag: "Command or new task", sub: 'A typo ("xoa gym") or a weak match never acts by itself: the likely reading is first, a new task is always the other choice.', html: cmdOrNew },
+  { tag: "Command, many at once", sub: '"Xoá hết tiết tuần này" names a count and asks first. A bulk change never happens silently.', html: cmdBulk },
+  { tag: "Not a command", sub: '"Bỏ rác" is a chore, not a delete: no task is called Rác, so it is added as usual.', html: createKept },
+  { tag: "Series, one more session", sub: '"Thêm 1 buổi gym T7 này": one extra session in the Gym series, only this week. The outline pill makes it weekly instead.', html: chrome(toast("Đã thêm 1 buổi Gym", "T7 này 17:00, trong chuỗi Gym", [["mỗi tuần", 1], ["Hoàn tác"]]) + DAY, { dock: "think" }) },
+  { tag: "Series, every week", sub: '"Gym thêm T5 hằng tuần" (or the pill above): the series gains a weekday from now on.', html: chrome(toast("Gym giờ là T2, T4, T5", "Hằng tuần, từ T5 này", [["Hoàn tác"]]) + DAY, { dock: "think" }) },
+  { tag: "Series, which one", sub: 'Two series match "thêm buổi học": pick one, or keep it as a new task.', html: chrome(`${DAY}${pick("Thêm buổi cho chuỗi nào?", [["Học tiếng Anh", "T3, T5 hằng tuần"], ["Học IELTS", "T7 hằng tuần"], ["Tạo việc mới \"thêm buổi học\"", ""]])}`, { dock: null }) },
+  { tag: "In order, added", sub: '"Học lý thuyết Giải tích rồi làm bài tập": two tasks, the second always after the first ends.', html: orderToast },
+  { tag: "In order, detail", sub: "The task says what it waits for, as a chip. The reason is the literal fact of when the first one ends.", html: chrome(orderDetail, { dock: null }) },
+  { tag: "Anchor, which exam", sub: '"Ôn trước kỳ thi Toán" with two Toán exams ahead: pick one. Until then the task is added without a due.', html: anchorPick },
+  { tag: "Anchor, found", sub: '"Ôn CSDL trước kỳ thi" (one exam matches): due before it, and linked to it.', html: anchorOk },
+  { tag: "Import, in order", sub: "Numbered steps keep their order: each leaf waits for the one before. Plain bullets stay free.", html: chrome(importOrd, { dock: null }) },
+  { tag: "Weekly, noticed", sub: "Done on the same weekday three weeks running: one card offers a weekly repeat. No offers without that history.", html: chrome(seriesCard, { dock: "idle" }) },
+  { tag: "Voice, on device", sub: "Zen's own Vietnamese model, downloaded once. The phone's recognizer is the fallback on any error.", html: chrome(sttPage("ok"), { dock: null }) },
+  { tag: "Voice, downloading", sub: "The download shows its progress and resumes if it was cut. Until it finishes, the phone's recognizer listens.", html: chrome(sttPage("dl"), { dock: null }) },
+  { tag: "Voice, mid-range phone", sub: "3 to 6 GB of memory: the light model is chosen. The accurate one is still one tap away.", html: chrome(sttPage("base"), { dock: null }) },
+  { tag: "Voice, warning", sub: "Picking a model above what this phone handles (memory, processor) warns first. It can still be chosen; any failure falls back to the phone's recognizer.", html: chrome(sttPage("base") + `<div class="dscrim"></div><div class="dlg"><div class="h">Máy này có thể chạy chậm</div><p style="margin-top:12px;font-size:15px;line-height:1.45">Máy ít bộ nhớ: Zen có thể nghe chậm, máy nóng hoặc ứng dụng bị đóng. Lỗi thì tự chuyển về nhận giọng của máy.</p><div class="btn sm">Vẫn tải</div><div class="ghost">Thôi</div></div>`, { dock: null }) },
+  { tag: "Voice, no room", sub: "Not enough free space for the model and some room to spare: refused, with the space it needs. Checked again on every resume.", html: chrome(sttPage("os") + `<div class="dscrim"></div><div class="dlg"><div class="h">Không đủ chỗ trống</div><p style="margin-top:12px;font-size:15px;line-height:1.45">Cần khoảng 788 MB trống để tải. Hãy xoá bớt rồi thử lại.</p><div class="btn sm">OK</div></div>`, { dock: null }) },
+  { tag: "Voice, small phone", sub: "Under 3 GB, or an older phone: the phone's recognizer, said plainly. It can be switched by hand.", html: chrome(sttPage("os"), { dock: null }) },
+  { tag: "Now, running, dark", sub: "Same in dark.", dark: true, html: chrome(running, { dock: "idle", time: "14:22" }) },
+]);
+</script>
+</body>
+</html>

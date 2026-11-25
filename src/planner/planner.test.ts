@@ -911,3 +911,56 @@ describe("sitting lengths follow free time", () => {
     expect(new Set(ps.map((p) => dayStart(p.start))).size).toBe(5);
   });
 });
+
+describe("reasons stay current", () => {
+  it("a held piece's reasons are refreshed on every plan, and a hand-set time says only that", () => {
+    const tk = task("r1", { deadline: at(2, 20) });
+    const p0 = plan([tk], [], newModel(now), now), s0 = p0.diff.placed[0];
+    p0.model.placed[s0.id].why = [{ key: "rule", w: 1, vars: { text: "gone" } }]; // a reason that no longer holds
+    const held = { ...tk, start: s0.start, end: s0.end };
+    const p1 = plan([held], [], p0.model, now + MIN);
+    expect(p1.model.placed[s0.id].start).toBe(s0.start);
+    expect(p1.model.placed[s0.id].why?.some((r) => r.key === "rule")).toBe(false);
+    const p2 = plan([{ ...held, userEdited: ["start"] }], [], p1.model, now + 2 * MIN);
+    expect(p2.model.placed[s0.id].why).toEqual([{ key: "chose", w: 1 }]);
+  });
+});
+
+describe("order: a predecessor ends before its successor starts", () => {
+  const spanOf = (placed: { id: string; start: number; end: number }[], id: string) => {
+    const mine = placed.filter((p) => p.id === id || p.id.startsWith(`${id}#`));
+    return { start: Math.min(...mine.map((p) => p.start)), end: Math.max(...mine.map((p) => p.end)) };
+  };
+  it("never starts the successor before the predecessor's last piece ends", () => {
+    const x = task("x", { effort: 120, notBefore: at(0, 14) });
+    const y = task("y", { effort: 60, after: ["x"] });
+    const { diff } = plan([x, y], [], newModel(now), now);
+    expect(spanOf(diff.placed, "y").start).toBeGreaterThanOrEqual(spanOf(diff.placed, "x").end);
+  });
+  it("pulls the predecessor earlier when the successor's deadline is tight", () => {
+    const x = task("x", { effort: 60 });
+    const y = task("y", { effort: 60, deadline: at(0, 11), after: ["x"] });
+    const { diff } = plan([x, y], [], newModel(now), now);
+    expect(spanOf(diff.placed, "x").end).toBeLessThanOrEqual(at(0, 10));
+    expect(spanOf(diff.placed, "y").end).toBeLessThanOrEqual(at(0, 11));
+  });
+  it("ends for a cycle, which linkOrder never makes", () => {
+    const x = task("x", { effort: 60, after: ["y"] });
+    const y = task("y", { effort: 60, after: ["x"] });
+    const { diff } = plan([x, y], [], newModel(now), now);
+    expect([...diff.placed.map((p) => p.id), ...(diff.unplaced ?? []).map((u) => u.id)].sort()).toEqual(["x", "y"]); // a cycle cannot keep its order: one may wait unplaced
+  });
+  it("a successor with no slot between its predecessor's end and its deadline waits unplaced", () => {
+    const x = task("x", { effort: 480, start: at(0, 9), end: at(0, 17), pinned: true });
+    const y = task("y", { effort: 60, deadline: at(0, 12), after: ["x"] });
+    const { diff } = plan([x, y], [], newModel(now), now);
+    expect(diff.placed.some((p) => p.id === "y")).toBe(false);
+    expect(diff.unplaced?.map((u) => u.id)).toContain("y");
+  });
+  it("ignores a done predecessor", () => {
+    const x = task("x", { effort: 60, doneAt: now - 1, notBefore: at(0, 14) });
+    const y = task("y", { effort: 60, after: ["x"] });
+    const { diff } = plan([x, y], [], newModel(now), now);
+    expect(spanOf(diff.placed, "y").start).toBeLessThan(at(0, 12));
+  });
+});

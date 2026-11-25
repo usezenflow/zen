@@ -80,7 +80,7 @@ export interface Case {
 }
 
 /** Every golden/*.jsonl: the reference corpus, the audit probes, the blends, and one file per later phase (phase-N.jsonl), so parallel phases never edit the same file. */
-const FILES = readdirSync(join(__dirname, "golden")).filter((f) => f.endsWith(".jsonl")).sort();
+const FILES = readdirSync(join(__dirname, "golden")).filter((f) => f.endsWith(".jsonl") && f !== "commands.jsonl").sort();
 
 /** Golden cases of the landed phases (all of them with `all`). */
 export function loadCases(all = false): Case[] {

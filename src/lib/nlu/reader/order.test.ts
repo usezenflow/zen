@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import type { ReaderItem } from "../shared";
 import type { Clause } from "./segment";
-import { joinConnectors, linkOrder, splitOrdered } from "./order";
+import { joinConnectors, linkOrder, ORDINAL, splitOrdered } from "./order";
 import { read } from "./reader";
 
 const clause = (text: string): Clause => ({ text, start: 0, hint: false });
@@ -192,5 +192,38 @@ describe("order: messy speech", () => {
     expect(
       parts("hoc toan roi lam bai tap a khong lam bai tap roi hoc toan"),
     ).toEqual(["lam bai tap", "hoc toan"]);
+  });
+});
+
+describe("order: markers across clauses", () => {
+  // each item's title and the title of the item it follows
+  const chain = (text: string) => {
+    const items = read(text, { ref: REF, source: "typed" }).items;
+    const byRef = new Map(items.map((it) => [it.ref, it.title]));
+    return items.map((it) => [it.title, it.after ? byRef.get(it.after) : undefined]);
+  };
+  it("links a numbered list one line after the other, in written order", () => {
+    const out = chain("1. học toán\n2. làm bài tập\n3. nộp bài");
+    expect(out.find(([t]) => t === "Làm bài tập")?.[1]).toBe("Học toán");
+    expect(out.find(([t]) => t === "Nộp bài")?.[1]).toBe("Làm bài tập");
+  });
+  it("links a clause that opens with then to the one before, Vietnamese and English mixed", () => {
+    expect(chain("học toán, then làm bài tập")).toEqual([
+      ["Học toán", undefined],
+      ["Làm bài tập", "Học toán"],
+    ]);
+  });
+  it("links đầu tiên … sau đó across a line break", () => {
+    expect(chain("đầu tiên học toán\nsau đó làm bài tập")[1]).toEqual(["Làm bài tập", "Học toán"]);
+  });
+  it("keeps a weekday after a comma a date, not an order", () => {
+    expect(chain("học toán, thứ hai làm bài tập").every(([, a]) => a === undefined)).toBe(true);
+  });
+  it("matches the marker regex at the start of a folded clause only", () => {
+    expect(ORDINAL.test("then go")).toBe(true);
+    expect(ORDINAL.test("dau tien hoc")).toBe(true);
+    expect(ORDINAL.test("2. go")).toBe(true);
+    expect(ORDINAL.test("go then")).toBe(false);
+    expect(ORDINAL.test("thenceforth go")).toBe(false);
   });
 });

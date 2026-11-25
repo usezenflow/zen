@@ -1,6 +1,6 @@
 # zen
 
-## 26.1.0 (beta)
+## 26.1.0-beta.0
 
 ### Minor Changes
 
@@ -14,6 +14,18 @@
 - Kéo việc nhỏ (vài phút) không còn bị coi là quy tắc; kéo lớn mới để lại dấu, và một lần kéo không tạo quy tắc cứng
 - Đồng bộ thời khóa biểu và LMS đã sửa: thay đổi từ trường chỉ đổi đúng buổi đó, không ghi đè việc bạn vừa chỉnh
 - Nói giờ viết liền cũng hiểu: "lúc 0800", "1430 chiều", "0800 đến 0930" thành 08:00, 14:30, 08:00 đến 09:30. Cần "lúc", "từ", "đến" hoặc sáng/chiều/tối đi kèm; số bắt đầu bằng 0 thì không cần. Số điện thoại và mã phòng giữ nguyên
+- Nói hoặc gõ lệnh cho việc đã có, không cần mở từng việc
+    - "Xoá việc giặt đồ", "dời họp sang 3h", "đổi tên A thành B", "xong bài tập toán", "mở lại", "hoàn tác": mỗi lệnh chỉ chạy khi động từ đứng đầu và tìm đúng một việc; câu nào không phải lệnh vẫn là việc mới
+    - Nói nhiều việc trong một câu (lệnh lẫn việc mới) được làm cùng lúc, kèm một thông báo tóm tắt và một nút hoàn tác; "xoá gym, à thôi" thì bỏ qua, không đổi gì
+    - Hiểu viết tắt, sai chính tả và tiếng lóng ("k cần", "ko cần"); tên việc viết tắt như "csdl" cũng tìm ra "Cơ sở dữ liệu"
+    - "Thêm buổi" cho một chuỗi, đổi ngày của cả chuỗi ("Toán giờ là T3, T5")
+- Tìm kiếm hiểu khoảng thời gian: "từ 9h đến 11h", "sau 5h", "từ T4 trở đi", "3 ngày tới", "tháng này", "tuần sau trừ T6"; số chỉ khớp đúng số ("bài 1" không ra "Bài 12"), gõ sai hai chữ vẫn tìm ra tên dài
+- Neo việc vào việc khác: "ôn trước kỳ thi CSDL", "sau buổi Toán thứ 3", "sau khi xong báo cáo" tự xếp theo kỳ thi, buổi học hay việc đó
+- Dán một danh sách hay đề cương (markdown, Google Docs, tin nhắn, ảnh chụp đề cương, hoặc đường dẫn) thì zen đọc thành nhóm và việc, có bản xem trước để bỏ chọn, sửa rồi mới thêm; thời lượng và hạn đọc từ chính dòng đó
+- Thấy bạn làm cùng một việc vào cùng một thứ ba tuần liền, zen hỏi có lặp lại hằng tuần không ("Mình để ý thấy"); chọn Không thì không hỏi lại
+- Thẻ "Bây giờ": nút thứ hai là "Để sau", ghi lại và hiện việc kế tiếp; chọn việc theo nhịp của bạn
+- Nhận dạng giọng nói chạy ngay trên máy (Cài đặt > Nhận dạng giọng nói): "Của máy", "Nhẹ" hoặc "Chính xác"; tải khi chọn, hiện phần trăm và tạm dừng được. Máy yếu hoặc thiếu chỗ trống thì cảnh báo trước; lỗi thì tự về nhận giọng của máy. Giọng nói không gửi đi đâu
+- Xem nhanh "Xem nhịp của bạn" từ câu "Vì sao lúc này" của một việc
 
 ## 26.0.13
 

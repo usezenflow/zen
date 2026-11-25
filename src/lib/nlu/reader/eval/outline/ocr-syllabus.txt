@@ -1,0 +1,9 @@
+ĐỀ CƯƠNG MÔN CƠ SỞ DỮ LIỆU
+Tuần 1:
+- Giới thiệu hệ quản trị CSDL (2 tiếng)
+- Mô hình quan hệ (2 tiếng)
+Tuần 2:
+- Đại số quan hệ (2 tiếng)
+- Bài tập chương 1 (1 tiếng)
+Tuần 3:
+- SQL cơ bản (3 tiếng)

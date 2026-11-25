@@ -1108,5 +1108,13 @@
    "5": 3,
    "6": 8
   }
+ },
+ "commands": {
+  "pass": "147/147",
+  "clean": "71/71",
+  "noisy": "76/76",
+  "negatives": 57,
+  "negativeFalseCommandRate": 0,
+  "failed": []
  }
 }

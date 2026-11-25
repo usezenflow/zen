@@ -1,0 +1,44 @@
+{
+  "groups": [
+    {
+      "title": "Lộ trình PostgreSQL",
+      "items": [],
+      "groups": [
+        {
+          "title": "Indexing",
+          "budgetMin": 240,
+          "items": [
+            { "title": "B-tree indexes: cách hoạt động và khi nào dùng", "done": true, "minutes": 60, "sized": "said" },
+            { "title": "Hash và GIN index", "done": true, "minutes": 60, "sized": "said" },
+            { "title": "EXPLAIN ANALYZE: đọc query plan", "done": false, "minutes": 90, "sized": "said" },
+            { "title": "Bài tập: tối ưu 3 query chậm", "done": false, "minutes": 30, "sized": "said" }
+          ]
+        },
+        {
+          "title": "Transactions",
+          "budgetMin": 180,
+          "items": [
+            { "title": "MVCC và isolation levels", "done": false, "minutes": 90, "sized": "said" },
+            { "title": "Deadlock: tái hiện và đọc log", "done": false, "minutes": 60, "sized": "said" },
+            { "title": "Ôn lại ACID", "done": true, "minutes": 45, "sized": "said" }
+          ]
+        },
+        {
+          "title": "Replication",
+          "budgetMin": 240,
+          "items": [
+            { "title": "Streaming replication: đọc tài liệu", "done": false, "minutes": 120, "sized": "said" },
+            { "title": "Logical replication lab", "done": false, "minutes": 90, "sized": "budget" },
+            { "title": "Failover drill", "done": false, "minutes": 30, "sized": "said" }
+          ]
+        }
+      ]
+    }
+  ],
+  "order": [
+    ["Bài tập: tối ưu 3 query chậm", "EXPLAIN ANALYZE: đọc query plan"],
+    ["Deadlock: tái hiện và đọc log", "MVCC và isolation levels"],
+    ["Logical replication lab", "Streaming replication: đọc tài liệu"],
+    ["Failover drill", "Logical replication lab"]
+  ]
+}

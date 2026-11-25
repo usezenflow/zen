@@ -1,0 +1,19 @@
+{
+  "groups": [
+    {
+      "title": "Lịch ôn thi giữa kỳ",
+      "items": [
+        { "title": "Đọc lại chương 4 về normalization", "done": false, "minutes": 90, "sized": "said" },
+        { "title": "Làm bài tập 1 và 2", "done": false },
+        { "title": "Viết lại câu hỏi ôn tập", "done": false, "minutes": 45, "sized": "said" },
+        { "title": "Chuẩn bị slide thuyết trình", "done": false, "minutes": 60, "sized": "said" },
+        { "title": "Nộp bài tập", "done": true }
+      ]
+    }
+  ],
+  "order": [
+    ["Làm bài tập 1 và 2", "Đọc lại chương 4 về normalization"],
+    ["Viết lại câu hỏi ôn tập", "Làm bài tập 1 và 2"],
+    ["Chuẩn bị slide thuyết trình", "Viết lại câu hỏi ôn tập"]
+  ]
+}

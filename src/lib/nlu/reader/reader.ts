@@ -25,7 +25,7 @@ import {
 import { applyDayPick, hidePick, joinFragments, type CalDay } from "./daypick";
 import { applyImplied } from "./implied";
 import { lengthMin, saidMin } from "./calendar";
-import { joinConnectors, linkOrder, splitOrdered } from "./order";
+import { joinConnectors, linkOrder, ORDINAL, splitOrdered } from "./order";
 import { CORRECTION, findMentions, mentionsOf } from "./mentions";
 import { repair } from "./repair";
 import { repairsOf, repairWord } from "./repairs";
@@ -92,8 +92,16 @@ function singleBreak(text: string, at: number): boolean {
   return before === "" || (before.endsWith("\n") && !before.endsWith("\n\n"));
 }
 
+/** The order word that opens a part ("đầu tiên", "tiếp theo", "first", "finally"): the title is what follows it. */
+function orderLead(text: string): string {
+  const f = fold(text);
+  const m = /^(?:dau tien|tiep theo|cuoi cung|sau cung|first|then|next|finally|lastly)\s+/.exec(f.text);
+  return m ? text.slice(f.map[m[0].length] ?? text.length).trim() : text;
+}
+
 /** A bare title of a comma list that no rule reads ("sáng sớm b-tree code", "mai báo cáo web") is still its task, with its own day and part. */
-function pieceTask(text: string, ref: ReaderWC): ReaderItem | undefined {
+function pieceTask(raw: string, ref: ReaderWC): ReaderItem | undefined {
+  const text = orderLead(raw);
   const dm = findDates(text).find((m) => m.kind === "date");
   const rest = dm ? `${text.slice(0, dm.start)} ${text.slice(dm.end)}` : text;
   // "à không chiều" opens a correction or a filler, not a title
@@ -116,8 +124,12 @@ function pieceTask(text: string, ref: ReaderWC): ReaderItem | undefined {
   return it;
 }
 
+/** "Bước 2 làm đề", "Buổi 2", "Day 2" lines: a run of them is a numbered list, but repair joins such lines, so they read as "2." (same length). */
+const LIST_MARK = /^([ \t]*)(?:bước|buổi|day)[ \t]+(\d{1,2})[ \t]+/gimu;
+
 export function read(raw: string, opts: ReadOpts): ReaderResult {
-  const rep = repair(raw, opts.source);
+  const marked = [...raw.matchAll(LIST_MARK)].length >= 2 ? raw.replace(LIST_MARK, (m, _sp, n) => " ".repeat(m.length - n.length - 2) + `${n}. `) : raw;
+  const rep = repair(marked, opts.source);
   const repairs = repairsOf(raw, rep).filter(
     (r) => !opts.rejected?.has(repairWord(raw, r)),
   );
@@ -243,6 +255,7 @@ export function read(raw: string, opts: ReadOpts): ReaderResult {
   let lineItems: ReaderItem[] = [];
   let lineTimed = false;
   let prev: Clause | undefined;
+  let tail: ReaderItem | undefined; // the last task read so far, the one an order marker follows
   for (const c of joinFragments(joinConnectors(clauses), opts.calendar)) {
     const sameLine =
       !!prev && !rep.text.slice(prev.start, c.start).includes("\n");
@@ -259,8 +272,9 @@ export function read(raw: string, opts: ReadOpts): ReaderResult {
       );
       dropped.push(...out.dropped);
       // a bare title of a comma list that no rule reads ("sáng sớm b-tree code") is still its task
-      if (!out.items.length && (opts.source === "typed" || opts.source === "voice") && !p.label && fold(rep.text).text.search(CORRECTION) < 0 && !/^\s*(?:à|ờ|ừ|ừm|ơ)\b/i.test(parts[k + 1]?.text ?? "") && (p.piece || (rep.text.includes("\n") && singleBreak(rep.text, p.start))) && !/[:&]/.test(p.text) && fold(p.text).text.search(CORRECTION) < 0 && !/^(?:\d+[.)]|[-•*])(?:\s|$)/.test(rep.text.slice(rep.text.lastIndexOf("\n", p.start - 1) + 1, p.start).trim())) {
-        const fb = pieceTask(p.text, opts.ref);
+      if (!out.items.length && (opts.source === "typed" || opts.source === "voice") && !p.label && fold(rep.text).text.search(CORRECTION) < 0 && !/^\s*(?:à|ờ|ừ|ừm|ơ)\b/i.test(parts[k + 1]?.text ?? "") && (p.piece || (parts.length > 1 && opts.source === "typed") || (rep.text.includes("\n") && singleBreak(rep.text, p.start))) && !/[:&]/.test(p.text) && fold(p.text).text.search(CORRECTION) < 0 && !/^[-•*](?:\s|$)/.test(rep.text.slice(rep.text.lastIndexOf("\n", p.start - 1) + 1, p.start).trim())) {
+        // a chain part no rule reads is its task too: "first read chapter 3, then do exercises, finally review"
+        const fb = pieceTask(p.text, opts.ref) ?? (parts.length > 1 && opts.source === "typed" ? fallbackTask(orderLead(p.text)) : undefined);
         if (fb) out.items.push(fb);
       }
       return applyDayPick(p.text, out.items, opts.calendar);
@@ -380,12 +394,19 @@ export function read(raw: string, opts: ReadOpts): ReaderResult {
       lineTimed = true;
     prev = c;
     for (const its of per) items = items.concat(its);
+    const flex = (xs: ReaderItem[]) =>
+      xs.filter((x) => x.type === "PLAN" || x.type === "ASSIGNMENT");
     for (const [i, j] of edges) {
-      const flex = (xs: ReaderItem[]) =>
-        xs.filter((x) => x.type === "PLAN" || x.type === "ASSIGNMENT");
       const pre = flex(per[i]).at(-1);
       if (pre) for (const succ of flex(per[j])) links.push([pre, succ]);
     }
+    // an order marker that opens a clause follows the last task before it, across commas and lines ("1. A … 2. B", "first A, then B")
+    const head = flex(own)[0];
+    // the list number a segment cut off ("2. " before the clause) is an order marker too
+    const prefix = rep.text.slice(rep.text.lastIndexOf("\n", c.start - 1) + 1, c.start);
+    const marker = ORDINAL.exec(fold(prefix + c.text).text.trimStart())?.[0];
+    if (tail && head && marker && !(/^thu/.test(marker) && dates.length)) links.push([tail, head]); // "thứ hai" is a weekday when a date follows
+    tail = flex(own).at(-1) ?? tail;
   }
 
   // a link is a place or a source, never part of the title

@@ -23,4 +23,6 @@ export const NEGATIVES: Negative[] = [
   { text: "được 8.5 điểm môn toán" },
   { text: "gọi 0901234567 hỏi bài" },
   { text: "gọi 0283 123 4567 hỏi bài" },
+  { text: "bỏ rác" },
+  { text: "chuyển khoản học phí" },
 ];

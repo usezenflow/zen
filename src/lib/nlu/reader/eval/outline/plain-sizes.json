@@ -1,0 +1,14 @@
+{
+  "groups": [
+    {
+      "title": "",
+      "items": [
+        { "title": "Đọc chương 3", "done": false, "minutes": 60, "sized": "said" },
+        { "title": "Bài tập 2", "done": false, "minutes": 45, "sized": "said" },
+        { "title": "Viết báo cáo nhóm", "done": false, "minutes": 120, "sized": "said" },
+        { "title": "Ôn từ vựng", "done": false, "minutes": 30, "sized": "said" },
+        { "title": "Gọi điện cho mẹ", "done": false }
+      ]
+    }
+  ]
+}

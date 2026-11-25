@@ -6,7 +6,7 @@ import { extractTextFromPage, getPageCount } from "expo-pdf-text-extract";
 import { extractTextFromImage } from "expo-text-extractor";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from "react";
-import { Appearance, AppState, Image, Platform, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Appearance, AppState, Image, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useIncomingShare } from "expo-sharing";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
 import Reanimated, { interpolate, useAnimatedStyle, useSharedValue, withTiming, ZoomIn, ZoomOut } from "react-native-reanimated";
@@ -23,22 +23,28 @@ import { useDragDay } from "@/components/dragday";
 import { Search, type Origin } from "@/components/search";
 import { PdfView, PhotoMenu, PhotoView, TypeBar, Veil } from "@/components/capture";
 import { Hold, type Aside, type HoldState } from "@/components/hold";
+import { OutlinePreview } from "@/components/outline";
+import { pageText } from "@/components/webtext";
+import { actionsOf, outline, type Group } from "@/lib/nlu/reader/outline";
 import type { Item } from "@/components/menu";
 import { Month } from "@/components/month";
-import { Live, MovesPill, NowCard, Steps, Story, Weekly, type Card } from "@/components/nowcard";
+import { Live, MovesPill, NowCard, SeriesAsk, Steps, Story, Weekly, type Card } from "@/components/nowcard";
 import { RowMenu, menuTop, sittingItems } from "@/components/rowmenu";
 import { fadeIn, fadeOut, glide, popIn, settle, Tap, EASE } from "@/components/tap";
 import { Sweep, useSweep } from "@/components/sweep";
 import { Toast } from "@/components/toast";
 import { Swipe, Week } from "@/components/week";
-import { apply, retime, forgetWhen, makeRoom, moveMine, moveToDay, pickNow, addRule, addSitting, dropSitting, loadClassMult, needMore, pin, putBack, removeRule, removeScope, scopeIds, swipeDone, swipeLater, take, type Result } from "@/lib/apply";
+import { SERIES_NO, acceptSeries, apply, reshapeSeries, declineSeries, retime, forgetWhen, makeRoom, moveMine, moveToDay, pickNow, addRule, addSitting, dropSitting, loadClassMult, needMore, pin, putBack, removeRule, removeScope, scopeIds, swipeDone, swipeLater, take, type Result } from "@/lib/apply";
 import { briefMoves, loadMoves, loadWarn, seeMoves } from "@/lib/moves";
 import { reasonText, stepText, topReason } from "@/lib/reasons";
 import { holidays } from "@/lib/holidays";
 import { askMic, listenLive, micReset, type Heard } from "@/lib/ears";
-import { t } from "@/lib/i18n";
+import { WEEKDAY_VI, t } from "@/lib/i18n";
+import { seriesOffer, type SeriesOffer } from "@/lib/series";
 import { marksOf, readErrors, readFull, readNotes, sizedSub } from "@/lib/nlu/adapt";
 import { think } from "@/lib/nlu/commands";
+import { askOf, kinOf, learn, splitHeard, VERB_VI, type Command, type Learned, type SeriesScope } from "@/lib/nlu/intent";
+import { fold } from "@/lib/nlu/reader/fold";
 import { affinityOf, calendarOf, committedRows, vocab } from "@/lib/nlu/context";
 import { personalPrior } from "@/lib/nlu/reader/assemble";
 import { isRule, readRule } from "@/lib/rules";
@@ -52,9 +58,10 @@ import { nudgeAction, overdue } from "@/lib/nudges";
 import { pushReminders } from "@/lib/reminders";
 import { listenWidgets, pushWidgets } from "@/lib/widgets";
 import { useTheme, font, space, ff } from "@/lib/theme";
-import type { Move, Notice, Rule, Step, Task, Warn } from "@/lib/types";
+import type { Action, Move, Notice, Rule, Step, Task, Warn } from "@/lib/types";
 import { dayLabel, day as dayName, endAt, when } from "@/lib/when";
 import { grounded, insights, typeOf, type Insights } from "@/planner";
+import type { Model } from "@/planner/model";
 
 type View_ = "day" | "week" | "month" | "rhythm"; // rhythm sits apart on the right of the tabs, outside the swipe cycle
 const VIEWS: View_[] = ["day", "week", "month"];
@@ -81,16 +88,23 @@ export default function Home() {
   const [menu, setMenu] = useState<{ task: Task; top: number; items: Item[] } | undefined>();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [card, setCard] = useState<Card | undefined>();
+  const [ask, setAsk] = useState<SeriesOffer | undefined>(); // the weekly repeat offer, in the card slot until answered
   // magic.html 17b: today's work reached the line, so the art slot rests. Kept for the swipe that moves the line (17c).
   const [rest, setRest] = useState<{ w: number; line: number; more: number } | undefined>();
   const [state, setState] = useState<HoldState>("idle");
   const [words, setWords] = useState("");
   const [toasts, setToasts] = useState<ToastState[]>([]); // [0] is showing, the rest wait their turn
+  // Chips under the toast: which task a line meant, or which exam an anchor points at. One tap, then they go.
+  const [chips, setChips] = useState<{ options: { label: string; run: () => void }[] }>();
   const toast = toasts[0];
   const [now, setNow] = useState(() => Date.now());
   const [view, setView] = useState<View_>("day");
   const [finding, setFinding] = useState<Origin>(); // set = searching, from the circle at this window point (views.html "Search, opening")
   const findBtn = useRef<ComponentRef<typeof View>>(null);
+  const [findQ, setFindQ] = useState<string>(); // a question said ("mai có gì") opens search with it
+  const lastIds = useRef<string[]>([]); // the tasks just made or changed: what "xoá nó" means
+  const lastUndo = useRef<(() => Promise<void>) | undefined>(undefined); // what "hoàn tác" undoes
+  const askQ = useRef<{ cmd: Command; text: string; via: "voice" | "type" | "photo" | "pdf" | "scan" }[]>([]); // a line's later asks, one at a time
   const [sel, setSel] = useState(() => startOfDay(Date.now()));
   const [over, setOver] = useState<Overlap[]>([]);
   const [pop, setPop] = useState<Set<string>>(new Set());
@@ -109,7 +123,7 @@ export default function Home() {
   const tasksRef = useRef<Task[]>([]);
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
   const [lines, setLines] = useState<string[]>([]); // narrated solver steps while thinking
-  const [mind, setMind] = useState<{ i: Insights; rules: Rule[] }>();
+  const [mind, setMind] = useState<{ i: Insights; rules: Rule[]; m: Model }>();
   // capture.html: the thumb on a satellite, the type field, the photo dropdown, the photo or PDF being read.
   const [aside, setAside] = useState<Aside>("");
   const asideRef = useRef<Aside>("");
@@ -118,6 +132,7 @@ export default function Home() {
   const [picking, setPicking] = useState(false);
   const [photo, setPhoto] = useState<{ uri: string; w: number; h: number; text?: string; marks?: { start: number; end: number }[] }>();
   const [pdf, setPdf] = useState<{ page: number; pages: number; text?: string; marks?: { start: number; end: number }[]; image?: string }>();
+  const [lined, setLined] = useState<{ groups: Group[]; from: string }>(); // a list read as an outline: the preview until it is added or closed
 
   // A refresh that began before a newer edit or refresh must not land after it with older tasks.
   const gen = useRef(0);
@@ -151,13 +166,15 @@ export default function Home() {
       if (why && !x.fixed && !trail[x.id] && (typeOf(x) !== "assignment" || ["pace", "explore", "rule", "pinned", "chose", "packed", "fit", "over"].includes(why.key))) reason[x.id] = reasonText(why);
     }
     const ins = insights(model, now), wkAgo = now - 7 * 86400_000, w = new Date(now).getDay() === 0 ? t("sundayLab") : undefined; // Sundays only
-    setMind({ i: ins, rules: model.rules ?? [] });
+    setMind({ i: ins, rules: model.rules ?? [], m: model });
     // A saved card outlives its task until the next re-plan: drop it once the task is gone or ticked, or it was never short of time.
     const open = (id: string) => all.some((x) => x.id === id && !x.doneAt && !x.deletedAt);
     setMoves(unseen); setWarns(wn.filter((w) => open(w.id) && (w.deadline <= now || w.free < w.need))); setMaps({ trail, froms, reason, alts });
     const k = ins.keep;
     setWk(w ? { title: w, sub: k ? t("sundayKeep", { pct: k.pct, delta: `${k.delta > 0 ? "+" : ""}${k.delta}%` }) : t("sundaySub", { done: all.filter((x) => x.doneAt && x.doneAt >= wkAgo).length, moved: mv.filter((m) => m.at >= wkAgo).length }) } : undefined);
-    const cur = pickNow(all, now);
+    setAsk(seriesOffer(all, now, JSON.parse((await store.kvGet(SERIES_NO)) ?? "[]")));
+    const cur = pickNow(all, now, model);
+    if (cur && cur.start === undefined) { setRest(undefined); const s = Math.ceil(now / 60_000) * 60_000; return setCard({ task: cur, start: s, end: s + cur.effort * 60_000 }); } // unscheduled: shown from now for its length
     if (cur && cur.start! <= now) { setRest(undefined); return setCard({ task: cur, start: cur.start, end: cur.end }); }
     // views.html "Day, all done": a task of another day is not today's art card; the rest card takes its slot and names tomorrow.
     const day0 = startOfDay(now), next = cur && startOfDay(cur.start!) === day0 ? cur : undefined;
@@ -181,11 +198,14 @@ export default function Home() {
   // Every toast's words come from say.ts: this only shows what compose() decided. "Xem" opens the story of what moved, on today.
   const say = useCallback((text: string, r?: Result, ctx: Ctx = {}) => {
     const out = compose(r, { ...ctx, title: text, see: r && (() => { setMine({ moves: r.moves ?? [], r }); setView("day"); setSel(startOfDay(Date.now())); }) });
+    // a double tap, or a tap and a said "hoàn tác", undoes once
+    const once = r && (() => { let done = false; return async () => { if (done) return; done = true; await r.undo(); setToasts((u) => [{ text: t("undone") }, ...u.slice(1)]); refresh(); }; })();
+    if (once) lastUndo.current = once;
     setToasts((q) => [{
       text: out.title,
       sub: out.sub,
       alt: out.alt ?? out.more,
-      action: r && { run: (() => { let done = false; return async () => { if (done) return; done = true; await r.undo(); setToasts((u) => [{ text: t("undone") }, ...u.slice(1)]); refresh(); }; })() }, // a double tap undoes once
+      action: once && { run: once },
     }, ...q.slice(1)]);
   }, [refresh]);
 
@@ -289,7 +309,11 @@ export default function Home() {
   const held = useRef(false);
   // Opened from the talk widget (zen:///?listen=1): already listening, so the next touch on the button ends it.
   const latched = useRef(false);
-  const { listen, scan, type } = useLocalSearchParams<{ listen?: string; scan?: string; type?: string }>();
+  const { listen, scan, type, view: openView, h: openHour, at: openAt } = useLocalSearchParams<{ listen?: string; scan?: string; type?: string; view?: string; h?: string; at?: string }>();
+  // "Xem nhịp của bạn" from a task's why: each new link opens Nhịp once (set while rendering, React's pattern for state from props)
+  const [opened, setOpened] = useState<string>();
+  const openKey = openView === "rhythm" ? `${openHour ?? ""}@${openAt ?? ""}` : undefined; // `at`: a second tap reopens it
+  if (openKey !== undefined && openKey !== opened) { setOpened(openKey); setView("rhythm"); }
 
   useEffect(() => { micReset(); }, []);
   useEffect(() => { // once: the on-device models (whisper, Qwen, e5) are gone; their ~1.6 GB must not linger
@@ -356,10 +380,101 @@ export default function Home() {
     await run(heard.text, "voice", heard.alternatives);
   };
 
+  // Applies a command and says what changed, with its own undo (the toast's action).
+  const applyCommand = async (actions: Action[]) => {
+    setChips(undefined);
+    const r = await apply(actions, Date.now());
+    lastIds.current = actions.flatMap((a) => (a.target ? [a.target] : []));
+    say(r.toast, r);
+    refresh();
+  };
+  // What picks and undos taught (intent.ts `learn`), kept across launches.
+  const loadLearned = async (): Promise<Learned> => { try { return JSON.parse((await store.kvGet("nlu.cmdLearn")) ?? "{}") ?? {}; } catch { return {}; } };
+  const teach = async (key: string | undefined, id: string | undefined, how: "pick" | "undo") => {
+    const x = id ? tasksRef.current.find((y) => y.id === id) : undefined;
+    if (key && x) await store.kvSet("nlu.cmdLearn", JSON.stringify(learn(await loadLearned(), key, kinOf(x), how))).catch(() => {});
+  };
+  // The next ask of the same line, once this one is answered.
+  const nextAsk = () => { const n = askQ.current.shift(); if (n) offerCommand(n.cmd, n.text, n.via); };
+  const then = (p: unknown) => void Promise.resolve(p).then(nextAsk);
+  // A series said whole ("xoá hết gym", "xoá gym từ giờ"): its scope, as the long-press does, so top-up does not bring it back.
+  const delSeries = (sc: SeriesScope) => { setChips(undefined); const x = tasks.find((y) => y.id === sc.id); if (x) void del(x, sc.scope); };
+  // Bulk asks first, with a count. A choice shows one chip per task, and "Tạo việc mới" makes the line a new task.
+  const offerCommand = (cmd: Command, text: string, via: "voice" | "type" | "photo" | "pdf" | "scan") => {
+    if (cmd.kind === "bulk") {
+      setToasts((q) => [...q, { text: cmd.label ?? `${VERB_VI[cmd.verb]} ${cmd.count} việc?`, action: { label: VERB_VI[cmd.verb], run: () => then(cmd.series ? delSeries(cmd.series) : applyCommand(cmd.actions)) }, alt: { label: "Huỷ", run: () => then(setChips(undefined)), plain: true } }]);
+      return;
+    }
+    if (cmd.kind === "rule") {
+      // a series' weekdays change from a day on: confirmed, then one undo for the end and the new days
+      const go = async () => { try { const r = await reshapeSeries(cmd.id, cmd.from, cmd.rrule, Date.now()); lastIds.current = [cmd.id]; say(r.toast, r); refresh(); } catch (e) { fail("Không đổi được lịch lặp", e); } };
+      setToasts((q) => [...q, { text: cmd.label, action: { label: "Đổi", run: () => then(go()) }, alt: { label: "Huỷ", run: () => then(setChips(undefined)), plain: true } }]);
+      return;
+    }
+    if (cmd.kind === "choose") {
+      if (cmd.ask) setToasts((q) => [...q, { text: cmd.ask! }]);
+      setChips({ options: [...cmd.options.map((o) => ({ label: o.label, run: () => { void teach(cmd.key, o.actions[0]?.target ?? o.series?.id, "pick"); then(o.series ? delSeries(o.series) : applyCommand(o.actions)); } })), { label: "Tạo việc mới", run: () => then(run(text, via, undefined, true)) }] });
+    }
+  };
+  // A session added to a series: one-off, with the "mỗi tuần" alt chip to make it weekly. A weekly line makes it weekly at once.
+  const addSession = async (cmd: Extract<Command, { kind: "session" }>) => {
+    const now = Date.now();
+    const r = await apply(cmd.actions, now);
+    const weekly = t("seriesDays", { title: cmd.title, days: cmd.days });
+    if (!cmd.alt) say(weekly, r);
+    else say(t("sessionAdded", { n: cmd.count, title: cmd.title }), r, { sub: t("sessionSub", { when: when(new Date(cmd.actions[0].notBefore!).getTime(), now), title: cmd.title }), alt: { label: t("sessionAlt"), run: async () => { await r.undo(); say(weekly, await apply(cmd.alt!, Date.now())); refresh(); } } });
+    refresh();
+  };
+
   // One reader for every way in: what was said, typed, or read off a photo or a PDF (its text layer, or a scan read like a photo).
-  const run = async (text: string, via: "voice" | "type" | "photo" | "pdf" | "scan", alternatives?: string[]) => {
+  // The outline preview's Thêm: one parent per group, its leaves chained where the list is ordered.
+  const saveLined = async (gs: Group[]) => {
+    setLined(undefined);
+    const now = Date.now();
+    try {
+      const acts = actionsOf(gs);
+      const r = await apply(acts, now);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      say(t("addedN", { n: acts.filter((a) => a.ref?.startsWith("l")).length }), r);
+      refresh();
+    } catch (e) {
+      fail("Không lưu được danh sách", e);
+    }
+  };
+
+  // plain: the line is a new task even when it names one (the "Tạo việc mới" chip).
+  const run = async (text: string, via: "voice" | "type" | "photo" | "pdf" | "scan", alternatives?: string[], plain = false) => {
+    // A link typed or shared: its page's text is read in its place.
+    if (/^https?:\/\/\S+$/.test(text.trim())) {
+      setState("thinking");
+      let body: string;
+      try { body = await pageText(text.trim()); } catch (e) { setState("idle"); fail("Không mở được liên kết", e); return; }
+      return run(body, via, alternatives);
+    }
     while (shuf.current) await new Promise((r) => setTimeout(r, 150)); // the plan is still playing out: wait for it, never drop what was said
+    const said = fold(text).text.trim().replace(/[.!?]+$/, "");
+    // "cái thứ 2", "số 1": a chip on screen, picked by voice or typing
+    const nth = chips && /^(?:cai |so |chon |lua chon )?(?:thu )?(\d|mot|nhat|hai|ba|bon|tu|nam)$/.exec(said);
+    const pickN = nth ? (/^\d$/.test(nth[1]) ? +nth[1] : ({ mot: 1, nhat: 1, hai: 2, ba: 3, bon: 4, tu: 4, nam: 5 } as Record<string, number>)[nth[1]]) : 0;
+    if (chips && pickN && chips.options[pickN - 1]) { setState("idle"); chips.options[pickN - 1].run(); return; }
+    // "hoàn tác", "undo": the last change, as the toast's Undo would
+    if (/^(hoan tac|undo|hoan tac lai)$/.test(said)) {
+      const u = lastUndo.current;
+      lastUndo.current = undefined;
+      setState("idle");
+      if (u) await u(); else say(t("nothingToUndo"));
+      return;
+    }
+    // "mai có gì": a question opens search with it, never a new task
+    const asked = via === "voice" || via === "type" ? askOf(text) : undefined;
+    if (asked) {
+      setState("idle");
+      setFindQ(asked);
+      if (findBtn.current) findBtn.current.measureInWindow((x, y) => setFinding({ x, y })); else setFinding({ x: 0, y: 0 });
+      return;
+    }
     setState("thinking");
+    setChips(undefined);
     setWords(text);
     try {
       // Nhịp hears every sentence as a standing rule; home sends only rule-sounding ones, and falls back to tasks when they don't parse.
@@ -375,13 +490,54 @@ export default function Home() {
         }
         if (view === "rhythm") { say(t("ruleHuh"), undefined, { sub: t("ruleHuhSub") }); return; }
       }
+      // A list (a note, a chat, a page, a scan) goes to the outline preview; anything else reads as before.
+      const ol = via === "voice" ? undefined : outline(text, new Date());
+      if (ol) {
+        setPdf(undefined);
+        setLined({ groups: ol.groups, from: via === "photo" || via === "scan" ? "ảnh" : via === "pdf" ? "PDF" : "văn bản" });
+        setState("idle");
+        return;
+      }
       const all = await store.allTasks();
       const nowD = new Date();
       // What the reader cannot know from the words: the timetable, what this user usually saves per title, and the marks.
       const old = JSON.parse((await store.kvGet("nlu.committed").catch(() => null)) ?? "[]");
-      const extra = { calendar: calendarOf(all, nowD.getTime()), affinity: affinityOf((await getMarks().catch(() => null))?.marks ?? []), prior: personalPrior(old), classMult: await loadClassMult().catch(() => ({})), alternatives };
+      const extra = { tasks: all, calendar: calendarOf(all, nowD.getTime()), affinity: affinityOf((await getMarks().catch(() => null))?.marks ?? []), prior: personalPrior(old), classMult: await loadClassMult().catch(() => ({})), alternatives };
       const source = via === "voice" ? "voice" : via === "photo" || via === "scan" ? "ocr" : via === "pdf" ? "paste" : "typed"; // ocr and paste: the reader reads a notice's lines and tables as such
-      const actions = think(text, nowD, source, extra);
+      // A line that names tasks but is not sure of one: a bulk confirm, or chips to pick from. Anything clear is applied below.
+      // A line may hold several parts: the clear commands and the rest as creates, one toast and one undo; a part not sure of its task asks after.
+      // a voice line also tries the recognizer's other guesses when the heard one was a command it could not place
+      const sp = plain ? undefined : splitHeard(text, via === "voice" ? alternatives ?? [] : undefined, nowD.getTime(), all, { ...(await loadLearned()), last: lastIds.current });
+      if (sp?.session) return addSession(sp.session);
+      // A split line applies its own parts only: a chip's part is never applied as a create behind the chips.
+      const actions = sp ? [...sp.ones.flatMap((o) => o.actions), ...(sp.rest ? think(sp.rest, nowD, source, extra) : [])] : think(text, nowD, source, extra);
+      if (sp) {
+        if (actions.length) {
+          const r = await apply(actions, nowD.getTime());
+          // an undo right after a command says it took the wrong task: those words ask next time
+          const t0 = nowD.getTime(), undo = r.undo;
+          r.undo = async () => {
+            if (Date.now() - t0 < 10_000) {
+              if (__DEV__) console.log("[undo-after-command]", JSON.stringify({ via, text, ones: sp.ones })); // scripts/mine-heard.ts reads these
+              for (const o of sp.ones) await teach(o.key, o.actions[0]?.target, "undo");
+            }
+            await undo();
+          };
+          const made = (await store.allTasks()).filter((x) => x.createdAt === nowD.getTime() && x.source === "user" && !x.parentId).map((x) => x.id);
+          if (__DEV__) console.log("[heard]", JSON.stringify({ via, text, alternatives, actions }));
+          lastIds.current = [...sp.ones.flatMap((o) => o.actions.flatMap((a) => (a.target ? [a.target] : []))), ...made];
+          say(t("commandsDone", { list: [...sp.ones.map((o) => o.label), ...actions.filter((a) => a.op === "create").map((a) => `thêm ${a.title}`)].join(", ") }), r);
+          refresh();
+        }
+        // "hoãn gym": the planner finds each a later time, as a swipe does
+        for (const id of (sp.later ?? []).flatMap((l) => l.ids)) { const r = await swipeLater(id); say(r.toast, r); lastIds.current = [id]; }
+        if (sp.later?.length) refresh();
+        if (sp.cancelled && !actions.length && !sp.asks.length) say(t("commandCancelled"));
+        setState("idle");
+        askQ.current = sp.asks.slice(1).map((a) => ({ ...a, via }));
+        if (sp.asks[0]) offerCommand(sp.asks[0].cmd, sp.asks[0].text, via);
+        return;
+      }
       // dev only: what the recognizer wrote and what was read from it, so a wrong day can be traced to its transcript
       if (__DEV__) console.log("[heard]", JSON.stringify({ via, text, alternatives, actions, readErrors }));
       let read: ReturnType<typeof readFull> | undefined; // offsets in the notes point into this transcript, not a winning alternative
@@ -392,17 +548,25 @@ export default function Home() {
       if (read?.items.length) store.kvSet("nlu.committed", JSON.stringify(committedRows(read.items, old))).catch(() => {});
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       const titles = [...new Set(actions.filter((a) => a.op === "create" && a.title).map((a) => a.title!))];
+      const anchor = actions.find((a) => a.flags?.includes("anchor-ambiguous") && a.alternatives?.length);
       // Show where the new work landed: the day of its earliest placed piece, not today.
       const made = (await store.allTasks()).filter((x) => x.createdAt === now && x.source === "user" && !x.deletedAt && x.start !== undefined);
       const firstAt = Math.min(...made.map((x) => x.start!));
       // Said but no free time anywhere it may go: say so, never "added" with a time it does not have.
       const mine = (await store.allTasks()).filter((x) => x.createdAt === now && x.source === "user" && !x.deletedAt && !x.parentId);
       const stuck = mine.filter((x) => !made.some((y) => y.id === x.id || y.parentId === x.id));
+      lastIds.current = mine.map((x) => x.id);
       const stuckDay = stuck.length && !made.length ? startOfDay(Math.max(now, (stuck[0].deadline ?? stuck[0].notAfter ?? now + 1) - 1)) : undefined;
       if (stuckDay !== undefined) setSel(stuckDay);
       // A deadline past the 30-day horizon is kept as the due date; the sittings land inside the horizon. Said once, for the furthest one.
       const far = Math.max(0, ...(await store.allTasks()).filter((x) => x.createdAt === now && x.source === "user" && !x.deletedAt && x.deadline !== undefined && x.deadline > addDays(now, 30)).map((x) => x.deadline!));
       const farSub = far ? t("farDue", { date: dayLabel(far).slice(4) }) : undefined; // dayLabel: "T6, 21/11" → "21/11"
+      // An anchor the reader could not pin ("ôn trước kỳ thi Toán" with two Toán exams): the chips pick one, and its start becomes the deadline.
+      if (anchor) {
+        const target = mine.find((x) => x.title === anchor.title);
+        const options = anchor.alternatives!.flatMap((id) => { const c = all.find((x) => x.id === id); return c?.start !== undefined ? [c] : []; });
+        if (target && options.length) setChips({ options: options.map((c) => ({ label: `${c.title} · ${dayLabel(c.start!)}`, run: () => void applyCommand([{ op: "edit", target: target.id, deadline: new Date(c.start!).toISOString(), ...(c.fixed === "exam" ? { anchor: c.id } : {}) }]) })) });
+      }
       const playing = (r.steps ?? []).some((st) => st.id); // the shuffle picks the day itself
       if (!playing && titles.length && Number.isFinite(firstAt)) setSel(startOfDay(firstAt));
       // The sized sub (exam, shared end, span or due with sittings) names what the sizer did; else the time of the first piece.
@@ -665,6 +829,16 @@ export default function Home() {
     say(r.toast, r);
     await shuffle(r);
   };
+  // "Có" makes the weekly repeat through the series path; "Không" is remembered and the card goes back to the day.
+  const answerSeries = async (yes: boolean) => {
+    const o = ask;
+    if (!o) return;
+    setAsk(undefined);
+    if (!yes) { await declineSeries(o.key); return refresh(); }
+    const r = await acceptSeries(o);
+    say(r.toast, r);
+    refresh();
+  };
   const restRef = useRef(rest);
   useEffect(() => { restRef.current = rest; }, [rest]);
   // magic.html 17c: swiping the rest card away moves the line 30p past today's work, at once; Hoàn tác puts it back.
@@ -864,14 +1038,14 @@ export default function Home() {
           {view === "day" && isToday && (
             // Keyed per branch so hero swaps cross-fade; a new now-card lands with a small pop.
             <Reanimated.View key={hero} entering={card && hero === card.task.id ? popIn : fadeIn} exiting={fadeOut} layout={glide}>
-              {mine ? <Story moves={mine.moves} now={now} onClose={closeMine} onUndo={undoMine} /> : sunOn ? <Weekly title={wk!.title} sub={wk!.sub} onPress={() => setView("rhythm")} /> : cardView ?? restView}
+              {mine ? <Story moves={mine.moves} now={now} onClose={closeMine} onUndo={undoMine} /> : ask ? <SeriesAsk title={t("seriesAsk", { title: ask.title })} sub={t("seriesSub", { title: ask.title, day: WEEKDAY_VI[ask.weekday] })} yes={t("seriesYes", { day: WEEKDAY_VI[ask.weekday] })} onYes={() => void answerSeries(true)} onNo={() => void answerSeries(false)} /> : sunOn ? <Weekly title={wk!.title} sub={wk!.sub} onPress={() => setView("rhythm")} /> : cardView ?? restView}
             </Reanimated.View>
           )}
           {/* Moves not yet briefed, under the now card (or the header when no card): the story opens in its place. */}
           {(view === "day" || view === "month") && pillOn && (story
             ? <Story moves={fresh} now={now} onClose={closeStory} />
             : <MovesPill moves={fresh} now={now} onOpen={() => setStory(true)} onDismiss={dismissBrief} />)}
-          {view === "rhythm" && mind && <Rhythm i={mind.i} rules={mind.rules} onForget={async (x) => { const r = await removeRule(x.id); say(r.toast, r); refresh(); }} onForgetWhen={async (w) => { const r = await forgetWhen(w); say(r.toast, r); refresh(); }} />}
+          {view === "rhythm" && mind && <Rhythm i={mind.i} rules={mind.rules} m={mind.m} hour={openHour !== undefined ? Number(openHour) : undefined} onForget={async (x) => { const r = await removeRule(x.id); say(r.toast, r); refresh(); }} onForgetWhen={async (w) => { const r = await forgetWhen(w); say(r.toast, r); refresh(); }} />}
           {(view === "week" || view === "month") && (
             <Reanimated.View key={view} entering={fadeIn}>
               {view === "week"
@@ -901,9 +1075,11 @@ export default function Home() {
       {picking && <PhotoMenu onPick={readPhoto} />}
       {typing && <><Veil z={9} onPress={() => setTyping(false)} /><TypeBar onClose={() => setTyping(false)} onSend={(text) => { setTyping(false); void run(text, "type"); }} /></>}
       {lines.length > 0 && <Steps lines={lines} />}
-      {finding && <Search origin={finding} tasks={tasks} now={now} acts={rowActs} onClose={() => setFinding(undefined)} />}
+      {lined && <OutlinePreview groups={lined.groups} from={lined.from} onSave={saveLined} onClose={() => setLined(undefined)} />}
+      {finding && <Search origin={finding} tasks={tasks} now={now} acts={rowActs} initial={findQ} onClose={() => { setFinding(undefined); setFindQ(undefined); }} />}
       {dd.ghost}
       {menu && <RowMenu items={menu.items} top={menu.top} onClose={() => setMenu(undefined)} />}
+      {chips && <View style={s.chips} pointerEvents="box-none">{chips.options.map((o) => <Pressable key={o.label} onPress={o.run} style={[s.chip, { backgroundColor: th.chip }]}><Text style={[s.chipT, { color: th.ink }]}>{o.label}</Text></Pressable>)}</View>}
       {toast && <Toast key={toastKey(toast)} onDismiss={() => setToasts((q) => q.slice(1))} error={toast.error} text={toast.text} sub={toast.sub} onAction={toast.action?.run} actionLabel={toast.action?.label} onAlt={toast.alt?.run} altLabel={toast.alt?.label} altPlain={toast.alt?.plain} />}
     </SafeAreaView>
     </Sweep>
@@ -923,6 +1099,9 @@ function ThemeTap() {
 }
 
 const s = StyleSheet.create({
+  chips: { position: "absolute", left: 24, right: 24, bottom: 150, flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center" },
+  chip: { height: 34, paddingHorizontal: 14, borderRadius: 99, justifyContent: "center" },
+  chipT: { fontSize: 16, fontFamily: ff("500") },
   root: { flex: 1 },
   pad: { padding: space.gutter, paddingTop: 0 }, // .scr: the safe area stands in for its 54px top
   top: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginTop: 6 },

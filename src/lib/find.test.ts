@@ -135,3 +135,35 @@ describe("whole type words, wider parts of day", () => {
     expect(ids(xs, "đêm mai")).toEqual(["late"]);
   });
 });
+
+describe("scopes: lists, ranges, open ends, exceptions, clocks", () => {
+  // one "Gym" a day at 18:00 from Mon 16 to Sun 29, and one at 07:00 on Wed 18
+  const xs = [...Array.from({ length: 14 }, (_, d) => task(`g${16 + d}`, "Gym", at(d, 18))), task("am18", "Gym", at(2, 7))];
+  const days = (q: string) => [...new Set(ids(xs, q))].sort();
+  it("a list of days is each day", () => {
+    expect(days("gym T3 và T5")).toEqual(["g17", "g19"]);
+    expect(days("gym T3, T5, T7")).toEqual(["g17", "g19", "g21"]);
+  });
+  it("a range is every day in it, either way it is said", () => {
+    expect(days("gym từ T3 đến T5")).toEqual(["am18", "g17", "g18", "g19"]);
+    expect(days("gym T3-T5")).toEqual(days("gym từ T3 đến T5"));
+    expect(days("gym từ 17 đến 19/11")).toEqual(days("gym từ T3 đến T5"));
+    expect(days("gym từ nay đến T4")).toEqual(["am18", "g16", "g17", "g18"]);
+  });
+  it("n days ahead, open ends and the whole month", () => {
+    expect(days("gym 3 ngày tới")).toEqual(["g16", "g17", "g18", "am18"].sort());
+    expect(days("gym trước T4")).toEqual(["g16", "g17"]);
+    expect(days("gym sau CN")).toEqual(["g23", "g24", "g25", "g26", "g27", "g28", "g29"]);
+    expect(days("gym từ T5 trở đi").length).toBe(11);
+    expect(days("gym tháng này").length).toBe(15);
+  });
+  it("an exception leaves its weekday out of the scope", () => {
+    expect(days("gym tuần sau trừ T7")).toEqual(["g23", "g24", "g25", "g26", "g27", "g29"]);
+    expect(days("gym tuần này trừ T3 và T5")).toEqual(["am18", "g16", "g18", "g20", "g21", "g22"]);
+  });
+  it("a clock range or an open clock keeps the rows starting in it", () => {
+    expect(days("gym T4 sau 5h chiều")).toEqual(["g18"]);
+    expect(days("gym T4 trước 9h")).toEqual(["am18"]);
+    expect(days("gym T4 từ 6h đến 8h")).toEqual(["am18"]);
+  });
+});

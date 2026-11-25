@@ -1,12 +1,12 @@
 // S0 repair: decodes markup, cleans unicode and punctuation, dewraps PDF lines.
 // `map[i]` is the raw index of repaired char i, so every span found later maps back to the input.
-import { fold } from "./fold";
+import { fold, osa } from "./fold";
 import { findMentions } from "./mentions";
 import { timeOnly } from "./segment";
 import { isSyllable } from "./syllables";
 import { isFrequentSyllable } from "./vifreq";
 import { spokenEdits } from "./spoken";
-import { EN_WORDS } from "./en";
+import { EN_WORDS, canonWord } from "./en";
 import { TELEX_TERMS, untelex } from "./telex";
 import { gridEdits, isScheduleText } from "./table";
 import type { ReaderSource } from "../shared";
@@ -479,6 +479,9 @@ function repairSwaps(src: Repaired): Repaired {
   });
 }
 
+/** Typed forms that read as syllables, so typoFix leaves them: "ngừoi", "nhưg", and the short forms "ko", "đc", "vs". */
+const WHOLE_TYPO = new Map([["ngừoi", "người"], ["nhưg", "nhưng"], ["ko", "không"], ["đc", "được"], ["dc", "được"], ["vs", "với"]]);
+
 /** Time and cue words the typo repair may restore, by folded key. */
 const TYPO_WORDS = [
   "trước",
@@ -643,6 +646,16 @@ for (const [f, w] of TYPO) {
     VARIANTS.set(f.slice(0, i) + f[i + 1] + f[i] + f.slice(i + 2), w);
 }
 
+/** Every cue word, folded, by its display form: the typo table and the swap vocabulary. */
+const CUE = new Map([...TYPO, ...SWAP_VOCAB.map((w): [string, string] => [fold(w).text, w])]);
+/** The cue word one insert, delete, substitute or swap away from `f`, when exactly one is: "truoc" → "trước", "tuaan" → "tuần". */
+function nearCue(f: string): string | undefined {
+  // four letters at least: "Nov" and "Dec" are one edit from "nay" and "dec", and a short word is too often a real one
+  if (f.length < 4) return undefined;
+  const hits = new Set([...CUE].filter(([k]) => Math.abs(k.length - f.length) <= 1 && k.length >= 3 && osa(f, k) === 1).map(([, w]) => w));
+  return hits.size === 1 ? [...hits][0] : undefined;
+}
+
 const TYPO_KEEP = new Set([
   "app",
   "test",
@@ -685,7 +698,8 @@ function typoFix(w: string): string | undefined {
   }
   // a short word with no vowel is an acronym ("lsm", "sql"), not "làm" with a slipped key
   if (w.length <= 3 && !/[aeiouy]/i.test(fold(w).text)) return undefined;
-  return VARIANTS.get(fold(w).text) ?? SWAP_FIX.get(fold(w).text);
+  const f = fold(w).text;
+  return VARIANTS.get(f) ?? SWAP_FIX.get(f) ?? (EN_WORDS.has(f) || canonWord(w) || TYPO.has(fold(w.slice(1)).text) ? undefined : nearCue(f)) // "ptrước" is the letter-moved rule's, below;
 }
 
 /** One typo per word, and a letter moved across a space ("tậ ptrước" is "tập trước"). */
@@ -1795,12 +1809,17 @@ export function repair(raw: string, source: ReaderSource): Repaired {
   r = joinDigits(r, source);
   r = fixOcr(r);
   r = fixOcrClock(r);
+  r = glueClock(r);
   // 6 kerning: split letters are a paste or OCR artifact only
   if (source === "paste" || source === "ocr") r = joinKerned(r);
   // 6.5 swap repair on structural keywords
   r = repairSwaps(r);
   // 6.6 teencode on raw tokens
   r = repairTeencode(r);
+  r = sub(r, /(?<!\p{L})(ngừoi|nhưg|ko|đc|dc|vs)(?!\p{L})/giu, (m) => {
+    const w = WHOLE_TYPO.get(m[0].toLowerCase())!;
+    return /^\p{Lu}/u.test(m[0]) ? w[0].toUpperCase() + w.slice(1) : w;
+  });
   r = joinSplitCues(r);
   // a spaced minute after the hour: "23 giờ 5 9" is 23 giờ 59
   r = sub(
@@ -1809,7 +1828,6 @@ export function repair(raw: string, source: ReaderSource): Repaired {
     (m) => `${m[1]} ${m[2]}${m[3]}`,
   );
   // "21h tới nửa đêm": the range word, not the evening (which would split it into two parts)
-  r = glueClock(r);
   r = sub(r, /(?<=(?:\d\s*(?:h|g|giờ)\s*\d{0,2}|:\d\d)\s*)tới(?=\s+nửa đêm)/gu, () => "đến");
   // a tilde between two clocks is a range dash: "22h ~ 1h sáng"
   r = sub(r, /(?<=\d[hHgG]?|\d[hHgG]\d\d)\s*~\s*(?=\d|nửa đêm)/g, () => " - ");

@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { newModel } from "../planner";
 import type { Task, TaskEvent } from "./types";
 
 const db = vi.hoisted(() => ({ tasks: new Map<string, any>(), events: new Map<string, any>(), kv: new Map<string, string>(), model: null as any }));
@@ -26,7 +25,8 @@ vi.mock("../planner", async (orig) => {
   } };
 });
 
-import { addRule, addSitting, apply, dropSitting, ingest, lastMore, liveEdit, loadClassMult, needMore, pickNow, pin, putBack, removeRule, retime, scopeIds, stillMore, swipeDone } from "./apply";
+import { addRule, addSitting, apply, dropSitting, ingest, lastMore, liveEdit, loadClassMult, makeRoom, needMore, pickNow, pin, putBack, removeRule, retime, scopeIds, stillMore, swipeDone } from "./apply";
+import { newModel } from "../planner";
 import { loadMoves } from "./moves";
 import { preps } from "../planner/prep";import { partAt, plain, t } from "./i18n";
 import { hm } from "./when";
@@ -80,6 +80,21 @@ it("pickNow prefers the running task, else the next one", () => {
   const ts = [mk("a", NOW + 3600_000, NOW + 7200_000), mk("b", NOW - 600_000, NOW + 600_000)];
   expect(pickNow(ts, NOW)?.id).toBe("b");
   expect(pickNow([ts[0]], NOW)?.id).toBe("a");
+});
+
+describe("pickNow ranking", () => {
+  const HR = 3600_000;
+  const mk = (id: string, o: Partial<Task>): Task => ({ id, title: id, kind: "study", source: "user", effort: 60, createdAt: NOW, start: NOW + HR, end: NOW + 2 * HR, ...o });
+  it("the task due soonest wins over one with no due", () => {
+    const soon = mk("soon", { deadline: NOW + HR, start: NOW + 3 * HR, end: NOW + 4 * HR });
+    expect(pickNow([mk("later", { start: NOW + 5 * HR, end: NOW + 6 * HR }), soon], NOW)?.id).toBe("soon");
+  });
+  it("skips a task whose predecessor is open, and takes it once the predecessor is done or deleted", () => {
+    const a = mk("a", { deadline: NOW + HR, after: ["b"] }), b = mk("b", { start: NOW + 5 * HR, end: NOW + 6 * HR });
+    expect(pickNow([a, b], NOW, newModel(NOW))?.id).toBe("b");
+    expect(pickNow([a, { ...b, doneAt: NOW }], NOW, newModel(NOW))?.id).toBe("a");
+    expect(pickNow([a, { ...b, deletedAt: NOW }], NOW, newModel(NOW))?.id).toBe("a");
+  });
 });
 
 import { futureDlu, moveMine, removeImported } from "./apply";
@@ -198,6 +213,21 @@ it("topUp keeps a daily series 120 days ahead without duplicating days", async (
   const n = days.length;
   expect(await topUp(later)).toBeUndefined();
   expect(live().filter((x: Task) => x.title === "Read")).toHaveLength(n);
+});
+
+it("sessions deleted one by one (a said week) are not brought back by topUp", async () => {
+  await apply([{ op: "create", title: "Gym", kind: "study", repeat: "FREQ=WEEKLY;BYDAY=MO,WE,FR" }], NOW);
+  await topUp(NOW);
+  const xs = live().filter((x: Task) => x.title === "Gym").sort((a: Task, b: Task) => (a.deadline ?? 0) - (b.deadline ?? 0));
+  const gone = xs.slice(1, 3).map((x: Task) => x.id);
+  await apply(gone.map((target: string) => ({ op: "delete" as const, target })), NOW);
+  await topUp(NOW + DAYMS);
+  const after = live().filter((x: Task) => x.title === "Gym");
+  expect(after.some((x: Task) => gone.includes(x.id))).toBe(false);
+  // no new session on a deleted one's day
+  const dayOf = (x: Task) => Math.floor(((x.deadline ?? 0) - 1) / DAYMS);
+  const goneDays = new Set(xs.slice(1, 3).map(dayOf));
+  expect(after.filter((x: Task) => goneDays.has(dayOf(x)))).toEqual([]);
 });
 
 it("a rename on one occurrence renames the series it shared a name with, and keeps it one series", async () => {
@@ -444,18 +474,43 @@ describe("said times, edits, replans, causes", () => {
     const r0 = await apply([{ op: "create", title: "Read", kind: "study", effortMinutes: 30 }], NOW);
     expect(r0.steps).toBeDefined();
     const id = mine("Read")[0].id;
-    for (const a of [{ op: "edit", target: id, title: "Read 2" }, { op: "edit", target: id, kind: "social" }, { op: "edit", target: id, note: "n" }, { op: "edit", target: id, location: "x" }, { op: "done", target: id }] as const) {
+    for (const a of [{ op: "edit", target: id, title: "Read 2" }, { op: "edit", target: id, note: "n" }, { op: "edit", target: id, location: "x" }, { op: "done", target: id }] as const) {
       db.kv.delete("plannedAt");
       expect((await apply([a], NOW + 5000)).steps).toBeUndefined();
       expect(db.kv.has("plannedAt")).toBe(false);
     }
     await pin(id, true, NOW + 6000);
     expect(db.kv.has("plannedAt")).toBe(false);
-    for (const a of [{ op: "edit", target: id, effortMinutes: 45 }, { op: "edit", target: id, deadline: iso(clock(4, 12)) }, { op: "edit", target: id, deadline: "" }, { op: "edit", target: id, when: iso(clock(2, 9)) }] as const) {
+    for (const a of [{ op: "edit", target: id, kind: "social" }, { op: "edit", target: id, effortMinutes: 45 }, { op: "edit", target: id, deadline: iso(clock(4, 12)) }, { op: "edit", target: id, deadline: "" }, { op: "edit", target: id, when: iso(clock(2, 9)) }] as const) {
       db.kv.delete("plannedAt");
       expect((await apply([a], NOW + 7000)).steps).toBeDefined();
       expect(db.kv.get("plannedAt")).toBe(String(NOW + 7000));
     }
+  });
+
+  it("a done ahead of its block frees time that a waiting task takes; a done after its block frees nothing and moves nothing placed", async () => {
+    db.tasks.set("a", T({ id: "a", title: "A", start: NOW + 2 * H1, end: NOW + 3 * H1, notBefore: NOW + 2 * H1 }));
+    db.tasks.set("w", T({ id: "w", title: "W", effort: 60 })); // waiting for a time
+    await swipeDone("a", NOW);
+    expect(db.tasks.get("w").start).toBeDefined();
+    expect(db.kv.get("plannedAt")).toBe(String(NOW));
+    db.kv.delete("plannedAt");
+    db.tasks.set("b", T({ id: "b", title: "B", start: NOW - 2 * H1, end: NOW - H1 }));
+    db.tasks.set("c", T({ id: "c", title: "C", start: NOW + 5 * H1, end: NOW + 6 * H1, notBefore: NOW + 5 * H1 }));
+    db.tasks.set("w2", T({ id: "w2", title: "W2", effort: 60 }));
+    await swipeDone("b", NOW);
+    expect(db.tasks.get("w2").start).toBeDefined(); // the waiting one is placed, as any trigger does
+    expect(db.tasks.get("c").start).toBe(NOW + 5 * H1); // nothing placed moved
+  });
+
+  it("makeRoom plans; a rule and an ingest with nothing new plan nothing", async () => {
+    db.tasks.set("f", T({ id: "f", title: "F", fixed: "busy", start: NOW + 2 * H1, end: NOW + 3 * H1 }));
+    await addRule({ text: "không tối", days: [], from: 18 * 60, to: 24 * 60, kinds: [] }, NOW);
+    expect(db.kv.has("plannedAt")).toBe(false);
+    await ingest([], [], NOW);
+    expect(db.kv.has("plannedAt")).toBe(false);
+    await makeRoom("f", NOW + DAYMS, NOW);
+    expect(db.kv.get("plannedAt")).toBe(String(NOW));
   });
 
   it("causes read from a simulated campus ingest: new, moved, due", async () => {
@@ -866,4 +921,42 @@ it("a drag then undo restores the learned model to what it was before the drag",
   await r.undo();
   expect(db.model.arms.map((a: { b: number[] }) => a.b)).toEqual(before.arms.map((a: { b: number[] }) => a.b));
   expect(db.model.hist.length).toBe(before.hist.length);
+});
+
+it("an order maps refs to the new ids, whatever the order of the batch", async () => {
+  await apply([
+    { op: "create", title: "Làm bài tập", ref: "l2", after: "l1", effortMinutes: 60 },
+    { op: "create", title: "Học toán", ref: "l1", effortMinutes: 60 },
+  ], NOW);
+  const [a, b] = ["Học toán", "Làm bài tập"].map((x) => live().find((t: Task) => t.title === x)!);
+  expect(b.after).toEqual([a.id]);
+  expect(a.after).toBeUndefined();
+});
+
+it("an order takes an existing task id, and an exam id as forId", async () => {
+  await apply([{ op: "create", title: "Thi CSDL", effortMinutes: 60, fixed: "exam", notBefore: "2026-11-20T09:00:00" }], NOW);
+  const exam = live().find((t: Task) => t.title === "Thi CSDL")!;
+  db.tasks.set(exam.id, { ...exam, fixed: "exam" });
+  await apply([{ op: "create", title: "Ôn bài", effortMinutes: 60, after: exam.id, anchor: exam.id }], NOW);
+  const ôn = live().find((t: Task) => t.title === "Ôn bài")!;
+  expect(ôn.after).toEqual([exam.id]);
+  expect(ôn.forId).toBe(exam.id);
+});
+
+it("reshapeSeries ends the old days at `from`, goes on on the new ones, keeps them through topUp, and one undo restores it", async () => {
+  const { reshapeSeries } = await import("./apply");
+  await apply([{ op: "create", title: "Gym", kind: "exercise", effortMinutes: 60, repeat: "FREQ=WEEKLY;BYDAY=MO,WE,FR" }], NOW); // Fri 13
+  const gyms = () => live().filter((x: Task) => x.title === "Gym" && !x.parentId);
+  const old = gyms()[0], before = gyms().length, from = new Date("2026-11-23T00:00:00").getTime(); // the Monday after next
+  const r = await reshapeSeries(old.id, from, "FREQ=WEEKLY;BYDAY=TU,TH", NOW);
+  const dow = (x: Task) => new Date(x.deadline! - 1).getDay();
+  expect(gyms().filter((x: Task) => x.deadline! <= from).every((x: Task) => [1, 3, 5].includes(dow(x)))).toBe(true);
+  const after = gyms().filter((x: Task) => x.deadline! > from);
+  expect(after.length).toBeGreaterThan(0);
+  expect(after.every((x: Task) => [2, 4].includes(dow(x)) && x.rrule === "FREQ=WEEKLY;BYDAY=TU,TH" && x.effort === 60)).toBe(true);
+  await topUp(NOW + 7 * DAYMS);
+  expect(gyms().filter((x: Task) => x.rrule === old.rrule && x.deadline! > from)).toHaveLength(0); // the old rule never comes back past `from`
+  await r.undo();
+  expect(gyms().filter((x: Task) => x.rrule === "FREQ=WEEKLY;BYDAY=TU,TH")).toHaveLength(0);
+  expect(gyms().length).toBeGreaterThanOrEqual(before);
 });

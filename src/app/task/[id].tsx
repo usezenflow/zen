@@ -21,10 +21,11 @@ import { keepBoth } from "@/lib/overlap";
 import { t } from "@/lib/i18n";
 import { leftSaved, openedOnDay, setFlash } from "@/lib/flash";
 import { allTasks, loadModel } from "@/lib/store";
-import { KIND_VI, reasonText } from "@/lib/reasons";
+import { KIND_VI, reasonText, sayable } from "@/lib/reasons";
 import { useTheme, type TypeName, font, space, ff } from "@/lib/theme";
 import { grounded, typeOf } from "@/planner";
 import type { Placed } from "@/planner/model";
+import { clause, findingsFor, mine as mineFindings, type Finding } from "@/planner/mine";
 import type { Kind, Rule, Task } from "@/lib/types";
 import { dayLabel, endAt, startDay, when } from "@/lib/when";
 
@@ -52,6 +53,7 @@ export default function Detail() {
   const [sits, setSits] = useState<Task[]>([]); // the sittings this one belongs to (a sitting: it and its siblings; a split task: its own), in time order
   const [now, setNow] = useState(0);
   const [plc, setPlc] = useState<Placed>();
+  const [finds, setFinds] = useState<Finding[]>([]); // what the outcomes really show, mined fresh on each load
   const [rules, setRules] = useState<Rule[]>([]);
   const [pool, setPool] = useState<Task[]>([]); // every task: a batch reason's neighbour and an exam reason's exam
   const [title, setTitle] = useState("");
@@ -87,6 +89,8 @@ export default function Detail() {
     const mdl = id ? await loadModel(n) : undefined;
     const pl = id ? mdl?.placed[id] : undefined, rl = mdl?.rules ?? [];
     if (fresh(seen.current, "plc", pl)) setPlc(pl);
+    const fs = mdl ? mineFindings(mdl, n) : [];
+    if (fresh(seen.current, "finds", fs)) setFinds(fs);
     if (fresh(seen.current, "rules", rl)) setRules(rl);
     if (!x || x.deletedAt) { // opened from a stale widget or notification, or synced away
       // only while on top: a screen under another popping itself took the top one (or nothing) with it
@@ -165,8 +169,15 @@ export default function Detail() {
   const why = useMemo(() => {
     if (!task || task.fixed) return undefined;
     const openN = sits.filter((k) => !k.doneAt);
-    return grounded(plc?.why, { task, start: task.start ?? 0, rules, tasks: pool }).flatMap((r) => (r.key !== "pace" ? [r] : openN.length > 1 ? [{ ...r, vars: { k: openN.findIndex((k) => k.id === task.id) + 1, n: openN.length } }] : [])).slice(0, 4);
+    return sayable(grounded(plc?.why, { task, start: task.start ?? 0, rules, tasks: pool })).flatMap((r) => (r.key !== "pace" ? [r] : openN.length > 1 ? [{ ...r, vars: { k: openN.findIndex((k) => k.id === task.id) + 1, n: openN.length } }] : [])).slice(0, 4);
   }, [plc, task, rules, pool, sits]);
+  // At most one finding for the slot and one for the length, each a literal clause; none for a time set by hand (that is the reason).
+  const notes = useMemo(() => {
+    if (!task || task.fixed || task.start === undefined || plc?.why?.some((r) => r.key === "chose")) return [];
+    const fs = findingsFor(finds, task.kind, task.start, plc?.x);
+    const slot = fs.find((f) => f.type !== "length"), len = task.effortGuessed ? fs.find((f) => f.type === "length") : undefined;
+    return [slot, len].filter((f): f is Finding => !!f).map((f) => ({ text: clause(f), n: Math.round(f.n) }));
+  }, [finds, plc, task]);
   if (!task) return <SafeAreaView style={{ flex: 1, backgroundColor: th.bg }} />;
   const type: TypeName = typeOf(task);
   // A split task's time line is its next open sitting's, and edits that sitting; a task with no time yet (no free slot) can be given one by hand.
@@ -278,6 +289,8 @@ export default function Detail() {
   if (task.fixed === "lecture" && task.teacher) lines.push(<Meta key="g" icon="person" text={t("teacherIs", { n: task.teacher })} />);
   if (task.course && !exam) lines.push(<Meta key="c" icon="book" text={task.course} />);
   if (exam) lines.push(<Meta key="e" icon="book" tone="link" text={exam.title} onPress={() => router.push(`/task/${exam.id}`)} />);
+  const before = task.after?.[0] ? pool.find((y) => y.id === task.after![0] && !y.deletedAt) : undefined; // an order: this waits for that
+  if (before) lines.push(<Meta key="a" icon="clock" tone="link" text={`Sau: ${before.title}`} onPress={() => router.push(`/task/${before.id}`)} />);
   if (task.url) lines.push(<Meta key="u" icon="link" tone="link" text={t("openLms")} onPress={() => Linking.openURL(task.url!)} />);
 
   // "Buổi k/n" counts the sittings still open; a lone one says nothing (as the day list).
@@ -375,7 +388,7 @@ export default function Detail() {
             </View>
           )}
           {!!task.content?.trim() && <Lms html={task.content} />}
-          {!!why?.length && <WhyBlock items={why} alt={alt} now={now} onMove={moveTo} />}
+          {(!!why?.length || notes.length > 0) && <WhyBlock items={why ?? []} notes={notes} alt={alt} start={task.start} now={now} onMove={moveTo} />}
           <Field value={note} rev={rev} onText={typing} selectionColor={th.seal} cursorColor={th.seal} onBlur={() => void saveNote()} multiline scrollEnabled={false} placeholder={t("addNote")} placeholderTextColor={th.muted}
             style={[s.note, { color: th.ink, backgroundColor: th.chip }]} />
         </Animated.View>
@@ -397,7 +410,7 @@ const Lms = memo(function Lms({ html }: { html: string }) {
 });
 
 /** "Vì sao lúc này" with weight bars, and the one other good time. */
-const WhyBlock = memo(function WhyBlock({ items, alt, now, onMove }: { items: ReturnType<typeof grounded>; alt?: number; now: number; onMove: (ts: number) => void }) {
+const WhyBlock = memo(function WhyBlock({ items, notes, alt, start, now, onMove }: { items: ReturnType<typeof grounded>; notes: { text: string; n: number }[]; alt?: number; start?: number; now: number; onMove: (ts: number) => void }) {
   const th = useTheme();
   return (
     <View style={s.why}>
@@ -408,6 +421,18 @@ const WhyBlock = memo(function WhyBlock({ items, alt, now, onMove }: { items: Re
           <View style={[s.bar2, { backgroundColor: th.line }]}><View style={{ width: `${Math.min(1, Math.abs(x.w)) * 100}%`, height: 4, borderRadius: 4, backgroundColor: x.w < 0 ? th.seal : th.ink }} /></View>
         </View>
       ))}
+      {/* every finding with its basis, shown as is: nothing folded away */}
+      {notes.map((x) => (
+        <View key={x.text} style={s.wr}>
+          <Text style={[s.wt, { color: th.ink }]}>{x.text}</Text>
+          <Text style={{ fontSize: font.sub, fontFamily: ff("500"), color: th.muted, marginTop: 2 }}>{t("atlasBasis", { n: x.n })}</Text>
+        </View>
+      ))}
+      {start !== undefined && (
+        <Tap onPress={() => router.navigate({ pathname: "/", params: { view: "rhythm", h: String(new Date(start).getHours()), at: String(Date.now()) } })} accessibilityRole="link" style={{ marginTop: 10 }}>
+          <Text style={{ fontSize: font.sub, fontFamily: ff("600"), color: th.muted }}>{t("seeRhythm")}</Text>
+        </Tap>
+      )}
       {alt !== undefined && (
         <>
           <Text style={[s.lab, { color: th.muted, marginTop: 14 }]}>{t("alsoFits")}</Text>

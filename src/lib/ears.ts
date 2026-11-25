@@ -1,4 +1,7 @@
 import { ExpoSpeechRecognitionModule as SR, type ExpoSpeechRecognitionResult, type ExpoSpeechRecognitionResultEvent } from "expo-speech-recognition";
+import * as Device from "expo-device";
+import { kvGet } from "./store";
+import { engineOf, installed, pickEngine, whisperListen } from "./stt";
 
 const LANG = "vi-VN";
 
@@ -48,6 +51,8 @@ const local = () => (onDevice ??= SR.getSupportedLocales({}).then((l) => l.insta
  * `hints` bias the recognizer toward words it would otherwise miss (course names, task titles, English terms).
  */
 export async function listenLive(o: { onPartial?(text: string): void; onLevel?(level: number): void; hints?: string[] } = {}): Promise<{ stop(): Promise<Heard> }> {
+  const engine = pickEngine({ setting: engineOf(await kvGet("stt.engine")), installed: await installed(), totalMemory: Device.totalMemory, yearClass: Device.deviceYearClass });
+  if (engine !== "os") { try { return await whisperListen({ ...o, tier: engine }); } catch { /* a model that cannot start: the OS recognizer below */ } }
   const dev = await local();
   const finals: string[][] = [];
   let partial: string[] = [];

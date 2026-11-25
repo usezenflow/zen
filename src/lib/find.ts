@@ -2,8 +2,9 @@ import { addDays, mondayOf, startOfDay } from "../components/cal";
 import { dueOf } from "../planner/features";
 import { typeOf } from "../planner/policy";
 import { resolveDate, spanOf } from "./nlu/reader/assemble";
-import { fold } from "./nlu/reader/fold";
-import { findMentions } from "./nlu/reader/mentions";
+import { fold, osa } from "./nlu/reader/fold";
+import { findMentions, type Found as Mention } from "./nlu/reader/mentions";
+import { exceptSpans } from "./nlu/reader/rules";
 import { PART, PART_ALIAS } from "./nlu/reader/parts";
 import { STUDENT_ABBREVIATIONS } from "./nlu/shared/vi-abbrev";
 import type { Task, TaskType } from "./types";
@@ -14,6 +15,9 @@ export interface Query {
   words: string[]; // folded; each must hit the title, course, room or teacher
   types: { type: TaskType; words: string[] }[]; // "thi": an exam (or its prep), or the cue's words in the text
   days: [number, number][]; // local [from, to); any
+  except?: [number, number][]; // "trừ 20/11": local [from, to) the days leave out
+  exceptDow?: number[]; // "trừ T6": weekdays (0 = Sunday) the days leave out
+  clock?: [number, number]; // "từ 9h đến 11h", "sau 5h": minutes of the day the row starts in, [from, to)
   due: boolean; // "hạn": the days are the deadline's
   part?: { key: string; from: number; to: number }; // minutes of the day the row starts in
   at?: number; // minutes of the day the row runs at
@@ -26,6 +30,12 @@ const TYPES: [string, TaskType][] = [["lich thi", "exam"], ["kiem tra", "exam"],
 const DUE = ["han nop", "han", "deadline", "nop"];
 const STATUS: [string, NonNullable<Query["status"]>][] = [["chua xong", "live"], ["chua lam", "live"], ["con lai", "live"], ["da xong", "done"], ["xong roi", "done"], ["hoan thanh", "done"], ["da lam", "done"], ["xong", "done"], ["qua han", "late"], ["bo lo", "late"], ["tre", "late"]];
 const PARTS = [...Object.keys(PART), ...Object.keys(PART_ALIAS)];
+// Scope words around dates and clocks (folded): "từ A đến B", "A-B", "trước/sau/từ A", "từ nay đến A", "3 ngày tới".
+const RANGE_GAP = /^(?:den|toi|cho den|den het|-|–|~|to|until)$/;
+const LEAD = /(?<![\p{L}\p{N}])(tu (?:nay|gio|bay gio|hom nay) (?:den|toi)|tu|ke tu|truoc|sau)\s*$/u;
+const NEXT_N = /(?<![\p{L}\p{N}])(\d+|mot|hai|ba|bon|nam|sau|bay|muoi) (ngay|tuan) (?:toi|tiep theo|sap toi|nua)(?![\p{L}\p{N}])/gu;
+const NUM: Record<string, number> = { mot: 1, hai: 2, ba: 3, bon: 4, nam: 5, sau: 6, bay: 7, muoi: 10 };
+const YEAR = 366; // an open-ended "sau T6" reaches a year
 // Words that carry no meaning in a search ("lịch môn web của mình"): dropped rather than required.
 const STOP = new Set(["mon", "cua", "cac", "nhung", "co", "gi", "nao", "o", "luc", "vao", "ngay", "buoi", "viec", "tim", "xem", "lich", "cho", "voi", "va", "trong", "nhe", "la", "minh", "tui", "em"]);
 /** Display names of PART keys, for the line saying what was understood. */
@@ -42,20 +52,10 @@ function words(s: string): W[] {
   });
 }
 
-/** Optimal string alignment distance, capped: enough to forgive one typo or swap. */
-function osa(a: string, b: string): number {
-  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
-  for (let j = 1; j <= b.length; j++) d[0][j] = j;
-  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) {
-    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-    if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
-  }
-  return d[a.length][b.length];
-}
-
 /** Indices of `ws` that word `t` hits: a prefix (across joined words: "giaitich"), inside a word, an acronym ("csdl"),
  *  a known abbreviation ("oop"), or one typo off. */
 function hit(t: string, ws: string[]): number[] {
+  if (/^\d+$/.test(t)) return ws.flatMap((w, i) => (w === t ? [i] : [])); // a number names one thing: "bài 1" is never "Bài 12"
   const out = new Set<number>(), add = (i: number, j: number) => { for (let k = i; k <= j; k++) out.add(k); };
   const ab = ABBR.get(t);
   for (let i = 0; i < ws.length; i++) {
@@ -64,9 +64,11 @@ function hit(t: string, ws: string[]): number[] {
     if (ws[j].startsWith(rest)) add(i, j);
     else if (t.length >= 3 && ws[i].includes(t)) add(i, i);
     if (t.length >= 2 && i + t.length <= ws.length && [...t].every((c, k) => ws[i + k][0] === c)) add(i, i + t.length - 1);
+    // an acronym one typo off, from four letters: "csld" for "Cơ sở dữ liệu"
+    if (t.length >= 4 && i + t.length <= ws.length && osa(t, ws.slice(i, i + t.length).map((w) => w[0]).join("")) === 1) add(i, i + t.length - 1);
     if (ab && ab.every((p, k) => ws[i + k] === p)) add(i, i + ab.length - 1);
-    // One typo from four letters; a three-letter word only forgives a swap ("coa"), or "thi" would find "tai".
-    const near = (w: string) => osa(t, w) <= 1 && (t.length >= 4 || [...t].sort().join() === [...w].sort().join());
+    // One typo from four letters, two from eight; a three-letter word only forgives a swap ("coa"), or "thi" would find "tai".
+    const near = (w: string) => osa(t, w) <= (t.length >= 8 ? 2 : 1) && (t.length >= 4 || [...t].sort().join() === [...w].sort().join());
     if (t.length >= 3 && (near(ws[i]) || (ws[i].length > t.length && near(ws[i].slice(0, t.length))))) add(i, i);
   }
   return [...out];
@@ -80,28 +82,82 @@ export function parse(raw: string, now: number): Query {
   const d = new Date(now), ref = { y: d.getFullYear(), m: d.getMonth() + 1, d: d.getDate(), h: d.getHours(), mi: d.getMinutes() };
   const ms = (w: { y: number; m: number; d: number }) => new Date(w.y, w.m - 1, w.d).getTime();
   const today = startOfDay(now), q: Query = { words: [], types: [], days: [], due: false, repeat: false };
-  let rest = raw;
-  for (const f of findMentions(raw)) {
+  // Scope phrases are blanked out of `text` as they are read, so the mention pass and the words skip them (offsets stay).
+  let text = raw;
+  const blank = (a: number, b: number) => { text = text.slice(0, a) + " ".repeat(b - a) + text.slice(b); };
+  const f0 = fold(raw), rawEnd = (i: number) => f0.map[i - 1] + 1;
+  // "3 ngày tới", "2 tuần tới": from today, that many days (the reader reads "tới" as the evening)
+  for (const m of f0.text.matchAll(NEXT_N)) {
+    q.days.push([today, addDays(today, (NUM[m[1]] ?? +m[1]) * (m[2] === "tuan" ? 7 : 1))]);
+    blank(f0.map[m.index], rawEnd(m.index + m[0].length));
+  }
+  // "từ T4 trở đi": the open end is said by "từ"; its tail is no word to find
+  for (const m of f0.text.matchAll(/(?<![\p{L}])(?:tro di|tro ve sau|ve sau)(?![\p{L}])/gu)) blank(f0.map[m.index], rawEnd(m.index + m[0].length));
+  // The days one date mention stands for. Search reads both ways in time ("hôm qua", "tuần trước"), a week or weekend is all its days,
+  // "tháng này" the whole month, and "T2 và T4" each day said.
+  const daysOf = (f: Mention): [number, number][] => {
     const v = f.v;
-    if (f.kind === "date") {
-      // Search reads both ways in time ("hôm qua", "tuần trước"), and a week or weekend is all its days, not its last.
-      const r: [number, number] | undefined = v.k === "rel" ? [addDays(today, v.off), addDays(today, v.off + 1)]
-        : v.k === "week" ? [addDays(mondayOf(now), 7 * v.off), addDays(mondayOf(now), 7 * v.off + 7)]
-        : (() => {
-          const s = spanOf(v, ref);
-          if (s) return [ms(s.from), addDays(ms(s.to), 1)];
-          const one = resolveDate(f, ref);
-          if (!one) return undefined;
-          const day = ms(one.wc);
-          return [v.k === "weekend" || v.k === "weekend_next" ? addDays(day, -1) : day, addDays(day, 1)];
-        })();
-      if (r) q.days.push(r);
-    } else if (f.kind === "time" && v.k === "time") q.at = v.h * 60 + v.mi;
-    else if (f.kind === "recur") q.repeat = true;
+    if (v.k === "rel") return [[addDays(today, v.off), addDays(today, v.off + 1)]];
+    if (v.k === "week") return [[addDays(mondayOf(now), 7 * v.off), addDays(mondayOf(now), 7 * v.off + 7)]];
+    if (v.k === "month_end" && fold(text.slice(f.start, f.end)).text.trim() === "thang nay") return [[ms({ ...ref, d: 1 }), ms({ y: ref.y, m: ref.m + 1, d: 1 })]];
+    const s = spanOf(v, ref);
+    if (s) return [[ms(s.from), addDays(ms(s.to), 1)]];
+    return [...(v.k === "dow" ? [v.dow, ...(v.more ?? [])] : [undefined])].flatMap((dow) => {
+      const one = resolveDate(dow === undefined || v.k !== "dow" ? f : { ...f, v: { ...v, dow, more: undefined } }, ref);
+      if (!one) return [];
+      const day = ms(one.wc);
+      return [[v.k === "weekend" || v.k === "weekend_next" ? addDays(day, -1) : day, addDays(day, 1)] as [number, number]];
+    });
+  };
+  // "trừ T6": days the scope leaves out
+  for (const [a, b] of exceptSpans(text)) {
+    // a weekday is that weekday anywhere in the scope ("tuần sau trừ T6" is next week's Friday), a date is its day
+    const ds = findMentions(text.slice(a, b)).filter((f) => f.kind === "date");
+    const off = ds.flatMap((f) => (f.v.k === "dow" ? [] : daysOf(f))), dows = ds.flatMap((f) => (f.v.k === "dow" ? [f.v.dow, ...(f.v.more ?? [])] : []));
+    if (off.length || dows.length) { (q.except ??= []).push(...off); if (dows.length) q.exceptDow = [...(q.exceptDow ?? []), ...dows]; blank(a, b); }
+  }
+  const M = findMentions(text);
+  const lead = (a: number, b: number) => { const g = fold(text.slice(a, b)), m = LEAD.exec(g.text); return m ? { at: a + g.map[m.index], w: m[1] } : undefined; };
+  const span = (r: [number, number][]) => [Math.min(...r.map((x) => x[0])), Math.max(...r.map((x) => x[1]))] as const;
+  let prev = 0;
+  for (let i = 0; i < M.length; i++) {
+    const f = M[i], v = f.v;
+    if (f.kind === "date" || (f.kind === "time" && v.k === "time")) {
+      // "từ A đến B", "A-B": one range from the first to the last; "trước/sau/từ A": open on one side
+      const g = M[i + 1], L = lead(prev, f.start), w = L?.w ?? "";
+      const range = g && g.kind === f.kind && (g.kind === "date" || g.v.k === "time") && RANGE_GAP.test(fold(text.slice(f.end, g.start)).text.trim()) ? g : undefined;
+      if (f.kind === "date") {
+        const r = daysOf(f);
+        if (r.length) {
+          const [a, b] = span(r), to = range ? span(daysOf(range))[1] : b;
+          if (range || w.startsWith("tu ")) q.days.push([w.startsWith("tu ") ? today : a, to]);
+          else if (w === "truoc") q.days.push([today, a]);
+          else if (w === "sau") q.days.push([b, addDays(b, YEAR)]);
+          else if (w === "tu") q.days.push([a, addDays(a, YEAR)]);
+          else q.days.push(...r);
+        }
+      } else if (v.k === "time") {
+        const m = v.h * 60 + v.mi, e = range?.v.k === "time" ? range.v.h * 60 + range.v.mi : undefined;
+        if (e !== undefined) q.clock = [m, e];
+        else if (w === "truoc") q.clock = [0, m];
+        else if (w === "sau" || w === "tu") q.clock = [m, 1440];
+        else q.at = m;
+      }
+      if (L) blank(L.at, f.start);
+      if (range) { blank(f.end, range.start); i++; }
+      // a part word in a date stays ("tối nay"); in a clock it is the clock's own ("5h chiều")
+      for (const h of range ? [f, range] : [f]) text = text.slice(0, h.start) + raw.slice(h.start, h.end).replace(/\S+/g, (x) => (f.kind === "date" && PARTS.includes(fold(x).text) ? x : " ".repeat(x.length))) + text.slice(h.end);
+      prev = (range ?? f).end;
+      continue;
+    }
+    if (f.kind === "recur") q.repeat = true;
     else if (f.kind !== "dur") continue; // places, courses, codes stay words
     // Part words inside a date ("tối nay") still count: blank only the rest of it.
-    rest = rest.slice(0, f.start) + raw.slice(f.start, f.end).replace(/\S+/g, (w) => (PARTS.includes(fold(w).text) ? w : " ".repeat(w.length))) + rest.slice(f.end);
+    text = text.slice(0, f.start) + raw.slice(f.start, f.end).replace(/\S+/g, (x) => (PARTS.includes(fold(x).text) ? x : " ".repeat(x.length))) + text.slice(f.end);
+    prev = f.end;
   }
+  if (q.clock) q.at = undefined;
+  const rest = text;
   const ws = words(rest).map((x) => x.w);
   const at = (i: number, p: string) => { const ps = p.split(" "); return ps.every((x, k) => ws[i + k] === x) ? ps.length : 0; };
   for (let i = 0; i < ws.length; ) {
@@ -126,7 +182,7 @@ export function parse(raw: string, now: number): Query {
 const minuteOf = (ms: number) => { const d = new Date(ms); return d.getHours() * 60 + d.getMinutes(); };
 
 /** Does `x` pass every filter and hit every word? */
-function matches(x: Task, q: Query, now: number): boolean {
+export function matches(x: Task, q: Query, now: number): boolean {
   const hay = [x.title, x.course, x.location, x.teacher].filter(Boolean).flatMap((s) => words(s!).map((w) => w.w)), ty = typeOf(x);
   if (q.types.length && !q.types.some((c) => c.type === ty || (c.type === "exam" && x.forId) || c.words.every((w) => whole(w, hay).length))) return false;
   if (q.status === "live" && x.doneAt) return false;
@@ -140,6 +196,9 @@ function matches(x: Task, q: Query, now: number): boolean {
     const ts = q.due ? [x.deadline] : [x.start, x.deadline];
     if (!q.days.some(([a, b]) => ts.some((t) => t !== undefined && inDay(t, a, b)))) return false;
   } else if (q.due && x.deadline === undefined) return false;
+  if (q.except?.length) { const t = q.due ? x.deadline : x.start; if (t !== undefined && q.except.some(([a, b]) => t >= a && t < b)) return false; }
+  if (q.exceptDow?.length && x.start !== undefined && q.exceptDow.includes(new Date(x.start).getDay())) return false;
+  if (q.clock) { const m = minuteOf(x.start!); if (m < q.clock[0] || m >= q.clock[1]) return false; }
   if (q.part) { const m = minuteOf(x.start!); if (late ? m < q.part.from && m >= q.part.to - 1440 : m < q.part.from || m >= q.part.to) return false; }
   if (q.at !== undefined) { const m = minuteOf(x.start!); if (q.at < m || q.at >= m + Math.max(60, (x.end! - x.start!) / 60_000)) return false; }
   return q.words.every((w) => hit(w, hay).length > 0);
@@ -158,7 +217,7 @@ export function hits(title: string, q: Query): [number, number][] {
 }
 
 /** Anything to search by? An empty or all-stopword query lists nothing. */
-export const asked = (q: Query) => !!(q.words.length || q.types.length || q.days.length || q.due || q.part || q.at !== undefined || q.status || q.repeat);
+export const asked = (q: Query) => !!(q.words.length || q.types.length || q.days.length || q.due || q.part || q.at !== undefined || q.clock || q.status || q.repeat);
 
 // One row per series, the same kin as apply.ts scopeIds: a lecture section, a split task's sittings, a said repeat (rrule + title).
 const seriesOf = (x: Task) => x.section ?? x.parentId ?? (x.rrule ? `${x.rrule}|${x.title}` : x.id);

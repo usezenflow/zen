@@ -2,13 +2,16 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import * as Haptics from "expo-haptics";
-import { Appearance, Dimensions, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Appearance, Dimensions, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { Icon, TypeArt } from "@/components/art";
 import { Chevron } from "@/components/day";
 import { fadeIn, fadeOut, glide, Tap } from "@/components/tap";
 import { ConnectForm, type Res } from "@/components/settings-connect";
 import { Toast } from "@/components/toast";
+import * as Device from "expo-device";
+import { download, engineOf, type Engine, installed as sttInstalled, pause, recommended, saveClip, startClip, TIERS, type Tier, weakFor } from "@/lib/stt";
+import { getFreeDiskStorageAsync } from "expo-file-system/legacy";
 import { loadCreds, owed } from "@/lib/dlu";
 import { t } from "@/lib/i18n";
 import * as stats from "@/lib/stats";
@@ -76,6 +79,14 @@ export default function Settings() {
   const [up, setUp] = useState<Update | null>(null); // a newer release on GitHub
   const d = useDownload(), dl = d?.failed ? null : d; // its APK coming down in the background; failed, the row offers it again
   const [dlg, setDlg] = useState<Dlg | null>(null);
+  // Speech: the setting (unset = the recommended tier), the tier on disk, and the download in progress.
+  const [stt, setStt] = useState<{ setting: Engine | null; installed: Tier | null; dl?: { tier: Tier; pct?: number; paused?: boolean; err?: boolean } }>({ setting: null, installed: null });
+  const [benchOn, setBenchOn] = useState(false); // hidden: long-press the speech label
+  const [bench, setBench] = useState<{ rec?: { stop(): Promise<Uint8Array> }; pcm?: Uint8Array; text: string; saved?: string }>({ text: "" });
+  const [freeDisk, setFreeDisk] = useState<number | null>(null);
+  const spec = { totalMemory: Device.totalMemory, yearClass: Device.deviceYearClass, cpus: Device.supportedCpuArchitectures, freeDisk };
+  const sttRec = recommended(spec);
+  const effective = stt.setting ?? sttRec;
 
   const refresh = useCallback(async () => {
     const c = await loadCreds();
@@ -94,10 +105,42 @@ export default function Settings() {
     stats.isOptedOut(kvStorage).then((o) => setShare(!o));
     kvGet("theme").then((m) => { if (m === "light" || m === "dark") setMode(m); });
     checkUpdate().then(setUp);
+    kvGet("stt.engine").then((e) => setStt((x) => ({ ...x, setting: engineOf(e) })));
+    sttInstalled().then((t) => setStt((x) => ({ ...x, installed: t })));
+    getFreeDiskStorageAsync().then(setFreeDisk, () => {});
   }, [refresh]);
   useEffect(() => { if (!toast) return; const h = setTimeout(() => setToast(undefined), 4000); return () => clearTimeout(h); }, [toast]);
 
   // Appearance.setColorScheme makes useColorScheme (and so useTheme) follow; _layout must re-apply kv "theme" at launch.
+  // Picking a tier saves it and downloads it when missing; the other tier stays until this one is ready. The download row pauses while running.
+  const applyEngine = async (engine: Engine) => { setStt((x) => ({ ...x, setting: engine })); await kvSet("stt.engine", engine); if (engine !== "os" && engine !== stt.installed) void getModel(engine); };
+  // A tier above what this phone handles warns first; one that cannot fit on disk is refused.
+  const setEngine = async (engine: Engine) => {
+    const weak = engine === "os" || engine === stt.installed ? undefined : weakFor(engine, { ...spec, freeDisk: await getFreeDiskStorageAsync().catch(() => null) });
+    if (weak === "disk") return Alert.alert("Không đủ chỗ trống", `Cần khoảng ${Math.round(TIERS[engine as Tier].bytes / 1e6) + 300} MB trống để tải. Hãy xoá bớt rồi thử lại.`);
+    if (!weak) return applyEngine(engine);
+    Alert.alert("Máy này có thể chạy chậm", weak === "mem" ? "Máy ít bộ nhớ: Zen có thể nghe chậm, máy nóng hoặc ứng dụng bị đóng. Lỗi thì tự chuyển về nhận giọng của máy." : "Bộ xử lý của máy khá cũ: Zen có thể nghe chậm và tốn pin. Lỗi thì tự chuyển về nhận giọng của máy.", [
+      { text: "Thôi", style: "cancel" },
+      { text: "Vẫn tải", onPress: () => void applyEngine(engine) },
+    ]);
+  };
+  const getModel = async (t: Tier) => {
+    if (stt.dl?.tier === t && stt.dl.pct != null) return void pause();
+    setStt((x) => ({ ...x, dl: { tier: t, pct: 0 } }));
+    try {
+      const done = await download(t, (f) => setStt((x) => ({ ...x, dl: { tier: t, pct: Math.round(f * 100) } })));
+      setStt((x) => ({ ...x, installed: done ? t : x.installed, dl: done ? undefined : { tier: t, paused: true } }));
+    } catch { setStt((x) => ({ ...x, dl: { tier: t, err: true } })); }
+  };
+  const benchTap = async () => {
+    if (bench.rec) { const pcm = await bench.rec.stop(); return setBench((b) => ({ ...b, rec: undefined, pcm })); }
+    setBench({ text: "", saved: undefined, pcm: undefined, rec: await startClip() });
+  };
+  const benchSave = async () => {
+    if (!bench.pcm || !bench.text.trim()) return;
+    setBench({ text: "", saved: await saveClip(bench.pcm, bench.text.trim()) });
+  };
+
   const pickMode = async (m: Mode) => { setMode(m); Appearance.setColorScheme(m === "system" ? "unspecified" : m); await kvSet("theme", m); };
 
   // Closes once the account being connected is in; a wrong or slow one stays open with its note.
@@ -142,6 +185,38 @@ export default function Settings() {
             <Pill key={m} sweep on={mode === m} onPress={() => pickMode(m)} label={t(m === "system" ? "themeSystem" : m === "light" ? "themeLight" : "themeDark")} />
           ))}
         </View>
+
+        <Text onLongPress={() => setBenchOn((v) => !v)} style={[s.lab, { color: th.muted, marginTop: 26 }]}>Nhận dạng giọng nói</Text>
+        {/* Radio list: tap a row to choose it; a tier not on disk downloads, and its row shows the progress. */}
+        {([
+          ["os", "Của máy", "Nhận giọng có sẵn trên máy"],
+          ["base", "Nhẹ", "Zen nghe trên máy, nhanh"],
+          ["small", "Chính xác", "Zen nghe trên máy, ít sai hơn"],
+        ] as [Engine, string, string][]).map(([k, name, sub]) => {
+          const on = effective === k, d = k !== "os" && stt.dl?.tier === k ? stt.dl : undefined;
+          const right = k === "os" ? "" : d?.pct != null ? `Đang tải ${d.pct}%` : stt.installed === k ? "Đã tải" : `${Math.round(TIERS[k].bytes / 1e6)} MB`;
+          return (
+            <Tap key={k} variant="fade" accessibilityRole="radio" accessibilityState={{ checked: on }} accessibilityLabel={name} onPress={() => setEngine(k)} style={[s.row, { paddingVertical: 13 }]}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ fontSize: font.base, fontFamily: ff("600"), color: th.ink }}>{name}</Text>
+                <Text style={{ fontSize: font.meta, fontFamily: ff("500"), color: th.muted, marginTop: 2 }}>{sub}</Text>
+              </View>
+              <Text style={{ fontSize: font.sub, fontFamily: ff("500"), color: th.muted, fontVariant: ["tabular-nums"] }}>{right}</Text>
+              <View style={{ width: 22, alignItems: "center" }}>{on && <Icon name="check" size={20} color={th.ink} w={2.4} />}</View>
+            </Tap>
+          );
+        })}
+        <Text style={{ marginTop: 12, fontSize: font.meta, color: th.muted, lineHeight: 20 }}>
+          {sttRec === "os" ? "Máy này ít bộ nhớ, nên dùng nhận giọng của máy." : "Nghe ngay trên máy, không gửi đi đâu. Lỗi thì tự chuyển về nhận giọng của máy."}
+        </Text>
+        {benchOn && <>
+          <Row dense label={bench.rec ? "Đang ghi · chạm để dừng" : "Ghi mẫu thử"} onPress={benchTap} />
+          {bench.pcm && <>
+            <TextInput value={bench.text} onChangeText={(text) => setBench((b) => ({ ...b, text }))} placeholder="Câu nói đúng" placeholderTextColor={th.muted} style={{ fontSize: font.base, color: th.ink, paddingVertical: 10, borderBottomWidth: 1, borderColor: th.line }} />
+            <Row dense label="Lưu mẫu" onPress={benchSave} />
+          </>}
+          {bench.saved && <Text style={{ fontSize: font.sub, color: th.muted }}>{bench.saved}</Text>}
+        </>}
 
         {/* Online (timetable, exams, marks) and LMS (assignments) are separate sections: each connects, syncs and disconnects on its own. */}
         {!on && (

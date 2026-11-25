@@ -1,0 +1,14 @@
+{
+  "groups": [
+    {
+      "title": "",
+      "items": [
+        { "title": "Đi siêu thị mua đồ", "done": false, "minutes": 60, "sized": "said" },
+        { "title": "Gọi bà ngoại", "done": false },
+        { "title": "Sửa xe máy", "done": false, "minutes": 120, "sized": "said" },
+        { "title": "Đặt lịch khám răng trước", "done": false },
+        { "title": "Nộp học phí", "done": true }
+      ]
+    }
+  ]
+}

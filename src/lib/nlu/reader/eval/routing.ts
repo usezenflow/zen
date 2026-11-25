@@ -11,4 +11,6 @@ export const ROUTING: { text: string; route: Route; phase?: number; why?: string
   { text: "xong bài tập toán", route: "task" },
   { text: "để trống tối thứ 7", route: "rule" },
   { text: "đừng xếp việc sáng chủ nhật", route: "rule" },
+  { text: "xoa viec giat do", route: "task" },
+  { text: "dời họp sang 3h", route: "task" },
 ];

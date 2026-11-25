@@ -1,10 +1,11 @@
-import type { Action, Fixed, Kind } from "../types";
+import type { Action, Fixed, Kind, Task } from "../types";
 import { kindOf as kindOfTitle } from "./kind";
 import { read, readBest } from "./reader/reader";
 import { t, type Key } from "../i18n";
 import { WINDOW_END, WINDOW_FROM } from "../parts";
 import { day } from "../when";
 import type { ReadOpts } from "./reader/reader";
+import { anchorAction, anchorsOf } from "./reader/anchor";
 import type { ReaderItem, ReaderItemType, ReaderResult, ReaderSource, ReaderWC, ReaderWindow } from "./shared";
 
 // App time is fixed UTC+7 (see dlu/parse/time.ts); the reader works in wall clock.
@@ -94,7 +95,7 @@ export function itemAction(it: ReaderItem): Action {
 
 /** What the app knows that the reader cannot: the user's timetable, habits per title, marks, and typos they refused. */
 /** `alternatives` are other transcripts of the same voice take; the best-read one wins. */
-export type ReadExtra = Partial<Pick<ReadOpts, "calendar" | "prior" | "affinity" | "rejected" | "hint" | "classMult">> & { alternatives?: string[] };
+export type ReadExtra = Partial<Pick<ReadOpts, "calendar" | "prior" | "affinity" | "rejected" | "hint" | "classMult">> & { alternatives?: string[]; tasks?: Task[] };
 
 /** The last few reader crashes (message only, never the user's text), for a bug report. */
 export const readErrors: string[] = [];
@@ -102,7 +103,7 @@ export const readErrors: string[] = [];
 /** The reader's full result for one utterance; empty when it finds nothing. Never throws; a crash is kept in `readErrors`. */
 export function readFull(text: string, now: Date, source: ReaderSource = "typed", extra: ReadExtra = {}): ReaderResult {
   try {
-    const { alternatives, ...o } = extra;
+    const { alternatives, tasks, ...o } = extra;
     const opts = { ref: wallClock(now), source, ...o };
     return alternatives?.length ? readBest([text, ...alternatives], opts) : read(text, opts);
   } catch (e) {
@@ -137,8 +138,11 @@ export function marksOf(text: string, r: ReaderResult): { start: number; end: nu
 }
 
 /** Rule-based reading of one utterance; empty when the reader finds nothing. Never throws. */
-export const readActions = (text: string, now: Date, source: ReaderSource = "typed", extra: ReadExtra = {}): Action[] =>
-  readFull(text, now, source, extra).items.map(itemAction);
+export function readActions(text: string, now: Date, source: ReaderSource = "typed", extra: ReadExtra = {}): Action[] {
+  const items = readFull(text, now, source, extra).items;
+  const anchors = extra.tasks ? anchorsOf(text, items.map((it) => it.title), extra.tasks, now.getTime()) : new Map();
+  return items.map((it, i) => (anchors.has(i) ? anchorAction(itemAction(it), anchors.get(i)) : itemAction(it)));
+}
 
 const FLAGS = ["weekday_mismatch", "date_past", "menu"];
 
@@ -150,7 +154,8 @@ const dmOf = (s: string) => { const m = /^(\d{4})-?(\d\d)-?(\d\d)/.exec(s); retu
  * several sharing a repeat's end ("đến 31/12"), a span ("23 - 29/11") or a due with their sittings ("4 buổi · Hạn T2 23/11").
  */
 export function sizedSub(acts: Action[], now: number): string | undefined {
-  if (acts.length === 1) return acts[0].anchor ? t("beforeExam", { d: dmOf(acts[0].anchor) }) : undefined;
+  // an anchor is an exam's date from the sizer, or an exam task's id from an anchored read (then its deadline is the day)
+  if (acts.length === 1) return acts[0].anchor ? t("beforeExam", { d: dmOf(/^\d{4}-/.test(acts[0].anchor) ? acts[0].anchor : acts[0].deadline ?? "") }) : undefined;
   const until = acts.map((a) => /UNTIL=(\d{8})/.exec(a.repeat ?? "")?.[1]);
   if (until[0] && until.every((u) => u === until[0])) return t("untilDate", { d: dmOf(until[0]) });
   // a span: every task has a start and an end of its own and no repeat, and they are the same two days

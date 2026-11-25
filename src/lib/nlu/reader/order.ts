@@ -61,10 +61,14 @@ const CHAIN_WORD =
   /^(?:first|firstly|dau tien|finally|cuoi cung|next|tiep theo)\s+/;
 // written first, then second: the first one happens first
 const FWD_MID =
-  /^(.+?)(?:\s+(?:and then|then|afterwards|after that|next|before|roi moi|xong roi|roi|sau do|tiep theo|xong thi|truoc roi)[,;]?\s+|\s*->\s*)(.+)$/;
+  /^(.+?)(?:\s+(?:and then|then|afterwards|after that|next|before|roi moi|xong roi|roi|sau do|tiep theo|xong thi|truoc roi)[,;]?\s+|\s*,\s*then\s+|\s*->\s*)(.+)$/;
 // written first, then second: the second one happens first
 const BWD_MID =
   /^(.+?)\s+(?:but before that|but first|nhung truoc do|truoc do phai|truoc do|after|sau khi|once|when i finish)[,;]?\s+(.+)$/;
+/** A clause that opens with an order marker: "first", "then", "đầu tiên", "bước 2", "2." or "b)". Folded text. */
+export const ORDINAL =
+  /^(?:(?:first|firstly|then|next|second|third|finally|lastly|dau tien|truoc tien|thu nhat|thu hai|thu ba|tiep theo|tiep do|sau cung|cuoi cung|buoc \d+)\b|(?:\d{1,2}|[a-z]|[ivx]{1,4})[.)](?=\s))/;
+const ORDER_OPEN = /^(?:dau tien|tiep theo|cuoi cung|sau cung|first|then|next|finally|lastly)\s/;
 const PRE =
   /^(after|sau khi|once|when i finish|before|truoc khi)\s+(.+?)[,;]\s*(.+)$/;
 
@@ -104,7 +108,8 @@ function pieces(s: string, bareOk = false): string[] | undefined {
     .split(LIST_SEP)
     .map((x) => x.trim())
     .filter(Boolean);
-  return list.length > 1 && list.every(hasTaskWord) ? list : [s];
+  // an order-led piece is a task too: "làm đề, cuối cùng chữa đề"
+  return list.length > 1 && list.every((x) => hasTaskWord(x) || ORDER_OPEN.test(fold(x).text)) ? list : [s];
 }
 
 /** The task parts of a clause in time order, or undefined when no connector joins two tasks. */

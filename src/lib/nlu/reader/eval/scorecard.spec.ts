@@ -12,5 +12,6 @@ describe.runIf(process.env.EVAL)("scorecard", () => {
     else if (base)
       for (const [f, v] of Object.entries(base.mutationPassPct)) expect([f, card.mutationPassPct[f] >= v - 0.1]).toEqual([f, true]);
     expect(passing.golden.length).toBeGreaterThan(0);
+    expect(card.commands.negativeFalseCommandRate).toBe(0);
   }, 120_000);
 });

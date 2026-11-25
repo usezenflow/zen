@@ -17,8 +17,8 @@ const tasks = [
 
 it("builds the mockup's day", () => {
   const w = widgetData(tasks, at(14, 25), art, ["b"]);
-  expect(w.next).toMatchObject({ id: "a", big: "5p", small: "đến 14:30", mins: "5′", fill: 0.5 });
-  expect(w.rows.map((r) => [r.id, r.check, r.done])).toEqual([["b", true, true], ["c", false, false]]);
+  expect(w.next).toMatchObject({ id: "b", big: "95p", small: "đến 16:00", mins: "95′", fill: 1 }); // due tonight outranks the running "a"
+  expect(w.rows.map((r) => [r.id, r.check, r.done])).toEqual([["a", true, false], ["c", false, false]]); // rows are the day less the next card
   expect(w.summary).toBe("2 việc, 1 tiết học");
   expect(w.doneLabel).toBe("Xong (1)");
   expect(w.tomorrow).toBe("Mai: Cấu trúc dữ liệu 7:00");
@@ -38,8 +38,8 @@ it("empties after the last item and schedules each boundary", () => {
 
 it("counts down to an upcoming start, as the mockup at 14:20", () => {
   const w = widgetData(tasks, at(14, 10), art);
-  expect(w.next).toMatchObject({ id: "a", big: "10p", small: "đến 14:20", mins: "10′", rect: "14:20, còn 10p", left: "còn 10p" });
-  expect(w.next!.fill).toBeCloseTo(1 / 3);
+  expect(w.next).toMatchObject({ id: "b", big: "110p", small: "đến 16:00", mins: "110′", rect: "16:00, còn 110p", left: "còn 110p" }); // the ranked pick, not the clock's next
+  expect(w.next!.fill).toBe(1);
   expect(widgetData(tasks, at(12), art).next!.fill).toBe(1);
 });
 

@@ -87,6 +87,32 @@ describe("reactToTime (the 30 s tick, launch and background)", () => {
     expect(r).toBeUndefined();
     expect(db.tasks.get("m").start).toBe(NOW - 2 * H);
   });
+  it("a new day, an idle gap and the tick plan nothing: an unscheduled task waits", async () => {
+    const yesterday = at(5, 0, -1);
+    db.kv.set("plannedAt", String(yesterday));
+    db.tasks.set("busy", task("busy", { fixed: "busy", start: at(14), end: at(15) })); // an idle gap 08:00-14:00
+    db.tasks.set("u", task("u"));
+    expect(await reactToTime(NOW, false)).toBeUndefined();
+    expect(db.tasks.get("u").start).toBeUndefined();
+    expect(db.kv.get("plannedAt")).toBe(String(yesterday));
+  });
+  it("the open app places what waits for a time, and nothing placed moves", async () => {
+    db.kv.set("plannedAt", String(at(5, 0, -1)));
+    db.tasks.set("p", task("p", { start: at(10), end: at(11), notBefore: at(10) }));
+    db.tasks.set("u", task("u"));
+    const r = await reactToTime(NOW, true);
+    expect(r?.changed).toBe(true);
+    expect(db.tasks.get("u").start).toBeDefined();
+    expect(db.tasks.get("p").start).toBe(at(10));
+  });
+  it("the 21:30 sweep moves only the leftovers that ended today, to tomorrow", async () => {
+    db.tasks.set("left", task("left", { start: at(18), end: at(19) })); // ended, undone
+    db.tasks.set("later", task("later", { start: at(21, 40), end: at(21, 55), effort: 15 })); // still ahead tonight
+    const r = await reactToTime(at(21, 30), false);
+    expect(r?.changed).toBe(true);
+    expect(db.tasks.get("left").start).toBeGreaterThanOrEqual(at(9, 0, 1));
+    expect(db.tasks.get("later").start).toBe(at(21, 40));
+  });
   it("inside the grace nothing is replanned", async () => {
     db.kv.set("plannedAt", String(at(5)));
     db.tasks.set("m", task("m", { start: NOW - 2 * H, end: NOW - 5 * MIN }));

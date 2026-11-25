@@ -303,7 +303,9 @@ export function segment(text: string): Clause[] {
   nonEmpty.forEach((l, i) => {
     const near = (j: number) =>
       j >= 0 && j < nonEmpty.length && HEADER_NUM.test(nonEmpty[j].text.trim());
-    if (HEADER_NUM.test(l.text.trim()) && (near(i - 1) || near(i + 1)))
+    // a "1." after a plain intro line opens a list, even when it is the only numbered line; a section whose next line is a field (Ngày, Thời gian) stays a section
+    const opensList = /^1[.)]\s/.test(l.text.trim()) && i > 0 && !HEADER_NUM.test(nonEmpty[i - 1].text.trim()) && !matchLabelPrefix(nonEmpty[i + 1]?.text.trim() ?? "");
+    if (HEADER_NUM.test(l.text.trim()) && (near(i - 1) || near(i + 1) || opensList))
       listed.add(l);
   });
   // a run whose lines are all bare titles is a list of titles, one per line: "b-tree code" / "lsm code"
@@ -318,6 +320,11 @@ export function segment(text: string): Clause[] {
       run = [];
     }
   }
+
+  // a listed numbered line that is a bare title is a list item of its own: "3. chữa đề"; under a label ("Hạn nộp: …") the list is that label's run
+  const labelled = nonEmpty.some((x) => matchLabelPrefix(x.text.trim()));
+  for (const l of nonEmpty)
+    if (!labelled && listed.has(l) && bareTitle(l.text.trim().replace(HEADER_NUM, "$2"))) titleRun.add(l);
 
   for (const line of lines) {
     let trimmed = line.text.trim();

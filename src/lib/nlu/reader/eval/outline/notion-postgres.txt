@@ -1,0 +1,17 @@
+# Lộ trình PostgreSQL
+
+## 1. Indexing — 4h
+- [x] B-tree indexes: cách hoạt động và khi nào dùng (1h)
+- [x] Hash và GIN index (1h)
+- [ ] EXPLAIN ANALYZE: đọc query plan (1.5h)
+- [ ] Bài tập: tối ưu 3 query chậm (30p)
+
+## 2. Transactions — 3h
+- [ ] MVCC và isolation levels (1 tiếng rưỡi)
+- [ ] Deadlock: tái hiện và đọc log (1h)
+- [x] Ôn lại ACID (45p)
+
+## 3. Replication — 4h
+- [ ] Streaming replication: đọc tài liệu (2h)
+- [ ] Logical replication lab
+- [ ] Failover drill (30p)

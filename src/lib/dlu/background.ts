@@ -2,7 +2,7 @@ import * as BackgroundTask from "expo-background-task";
 import * as TaskManager from "expo-task-manager";
 
 const NAME = "dlu-sync";
-const MIN_INTERVAL_MINUTES = 6 * 60;
+const MIN_INTERVAL_MINUTES = 30;
 
 export async function stopBackgroundSync(): Promise<void> {
   if (await TaskManager.isTaskRegisteredAsync(NAME)) await BackgroundTask.unregisterTaskAsync(NAME);

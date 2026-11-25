@@ -8,7 +8,7 @@ import { plain, t } from "./i18n";
 import { digestNotices, marksNotice, type Digest } from "./dlu/materialize";
 import { pushWidgetsNow } from "./widgets";
 import { ensureChannels, pushReminders, recordOpen, soundOf } from "./reminders";
-import { ingest, keepSweep, loadClassMult, loadGone, pullInto, replan, serial, sweepUndone, topUp, waiting, type Result } from "./apply";
+import { ingest, keepSweep, loadClassMult, loadGone, replan, serial, sweepUndone, topUp, waiting, type Result } from "./apply";
 import type { Notice, Task } from "./types";
 import type { ParsedMarks } from "./dlu/parse/student";
 import * as queue from "./queue";
@@ -289,21 +289,12 @@ async function backfill(now: number): Promise<Result | undefined> {
 
 const MIN = 60_000;
 const dayStart = (ms: number) => new Date(new Date(ms).setHours(0, 0, 0, 0)).getTime();
-/** The clock's own replans, run on the 30 s tick, at launch and in the background: a new day, an idle gap of 30 min or more a later task can take (once per gap), the 21:30 sweep (once a day). `fg` adds the waiting check,
- *  which only an open app does (a tick would retry a task that cannot fit every 30 s). Exported for tests. */
+/** The clock's own work, run on the 30 s tick, at launch and in the background. A new day, an idle gap or a block running out is no cause: nothing moves for them.
+ *  The open app (`fg`) places what still waits for a time, and only that (a tick would retry it every 30 s); the 21:30 sweep puts the day's leftovers on tomorrow. Exported for tests. */
 export async function reactToTime(now: number, fg: boolean): Promise<Result | undefined> {
-  const planned = Number((await store.kvGet("plannedAt")) ?? now);
-  const all = await store.allTasks(), live = all.filter((x) => !x.doneAt && !x.deletedAt);
-  // A block that ends unticked does not roll by itself: the overrun nudge asks (Xong / Để sau), and a new day replans what is left.
-  if (planned < dayStart(now) || (fg && waiting(all, now))) {
-    const r = await replan(now);
-    if (r.changed) return r;
-  }
-  const gap = idleGap(live, now);
-  if (gap && (await store.kvGet("idle.to")) !== String(gap.to)) {
-    await store.kvSet("idle.to", String(gap.to)); // once per gap: a pull that moves nothing is not retried every tick
-    const r = await pullInto([gap], now);
-    if (r.changed) return r;
+  if (fg) {
+    const wait = waiting(await store.allTasks(), now);
+    if (wait.length) { const r = await replan(now, undefined, "create", wait.map((x) => x.id)); if (r.changed) return r; }
   }
   const day = dayStart(now);
   if (now >= day + 21.5 * HOUR && (await store.kvGet("sweep.day")) !== String(day)) {
@@ -314,20 +305,35 @@ export async function reactToTime(now: number, fg: boolean): Promise<Result | un
   return undefined;
 }
 
-/** The free stretch from now to the next booked block, when it is 30 min or more. A block running now (or still in its grace) is booked. */
-function idleGap(live: Task[], now: number): { from: number; to: number } | undefined {
-  let from = Math.ceil(now / (15 * MIN)) * (15 * MIN);
-  const booked = live.filter((x) => x.start !== undefined && x.end !== undefined && x.end > now).map((x) => [x.start!, x.end!] as const).sort((a, b) => a[0] - b[0]);
-  for (const [s, e] of booked) if (s <= from && from < e) from = e;
-  const to = booked.find(([s]) => s >= from)?.[0] ?? dayStart(now) + 22 * HOUR;
-  return to - from >= 30 * MIN ? { from, to } : undefined;
+/** Queues the parts whose last campus answer is older than `ttl` (0: always), for connected accounts not refused; exams only in exam months. */
+async function refresh(now: number, parts: Part[], ttl: number): Promise<void> {
+  const c = await loadCreds();
+  if (!c) return;
+  const bad = await loginError();
+  const due: Part[] = [];
+  for (const p of parts) {
+    const src = SRC[p];
+    if (!(src === "portal" ? hasPortal : hasLms)(c) || bad === src || bad === "both") continue;
+    if (p === "ex" && !examMonth(now)) continue;
+    if (now - Number((await store.kvGet(AT[p])) || 0) >= ttl) due.push(p);
+  }
+  if (due.length) await queue.enqueue(due.flatMap((p) => jobsFor(p, now, true)), now);
 }
 
 let ticking: Promise<Synced | undefined> | undefined;
 /** The 30 s tick in the open app: the clock's replans only (no campus, no notices), never two at once. */
 export function onTick(now = Date.now()): Promise<Synced | undefined> {
   if (foreground || ticking) return Promise.resolve(undefined);
-  return (ticking = reactToTime(now, false).then((r) => (r ? { ...r, notices: [] } : undefined)).finally(() => { ticking = undefined; }));
+  return (ticking = tick(now).then((r) => (r ? { ...r, notices: [] } : undefined)).finally(() => { ticking = undefined; }));
+}
+/** Every 15 min the open app asks the timetable and LMS again (fetch only: the drain replans just when a change lands). */
+async function tick(now: number): Promise<Result | undefined> {
+  if (now - Number((await store.kvGet("sync.tick")) || 0) >= 15 * MIN) {
+    await store.kvSet("sync.tick", String(now));
+    await refresh(now, ["tt", "lms"], 0);
+    void drain().catch(() => {});
+  }
+  return reactToTime(now, false);
 }
 
 let foreground: Promise<Synced | undefined> | undefined;
@@ -346,13 +352,14 @@ async function foregroundNow(now: number): Promise<Synced | undefined> {
     await store.kvSet("morning.day", day);
     await keepSweep(now);
   }
-  // A block that ended unticked was missed, and rolls forward; a task still waiting for a time gets any time freed since (see reactToTime).
+  // A task still waiting for a time is placed (see reactToTime).
   const clock = await reactToTime(now, true);
   if (!out && clock) out = wrap(clock);
   const up = await topUp(now);
   if (up) out = wrap(up);
   const made = await backfill(now); // before the sync, which an auto refresh may skip
   if (made?.changed) out = wrap(made);
+  await refresh(now, ["tt", "ex", "lms"], 30 * MIN); // an answer older than 30 min is asked again
   await schedule(now);
   pushReminders(); // debounced; a drain's replan after this is not pushed here
   void drain().catch(() => {}); // its result reaches the day view through onSynced

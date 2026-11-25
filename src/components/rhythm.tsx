@@ -9,6 +9,8 @@ import { t } from "@/lib/i18n";
 import { useTheme, font, ff } from "@/lib/theme";
 import type { Rule } from "@/lib/types";
 import type { Insights } from "@/planner";
+import type { Model } from "@/planner/model";
+import { Atlas } from "@/components/atlas";
 
 /** The Nhịp head's count: how many rules Zen follows. Empty when none, the calm line below says the rest. */
 export const rhythmHead = (i: Insights, rules: Rule[]) => { const n = rules.length + i.learned.length; return n ? t("learnedN", { n }) : ""; };
@@ -45,7 +47,7 @@ function Grid({ i }: { i: Insights }) {
 }
 
 /** magic.html 11-12: "Zen đã học được gì". The rules the planner applies now, what you said first, then what Zen learned, one row each; a swipe forgets one. */
-export function Rhythm({ i, rules, onForget, onForgetWhen }: { i: Insights; rules: Rule[]; onForget: (r: Rule) => void; onForgetWhen: (when: { hour: number } | { part: number }) => void }) {
+export function Rhythm({ i, rules, m, hour, onForget, onForgetWhen }: { i: Insights; rules: Rule[]; m?: Model; hour?: number; onForget: (r: Rule) => void; onForgetWhen: (when: { hour: number } | { part: number }) => void }) {
   const th = useTheme();
   const rows = [
     ...i.learned.map((x) => ({ id: x.text, text: x.text, kind: x.kind, v: x.v, guess: x.guess, icon: (x.kind && x.icon !== "undo" ? x.kind : x.icon ?? "clock") as IconName, forget: x.part !== undefined ? () => onForgetWhen({ part: x.part! }) : x.hour !== undefined ? () => onForgetWhen({ hour: x.hour! }) : undefined })),
@@ -61,6 +63,7 @@ export function Rhythm({ i, rules, onForget, onForgetWhen }: { i: Insights; rule
         {seen && i.when ? <Text style={s.artT}>{whenLine(i.when)}</Text> : !seen && <Text style={s.artT}>{t("learnedLearning")}</Text>}
         <Grid i={seen ? i : { ...i, grid: Array.from({ length: 7 }, () => [0.1, 0.1, 0.1, 0.1]), when: undefined }} />
       </View>
+      {m && <Atlas key={hour ?? -1} m={m} hour={hour} />}
       {!rows.length && !rules.length && <Text style={[s.calm, { color: th.ink }]}>{t("learnedCold")}</Text>}
       {/* what you said yourself: always first, exact, nothing to be sure about */}
       {rules.length > 0 && <Text style={[s.lab, { color: th.muted }]}>{t("learnedSaid")}</Text>}
