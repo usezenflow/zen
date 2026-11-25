@@ -40,3 +40,13 @@ describe("a drag to another part of the day is a hypothesis about its kind", () 
     expect(m.parts![2].b.every((v) => v === 0)).toBe(true);
   });
 });
+
+describe("a drag inside one part of the day is logistics", () => {
+  it("20h to 21h leaves no hypothesis and no left-slot; 9h to 15h does", () => {
+    const a = drag(newModel(now), "a", hm(20), hm(21));
+    expect(a.hypNow).toBeUndefined();
+    expect(a.left ?? []).toHaveLength(0);
+    const b = drag(newModel(now), "b", hm(9), hm(15));
+    expect(b.left).toHaveLength(1);
+  });
+});

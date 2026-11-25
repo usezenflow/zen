@@ -17,7 +17,7 @@ export interface Model {
   hist: Hist[];
   kept?: number[]; // when a placement was left where Zen put it (a silent keep): the Sunday keep share counts these, ≤300
   doneHours: { hour: number; at: number; wd?: number }[]; // wd: the weekday (0 = CN) it happened on; absent on older ones
-  moved?: { hour: number; at: number; wd?: number }[]; // hours you dragged work to, whether or not the planner had placed it
+  moved?: { hour: number; at: number; wd?: number; kind?: string }[]; // hours you dragged work to, whether or not the planner had placed it
   left?: { hour: number; at: number; wd?: number }[]; // hours you dragged work away from: the slots not to fill again
   efforts: { vec: number[]; minutes: number; at: number; kind?: Kind; guess?: number }[]; // guess: the length it had when it was only a guess
   afterClass?: number[]; // minutes from a lecture or exam's end to the start of the work you ticked after it (the same day), last 30

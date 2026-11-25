@@ -5,6 +5,7 @@ export type TaskType = "plan" | "lecture" | "exam" | "busy" | "assignment";
 export type Fixed = "lecture" | "exam" | "busy";
 
 export interface Task {
+  fun?: boolean; // casual work with no deadline (default: no deadline and not study/work/finance/errand); the fun gate in place.ts steps it aside for a lagging deadline
   id: string;
   title: string;
   vec?: Float32Array; // embed(title) (nlu/embed.ts), DIM 96; stored vectors are versioned (store.ts)

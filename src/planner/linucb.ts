@@ -6,9 +6,9 @@ export const KINDS: Kind[] = ["study", "exercise", "chores", "social", "other", 
 export const D = 6 + 2 * KINDS.length;
 export const ARMS = 24;
 export const LAMBDA = 1;
-export const ALPHA = 0.15;
+export const ALPHA = 0.12;
 export const N0 = 3;
-export const HALF_LIFE = 21 * 86400000;
+export const HALF_LIFE = 14 * 86400000;
 
 export interface Arm { A: number[]; b: number[] } // A is D*D row-major
 
@@ -49,6 +49,8 @@ export function coldArms(v = 2): Arm[] {
 // reaches hours with none of their own. Tuned on the paired bench; a kind x part pool was tried and broke the focus gates (load, buffer, lead).
 export const PARTS = 4;
 export const LAMBDA_PART = 0.5;
+/** The part of the day of an hour: sáng, trưa, chiều, tối. Lives here, not in features.ts, which imports this file. */
+export const partIdx = (h: number) => (h < 11 ? 0 : h < 13 ? 1 : h < 18 ? 2 : 3);
 export function coldParts(): Arm[] {
   return Array.from({ length: PARTS }, () => {
     const A = new Array(D * D).fill(0);
@@ -150,6 +152,20 @@ export function prepare(arms: Arm[], parts?: Arm[], partOf?: number[]): Prepared
     theta.forEach((th, h) => { const q = pt[partOf[h]]; for (let i = 0; i < D; i++) th[i] += LAMBDA_PART * q[i]; });
   }
   return { theta, inv };
+}
+
+const HOUR_PART = Array.from({ length: ARMS }, (_, h) => partIdx(h));
+
+/** The one posterior the planner, atlas and insights read. theta and inv are exactly prepare(arms, parts, HOUR_PART): the width stays the hour arm's.
+ * A is the blended evidence per hour (hour A + LAMBDA_PART * (part A - its cold A)); atlas counts outcomes on it. */
+export interface Posterior extends Prepared { A: number[][] }
+export function posteriorOf(m: { arms: Arm[]; parts?: Arm[] }): Posterior {
+  const p = prepare(m.arms, m.parts, HOUR_PART), cp = coldParts();
+  const A = m.arms.map((arm, h) => {
+    const k = HOUR_PART[h], pa = m.parts?.[k];
+    return pa ? arm.A.map((v, i) => v + LAMBDA_PART * (pa.A[i] - cp[k].A[i])) : [...arm.A];
+  });
+  return { ...p, A };
 }
 
 export function ucb(p: Prepared, arm: number, x: ArrayLike<number>, alpha = ALPHA): number {

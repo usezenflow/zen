@@ -1,7 +1,7 @@
 import type { Diff, Placement, Reason, ReasonKey, Step, Task, TaskEvent, TaskType, Warn } from "../lib/types";
 import { DAY, HOUR, I_AFTER, I_ENERGY, I_SIM, KINDS, MIN, PART4, type FeatCtx, cdist, dayStart, dayType, dueOf, features, hourOf, partIdx } from "./features";
 import { aimOf, effort, fallacy, leadSample, lateDragged, neighbors, noteHyp, peakHour, slipOf } from "./habits";
-import { ALPHA, ARMS, D, LAMBDA, N0, type Primed, coldParts, decayArms, prepare, primeBatch, ucb, ucbAt, update } from "./linucb";
+import { ALPHA, ARMS, D, LAMBDA, N0, type Primed, coldParts, decayArms, posteriorOf, primeBatch, ucb, ucbAt, update } from "./linucb";
 import { grounded } from "./grounded";
 import { type Model, afterBuffer, newModel } from "./model";
 import { PART_NAMES } from "../lib/parts";
@@ -10,9 +10,12 @@ import { DEFAULT_BOUNDS, boundsOf } from "./bounds";
 import { day, dayLabel, when } from "../lib/when";
 import { minSitting, split } from "./split";
 import { surface } from "./mine";
-import { type Piece, SOFT_AIM, bell, dur, lateH, moveCost, pullOk, startValue } from "./value";
+import { type Slot, explainDay, explainSize, explainTime } from "./explain";
+import { type Piece, SOFT_AIM, behindOf, bell, dur, lateH, moveCost, pullOk, startValue } from "./value";
 import { snapGuess } from "../lib/nlu/size";
 import { capOf } from "../lib/rest";
+import { type Area, areaOf, areaShare, underServed } from "../lib/area";
+import type { ZenRule } from "./zen";
 import { TPL as tpl } from "../lib/i18n"; // the insight sentences live in i18n.ts
 
 const LONG_SITTING = 180; // near a deadline sittings merge up to this; longer work still splits
@@ -20,13 +23,13 @@ const LONG_SITTING = 180; // near a deadline sittings merge up to this; longer w
 const SLIP_SITTING = 30;
 
 type Gap = { from: number; to: number };
-export interface Opts { later?: string; hourOnly?: boolean; pull?: Gap | Gap[]; avoid?: { from: number; to: number }[]; only?: string[]; fill?: boolean } // only: ids (or a split parent's) that may move; every other placed piece holds, unscheduled ones wait // pull: time freed by a done or delete (one gap or several), from its start (or now) to its end; avoid: slots the user just left by hand // fill: place once, never move silently: a placed piece keeps its slot (only what clashes with held time gives way), no overload unlock, no bump; unplaced pieces take open cells
+export interface Opts { later?: string; hourOnly?: boolean; pull?: Gap | Gap[]; avoid?: { from: number; to: number }[]; only?: string[]; fill?: boolean; areas?: Area[]; zen?: Partial<Record<ZenRule, number>> } // only: ids (or a split parent's) that may move; every other placed piece holds, unscheduled ones wait // pull: time freed by a done or delete (one gap or several), from its start (or now) to its end; avoid: slots the user just left by hand // fill: place once, never move silently: a placed piece keeps its slot (only what clashes with held time gives way), no overload unlock, no bump; unplaced pieces take open cells
 /** A block that ended this long ago is still busy (the user may be finishing it); missed after. */
 export const GRACE = 15 * MIN;
 /** A time set by hand is busy only until its hold ends or its start passes (then a preference the planner may move). */
 export const holding = (t: Task, now: number) => t.holdUntil !== undefined && now < Math.min(t.holdUntil, t.start ?? -Infinity);
 
-const HALF = 21 * DAY;
+const HALF = 14 * DAY;
 const COLD_A0 = LAMBDA + N0;
 const SURE = 3; // outcomes an hour must remember before a reason may name it
 type Titled = Busy & { title?: string };
@@ -156,12 +159,15 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
   const B = boundsOf(m); // the user's own parts and awake window once learned; the defaults until then
   const live = tasks.filter((t) => !t.doneAt && !t.deletedAt);
   const allBusy: Titled[] = [...busy];
+  const half = new Set<Busy>(); // lectures and exams count half an hour of load each (worked() in rest.ts)
   const fixedEnds: End[] = [];
   const flex: Task[] = [];
   for (const t of live) {
     const inProgress = t.start !== undefined && t.end !== undefined && t.start <= now && now < t.end + GRACE && opts.later !== t.id; // "later" on the running task moves it; a block just ended stays busy through its grace
     if ((t.fixed || t.pinned || inProgress || holding(t, now)) && t.start !== undefined && t.end !== undefined) {
-      allBusy.push({ start: t.start, end: t.end, title: t.title });
+      const b: Titled = { start: t.start, end: t.end, title: t.title };
+      allBusy.push(b);
+      if (t.fixed === "lecture" || t.fixed === "exam") half.add(b);
       fixedEnds.push({ kind: t.kind, end: t.end });
     } else if (!t.fixed) flex.push(t);
   }
@@ -299,7 +305,7 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
   const fh = new Map<number, number>(), fixedH = (d: number) => fh.get(d) ?? (fh.set(d, fixedHours(allBusy, d)), fh.get(d)!); // once per day, not per cell
   const ctx = (p: Piece, ends: End[]): FeatCtx => ({ fixedH, peak, nb: nbs.get(p.id)!, ends });
   const xOf = (p: Piece, s: number, ends: End[]) => features(p.task, s, ctx(p, ends));
-  const prep = prepare(m.arms, m.parts, PART_OF); // each hour's theta gets its part's pooled evidence (linucb prepare)
+  const prep = posteriorOf(m); // each hour's theta gets its part's pooled evidence (linucb posteriorOf)
   const seen = (a: number) => m.arms[a].A[0] - COLD_A0 >= SURE;
   const rules = m.rules ?? [];
   const hits = (p: Piece, s: number) => rules.filter((r) => {
@@ -316,7 +322,7 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
   // A pull: a piece may take the freed time only if it is unscheduled, or its start is later than the gap's (it moves earlier, never later).
   const pulls: Gap[] = [opts.pull ?? []].flat();
   // Load per day (hours: lectures half, flexible work as placed now), for the cross-day pull and the overload below.
-  const loadOf = (d: number) => fixedHours(allBusy, d) + pieces.reduce((n, q) => n + (q.prior !== undefined && dayStart(q.prior) === d ? q.effort / 60 : 0), 0);
+  const loadOf = (d: number) => fixedHours(allBusy.filter((b) => !half.has(b)), d) + 0.5 * fixedHours(allBusy.filter((b) => half.has(b)), d) + pieces.reduce((n, q) => n + (q.prior !== undefined && dayStart(q.prior) === d ? q.effort / 60 : 0), 0);
   for (const p of pulls.length ? pieces : []) {
     const tk = p.task;
     // A hand-set time is held (legacy ones without a hold stay held); a hold that ran out is a preference again.
@@ -338,12 +344,16 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
   for (const d of fill ? [] : dayLoad.keys()) {
     let h = loadOf(d);
     if (h <= capH(d)) continue;
-    for (const p of pieces.filter((q) => q.prior !== undefined && dayStart(q.prior) === d && !q.gaps && !q.missed && !q.task.pinned && !q.task.fixed && !q.task.userEdited?.includes("start") && dueOf(q.task) === undefined).sort((a, b) => b.effort - a.effort)) {
+    // Today and anything within 12 h are frozen: the day is already lived, and a piece about to start stays put. Lightest first, so the least is moved.
+    for (const p of pieces.filter((q) => q.prior !== undefined && dayStart(q.prior) === d && q.prior >= now + 12 * HOUR && dayStart(q.prior) !== dayStart(now) && !q.gaps && !q.missed && !q.task.pinned && !q.task.fixed && !q.task.userEdited?.includes("start") && dueOf(q.task) === undefined).sort((a, b) => a.effort - b.effort)) {
       if (h <= capH(d)) break;
       unlockOver.add(p.id); h -= dur(p) / HOUR;
     }
   }
   const held: Busy[] = [...allBusy], own = (p: Piece) => Number(!!p.task.userEdited?.includes("start"));
+  // Own work keeps the learned rest after each lecture or exam (hard, see place.ts afterClass). Used by clear() below, so it is set first.
+  // shortcut: clear() does not re-check afterClass (a placed task keeps its slot even if a class moved next to it); adding it made chains miss 1.15x more deadlines (sim.chain.test).
+  const rest: Rest = { classEnds: live.filter((t) => (t.fixed === "lecture" || t.fixed === "exam") && t.end !== undefined).map((t) => t.end!), buffer: afterBuffer(m) * MIN };
   // The checks an old slot must pass to be kept: no rule, window or awake hour is broken, and nothing clashes.
   const clear = (p: Piece, s: number, others: Busy[]) => {
     const t = p.task, e = s + dur(p);
@@ -364,7 +374,7 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
   // Exploring: not while the model is cold, and only the first new piece without a deadline, once a day.
   const explored = m.exploredAt !== undefined && dayStart(m.exploredAt) === dayStart(now);
 
-  // Light and short only: a 30-minute undated piece is a cheap place to test an hour.
+  // Light and short only: a 30-minute undated piece is a cheap place to test an hour (90 min hurt the crammer bench: lateRate +0.021).
   const explorer = !explored && m.hist.length + m.doneHours.length >= 5 ? pieces.find((p) => dueOf(p.task) === undefined && p.prior === undefined && p.effort <= 30) : undefined;
   const alphaOf = (p: Piece) => (p === explorer ? ALPHA : 0);
 
@@ -420,9 +430,17 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
     const x = xOf(p, s, ends);
     return opts.hourOnly ? x.map((v, i) => (i === 0 ? 1 : 0)) : x;
   }
-  // Own work keeps the learned rest after each lecture or exam (hard, see place.ts afterClass).
-  const rest: Rest = { classEnds: live.filter((t) => (t.fixed === "lecture" || t.fixed === "exam") && t.end !== undefined).map((t) => t.end!), buffer: afterBuffer(m) * MIN };
-  const solved = solve(pieces, { busy: allBusy, fixedEnds, now, util: linUtil, utilAll: linAll, bounds: B, rest, cap: capH, exempt }, [...pieces.map((p) => p.id)].sort().join("|").split("").reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0, 2166136261)); // same pieces, same plan
+  // Areas configured: a piece's area that is under its target share gets up to +0.5 (areaBoost); none configured, no boost.
+  const under = opts.areas && underServed(tasks, opts.areas, now);
+  // zen balance: an area over its target share pays back up to 0.5 x weight (soft, never a refusal).
+  const share = opts.areas && opts.zen?.balance ? areaShare(tasks, opts.areas, now) : undefined;
+  const areaBoost = under && new Map(pieces.map((p) => {
+    const a = areaOf(p.task, opts.areas!);
+    if (!a) return [p.id, 0] as const;
+    const t = (a.targetPct ?? 0) / 100, over = share && t > 0 ? Math.min(1, Math.max(0, (share[a.id] - t) / t)) : 0;
+    return [p.id, 0.5 * (under[a.id] ?? 0) - 0.5 * (opts.zen?.balance ?? 0) * over] as const;
+  }));
+  const solved = solve(pieces, { areaBoost, busy: allBusy, fixedEnds, now, util: linUtil, utilAll: linAll, bounds: B, rest, cap: capH, exempt, lec: half, behind: behindOf(tasks, now), zen: opts.zen },[...pieces.map((p) => p.id)].sort().join("|").split("").reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0, 2166136261)); // same pieces, same plan
   const fin = new Map(solved.starts), at = (p: Piece) => fin.get(p.id)!;
   // Cause-free moves: placed pieces the solver moved that are not pinned, missed or "later". Only the 5 most valuable keep their move.
   // shortcut: 5 is a constant, upgrade to a per-user budget once undo rate is tracked
@@ -541,7 +559,7 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
     const explore = bonus > 0 && meanS < meanC;
     if (explore) put("explore", bonus);
     if (p.n > 1) put("pace", bell(p, now, s) - bell(p, now, c), { k: p.k, n: p.n });
-    put("late", 100 * (lateH(p, c) - lateH(p, s)), dueVars(p, s));
+    put("late", 100 * (lateH(p, c, now) - lateH(p, s, now)), dueVars(p, s));
     const stab = moveCost(p, c, now) - moveCost(p, s, now);
     if (stab > 0) put("stable", stab); // no wording for "moving cost us"
     const Ls = loadH(p, s);
@@ -561,14 +579,30 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
     if (ex >= 0) lead.push(...sorted.splice(ex, 1));
     const rule = hits(p, c).find((r) => !hits(p, s).includes(r));
     if (rule) lead.unshift({ key: "rule", w: 1, vars: { text: rule.text } });
-    const out = lead.slice(0, 4);
-    let neg = 0;
-    for (const r of sorted) {
-      if (out.length >= 4) break;
-      if (r.w < 0 && neg++) continue;
-      out.push(r);
-    }
-    return { why: out.some((r) => r.w > 0) ? out : [guessOf(p, s)], explore };
+    // Three questions, one reason each: the day, the part of the day, the length. The explainer's candidates lead; the solver's own
+    // terms fill a gap, but only the ones that are not gagged as learned (reasons.ts sayable). Strongest first, at most three.
+    const DAY_KEYS: ReasonKey[] = ["load", "deadline", "late", "holiday", "exam"], TIME_KEYS: ReasonKey[] = ["gap", "stable", "batch"];
+    const old = [...lead, ...sorted].filter((r) => r.w > 0), from = (keys: ReasonKey[]) => old.filter((r) => keys.includes(r.key));
+    const blocks: Slot[] = [
+      ...near.map((q) => ({ id: q.id, title: q.title, kind: q.kind, start: q.start!, end: q.end!, lecture: false })),
+      ...live.filter((t) => t.fixed && t.start !== undefined && t.end !== undefined).map((t) => ({ id: t.id, title: t.title, kind: t.kind, start: t.start!, end: t.end!, lecture: t.fixed === "lecture" || t.fixed === "exam" })),
+    ];
+    const dayQ = [...explainDay(p, s, {
+      now,
+      classes: (d) => blocks.filter((b) => b.lecture && dayStart(b.start) === d),
+      urgent: (d) => pieces.find((q) => q.id !== p.id && dueOf(q.task) !== undefined && (dueOf(p.task) === undefined || dueOf(q.task)! < dueOf(p.task)!) && at(q) >= 0 && dayStart(at(q)) === d)?.task.title,
+      sibling: (d) => p.task.parentId !== undefined && pieces.some((q) => q.id !== p.id && q.task.parentId === p.task.parentId && at(q) >= 0 && dayStart(at(q)) === d),
+      lighter: (d) => dayType(new Date(d).getDay()) === "cuối tuần" && capH(d) < capH(s),
+    }), ...from(DAY_KEYS)][0];
+    const timeQ = [...from(["rule", "explore"]), ...explainTime(p, s, {
+      others: blocks.filter((b) => dayStart(b.start) === dayStart(s)),
+      buffer: afterBuffer(m),
+      rate: (part) => { const hs = m.hist.filter((h) => now - h.at <= 30 * DAY && (h.r === 1 || h.r === -1) && partIdx(h.hour) === part); return { won: hs.filter((h) => h.r === 1).length, n: hs.length }; },
+      slipping: (part) => (m.left ?? []).filter((l) => now - l.at <= 14 * DAY && partIdx(l.hour) === part).length,
+    }), ...from(TIME_KEYS)][0];
+    const sizeQ = [...explainSize(p, s, dueOf(p.task)), ...from(["pace", "fit"])][0];
+    const three = [dayQ, timeQ, sizeQ].filter((r): r is Reason => r !== undefined).sort((x, y) => y.w - x.w);
+    return { why: three.length ? three : [guessOf(p, s)], explore };
   };
 
   const diff: Diff = { placed: [], displaced: [], split: splits };
@@ -591,14 +625,15 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
     if (p.over && s + dur(p) > dayStart(s) + B.to * MIN) fits.push({ key: "over", w: 1 });
     if (!fits.length && p.task.notAfter !== undefined) fits.push({ key: "said", w: 1 });
     if ((p.task.misses ?? 0) >= 3) fits.push({ key: "missed3", w: 1, vars: { n: p.task.misses!, part: partOf(s) } });
-    r.why = [...fits, ...r.why].slice(0, 4);
-    if (p.task.userEdited?.includes("start") && p.task.start === s) r.why = [{ key: "chose", w: 1 } as Reason, ...r.why.filter((x) => x.key !== "stable")].slice(0, 4);
+    const uniq = (xs: Reason[]) => xs.filter((x, i) => xs.findIndex((y) => y.key === x.key) === i); // one reason per key: the length question never says "fit" twice
+    r.why = uniq([...fits, ...r.why]).slice(0, 3);
+    if (p.task.userEdited?.includes("start") && p.task.start === s) r.why = [{ key: "chose", w: 1 } as Reason, ...r.why.filter((x) => x.key !== "stable")].slice(0, 3);
     if (p.missed !== undefined) {
-      r.why.unshift({ key: "missed", w: 1, vars: { time: when(p.missed, now).split(" ").pop()! } }); r.why = r.why.slice(0, 4); missed.push(p);
+      r.why.unshift({ key: "missed", w: 1, vars: { time: when(p.missed, now).split(" ").pop()! } }); r.why = r.why.slice(0, 3); missed.push(p);
       // Charged once per missed start: the stored block stays stale until apply writes the replan back, and a plan may run again first.
       const old = m.placed[p.id]; // the hour it was placed on did not work out
       if (old?.missCharged !== p.missed) {
-        if (old) update(m.arms[old.arm], old.x, -0.4);
+        if (old) teach(m, old.arm, old.x, -0.35); // the hour and its part both learn the miss
         if (p.task.vec) { m.hist.push({ vec: Array.from(p.task.vec), hour: hourOf(old?.start ?? p.missed), r: -1, at: now, miss: true }); m.hist = m.hist.slice(-300); }
       }
     }
@@ -814,18 +849,24 @@ export function learn(model: Model, ev: TaskEvent, task: Task, own = false, clas
       const from = Number(ev.data?.fromStart ?? start), to = Number(ev.data?.toStart);
       if (!Number.isFinite(from) || !Number.isFinite(to)) break;
       // Where you put it counts even when the planner never placed it (a time you set pins the task): the rhythm reads this list.
-      (m.moved ??= []).push({ hour: hourOf(to), at: ev.at, wd: new Date(to).getDay() });
+      (m.moved ??= []).push({ hour: hourOf(to), at: ev.at, wd: new Date(to).getDay(), kind: task.kind });
       m.moved = m.moved.slice(-200);
-      (m.left ??= []).push({ hour: hourOf(from), at: ev.at, wd: new Date(from).getDay() }); // where you took it off: the slot not to fill again
-      m.left = m.left.slice(-200);
+      const cross = partIdx(hourOf(from)) !== partIdx(hourOf(to)); // inside one part a drag is logistics: the hours' arms learn, the part and "left" do not
+      if (cross) {
+        (m.left ??= []).push({ hour: hourOf(from), at: ev.at, wd: new Date(from).getDay() }); // where you took it off: the slot not to fill again
+        m.left = m.left.slice(-200);
+      }
       // Flat -1 where it was taken from, +0.5 where it went, each as 3 outcomes on a narrow kernel. Not placed by the planner: its kind alone teaches.
       const x = new Array(D).fill(0);
       if (pl) pl.x.forEach((v, i) => { x[i] = v; });
       else x[4 + KINDS.indexOf(task.kind)] = 1;
       x[0] = 0.5; // the intercept at half weight: the hour's curve, not every kind's
-      for (let a = 0; a < m.arms.length; a++) { teach(m, a, x, -1, 3 * kernel(a + 0.5, hourOf(from), DRAG_SIGMA)); teach(m, a, x, 0.5, 3 * kernel(a + 0.5, hourOf(to), DRAG_SIGMA)); }
+      for (let a = 0; a < m.arms.length; a++) {
+        const wf = 3 * kernel(a + 0.5, hourOf(from), DRAG_SIGMA), wt = 3 * kernel(a + 0.5, hourOf(to), DRAG_SIGMA);
+        if (cross) { teach(m, a, x, -1, wf); teach(m, a, x, 0.5, wt); } else { update(m.arms[a], x, -0.5, wf); update(m.arms[a], x, 0.5, wt); }
+      }
       hist(from, -1);
-      m.hypNow = noteHyp(m, task.kind, hourOf(from), hourOf(to), ev.at);
+      if (cross) m.hypNow = noteHyp(m, task.kind, hourOf(from), hourOf(to), ev.at);
       if (pl) m.placed[task.id] = { ...pl, start: to, arm: Math.floor(hourOf(to)), moved: true, why: [{ key: "chose", w: 1 }], explore: false }; // the old reasons were for the old time: a time set by hand says only that
       break;
     }

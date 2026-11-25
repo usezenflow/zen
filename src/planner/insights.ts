@@ -2,9 +2,9 @@
 import { kindW } from "../lib/reasons";
 import { partAt, t } from "../lib/i18n";
 import type { Kind } from "../lib/types";
-import { D, DAY, energy, I_AFTER, I_ENERGY, KINDS, partIdx } from "./features";
+import { D, DAY, I_AFTER, I_ENERGY, KINDS, energyFn, partIdx } from "./features";
 import { peakHour, slipOf } from "./habits";
-import { coldArms, prepare } from "./linucb";
+import { coldArms, posteriorOf } from "./linucb";
 import { afterBuffer, type Model } from "./model";
 
 export interface Insights {
@@ -33,7 +33,7 @@ const FRESH = 7 * DAY; // evidence halves every week: a new habit leads, one odd
 
 const n5 = (n: number) => n / (n + 5);
 const PART_WORD = ["sáng", "trưa", "chiều", "tối"];
-const COLD = prepare(coldArms());
+const COLD = posteriorOf({ arms: coldArms() });
 const U0 = Math.sqrt(COLD.inv[0][0]); // uncertainty of an arm with no evidence
 const KC = KINDS.map((_, j) => 4 + j); // the kind one-hot columns
 const UK = KC.map((c) => Math.sqrt(COLD.inv[0][c * D + c]));
@@ -44,10 +44,10 @@ const clamp = (x: number) => Math.max(0, Math.min(1, x));
 export function insights(m: Model, now: number): Insights {
   const cold = coldArms();
   const learned = m.arms.some((arm, a) => arm.A.some((v, i) => Math.abs(v - cold[a].A[i]) > 1e-6));
-  const p = prepare(m.arms);
-  const peak = peakHour(m, now);
+  const p = posteriorOf(m);
+  const en = energyFn(m.doneHours, now, peakHour(m, now));
   // An hour's quality counts what was learned for the kind that fits it best: a moved task teaches its kind's columns, never the intercept. (A mean over kinds dilutes one kind's evidence as kinds are added.)
-  const raw = range(0, 24).map((h) => p.theta[h][0] + Math.max(...KC.map((c) => p.theta[h][c])) + p.theta[h][I_ENERGY] * energy(h + 0.5, peak));
+  const raw = range(0, 24).map((h) => p.theta[h][0] + Math.max(...KC.map((c) => p.theta[h][c])) + p.theta[h][I_ENERGY] * en(h + 0.5));
   const lo = Math.min(...raw), hi = Math.max(...raw);
   const hours = raw.map((v) => (hi > lo ? (v - lo) / (hi - lo) : 0));
   // How little is known about an hour: the best-known of its intercept and kind columns, against the cold prior.
@@ -147,7 +147,7 @@ export function insights(m: Model, now: number): Insights {
     .filter((e) => e.w > 0.05).sort((a, b) => b.w - a.w);
 
   KINDS.forEach((kind, j) => {
-    const c = 4 + j, score = (h: number) => p.theta[h][0] + p.theta[h][c] + p.theta[h][I_ENERGY] * energy(h + 0.5, peak);
+    const c = 4 + j, score = (h: number) => p.theta[h][0] + p.theta[h][c] + p.theta[h][I_ENERGY] * en(h + 0.5);
     const avg = mean(wake.map(score));
     let top = -Infinity, from = 7;
     for (let f = 7; f <= 20; f++) { const v = mean(range(f, f + 3).map(score)); if (v > top) { top = v; from = f; } }

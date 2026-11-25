@@ -14,11 +14,11 @@ describe("linucb", () => {
     for (let i = 0; i < 20; i++) update(arms[3], x(), 1);
     expect(prepare(arms).theta[3][0]).toBeGreaterThan(before);
     const a0 = arms[3].A[0], c0 = coldArms()[3].A[0];
-    decayArms(arms, 21 * DAY);
+    decayArms(arms, 14 * DAY);
     expect(arms[3].A[0]).toBeCloseTo(c0 + (a0 - c0) / 2, 6);
     expect(arms[3].b[0]).toBeGreaterThan(0);
     expect(N0).toBe(3);
-    expect(ALPHA).toBe(0.15);
+    expect(ALPHA).toBe(0.12);
   });
 
   it("decays to the cold prior and never past it", () => {

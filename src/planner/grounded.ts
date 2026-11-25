@@ -2,7 +2,7 @@
 // without one fails to compile, so no emitter can state a claim nothing checks. Written once in the planner, read again on screen.
 import { examOn, holidayOn } from "../lib/rest";
 import type { Reason, ReasonKey, Rule, Task } from "../lib/types";
-import { MIN, PART4, dayType, hourOf, partIdx } from "./features";
+import { MIN, PART4, dayStart, dayType, hourOf, partIdx } from "./features";
 import { backToBack, batchKind } from "./place";
 
 // tasks: every task, with planned starts and ends: batch reads the neighbour it names, and the exam check a fixed exam the day after the
@@ -20,12 +20,13 @@ export const HOLDS: Record<ReasonKey, (r: Reason, f: Facts) => boolean> = {
   pinned: (_, f) => !!f.task.pinned && f.task.start === f.start,
   rule: (r, f) => f.rules.some((x) => x.text === r.vars?.text),
   kind: (r) => r.vars?.kind !== undefined && r.vars.kind !== "other", // "Hợp việc khác" says nothing
-  hour: (r) => (vnum(r, "n") ?? 0) >= 1,
+  hour: (r) => (vnum(r, "n") ?? 0) >= 1 || has(r, "avoid"), // avoid: the part work keeps slipping out of (explain.ts)
   similar: (r) => (vnum(r, "n") ?? 0) >= 1,
   after: (r) => has(r, "prev") && r.vars!.prev !== "other",
   pace: (r) => (vnum(r, "n") ?? 0) > 1,
-  deadline: (r) => has(r, "due") || has(r, "left"),
-  late: (r) => has(r, "due") || has(r, "left"),
+  deadline: (r) => has(r, "due") || has(r, "left") || r.vars?.urgent === 1, // urgent: a higher-priority deadline placed on a skipped day
+  // catch: placed today to make up for a task that already slipped
+  late: (r, f) => has(r, "due") || has(r, "left") || (r.vars?.catch === 1 && (f.task.misses ?? 0) > 0),
   load: (r) => has(r, "h"),
   holiday: (r) => { const d = vnum(r, "day"); return d !== undefined && holidayOn(d) !== undefined; },
   exam: (r, f) => { const d = vnum(r, "day"); return d !== undefined && !!f.tasks && examOn(f.tasks, d); },
@@ -43,7 +44,9 @@ export const HOLDS: Record<ReasonKey, (r: Reason, f: Facts) => boolean> = {
 };
 
 // A reason about a time of day or kind of day (vars.pn, vars.dt) is for that time: moved to another part or day, it is no longer true.
-const there = (r: Reason, f: Facts) => (r.vars?.pn === undefined || r.vars.pn === PART4[partIdx(hourOf(f.start))]) && (r.vars?.dt === undefined || r.vars.dt === dayType(new Date(f.start).getDay()));
+// vars.on (the day it was placed on, explain.ts) is for that day: moved to another day, a day or part reason is stale.
+const there = (r: Reason, f: Facts) => (r.vars?.pn === undefined || r.vars.pn === PART4[partIdx(hourOf(f.start))]) && (r.vars?.dt === undefined || r.vars.dt === dayType(new Date(f.start).getDay()))
+  && (r.vars?.on === undefined || r.vars.on === dayStart(f.start));
 
 /** The reasons that are still true of this task at `start`; none left means say nothing. */
 export const grounded = (why: Reason[] | undefined, f: Facts) => (why ?? []).filter((r) => there(r, f) && HOLDS[r.key](r, f));

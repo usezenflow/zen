@@ -1,20 +1,32 @@
 import { describe, expect, it } from "vitest";
 import type { Task } from "../lib/types";
 import { split } from "./split";
-import { preps } from "./prep";
+import { preps, skipPrep } from "./prep";
 
 const exam = (over: Partial<Task> = {}): Task => ({
   id: "dlu:e", title: "Toán", kind: "study", source: "dlu", fixed: "exam", effort: 90, start: 1e12, end: 1e12 + 9e6, deadline: 1e12, createdAt: 0, ...over,
 });
 
 describe("preps", () => {
-  it("titles the prep by the exam format, the subject only in course", () => {
+  it("titles the prep with the course's short name and the format; the whole course stays in course", () => {
     for (const [format, title] of [
-      ["Báo cáo(TL)", "Viết báo cáo"], ["Báo cáo TTTT,TL", "Viết báo cáo"], ["Tiểu luận", "Viết tiểu luận"], ["Thực hành", "Luyện thực hành"], ["Thi máy", "Luyện thực hành"],
-      ["Vấn đáp", "Luyện vấn đáp"], ["Tự luận", "Ôn lý thuyết, luyện đề"], ["Trắc nghiệm", "Ôn thi"], [undefined, "Ôn thi"],
+      ["Báo cáo(TL)", "Ôn Toán: viết báo cáo"], ["Báo cáo TTTT,TL", "Ôn Toán: viết báo cáo"], ["Tiểu luận", "Ôn Toán: viết tiểu luận"], ["Thực hành", "Ôn Toán: luyện thực hành"], ["Thi máy", "Ôn Toán: luyện thực hành"],
+      ["Vấn đáp", "Ôn Toán: luyện vấn đáp"], ["Tự luận", "Ôn Toán: luyện đề"], ["Trắc nghiệm", "Ôn Toán: ôn thi"], [undefined, "Ôn Toán: ôn thi"],
     ] as const) {
       expect(preps(exam({ format }))[0]).toMatchObject({ title, course: "Toán", source: "user", forId: "dlu:e", deadline: 1e12, maxSitting: 60 });
     }
+  });
+  it("names the course from the exam's title past its exam words, and keeps the prep id", () => {
+    expect(preps(exam({ title: "Thi Giải tích 2", format: "Tự luận" }))[0]).toMatchObject({ id: "prep:dlu:e", title: "Ôn Giải tích 2: luyện đề", course: "Thi Giải tích 2" });
+  });
+  it("with no course name the title is the format's own", () => {
+    expect(preps(exam({ title: "", format: "Tự luận" }))[0].title).toBe("Ôn lý thuyết, luyện đề");
+  });
+  it("Không cần ôn marks the prep deleted by the student, and again keeps one mark", () => {
+    const [p] = preps(exam());
+    const gone = skipPrep(p, 5);
+    expect(gone).toMatchObject({ id: p.id, deletedAt: 5, userEdited: ["deleted"] });
+    expect(skipPrep(gone, 6).userEdited).toEqual(["deleted"]);
   });
   it("sizes a report or essay format as a report, by the marks multiplier, in sittings of up to an hour", () => {
     for (const [format, mult, sizes] of [["Báo cáo(TL)", 0.75, [60, 60, 60, 30]], ["Báo cáo(TL)", 1, [60, 60, 60, 60, 30]], ["Báo cáo(TL)", 1.6, [60, 60, 60, 60, 60, 60, 60]]] as const) {

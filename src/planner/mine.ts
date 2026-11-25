@@ -1,70 +1,71 @@
-// Insights from LinUCB's part arms: which contrasts the outcomes support, each as a structured finding. Pure: no UI, no writes.
+// Insights from the outcomes (what was done, moved away from, or missed): which contrasts the history supports, each as a structured finding.
+// A completion rate per group is a Beta(2,2) posterior; a contrast is said once both sides have N_MIN outcomes and the chance its gap
+// clears LIFT is at least SURE_P. Pure: no UI, no writes.
 import type { Kind } from "../lib/types";
 import { PART_NAMES } from "../lib/parts";
 import { KIND_VI, kindW } from "../lib/reasons";
 import { INSIGHT, fill } from "../lib/i18n";
-import { D, KINDS, PARTS, coldParts, invert, type Arm } from "./linucb";
+import { KINDS, PARTS } from "./linucb";
 import { DAY, I_AFTER, partIdx } from "./features";
 import { ROW_KEY, insights } from "./insights";
 import type { Model } from "./model";
 
 export interface Finding {
   type: "kindPart" | "sequence" | "busy" | "weekend" | "deadline" | "length";
-  feature: number; // index in the feature vector (length: 4 + the kind's index)
-  armP: number; // part of the day (-1 for length, which is not an arm)
+  feature: number; // index in the feature vector: kindPart and length the kind (4 + kind), sequence the kind before (I_AFTER + kind), busy 2, weekend 1, deadline 3
+  armP: number; // part of the day (-1 for length, which has none)
   armQ?: number; // second part, for kindPart only
-  direction: 1 | -1; // 1: armP (or the first part) scores higher, or the length runs over the guess
-  z: number; // signed contrast
-  n: number; // decayed outcomes behind it (the smaller side for a contrast)
+  direction: 1 | -1; // 1: armP (or the first part, or the context on) completes more; -1: less. For length, 1 runs over the guess
+  z: number; // signed gap over its spread
+  n: number; // outcomes behind it (the smaller side of a contrast)
   behaviour?: "contradicts" | "agrees"; // only kindPart, from drags tagged with a kind; undefined = no data
   surprise: number; // |z| x (2 contradicts, 1 none, 0.5 agrees)
+  of?: Kind; // sequence only: the kind whose outcome is compared (feature is the kind done before it)
+  sure?: number; // 0..1: the chance the gap really clears LIFT in this direction (said at SURE_P or more)
 }
 
-const SIGMA = 0.5; // shortcut: fixed at the reward scale; upgrade to the residual sigma from m.hist once there are 50+ outcomes
-const SURE = 10; // outcomes behind any insight, on each side of a contrast, before it is said (decayed counts, so the real number is higher)
 const WEEK = 7 * DAY;
-const GATE_Z = 3; // ~100 candidates are tested: at |z|≥3 well under one is expected by chance
-const CONF = 0.8; // |corr| above this with another active feature: the data cannot separate them, so nothing is said
-const LEN_LO = 0.85, LEN_HI = 1.15;
+const N_MIN = 5; // outcomes on each side of a contrast before it is said
+const LIFT = 0.15; // the smallest real gap in completion rate worth saying (15 points)
+const SURE_P = 0.9; // the chance the gap clears LIFT, under the posterior, before it is said
+const ON = 0.5; // a one-hot or context flag counts as on from here
+const BUSY_ON = 0.25; // busy is fixed hours / 8: from two hours of fixed lessons that day
+const OVER = 1.15, UNDER = 0.85; // a guessed task ran over or under its guess by more than 15%
+const SURE = 10; // drags behind a behaviour verdict, in total
 
-interface Fit { th: number[]; se: number[]; n: number[]; Ae: number[]; inv: number[] }
+// Standard normal CDF (Abramowitz & Stegun 7.1.26, error under 1.5e-7). shortcut: normal approximation to the Beta posteriors; upgrade to exact Beta tails if small-n verdicts look wrong.
+const phi = (z: number) => {
+  const x = Math.abs(z) / Math.SQRT2, t = 1 / (1 + 0.3275911 * x);
+  const e = 1 - ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+  return z >= 0 ? (1 + e) / 2 : (1 - e) / 2;
+};
 
-// Learned change from the cold prior: theta - theta_cold, its standard error, and the evidence Ae = A - A_cold (flat, row-major).
-function fitPart(arm: Arm, cold: Arm): Fit {
-  const inv = invert(arm.A), ic = invert(cold.A);
-  const th = new Array(D), se = new Array(D), n = new Array(D);
-  const Ae = arm.A.map((v, i) => v - cold.A[i]);
-  for (let i = 0; i < D; i++) {
-    let s = 0, sc = 0;
-    for (let j = 0; j < D; j++) { s += inv[i * D + j] * arm.b[j]; sc += ic[i * D + j] * cold.b[j]; }
-    th[i] = s - sc;
-    se[i] = SIGMA * Math.sqrt(Math.max(0, inv[i * D + i]));
-    n[i] = Ae[i * D + i];
-  }
-  return { th, se, n, Ae, inv };
-}
+// Beta(2,2) prior on a completion rate, after s good outcomes of n: the posterior mean and variance.
+const post = (s: number, n: number) => { const a = 2 + s, b = 2 + n - s; return { mu: a / (a + b), v: (a * b) / ((a + b) ** 2 * (a + b + 1)) }; };
 
-// The prediction for a kind in a part (intercept + its one-hot), learned change and standard error. The kind one-hots sum to the
-// intercept, so a kind's own weight is not identified (ridge splits it with the intercept); the prediction is, and its error shrinks with n.
-function kindAt(f: Fit, feat: number): { mu: number; se: number } {
-  const v = f.inv[0] + 2 * f.inv[feat] + f.inv[feat * D + feat]; // xᵀA⁻¹x for x = e0 + e_feat (A⁻¹ symmetric)
-  return { mu: f.th[0] + f.th[feat], se: SIGMA * Math.sqrt(Math.max(0, v)) };
-}
+// A gap d with spread sd: the side it clears LIFT on, and how sure.
+const verdict = (d: number, sd: number) => {
+  const up = phi((d - LIFT) / sd), down = phi((-d - LIFT) / sd);
+  return up >= SURE_P ? { dir: 1 as const, sure: up } : down >= SURE_P ? { dir: -1 as const, sure: down } : undefined;
+};
 
-// Another active feature (not the intercept) that moves with k: the contrast is not credited to k.
-function confounded(f: Fit, k: number): boolean {
-  for (let l = 1; l < D; l++) {
-    if (l === k || !(f.n[l] > 0) || !(f.n[k] > 0)) continue;
-    if (Math.abs(f.Ae[k * D + l]) / Math.sqrt(f.n[k] * f.n[l]) > CONF) return true;
-  }
-  return false;
-}
+interface Out { kind?: Kind; part: number; ok: boolean; x: number[] }
+const kindIn = (x: number[], from: number) => KINDS.find((_, i) => x[from + i] >= ON);
+// Outcomes are the history rows with a sign: r > 0 went well, r < 0 did not (a later, a drag, a miss). r = 0 counts nothing.
+const outcomes = (m: Model): Out[] => m.hist.filter((h) => h.r !== 0).map((h) => ({ kind: kindIn(h.vec, 4), part: partIdx(h.hour), ok: h.r > 0, x: h.vec }));
 
-const median = (v: number[]) => { const s = [...v].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
+// Does group a complete more than group b, by more than LIFT? Both sides need N_MIN outcomes.
+const contrast = (a: Out[], b: Out[]) => {
+  if (a.length < N_MIN || b.length < N_MIN) return undefined;
+  const A = post(a.filter((o) => o.ok).length, a.length), B = post(b.filter((o) => o.ok).length, b.length);
+  const d = A.mu - B.mu, sd = Math.sqrt(A.v + B.v), v = verdict(d, sd);
+  return v && { ...v, z: d / sd, n: Math.min(a.length, b.length) };
+};
 
-const surpriseOf = (z: number, b?: Finding["behaviour"]) => Math.abs(z) * (b === "contradicts" ? 2 : b === "agrees" ? 0.5 : 1);
+const keyOf = (f: Finding) => `${f.type}:${f.feature}:${f.armP}:${f.armQ ?? ""}:${f.direction}:${f.of ?? ""}`;
+const learnedKeys = (m: Model, now: number) => insights(m, now).learned.map((x) => ROW_KEY + x.text);
 
-// Where the user puts this kind by hand: drags tagged with the kind (m.moved has no kind yet, so this is empty until learn adds it).
+// Where the user puts this kind by hand: drags tagged with the kind.
 function behaviour(m: Model, ki: number, p: number, q: number, dir: 1 | -1): Finding["behaviour"] {
   let mp = 0, mq = 0;
   for (const x of m.moved ?? []) {
@@ -76,55 +77,48 @@ function behaviour(m: Model, ki: number, p: number, q: number, dir: 1 | -1): Fin
   return (mp > mq) === (dir === 1) ? "agrees" : "contradicts";
 }
 
-const keyOf = (f: Finding) => `${f.type}:${f.feature}:${f.armP}:${f.armQ ?? ""}:${f.direction}`;
-const learnedKeys = (m: Model, now: number) => insights(m, now).learned.map((x) => ROW_KEY + x.text);
+const surpriseOf = (z: number, b?: Finding["behaviour"]) => Math.abs(z) * (b === "contradicts" ? 2 : b === "agrees" ? 0.5 : 1);
 
-/** Every finding the model supports now, strongest |z| first (pure; not yet surfaced). Empty when there is no model or no significant contrast. */
+/** Every finding the history supports now, strongest first (pure; not yet surfaced). Empty for a thin history. */
 export function candidates(m: Model): Finding[] {
-  if (!m.parts || m.parts.length !== PARTS) return [];
-  const cold = coldParts();
-  const fits = m.parts.map((arm, p) => fitPart(arm, cold[p]));
+  const os = outcomes(m);
   const out: Finding[] = [];
 
-  // Kind x part: each pair of parts, p before q.
-  KINDS.forEach((_, ki) => {
-    const feat = 4 + ki;
+  // Kind x part: the same kind completes more in one part of the day than in another (p before q).
+  KINDS.forEach((k, ki) => {
     for (let p = 0; p < PARTS; p++) for (let q = p + 1; q < PARTS; q++) {
-      const a = fits[p], b = fits[q];
-      if (a.n[feat] < SURE || b.n[feat] < SURE || confounded(a, feat) || confounded(b, feat)) continue;
-      const ka = kindAt(a, feat), kb = kindAt(b, feat);
-      const z = (ka.mu - kb.mu) / Math.hypot(ka.se, kb.se);
-      if (Math.abs(z) < GATE_Z) continue;
-      const direction = z > 0 ? 1 : -1, bh = behaviour(m, ki, p, q, direction);
-      out.push({ type: "kindPart", feature: feat, armP: p, armQ: q, direction, z, n: Math.min(a.n[feat], b.n[feat]), behaviour: bh, surprise: surpriseOf(z, bh) });
+      const r = contrast(os.filter((o) => o.kind === k && o.part === p), os.filter((o) => o.kind === k && o.part === q));
+      if (!r) continue;
+      const bh = behaviour(m, ki, p, q, r.dir);
+      out.push({ type: "kindPart", feature: 4 + ki, armP: p, armQ: q, direction: r.dir, z: r.z, n: r.n, behaviour: bh, surprise: surpriseOf(r.z, bh), sure: r.sure });
     }
   });
 
-  // One part at a time against zero: the feature's own effect there.
-  const single = (type: Finding["type"], feat: number, p: number) => {
-    const f = fits[p];
-    if (f.n[feat] < SURE || confounded(f, feat)) return;
-    const z = f.th[feat] / f.se[feat];
-    if (Math.abs(z) < GATE_Z) return;
-    out.push({ type, feature: feat, armP: p, direction: z > 0 ? 1 : -1, z, n: f.n[feat], surprise: surpriseOf(z) });
-  };
-  for (let p = 0; p < PARTS; p++) {
-    KINDS.forEach((_, j) => single("sequence", I_AFTER + j, p));
-    single("busy", 2, p);
-    single("weekend", 1, p);
-    single("deadline", 3, p);
+  // What was done right before (a kind), in one part: kind k after prev against kind k done some other way, in that part.
+  KINDS.forEach((prev, j) => KINDS.forEach((k) => {
+    for (let p = 0; p < PARTS; p++) {
+      const same = os.filter((o) => o.kind === k && o.part === p);
+      const r = contrast(same.filter((o) => kindIn(o.x, I_AFTER) === prev), same.filter((o) => kindIn(o.x, I_AFTER) !== prev));
+      if (r) out.push({ type: "sequence", feature: I_AFTER + j, armP: p, direction: r.dir, z: r.z, n: r.n, surprise: Math.abs(r.z), of: k, sure: r.sure });
+    }
+  }));
+
+  // One context at a time, within each part of the day: the context on against off (busy day, weekend, near a deadline).
+  const flags: [Finding["type"], number, number][] = [["busy", 2, BUSY_ON], ["weekend", 1, ON], ["deadline", 3, ON]];
+  for (const [type, feat, at] of flags) for (let p = 0; p < PARTS; p++) {
+    const here = os.filter((o) => o.part === p);
+    const r = contrast(here.filter((o) => o.x[feat] >= at), here.filter((o) => o.x[feat] < at));
+    if (r) out.push({ type, feature: feat, armP: p, direction: r.dir, z: r.z, n: r.n, surprise: Math.abs(r.z), sure: r.sure });
   }
 
-  // Length: the median of actual / guessed minutes per kind, over the last 20 guessed tasks.
-  KINDS.forEach((k: Kind, ki) => {
+  // Length: guessed tasks of this kind (last 20) that ran over or under their guess by 15%+, against the half that would be a fair guess.
+  KINDS.forEach((k, ki) => {
     const rs = m.efforts.filter((e) => e.kind === k && e.guess && e.guess > 0).slice(-20).map((e) => e.minutes / e.guess!);
-    if (rs.length < SURE) return;
-    const med = median(rs);
-    if (med >= LEN_LO && med <= LEN_HI) return;
-    const mean = rs.reduce((s, r) => s + r, 0) / rs.length;
-    const sd = Math.sqrt(rs.reduce((s, r) => s + (r - mean) ** 2, 0) / Math.max(1, rs.length - 1));
-    const z = (med - 1) / (Math.max(sd, 0.05) / Math.sqrt(rs.length));
-    out.push({ type: "length", feature: 4 + ki, armP: -1, direction: med > 1 ? 1 : -1, z, n: rs.length, surprise: Math.abs(z) });
+    if (rs.length < N_MIN) return;
+    for (const [dir, n] of [[1, rs.filter((r) => r > OVER).length], [-1, rs.filter((r) => r < UNDER).length]] as const) {
+      const P = post(n, rs.length), v = verdict(P.mu - 0.5, Math.sqrt(P.v));
+      if (v?.dir === 1) out.push({ type: "length", feature: 4 + ki, armP: -1, direction: dir, z: (P.mu - 0.5) / Math.sqrt(P.v), n: rs.length, surprise: Math.abs((P.mu - 0.5) / Math.sqrt(P.v)), sure: v.sure });
+    }
   });
 
   return out.sort((a, b) => Math.abs(b.z) - Math.abs(a.z));
@@ -160,6 +154,7 @@ export function clause(f: Finding): string {
   return fill(tpl, {
     kind: kind ? kindW(kind, true) : "",
     prev: kind ? KIND_VI[kind] : "",
+    of: f.of ? kindW(f.of) : "",
     part,
     to: f.armQ === undefined ? "" : PART_NAMES[f.armQ],
   });
@@ -170,11 +165,12 @@ export function clause(f: Finding): string {
  *  for this kind come last: they explain the block's length, not its time. `x` is the slot's feature vector (Placed.x), when known. */
 export function findingsFor(fs: Finding[], kind: Kind, start: number, x?: number[]): Finding[] {
   const part = partIdx(new Date(start).getHours() + new Date(start).getMinutes() / 60), kf = 4 + KINDS.indexOf(kind);
-  const on = (i: number, at = 0.5) => (x?.[i] ?? 0) >= at;
+  const on = (i: number, at = ON) => (x?.[i] ?? 0) >= at;
   const slot = fs.filter((f) => {
+    if (f.of !== undefined && f.of !== kind) return false; // a sequence speaks about its own kind's outcome
     if (f.type === "kindPart") return f.feature === kf && ((f.armP === part && f.direction === 1) || (f.armQ === part && f.direction === -1));
     if (f.type === "length") return false;
-    return f.armP === part && f.direction === 1 && on(f.feature, f.type === "deadline" || f.type === "busy" ? 0.5 : 1);
+    return f.armP === part && f.direction === 1 && on(f.feature, f.type === "busy" ? BUSY_ON : ON);
   });
   return [...slot, ...fs.filter((f) => f.type === "length" && f.feature === kf)];
 }

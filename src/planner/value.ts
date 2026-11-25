@@ -72,10 +72,31 @@ export const edgeCost = (p: Piece, start: number) => {
   return (EDGE.w * Math.max(0, Math.min(end, due) - Math.max(start, due - margin))) / HOUR;
 };
 
-export const lateH = (p: Piece, start: number) => (p.task.deadline === undefined ? 0 : Math.max(0, start + dur(p) - p.task.deadline) / HOUR);
+// Overdue (deadline already past): every start is late, so the hour cliff would pull it to the earliest slot and evict locked work. A gentle -1.5 a day instead (startValue scales by 100).
+export const lateH = (p: Piece, start: number, now?: number) => {
+  if (p.task.deadline === undefined) return 0;
+  if (now !== undefined && p.task.deadline < now) return (1.5 / 100) * Math.max(0, start - now) / DAY;
+  return Math.max(0, start + dur(p) - p.task.deadline) / HOUR;
+};
+
+export const EARLY_BUFFER = 1.5 * DAY; // a deadline is aimed to land this much before it, leaving breathing room
+// Behind pace per family (a split's sittings, else the task itself; key parentId ?? id): the share of its effort it should have done by now, not yet done. 0 when on pace or undated.
+export function behindOf(tasks: Task[], now: number): Map<string, number> {
+  const live = tasks.filter((t) => !t.deletedAt), out = new Map<string, number>();
+  for (const t of live) {
+    if (t.deadline === undefined || t.rrule) continue;
+    const key = t.parentId ?? t.id;
+    if (out.has(key)) continue;
+    const kids = live.filter((x) => x.parentId === key), group = kids.length ? kids : [t];
+    const total = group.reduce((s, x) => s + x.effort, 0), done = group.reduce((s, x) => s + (x.doneAt !== undefined ? x.effort : 0), 0);
+    const window = t.deadline - EARLY_BUFFER - t.createdAt;
+    out.set(key, total <= 0 || window <= 0 ? 0 : Math.max(0, (total * (now - t.createdAt)) / window - done) / total);
+  }
+  return out;
+}
 
 // util is the policy part (UCB minus bell). W_LEARN: learned util is small next to the move and bell costs, so it is scaled up to decide.
 export const W_LEARN = 4;
-export function startValue(p: Piece, start: number, now: number, util: number): number {
-  return W_LEARN * util + bell(p, now, start) - 1e-4 * Math.max(0, (start - now) / DAY) - 100 * lateH(p, start) - moveCost(p, start, now) - edgeCost(p, start);
+export function startValue(p: Piece, start: number, now: number, util: number, boost = 0): number {
+  return W_LEARN * util + bell(p, now, start) - 1e-4 * Math.max(0, (start - now) / DAY) - 100 * lateH(p, start, now) - moveCost(p, start, now) - edgeCost(p, start) + boost;
 }

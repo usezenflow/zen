@@ -1,62 +1,62 @@
 import { describe, expect, it } from "vitest";
-import { D, KINDS, update } from "./linucb";
-import { newModel, type Model } from "./model";
+import type { Kind } from "../lib/types";
+import { D, KINDS } from "./linucb";
+import { I_AFTER } from "./features";
+import { newModel, type Hist, type Model } from "./model";
 import { candidates, clause, findingsFor, mine, surface, type Finding } from "./mine";
 
-// Feature vector: intercept, plus the kind's one-hot, plus optional weekend.
-const x = (ki: number, weekend = 0) => { const v = new Array(D).fill(0); v[0] = 1; v[1] = weekend; v[4 + ki] = 1; return v; };
 const STUDY = KINDS.indexOf("study"), WORK = KINDS.indexOf("work");
-// Neutral outcomes (reward 0) of other kinds in both parts: they pin the shared intercept, so a kind's effect is identifiable.
-const background = (m: Model) => { for (const p of [0, 3]) for (const ki of [1, 2, 3, 5]) for (let i = 0; i < 20; i++) update(m.parts![p], x(ki), 0); };
-
 const DAY_MS = 86400_000;
-// A planted study contrast (morning good, evening bad), 20 and 24 outcomes behind it.
-const planted = (): Model => {
-  const m: Model = newModel(0);
-  for (let i = 0; i < 20; i++) update(m.parts![0], x(STUDY), 0.5);
-  for (let i = 0; i < 24; i++) update(m.parts![3], x(STUDY), -0.5);
-  background(m);
-  return m;
+
+// One history row: the feature vector as the planner wrote it (kind one-hot, what came before, busy, weekend), and whether it went well.
+const hist = (kind: Kind, hour: number, ok: boolean, o: { after?: Kind; busy?: number; weekend?: number } = {}): Hist => {
+  const v = new Array(D).fill(0);
+  v[0] = 1; v[1] = o.weekend ?? 0; v[2] = o.busy ?? 0; v[4 + KINDS.indexOf(kind)] = 1;
+  if (o.after) v[I_AFTER + KINDS.indexOf(o.after)] = 1;
+  return { vec: v, hour, r: ok ? 0.5 : -0.5, at: 0 };
 };
+const rows = (n: number, make: () => Hist) => Array.from({ length: n }, make);
+const withHist = (...hs: Hist[][]) => { const m: Model = newModel(0); m.hist = hs.flat(); return m; };
+
+// Six study blocks done in the morning, six dragged away from in the evening: a real, sure contrast.
+const studyContrast = () => withHist(rows(6, () => hist("study", 9, true)), rows(6, () => hist("study", 20, false)));
 
 describe("mine", () => {
-  it("finds a planted kind x part effect with its direction", () => {
-    const m = planted();
-    const f = candidates(m).find((g) => g.type === "kindPart" && g.feature === 4 + STUDY);
+  it("six real outcomes each side surface a part contrast", () => {
+    const f = candidates(studyContrast()).find((g) => g.type === "kindPart" && g.feature === 4 + STUDY);
     expect(f).toBeDefined();
     expect(f!.armP).toBe(0);
     expect(f!.armQ).toBe(3);
     expect(f!.direction).toBe(1);
-    expect(Math.abs(f!.z)).toBeGreaterThanOrEqual(3);
-    expect(f!.n).toBeGreaterThanOrEqual(3);
+    expect(f!.n).toBe(6);
+    expect(f!.sure).toBeGreaterThanOrEqual(0.9);
     expect(f!.surprise).toBeCloseTo(Math.abs(f!.z));
+    expect(clause(f!)).toBe("Việc học buổi sáng hay xong hơn buổi tối");
   });
 
-  it("returns nothing for a cold model or for noise with no contrast", () => {
+  it("a thin history surfaces nothing: a cold model, and four outcomes a side", () => {
+    expect(candidates(newModel(0))).toEqual([]);
     expect(mine(newModel(0), 0)).toEqual([]);
-    const m: Model = newModel(0);
-    for (let p = 0; p < 4; p++) for (let i = 0; i < 40; i++) update(m.parts![p], x(i % KINDS.length), i % 2 ? 0.5 : -0.5);
-    expect(mine(m, 0)).toEqual([]);
+    const thin = withHist(rows(4, () => hist("study", 9, true)), rows(4, () => hist("study", 20, false)));
+    expect(candidates(thin)).toEqual([]);
   });
 
-  it("credits no single feature when two features are always on together", () => {
-    const m: Model = newModel(0);
-    // every outcome is a weekend study: weekend and study move together, so neither is named alone
-    for (let i = 0; i < 10; i++) update(m.parts![0], x(STUDY, 1), 0.5);
-    for (let i = 0; i < 12; i++) update(m.parts![3], x(STUDY, 1), -0.5);
-    const named = candidates(m).filter((g) => g.feature === 1 || g.feature === 4 + STUDY);
-    expect(named).toEqual([]);
+  it("a busy day that completes less in the evening, and a sequence after a kind, are both found", () => {
+    const busyEvening = withHist(rows(6, () => hist("study", 20, false, { busy: 0.5 })), rows(6, () => hist("study", 20, true)));
+    const b = candidates(busyEvening).find((g) => g.type === "busy");
+    expect(b).toMatchObject({ armP: 3, direction: -1 });
+
+    const after = withHist(rows(6, () => hist("study", 9, true, { after: "work" })), rows(6, () => hist("study", 9, false)));
+    const s = candidates(after).find((g) => g.type === "sequence");
+    expect(s).toMatchObject({ feature: I_AFTER + WORK, armP: 0, direction: 1, of: "study" });
   });
 
   it("uses the behaviour of tagged drags, and says nothing when there are none", () => {
-    const m: Model = newModel(0);
-    for (let i = 0; i < 20; i++) update(m.parts![0], x(STUDY), 0.5);
-    for (let i = 0; i < 24; i++) update(m.parts![3], x(STUDY), -0.5);
-    background(m);
+    const m = studyContrast();
     const pick = () => candidates(m).find((g) => g.type === "kindPart" && g.feature === 4 + STUDY)!;
     expect(pick().behaviour).toBeUndefined();
-    // the user drags study to the evening (tối, hour 20) four times: against the effect
-    m.moved = Array.from({ length: 10 }, () => ({ hour: 20, at: 0, kind: "study" }) as never);
+    // the user drags study to the evening (tối, hour 20) ten times: against the effect
+    m.moved = Array.from({ length: 10 }, () => ({ hour: 20, at: 0, kind: "study" }));
     expect(pick().behaviour).toBe("contradicts");
     expect(pick().surprise).toBeCloseTo(2 * Math.abs(pick().z));
   });
@@ -71,17 +71,8 @@ describe("mine", () => {
     expect(candidates(m).some((g) => g.type === "length")).toBe(false);
   });
 
-  it("says a contrast only with 10 outcomes on each side", () => {
-    const m: Model = newModel(0);
-    for (let i = 0; i < 9; i++) update(m.parts![0], x(STUDY), 0.5);
-    for (let i = 0; i < 9; i++) update(m.parts![3], x(STUDY), -0.5);
-    background(m);
-    expect(candidates(m).some((g) => g.type === "kindPart" && g.feature === 4 + STUDY)).toBe(false);
-  });
-
   it("says nothing until surfaced, then one new insight a week", () => {
-    const m = planted();
-    m.efforts = Array.from({ length: 10 }, (_, i) => ({ vec: [], minutes: 90, at: i, kind: "study" as const, guess: 60 }));
+    const m = withHist(rows(6, () => hist("study", 9, true)), rows(6, () => hist("study", 20, false)), rows(6, () => hist("work", 9, false)), rows(6, () => hist("work", 20, true)));
     expect(candidates(m).length).toBe(2);
     expect(mine(m, 0)).toEqual([]);
     surface(m, 0);
@@ -99,8 +90,8 @@ describe("clause", () => {
   const cases: Finding[] = [
     { type: "kindPart", feature: 4 + STUDY, armP: 0, armQ: 3, direction: 1, z: 3, n: 10, surprise: 3 },
     { type: "kindPart", feature: 4 + STUDY, armP: 0, armQ: 3, direction: -1, z: -3, n: 10, surprise: 3 },
-    { type: "sequence", feature: 13 + STUDY, armP: 2, direction: 1, z: 2.5, n: 5, surprise: 2.5 },
-    { type: "sequence", feature: 13 + STUDY, armP: 2, direction: -1, z: -2.5, n: 5, surprise: 2.5 },
+    { type: "sequence", feature: I_AFTER + WORK, armP: 2, direction: 1, z: 2.5, n: 5, surprise: 2.5, of: "study" },
+    { type: "sequence", feature: I_AFTER + WORK, armP: 2, direction: -1, z: -2.5, n: 5, surprise: 2.5, of: "study" },
     { type: "busy", feature: 2, armP: 1, direction: 1, z: 2, n: 4, surprise: 2 },
     { type: "busy", feature: 2, armP: 1, direction: -1, z: -2, n: 4, surprise: 2 },
     { type: "weekend", feature: 1, armP: 3, direction: 1, z: 2, n: 4, surprise: 2 },
@@ -129,10 +120,10 @@ describe("findingsFor", () => {
   const f = (o: Partial<Finding>): Finding => ({ type: "kindPart", feature: 4 + STUDY, armP: 0, armQ: 3, direction: 1, z: 4, n: 10, surprise: 4, ...o });
   const at = (h: number) => new Date(2026, 10, 16, h).getTime();
   it("says a kind x part finding only in the part it favours, and a context only when it is present", () => {
-    const fs = [f({}), f({ type: "sequence", feature: 13 + WORK, armP: 2, armQ: undefined }), f({ type: "length", armP: -1, armQ: undefined })];
+    const fs = [f({}), f({ type: "sequence", feature: I_AFTER + WORK, armP: 2, armQ: undefined, of: "study" }), f({ type: "length", armP: -1, armQ: undefined })];
     expect(findingsFor(fs, "study", at(9)).map((x) => x.type)).toEqual(["kindPart", "length"]); // morning, the side that does better
     expect(findingsFor(fs, "study", at(20)).map((x) => x.type)).toEqual(["length"]); // evening is the side that does worse
-    const x = new Array(D).fill(0); x[13 + WORK] = 1;
+    const x = new Array(D).fill(0); x[I_AFTER + WORK] = 1;
     expect(findingsFor(fs, "study", at(15), x).map((y) => y.type)).toEqual(["sequence", "length"]);
     expect(findingsFor(fs, "study", at(15)).map((y) => y.type)).toEqual(["length"]); // no "after" in this slot
     expect(findingsFor(fs, "work", at(9))).toEqual([]);

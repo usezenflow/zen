@@ -3,12 +3,13 @@ import { DAY, HOUR, MIN, dayStart } from "./features";
 import { PARTS, WAKE_FROM, WAKE_TO } from "../lib/parts";
 import { type Bounds, DEFAULT_BOUNDS } from "./bounds";
 import { type Piece, dur, pullOk, startValue } from "./value";
+import type { ZenRule } from "./zen";
 
 export interface Busy { start: number; end: number }
 export type End = { kind: Kind; end: number };
 export type Util = (p: Piece, start: number, ends: End[]) => number;
 // utilAll scores every cell of cells(p, now) at once, index-aligned; util stays for off-grid starts.
-export interface Env { busy: Busy[]; fixedEnds: End[]; now: number; util: Util; utilAll?: (p: Piece, ends: End[]) => ArrayLike<number>; bounds?: Bounds; rest?: Rest; cap?: (day: number) => number /* hours a day may carry before the load hinge; 6 when absent */; exempt?: (p: Piece, day: number) => boolean /* prep for an exam the next day: scored cold, not capped */ }
+export interface Env { zen?: Partial<Record<ZenRule, number>> /* zenWeights (zen.ts), soft: weekend, after 22:00, a deadline with under 1.5 days to spare */; behind?: Map<string, number> /* behindOf per family: ordered first, boosted */; areaBoost?: Map<string, number> /* per piece id: 0.5 * underServed of its area (policy.ts) */; busy: Busy[]; fixedEnds: End[]; now: number; util: Util; utilAll?: (p: Piece, ends: End[]) => ArrayLike<number>; bounds?: Bounds; rest?: Rest; cap?: (day: number) => number /* hours a day may carry before the load hinge; 6 when absent */; exempt?: (p: Piece, day: number) => boolean /* prep for an exam the next day: scored cold, not capped */; lec?: Set<Busy> /* lecture and exam busy blocks: half-hour load */ }
 /** Lecture and exam ends, and the rest (ms) own work leaves after each (afterBuffer, learned). */
 export interface Rest { classEnds: number[]; buffer: number }
 /** An accepted search move that raised the best score; policy.ts turns these into narrated Steps. */
@@ -38,9 +39,10 @@ const TWIN = 1.5;
 const ceil = (t: number) => Math.ceil(t / STEP) * STEP;
 const ov = (a0: number, a1: number, b0: number, b1: number) => Math.max(0, Math.min(a1, b1) - Math.max(a0, b0));
 
-export function fixedHours(busy: Busy[], day: number): number {
+// Lectures and exams (lec) count half, as worked() counts them in rest.ts.
+export function fixedHours(busy: Busy[], day: number, lec?: Set<Busy>): number {
   let ms = 0;
-  for (const b of busy) ms += ov(b.start, b.end, day, day + DAY);
+  for (const b of busy) ms += ov(b.start, b.end, day, day + DAY) * (lec?.has(b) ? 0.5 : 1);
   return ms / HOUR;
 }
 
@@ -114,6 +116,17 @@ export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
     return c.map((x) => { if (x >= nx) { d = dayStart(x); nx = dayStart(d + 1.5 * DAY); } return d; });
   });
   const du = pieces.map(dur);
+  const bh = pieces.map((p) => env.behind?.get(p.task.parentId ?? p.task.id) ?? 0), bo = bh.map((b, i) => 1.5 * b + (env.areaBoost?.get(pieces[i].id) ?? 0)); // behindBoost, areaBoost
+  // funGate: casual work (fun, no deadline) steps aside for a behind-pace deadline piece: no start before its due while one lags past 15%
+  const behindDue = Math.min(...pieces.map((p, i) => (bh[i] > 0.15 ? p.task.deadline ?? Infinity : Infinity)));
+  const fun = (t: Task) => t.fun ?? (t.deadline === undefined && !(["study", "work", "finance", "errand"] as Kind[]).includes(t.kind));
+  // Zen rules as soft costs, scaled by their learned or strict weight (0 when absent: today's plan)
+  const zenPen = (i: number, s: number) => {
+    const z = env.zen, t = pieces[i].task, e = s + du[i];
+    if (!z) return 0;
+    return -0.5 * ((z.rest && [0, 6].includes(new Date(s).getDay()) ? z.rest : 0) + (z.night && e - dayStart(s) > 22 * HOUR ? z.night : 0) + (z.early && t.deadline !== undefined && t.deadline - e < 1.5 * DAY ? z.early : 0));
+  };
+  const val = (i: number, s: number, u: number) => startValue(pieces[i], s, now, u, bo[i]) + (s < behindDue && fun(pieces[i].task) ? -0.8 : 0) + zenPen(i, s);
   const exempt = (p: Piece, d: number) => !!env.exempt?.(p, d);
   const inDom = (i: number, s: number) => s >= cs[i][0] && s <= cs[i][cs[i].length - 1];
 
@@ -121,7 +134,7 @@ export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
   for (const b of env.busy)
     for (let d = dayStart(b.start - HALO - TAIL); d <= b.end + HALO; d = dayStart(d + 1.5 * DAY)) (bz.get(d) ?? bz.set(d, []).get(d)!).push(b);
   const fx = new Map<number, number>();
-  const fh = (day: number) => fx.get(day) ?? (fx.set(day, fixedHours(bz.get(day) ?? [], day)), fx.get(day)!);
+  const fh = (day: number) => fx.get(day) ?? (fx.set(day, fixedHours(bz.get(day) ?? [], day, env.lec)), fx.get(day)!);
 
   // Hard constraints: awake, clear of busy time and of every other placed piece. A piece never crosses midnight (awake), so its day's lists are enough.
   const clash = (ivs: Iv[], s: number, e: number) => ivs.some((b) => s < b.end && e > b.start);
@@ -193,7 +206,7 @@ export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
       if (!pullOk(p, c) || !awake(p, c, day, B) || clash(bz.get(day) ?? [], c, e) || (!lax && clash(items, c, e))) continue;
       let b0 = base.get(day);
       if (b0 === undefined) base.set(day, (b0 = dayCost(day, items, lax)));
-      const v = startValue(p, c, now, u ? u[k] : env.util(p, c, ends)) - (dayCost(day, [...items, { start: c, end: c + du[i], g: p.task.parentId, k: p.task.kind, ex: exempt(p, day) }], lax) - b0);
+      const v = val(i, c, u ? u[k] : env.util(p, c, ends)) - (dayCost(day, [...items, { start: c, end: c + du[i], g: p.task.parentId, k: p.task.kind, ex: exempt(p, day) }], lax) - b0);
       if (v > top.v) top = { c, v };
     }
     return top.c;
@@ -211,7 +224,7 @@ export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
     for (let j = 0; j < n; j++) {
       const s = x[j];
       if (s < 0 ? !moved.has(j) : !moved.has(j) && !win.some((e) => s >= e && s - e <= HOUR)) continue;
-      const v = s < 0 ? MISS : startValue(pieces[j], s, now, env.util(pieces[j], s, ends));
+      const v = s < 0 ? MISS : val(j, s, env.util(pieces[j], s, ends));
       dv.set(j, v); delta += v - V[j];
     }
     for (const d of days) { const c = dayCost(d, bk.get(d) ?? []); nd.set(d, c); delta -= c - (D.get(d) ?? 0); }
@@ -220,7 +233,7 @@ export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
   const full = (x: number[]) => {
     const ends = endsOf(x);
     let s = 0;
-    for (let i = 0; i < n; i++) s += x[i] >= 0 ? startValue(pieces[i], x[i], now, env.util(pieces[i], x[i], ends)) : MISS;
+    for (let i = 0; i < n; i++) s += x[i] >= 0 ? val(i, x[i], env.util(pieces[i], x[i], ends)) : MISS;
     for (const [d, items] of listsOf(x)) s -= dayCost(d, items);
     return s;
   };
@@ -228,7 +241,7 @@ export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
   const log: LogEntry[] = [];
   // One-cell pieces (kept where they are) go first, so a movable piece never takes their time; then deadline; then unscheduled before placed.
   const order = pieces.map((_, i) => i).sort((a, b) =>
-    (cs[a].length > 1 ? 1 : 0) - (cs[b].length > 1 ? 1 : 0) || (pieces[a].task.deadline ?? Infinity) - (pieces[b].task.deadline ?? Infinity)
+    (cs[a].length > 1 ? 1 : 0) - (cs[b].length > 1 ? 1 : 0) || (bh[b] > 0 ? 1 : 0) - (bh[a] > 0 ? 1 : 0) || (pieces[a].task.deadline ?? Infinity) - (pieces[b].task.deadline ?? Infinity)
     || (pieces[a].prior === undefined ? 0 : 1) - (pieces[b].prior === undefined ? 0 : 1) || (pieces[a].id < pieces[b].id ? -1 : 1));
   const rank: number[] = []; order.forEach((i, r) => (rank[i] = r));
   for (const i of order) {

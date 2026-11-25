@@ -5,7 +5,7 @@ import type { Model } from "./model";
 export interface Bounds { parts: [number, number][]; from: number; to: number }
 export const DEFAULT_BOUNDS: Bounds = { parts: PARTS, from: WAKE_FROM, to: WAKE_TO };
 
-const MIN_PART = 5, MIN_DAYS = 5, PAD = 30, REACH = 90;
+const MIN_PART = 5, MIN_DAYS = 3, PAD = 30, REACH = 90;
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
 // shortcut: nearest-rank quantile on a copy, fine for the 50 and 30 samples the model keeps; upgrade to interpolation if they grow.
 const q = (xs: number[], p: number) => [...xs].sort((a, b) => a - b)[Math.round(p * (xs.length - 1))];
@@ -24,7 +24,8 @@ export function boundsOf(m: Model): Bounds {
     const edge = PARTS[k][0];
     if (parts[k - 1][1] > parts[k][0]) { parts[k - 1] = [parts[k - 1][0], edge]; parts[k] = [edge, parts[k][1]]; }
   }
-  const days = m.active ?? [];
+  const all = m.active ?? [], latest = Math.max(0, ...all.map((d) => d.day));
+  const days = all.filter((d) => d.day > latest - 14 * 86_400_000); // one crunch week of late nights fades instead of widening the window for a month
   if (days.length < MIN_DAYS) return { parts, from: WAKE_FROM, to: WAKE_TO };
   // the awake window only expands: it stops forbidding hours the user really works in. shortcut: awake end capped at 24:00, since a piece never crosses midnight (place.ts).
   const from = Math.min(WAKE_FROM, clamp(q(days.map((d) => d.first), 0.1) - PAD, 5 * 60, 24 * 60 - 1));
