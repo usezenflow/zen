@@ -120,3 +120,12 @@ describe("outline", () => {
     ]);
   });
 });
+
+describe("a said start", () => {
+  it("rides on its leaf and saves as a busy block", () => {
+    const o = outline("Tuần này:\n- Họp nhóm 14h ngày 10/12 (1 giờ)\n- Đọc chương 3\n- Viết báo cáo", new Date(2026, 11, 1, 9))!;
+    const l = o.groups[0].items[0];
+    expect(l.start).toBe(new Date(2026, 11, 10, 14).getTime());
+    expect(actionsOf(o.groups)[0]).toMatchObject({ when: new Date(l.start!).toISOString(), fixed: "busy" });
+  });
+});

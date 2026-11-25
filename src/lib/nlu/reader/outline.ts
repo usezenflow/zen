@@ -12,6 +12,10 @@ export interface Leaf {
   done: boolean;
   /** Epoch ms, local time. */
   deadline?: number;
+  /** Epoch ms: a start the words gave ("họp 14h thứ 4"); it saves as a busy block of `minutes`. */
+  start?: number;
+  /** Epoch ms: "sau 15/12", the earliest it may run. */
+  notBefore?: number;
   kind?: string;
   /** "said": the words gave the length. "budget": the group's budget did. Absent: the learned guess. */
   sized: "said" | "budget" | undefined;
@@ -112,6 +116,8 @@ interface Parsed {
   rest: string;
   minutes?: number;
   deadline?: number;
+  start?: number;
+  notBefore?: number;
   cls?: string;
 }
 
@@ -158,6 +164,20 @@ function parse(text: string, ref: ReaderWC): Parsed {
     deadline = new Date(y, mo - 1, da, hh, mm).getTime();
     for (const m of dates) spans.push([m.start, m.end]);
   }
+  let notBefore: number | undefined;
+  if (item?.notBefore && !item.inferred.includes("notBefore") && !item.startsAt) {
+    const [d, t] = item.notBefore.split(" ");
+    const [y, mo, da] = d.split("-").map(Number);
+    const [hh, mm] = t.split(":").map(Number);
+    notBefore = new Date(y, mo - 1, da, hh, mm).getTime();
+  }
+  let start: number | undefined;
+  if (item?.startsAt && !item.inferred.includes("startsAt")) {
+    const [d, t] = item.startsAt.split(" ");
+    const [y, mo, da] = d.split("-").map(Number);
+    const [hh, mm] = t.split(":").map(Number);
+    start = new Date(y, mo - 1, da, hh, mm).getTime();
+  }
   let rest = text;
   for (const [a, b] of spans.sort((x, y) => y[0] - x[0])) rest = rest.slice(0, a) + " " + rest.slice(b);
   rest = rest
@@ -167,7 +187,7 @@ function parse(text: string, ref: ReaderWC): Parsed {
     .trim();
   // a date taken out of the front ("Mai đi siêu thị") leaves a lower-case start
   rest = rest.charAt(0).toLocaleUpperCase("vi") + rest.slice(1);
-  return { rest, minutes, deadline, cls: item?.cls };
+  return { rest, minutes, deadline, start, notBefore, cls: item?.cls };
 }
 
 /** Lines into a tree: a line is the child of the nearest earlier line with a smaller key. */
@@ -207,6 +227,8 @@ function toGroup(nodes: Node[], ref: ReaderWC, title: string, budgetMin?: number
         leaf.sized = "said";
       }
       if (p.deadline !== undefined) leaf.deadline = p.deadline;
+      if (p.start !== undefined) leaf.start = p.start;
+      if (p.notBefore !== undefined) leaf.notBefore = p.notBefore;
       const kind = p.cls ?? classify(leaf.title).cls;
       if (kind) leaf.kind = kind;
       items.push(leaf);
@@ -250,6 +272,8 @@ export function actionsOf(groups: Group[]): Action[] {
         const a: Action = { op: "create", title: l.title, ref, ...(g.title ? { note: g.title } : {}) };
         if (l.minutes !== undefined) { a.effortMinutes = l.minutes; if (l.sized !== "said") a.effortGuessed = true; }
         if (l.deadline !== undefined) a.deadline = new Date(l.deadline).toISOString();
+        if (l.notBefore !== undefined) a.notBefore = new Date(l.notBefore).toISOString();
+        if (l.start !== undefined) { a.when = new Date(l.start).toISOString(); a.fixed = "busy"; }
         if (l.kind) a.kind = l.kind as Kind;
         if (g.ordered && prev) a.after = prev;
         if (g.ordered) prev = ref;
