@@ -95,6 +95,8 @@
 .seg { display: flex; gap: 6px; margin-top: 14px; }
 .seg span { flex: 1; height: 36px; border-radius: 99px; border: 1px solid var(--line); display: grid; place-items: center; font-size: 14px; font-weight: 600; }
 .seg span.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.pills.blk .pl { height: 44px; min-height: 0; padding: 0 16px; border-radius: 14px; line-height: 44px; font-size: 15px; }
+.pills.blk .pl .dy { font-size: 13px; opacity: .6; }
 </style>
 </head>
 <body>
@@ -214,29 +216,18 @@ const oddsCard = `${HEAD}${tabs("Ngày")}<div class="art" style="margin-top:16px
 // the whisker is the uncertainty; dashed when there is too little data. Values are illustrative.
 const kbars = (rows) => rows.map(([k, v, e, un]) => `<div class="kbar"><span>${k}</span><div class="ax">${un ? `<span class="bar un" style="left:42%;width:16%"></span>` : `<span class="bar ${v < 0 ? "neg" : ""}" style="${v < 0 ? `right:50%;width:${-v * 50}%` : `left:50%;width:${v * 50}%`}"></span><span class="wh" style="left:${50 + (v - e) * 50}%;width:${e * 100}%"></span>`}</div></div>`).join("");
 const slider = (h) => `<div class="sl"><div class="tr"><i style="left:${(h / 23) * 100}%"></i></div><div class="ticks"><span>0h</span><span>6h</span><span>12h</span><span>18h</span><span>23h</span></div></div>`;
-const dayAt = (h, rows, ctx) => `<span class="o">${ic(I.back, 20)}</span><div class="h" style="margin-top:18px">Nhịp trong ngày</div><div class="sub">Kéo để xem từng giờ</div>
+const dayAt = (h, rows) => `<span class="o">${ic(I.back, 20)}</span><div class="h" style="margin-top:18px">Nhịp trong ngày</div><div class="sub">Kéo để xem từng giờ</div>
   ${slider(h)}<div class="hr">${h} giờ</div>
-  <div class="lg" style="margin-top:4px"><span>Hay bỏ dở</span><span>Hay xong</span></div>${kbars(rows)}
-  <div class="lab" style="margin-top:22px">Lúc này thường là</div><div class="ctx">${ctx.map((c) => `<span>${c}</span>`).join("")}</div>`;
-const day9 = dayAt(9, [["Học", .7, .2], ["Công việc", .45, .25], ["Thể dục", .3, .35], ["Việc nhà", -.2, .3], ["Gặp gỡ", 0, 0, 1], ["Bản thân", 0, 0, 1]], ["Ngày có lớp", "Ngay sau lớp", "Ngày thường"]);
-const day21 = dayAt(21, [["Học", -.5, .2], ["Công việc", -.3, .3], ["Thể dục", 0, 0, 1], ["Việc nhà", .35, .3], ["Gặp gỡ", .4, .35], ["Bản thân", .6, .25]], ["Sau một ngày dày lịch", "Gần hạn nộp"]);
-// Feature x feature, per part of the day: how situations come together (correlation from A). Blue together, red apart, blank too little data.
-const F = ["Học", "Công việc", "Thể dục", "Việc nhà", "Ngày dày lịch", "Cuối tuần", "Gần hạn", "Sau lớp"];
-const C = [[1,-.3,-.2,-.3,.6,-.5,.4,.7],[-.3,1,-.1,-.2,.2,-.6,.3,.1],[-.2,-.1,1,0,-.3,.4,-.2,null],[-.3,-.2,0,1,-.2,.5,null,null],[.6,.2,-.3,-.2,1,-.7,.3,.8],[-.5,-.6,.4,.5,-.7,1,-.1,null],[.4,.3,-.2,null,.3,-.1,1,.2],[.7,.1,null,null,.8,null,.2,1]];
-const col = (v) => v === null ? "transparent" : v >= 0 ? `rgba(47,90,200,${(0.1 + 0.9 * v).toFixed(2)})` : `rgba(217,67,43,${(0.1 + 0.9 * -v).toFixed(2)})`;
-const corr = `<span class="o">${ic(I.back, 20)}</span><div class="h" style="margin-top:18px">Điều gì đi cùng nhau</div><div class="sub">Trong lịch của bạn, buổi sáng</div>
-  <div class="seg"><span class="on">Sáng</span><span>Trưa</span><span>Chiều</span><span>Tối</span></div>
-  <div class="cm"><span></span>${F.map((f) => `<span class="t">${f}</span>`).join("")}${C.map((r, i) => `<span class="l">${F[i]}</span>${r.map((v) => `<span class="x" style="background:${col(v)};${v === null ? "border:1px dashed var(--line)" : ""}"></span>`).join("")}`).join("")}</div>
-  <div class="lg"><span>Đỏ: ít khi cùng lúc</span><span>Xanh: hay cùng lúc</span></div>
-  <div class="find" style="margin-top:14px"><div class="c">Buổi sáng, ngày dày lịch thường cũng là ngày có việc ngay sau lớp.</div><div class="c2">Chỉ cho biết điều gì hay đi cùng nhau, không phải điều gì giúp bạn xong việc.</div></div>`;
-
+  <div class="lg" style="margin-top:4px"><span>Hay bỏ dở</span><span>Hay xong</span></div>${kbars(rows)}`;
+const day9 = dayAt(9, [["Học", .7, .2], ["Công việc", .45, .25], ["Thể dục", .3, .35], ["Việc nhà", -.2, .3], ["Gặp gỡ", 0, 0, 1], ["Bản thân", 0, 0, 1]]);
+const day21 = dayAt(21, [["Học", -.5, .2], ["Công việc", -.3, .3], ["Thể dục", 0, 0, 1], ["Việc nhà", .35, .3], ["Gặp gỡ", .4, .35], ["Bản thân", .6, .25]]);
 // Free-form commands: a clear single match acts at once, with Undo; anything less sure asks with two literal choices.
 const DAY = `${HEAD}${tabs("Ngày")}<div class="lab" style="margin-top:28px">Hôm nay</div>
   <div class="list" style="margin-top:6px">${row("14:00|15:00", "LeetCode", "plan")}${row("17:30|19:00", "Cơ sở dữ liệu", "lecture", "A2.104")}${row("19:30|20:30", "Ôn Cơ sở dữ liệu", "plan")}${row("21:00|21:30", "Giặt đồ", "plan")}</div>`;
 const pick = (q, opts) => `<div class="find" style="margin-top:16px"><div class="c">${q}</div><div class="pills blk" style="margin-top:12px">${opts.map(([n, d, on]) => `<span class="pl ${on ? "on" : ""}"><span class="nm">${n}</span>${d ? `<span class="dy">${d}</span>` : ""}</span>`).join("")}</div></div>`;
 const cmdDone = chrome(toast("Đã xoá Giặt đồ", "Tối nay 21:00", [["Hoàn tác"]]) + DAY.replace(row("21:00|21:30", "Giặt đồ", "plan"), ""), { dock: "think" });
 const cmdMove = chrome(toast("Đã dời Họp nhóm", "Sang 15:00 hôm nay", [["Hoàn tác"]]) + DAY, { dock: "think" });
-const cmdWhich = chrome(`${DAY}${pick("Huỷ việc nào?", [["Gym", "Chiều nay 17:00"], ["Gym", "Thứ 4 6:30"], ["Tạo việc mới \"Huỷ gym\"", ""]])}`, { dock: null });
+const cmdWhich = chrome(`${DAY}${pick("Huỷ việc nào?", [["Gym ngực và vai, buổi chiều với Minh ở phòng tập quận 3", "Chiều nay 17:00"], ["Gym ngực và vai, buổi chiều với Minh ở phòng tập quận 3", "Thứ 4 6:30"], ["Xoá cả hai", ""], ["Tạo việc mới \"Huỷ gym\"", ""]])}`, { dock: null });
 const cmdOrNew = chrome(`${DAY}${pick("\"xoa gym\"", [["Xoá Gym", "Chiều nay 17:00", 1], ["Tạo việc mới \"xoa gym\"", ""]])}`, { dock: null });
 const cmdBulk = chrome(`${DAY}<div class="find" style="margin-top:16px"><div class="c">Xoá 6 tiết học tuần này?</div><div class="c2">Cơ sở dữ liệu 3 tiết, Giải tích 2 tiết, Mạng máy tính 1 tiết</div><div class="acts"><span>Thôi</span><span class="on">Xoá 6 tiết</span></div></div>`, { dock: null });
 const createKept = chrome(toast("Bỏ rác", "<b>Mình hiểu:</b> tối nay, 10 phút", [["Hoàn tác"]]) + DAY, { dock: "think" });
@@ -271,7 +262,39 @@ const sttPage = (state) => `<span class="o">${ic(I.x, 20)}</span><div class="h" 
   }).join("")}
   <div style="margin-top:12px;font-size:15px;color:var(--muted);line-height:1.45">${state === "os" ? "Máy này ít bộ nhớ, nên dùng nhận giọng của máy." : "Nghe ngay trên máy, không gửi đi đâu. Lỗi thì tự chuyển về nhận giọng của máy."}</div>`;
 
+// Slice 8, calm by default. A flexible block that slipped past stays neutral ink; red is only for a real deadline or a fixed class/exam.
+const missedCalm = `${HEAD}${tabs("Ngày")}<div class="lab" style="margin-top:28px">Hôm nay</div>
+  <div class="list" style="margin-top:6px">${row("9:00", "Đọc chương 2", "plan")}${row("11:00", "Nộp phiếu khảo sát", "assignment", "late", "Hạn 12:00")}${row("17:30|19:00", "Cơ sở dữ liệu", "lecture", "", "A2.104")}</div>`;
+// Enough: today's learned cap is reached; the overflow folds into one quiet line. No bars, no streaks, no overdue count.
+const enough = `${HEAD}${tabs("Ngày")}
+  <div class="art" style="margin-top:16px;height:176px;padding:20px">${art("plan", { w: 354, h: 176, seed: 7, cls: "bgart" })}<div class="lab" style="color:#fff;opacity:.85">Hôm nay</div><div class="t" style="margin-top:10px">Đủ rồi</div><div class="small" style="color:#fff;opacity:.85;margin-top:6px">Xong 3 việc. Phần còn lại để mai.</div></div>
+  <div class="lab" style="margin-top:24px">Xong (3) ${ic(I.down, 14)}</div>
+  <div class="list" style="margin-top:14px"><div class="fold"><span>Để tuần sau · 2 việc</span></div></div>`;
+// A flexible task rolled five times: asked once, calmly, then never nagged again.
+const rolled = `${HEAD}${tabs("Ngày")}<div class="find" style="margin-top:16px"><div class="c">Viết báo cáo chưa vào việc được mấy lần.</div><div class="c2">Chia nhỏ, bỏ, hoặc giữ nguyên. Mình sẽ không hỏi lại.</div><div class="acts"><span>Bỏ</span><span>Chia nhỏ</span><span class="on">Giữ</span></div></div>${rest}`;
+// Thử 15p: a low-friction ramp on blocks of 45 minutes or more, or on a task already put off.
+const micro = `${HEAD}${tabs("Ngày")}${nowCard("Tiếp theo", "Viết báo cáo", "14:00", "đến 15:30", "0%", `<span class="gbtn">Để sau</span><span class="gbtn solid">Thử 15p</span>`)}${rest}`;
+const microDone = `${HEAD}${tabs("Ngày")}${nowCard("Đang làm", "Viết báo cáo", "15p", "đã vào đà", "100%", `<span class="gbtn">Nghỉ</span><span class="gbtn solid">Tiếp</span>`)}${rest}`;
+// Rebalance: nothing moves until Áp dụng. Diff style, with the reason beside each move.
+const rebalance = `<span class="o">${ic(I.back, 20)}</span><div class="h" style="margin-top:18px">Có thể xếp thoáng hơn</div><div class="sub">3 việc, chưa việc nào dời cho đến khi bạn đồng ý</div>
+  <div style="margin-top:14px">
+    <div class="chg"><div class="tx"><b>Viết báo cáo</b><div class="t2">T3 đã kín 5 tiết học, sang T4 còn trống.</div></div><span class="tm"><s>T3 9:00</s>T4 9:00</span></div>
+    <div class="chg"><div class="tx"><b>Ôn Giải tích</b><div class="t2">Xong sớm một ngày trước hạn T6.</div></div><span class="tm"><s>T5 20:00</s>T4 20:00</span></div>
+    <div class="chg"><div class="tx"><b>Giặt đồ</b><div class="t2">Chủ nhật nhẹ hơn.</div></div><span class="tm"><s>T3 21:00</s>CN 10:00</span></div>
+  </div>
+  <div class="acts" style="display:flex;gap:10px;margin-top:20px"><span class="gbtn" style="flex:1;background:var(--chip);color:var(--ink)">Để nguyên</span><span class="gbtn solid" style="flex:1">Áp dụng</span></div>`;
+// One quiet evening note replaces three reminders per flexible task.
+const nightBefore = `<div class="lock"><div class="sb" style="color:#fff"><span></span><span>●●● ▮</span></div><div class="clk">21:30</div><div class="dt">Thứ Hai, 16 tháng 11</div>
+  <div class="note"><div class="ap"><i>${LOGO(13, "white")}</i>ZEN<span style="margin-left:auto;font-weight:500">bây giờ</span></div><b>Mai: 3 việc, 2h30</b><span>1 việc gần hạn. Chạm để xem hoặc xếp nhẹ lại.</span></div></div><div class="hi" style="background:#fff"></div>`;
+
 mount([
+  { tag: "Day, missed, calm", sub: "A flexible block that slipped past stays neutral ink: it was only a suggestion. Red is kept for a real deadline (here Hạn 12:00) and fixed classes or exams.", html: chrome(missedCalm, { dock: "idle", time: "14:20" }) },
+  { tag: "Day, enough", sub: "Today's learned cap is reached: one calm line, done rows, and the rest folded under Để tuần sau. No overdue count, no bar, no streak.", html: chrome(enough, { dock: "idle", time: "16:10" }) },
+  { tag: "Rolled five times", sub: "A flexible task that kept rolling is offered once: drop it, split it, or keep it. After the answer Zen never asks again.", html: chrome(rolled, { dock: "idle" }) },
+  { tag: "Now, try 15 minutes", sub: "A block of 45 minutes or more (or one put off before) offers Thử 15p beside Để sau: a fifteen-minute ramp, not a commitment.", html: chrome(micro, { dock: "idle", time: "13:50" }) },
+  { tag: "Now, fifteen minutes done", sub: "After fifteen minutes: carry on to finish, or stop with the fifteen minutes credited. Neither is a failure.", html: chrome(microDone, { dock: "idle", time: "14:10" }) },
+  { tag: "Rebalance, proposed", sub: "When the week is overloaded Zen only proposes, diff style, each move with its reason. Nothing moves until Áp dụng; Để nguyên dismisses it.", html: chrome(rebalance, { dock: null }) },
+  { tag: "Night before, 21:30", sub: "The one evening note for flexible work. Classes, exams, hard deadlines and times you set yourself still ring on their own.", html: nightBefore },
   { tag: "Now, ready", sub: "One card: what to do and until when. Bắt đầu records the real start. The kind sits as a chip on the card; tap it to fix.", html: chrome(ready, { dock: "idle" }) },
   { tag: "Now, running", sub: "Started: the meter runs. No need to tick at the end, a started block that runs out counts as done.", html: chrome(running, { dock: "idle", time: "14:22" }) },
   { tag: "Now, time's up", sub: "At the end: add 15 minutes or switch to what's next. Either way the real minutes go to the length learner. Only the blocks after it shift.", html: chrome(over, { dock: "idle", time: "15:00" }) },
@@ -289,12 +312,11 @@ mount([
   { tag: "Lá số", sub: "A chart of you, drawn only from outcomes. Shade is how well a kind goes at that time; a dashed outline means too little data to say; a red dot means a pattern the numbers clearly support. Below, how often Zen's guesses came true.", html: chrome(lasoPage, { dock: null }) },
   { tag: "Lá số, a cell", sub: "Tap a cell: the literal finding and the counts behind it. Reject it if it is wrong for you.", html: chrome(lasoCell, { dock: null }) },
   { tag: "Day slider, 9h", sub: "Drag through the day. Each kind: right if it tends to get done at this hour, left if it tends to be dropped; the line is the uncertainty, dashed means too little data. The hour is blended with its part of the day, as the planner sees it.", html: chrome(day9, { dock: null }) },
-  { tag: "Day slider, 21h", sub: "Same view at 9pm. Chips below: situations that usually come with this hour, from A.", html: chrome(day21, { dock: null }) },
-  { tag: "What goes together", sub: "Feature by feature correlation from A, per part of the day (an hour alone has too little data). Background on how your days are shaped, not what works.", html: chrome(corr, { dock: null }) },
+  { tag: "Day slider, 21h", sub: "Same view at 9pm. ", html: chrome(day21, { dock: null }) },
   { tag: "Now, with a forecast", sub: "How likely this block gets done, from your own history, in three steps. The track record on the Lá số keeps it honest.", html: chrome(oddsCard, { dock: "idle", time: "8:40" }) },
   { tag: "Command, one match", sub: 'Said "xoá giặt đồ": one task clearly matches, so it is gone at once. Hoàn tác brings it back.', html: cmdDone },
   { tag: "Command, move", sub: 'Said "dời họp sang 3h": the one Họp nhóm moves to 15:00. Same Undo.', html: cmdMove },
-  { tag: "Command, which one", sub: 'Said "huỷ gym" with two Gym tasks: pick one, or keep the words as a new task. Nothing happens until a tap.', html: cmdWhich },
+  { tag: "Command, which one", sub: 'Said "huỷ gym" with two Gym tasks: pick one, remove both (Xoá cả hai, with Undo), or keep the words as a new task. Nothing happens until a tap.', html: cmdWhich },
   { tag: "Command or new task", sub: 'A typo ("xoa gym") or a weak match never acts by itself: the likely reading is first, a new task is always the other choice.', html: cmdOrNew },
   { tag: "Command, many at once", sub: '"Xoá hết tiết tuần này" names a count and asks first. A bulk change never happens silently.', html: cmdBulk },
   { tag: "Not a command", sub: '"Bỏ rác" is a chore, not a delete: no task is called Rác, so it is added as usual.', html: createKept },
