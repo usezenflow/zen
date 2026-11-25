@@ -5,7 +5,39 @@
 ### Minor Changes
 
 - Đọc thông báo, kế hoạch dạng PDF hoặc ảnh: thông báo có một khung thời gian dưới mục đánh số ("2. Thời gian điều chỉnh học phần:" rồi "Từ 8h00 … đến 17h00 …") thành một việc có giờ bắt đầu và hạn, không còn mỗi dòng một việc; đường dẫn trong thông báo được giữ lại
-- Xem trước danh sách: tên dài cắt bớt bằng "…", hạn hiện bên phải, độ dài và loại việc ở dòng dưới như danh sách trang chủ; vuốt sang trái để bỏ một việc, "Bỏ" ở đầu nhóm để bỏ cả nhóm
+- Xem trước danh sách: mỗi việc hiện như ở trang chủ, giờ bắt đầu và kết thúc zen sẽ xếp ở bên phải, dòng dưới là "Sau …", "Hạn …" hoặc "Từ … đến …"; sửa tên, giờ hay độ dài thì lịch xếp lại ngay trong bản xem trước. Vuốt phải để bỏ một việc, "Bỏ" ở đầu nhóm để bỏ cả nhóm. Mốc "sau …" và giờ đã nói trong danh sách được giữ khi thêm
+- Sao lưu và khôi phục dữ liệu: ở Cài đặt, mục "Dữ liệu" có "Sao lưu dữ liệu" (lưu việc, lịch sử, những gì zen đã học và cài đặt thành một tệp .json, cất vào Tệp hoặc iCloud Drive qua bảng chia sẻ) và "Khôi phục từ tệp" (thay dữ liệu trên máy bằng tệp đó). Mật khẩu trường không nằm trong tệp
+- "Xoá dữ liệu" xoá việc, lịch sử và cài đặt trên máy sau khi hỏi lại, có thêm nút "Sao lưu trước". Tài khoản trường vẫn giữ
+- Hộp cập nhật trên iPhone: "Cài qua AltStore" thành nút viền riêng, không còn giống dòng "Để sau"
+- Nhịp thành ba tab: "Bạn dặn", "Đã học" và "Biểu đồ" (ngày và kiểu việc theo buổi), cùng kiểu với Ngày, Tuần, Tháng. Tiêu đề rút gọn thành "Zen đã học" nên không còn đẩy nút sang phải
+    - Đầu trang thêm "Điều mình nhận ra": tối đa năm điều Zen thấy từ việc bạn thật sự làm xong hay dời, mỗi điều một câu, chỉ hiện khi đủ chắc
+    - Ở "Biểu đồ", chọn một ô rồi bấm "Tránh xếp buổi này" để dặn Zen tránh buổi đó
+- Dời việc không còn bị học nhầm: dời dưới 30 phút hoặc trong cùng một buổi (20h sang 21h) chỉ là chỉnh giờ, không hiện "ít xếp buổi tối" và không dạy gì. Dời sang buổi khác có nút "Chỉ lần này": giữ giờ mới nhưng không học
+- Câu lệnh nhận ra nhiều việc ("xoá gym" với hai việc cùng tên) hiện thành một thẻ trong danh sách thay vì các nút nổi
+- Thẻ "Bây giờ"
+    - "Tiếp theo" không còn tràn màn hình: "Để sau", "Bắt đầu" (nút trắng đặc), dấu tích chỉ hiện khi đang làm; thẻ cao hơn một chút
+    - Chạm nhãn loại việc (Học, Công việc…) ở góc thẻ để sửa loại
+    - Hết giờ có thẻ riêng: "Thêm 15 phút" hoặc "Chuyển việc", thay cho thông báo "Xong chưa?"
+    - "Thử 10p" (trước là 15p); hết giờ chọn "Làm tiếp cho xong" hoặc "Đủ đà rồi · nghỉ"
+- Sửa nhanh ngay trong việc: nói hoặc gõ "mai 3h chiều 90 phút", "hạn thứ 6", "mỗi T3 T5", "chia 3 buổi", "bỏ lặp"
+- Việc chia buổi
+    - Một buổi có thể đổi tên riêng ("Viết báo cáo: mở bài"); việc lặp lại vẫn đổi tên tất cả
+    - Nhiều buổi gập thành một dòng "{xong}/{tổng} buổi · còn {n}" với "Làm thêm" và "Đủ rồi"; các buổi từ ngày mai gập vào một dòng
+    - Việc ôn thi mang tên môn ("Ôn Giải tích 2: luyện đề") và có nút "Không cần ôn", Zen không tạo lại
+- Chọn giờ: thêm "+15p", "+30p", "Tối nay", "Mai sáng"; mặt đồng hồ mượt hơn
+- Cài đặt: "Mảng việc cân bằng" (đặt tên mảng, từ khoá, thêm mảng riêng) và "Quy tắc của Zen" (Nghỉ cuối tuần, Xong sớm trước hạn, Không làm khuya, Cân bằng mảng việc; mỗi quy tắc Tắt, Tự động hoặc Giữ chặt). Ở "Tự động", Zen chỉ áp dụng khi lịch sử của bạn cho thấy phá quy tắc làm bạn xong ít hơn
+- Lịch
+    - Lịch ổn định hơn: hôm nay và việc sắp bắt đầu trong 12 giờ không bị xếp lại; việc quá hạn rồi chỉ nhường chỗ dần, không đẩy cả ngày
+    - Giờ bạn tự đặt được giữ đến hết ngày và nhường chỗ khi bạn đặt việc khác đè lên
+    - Xếp theo ngày tải thật: tiết học tính nửa giờ, việc đang trễ hạn đi trước, việc giải trí nhường việc sắp trễ
+    - Zen thích nghi nhanh hơn: trí nhớ giờ giấc nửa đời 14 ngày, cần 3 ngày để mở rộng giờ thức, tuần làm khuya cũ phai dần
+    - Việc lỡ lúc 21:30 được tính là lỡ để Zen đổi giờ sau 3 lần
+- Lý do xếp giờ: mỗi việc trả lời tối đa ba câu (vì sao ngày này, vì sao buổi này, vì sao dài thế), nêu tên tiết học và việc trước đó
+- Sửa độ dài một việc đã có giờ ("90 phút") kéo dài khối của nó từ giờ bắt đầu, không còn để khối cũ chồng lên việc kế tiếp
+- Thông báo: nút "Để sau" trên thông báo giống nút trong ứng dụng; thông báo 21:30 có "Xem ngày mai" (mở ngày mai) và "Xếp nhẹ lại"; việc đã đặt giờ không còn nhắc hai lần; từ chối quyền thông báo thì không xếp nhắc
+- Giọng nói: PhoWhisper chốt đoạn ghi âm khi bạn thả tay (câu ngắn trước đây có thể ra trống) và thanh âm lượng chạy trở lại; khi mô hình trên máy lỗi, Zen ghi lại nguyên nhân rồi mới chuyển sang nhận giọng của máy
+- Giao diện khớp bản thiết kế hơn: nút, chiều cao, cỡ chữ và khoảng cách ở thẻ, toast, hộp cập nhật, ô chọn giờ, chi tiết việc và cài đặt; chữ "Nghe ngay trên máy" dùng đúng phông; sửa nhiều chỗ chữ dài đẩy nút ra ngoài (học phí, điểm, toast, tab, thẻ nghỉ)
+- Câu chữ tự nhiên hơn ở nhiều chỗ ("Mình sẽ bớt xếp việc buổi tối", "Online từ chối mật khẩu", "Chỉ cần làm 2 phút đầu"…)
 
 ## 26.1.0-beta.1
 
