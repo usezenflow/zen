@@ -3,6 +3,7 @@ import { StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Live, MovesPill, NowCard, Steps, Story, Weekly } from "./nowcard";
 import { plain, t } from "@/lib/i18n";
+import { kvGet, kvSet } from "@/lib/store";
 import { when } from "@/lib/when";
 import type { Move } from "@/lib/types";
 import { at, MIN, NOW, task } from "../../test/factories";
@@ -38,7 +39,7 @@ describe("NowCard", () => {
     expect(screen.getByText(t("doingNow"))).toBeOnTheScreen();
     expect(screen.queryByLabelText(t("startLab"))).toBeNull();
     await r.unmount();
-    await render(<NowCard card={{ task: task(), start: at(14), end: at(15) }} onDone={jest.fn()} onStart={onStart} />);
+    await render(<NowCard card={{ task: task(), start: at(14), end: at(15) }} onDone={jest.fn()} onStart={onStart} onLater={jest.fn()} />);
     expect(screen.getByText(t("nextUp"))).toBeOnTheScreen();
     await fireEvent.press(screen.getByLabelText(t("startLab")));
     expect(onStart).toHaveBeenCalledTimes(1);
@@ -61,6 +62,61 @@ describe("NowCard", () => {
     await render(<NowCard card={{ task: task(), start: at(14), end: at(15) }} onDone={onDone} />);
     await fireEvent.press(screen.getByLabelText(t("markDone")));
     expect(onDone).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("NowCard Thử 15p", () => {
+  const micro = async () => JSON.parse((await kvGet("now.micro")) ?? "null");
+  it("a block of 45 minutes or more offers it beside Để sau; tapping stores the fifteen minutes and shows them", async () => {
+    const tk = task();
+    await render(<NowCard card={{ task: tk, start: at(14), end: at(15, 30) }} onDone={jest.fn()} onStart={jest.fn()} onLater={jest.fn()} />);
+    await fireEvent.press(screen.getByLabelText(t("microBtn")));
+    expect(await micro()).toEqual({ id: tk.id, startedAt: NOW, endsAt: NOW + 15 * MIN });
+    expect(screen.getByText(t("doingNow"))).toBeOnTheScreen();
+    expect(screen.getByLabelText(t("nMin", { n: 15 }))).toBeOnTheScreen();
+    expect(screen.queryByLabelText(t("microBtn"))).toBeNull();
+  });
+  it("a shorter block has no ramp unless it was put off before", async () => {
+    await render(<NowCard card={{ task: task(), start: at(14), end: at(14, 30) }} onDone={jest.fn()} onLater={jest.fn()} />);
+    expect(screen.queryByLabelText(t("microBtn"))).toBeNull();
+    await render(<NowCard card={{ task: task({ misses: 1 }), start: at(14), end: at(14, 30) }} onDone={jest.fn()} onLater={jest.fn()} />);
+    expect(screen.getByLabelText(t("microBtn"))).toBeOnTheScreen();
+  });
+  it("never on a fixed class, a block already running, or a gap offer", async () => {
+    await render(<NowCard card={{ task: task({ fixed: "lecture" }), start: at(14), end: at(16) }} onDone={jest.fn()} onLater={jest.fn()} />);
+    expect(screen.queryByLabelText(t("microBtn"))).toBeNull();
+    await render(<NowCard card={{ task: task(), start: at(9, 30), end: at(11, 30), gap: undefined }} onDone={jest.fn()} onLater={jest.fn()} />);
+    expect(screen.queryByLabelText(t("microBtn"))).toBeNull();
+    await render(<NowCard card={{ task: task(), start: at(14), end: at(16), gap: "30p" }} onDone={jest.fn()} onLater={jest.fn()} />);
+    expect(screen.queryByLabelText(t("microBtn"))).toBeNull();
+  });
+  it("at fifteen minutes: stopping credits fifteen minutes and clears the try", async () => {
+    const onMicroRest = jest.fn();
+    await render(<NowCard card={{ task: task(), start: at(14), end: at(15, 30) }} onDone={jest.fn()} onStart={jest.fn()} onLater={jest.fn()} onMicroRest={onMicroRest} />);
+    await fireEvent.press(screen.getByLabelText(t("microBtn")));
+    await act(async () => { jest.advanceTimersByTime(15 * MIN); });
+    expect(screen.getByLabelText(t("microFull"))).toBeOnTheScreen();
+    expect(screen.getByLabelText(t("microRest"))).toBeOnTheScreen();
+    expect(screen.getByLabelText(t("microGo"))).toBeOnTheScreen();
+    await fireEvent.press(screen.getByLabelText(t("microRest")));
+    expect(onMicroRest).toHaveBeenCalledWith(15);
+    expect(await micro()).toBeNull();
+  });
+  it("at fifteen minutes: Làm tiếp takes the block through onStart and clears the try", async () => {
+    const onStart = jest.fn();
+    await render(<NowCard card={{ task: task(), start: at(14), end: at(15, 30) }} onDone={jest.fn()} onStart={onStart} onLater={jest.fn()} />);
+    await fireEvent.press(screen.getByLabelText(t("microBtn")));
+    await act(async () => { jest.advanceTimersByTime(15 * MIN); });
+    await fireEvent.press(screen.getByLabelText(t("microGo")));
+    expect(onStart).toHaveBeenCalledTimes(1);
+    expect(await micro()).toBeNull();
+  });
+  it("a try started earlier comes back from kv with its minutes left", async () => {
+    const tk = task();
+    await kvSet("now.micro", JSON.stringify({ id: tk.id, startedAt: NOW - 3 * MIN, endsAt: NOW + 7 * MIN }));
+    await render(<NowCard card={{ task: tk, start: at(14), end: at(15, 30) }} onDone={jest.fn()} onLater={jest.fn()} />);
+    expect(screen.getByLabelText(t("nMin", { n: 7 }))).toBeOnTheScreen();
+    expect(screen.queryByLabelText(t("microBtn"))).toBeNull();
   });
 });
 

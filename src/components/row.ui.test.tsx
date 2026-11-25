@@ -171,31 +171,22 @@ describe("Row", () => {
     expect(Haptics.impactAsync).not.toHaveBeenCalled();
   });
 
-  // The dial's drums: [hours, minutes], each a snapping scroll of 36px rows.
-  const drums = () => screen.container.queryAll((n) => typeof n.props.onMomentumScrollEnd === "function" && n.props.snapToInterval === 36);
-  const settle = (el: { props: Record<string, unknown> }, row: number) => act(() => { (el.props.onMomentumScrollEnd as (e: object) => void)({ nativeEvent: { contentOffset: { x: 0, y: row * 36 } } }); });
-
-  it("the time drops the dial; each settled drum saves at once, minutes in steps of 15", async () => {
+  it("the time drops the dial; its hour and minute save once, on close", async () => {
     const f = await draw();
     await fireEvent.press(screen.getByText("14:00"));
-    const [h, m] = drums();
-    expect(["00", "15", "30", "45"].every((x) => screen.getAllByText(x).length > 0)).toBe(true);
-    const h0 = new Date(NOW).getHours(); // a time set by hand may be in the past: the hours gone are on the drum too
-    expect(screen.queryByText(String(h0 - 1).padStart(2, "0"), { exact: true })).toBeOnTheScreen();
-    expect(screen.queryByText(String(h0).padStart(2, "0"), { exact: true })).toBeOnTheScreen();
-    await settle(h, 15); // the drum runs from 0:00
-    expect(f.onTime).toHaveBeenLastCalledWith(new Date(at(15, 0)));
-    await settle(m, 2);
+    await fireEvent.press(screen.getByLabelText("15"));
+    await fireEvent.press(screen.getByLabelText("30"));
+    expect(f.onTime).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByLabelText("close"));
+    expect(f.onTime).toHaveBeenCalledTimes(1);
     expect(f.onTime).toHaveBeenLastCalledWith(new Date(at(15, 30)));
-    await settle(m, 2); // the same row again: nothing new to save
-    expect(f.onTime).toHaveBeenCalledTimes(2);
   });
 
   it("a tap outside the dial closes it and saves nothing more", async () => {
     const f = await draw();
     await fireEvent.press(screen.getByText("14:00"));
     await fireEvent.press(screen.getByLabelText("close"));
-    expect(drums()).toHaveLength(0);
+    expect(screen.queryByLabelText("close")).toBeNull();
     expect(f.onTime).not.toHaveBeenCalled();
   });
 
@@ -203,13 +194,13 @@ describe("Row", () => {
     await draw({ task: lecture() });
     const tm = screen.queryByText(/\d\d:\d\d/);
     if (tm) await fireEvent.press(tm);
-    expect(drums()).toHaveLength(0);
+    expect(screen.queryByLabelText("close")).toBeNull();
   });
 
   it("all-day and untimed rows do not open the picker", async () => {
     await draw({ allDay: true });
     await fireEvent.press(screen.getByText(t("allDay")));
-    expect(drums()).toHaveLength(0);
+    expect(screen.queryByLabelText("close")).toBeNull();
     expect(screen.getByText(t("noPlan"))).toBeOnTheScreen();
   });
 
@@ -228,8 +219,9 @@ describe("Row", () => {
     expect(en.fontSize).toBe(st.fontSize);
     expect(en.color).not.toBe(st.color);
     await fireEvent.press(screen.getByText("15:00"));
-    const [h] = drums();
-    await settle(h, 16); // the end's drum runs from 0:00 too: an hour before the start would roll to the next day
+    await fireEvent.press(screen.getByLabelText("16")); // an hour before the start would roll to the next day: 16 is the first offered after it
+    await fireEvent.press(screen.getByLabelText("00"));
+    await fireEvent.press(screen.getByLabelText("close"));
     expect(onEnd).toHaveBeenLastCalledWith(new Date(at(16, 0)));
     expect(f.onTime).not.toHaveBeenCalled();
   });
@@ -247,12 +239,22 @@ describe("Row", () => {
 
   it("an untimed row shows no time and opens no picker", async () => {
     await draw({ task: task({ start: undefined, end: undefined }) });
-    expect(drums()).toHaveLength(0);
+    expect(screen.queryByLabelText("close")).toBeNull();
     expect(screen.queryByText(/\d\d:\d\d/)).toBeNull();
   });
 
   it("a missed task turns its time vermilion", async () => {
+    await draw({ task: task({ start: NOW - 2 * HOUR, end: NOW - HOUR, deadline: NOW - HOUR }) });
+    expect(flat(screen.getByText(hhmm(NOW - 2 * HOUR))).color).toBe(seal);
+  });
+
+  it("a flexible block the clock has passed is not missed", async () => {
     await draw({ task: task({ start: NOW - 2 * HOUR, end: NOW - HOUR }) });
+    expect(flat(screen.getByText(hhmm(NOW - 2 * HOUR))).color).not.toBe(seal);
+  });
+
+  it("a said (pinned or fixed) block is missed when its time passes", async () => {
+    await draw({ task: task({ start: NOW - 2 * HOUR, end: NOW - HOUR, pinned: true }) });
     expect(flat(screen.getByText(hhmm(NOW - 2 * HOUR))).color).toBe(seal);
   });
 

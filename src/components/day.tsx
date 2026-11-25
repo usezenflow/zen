@@ -17,6 +17,7 @@ import { found, parse, PART_VI, type Query } from "@/lib/find";
 import { fadeIn, fadeOut, glide, Tap, settle, EASE } from "@/components/tap";
 import { Stripes } from "@/components/week";
 import { t } from "@/lib/i18n";
+import { capOf, worked } from "@/lib/rest";
 import type { Overlap } from "@/lib/overlap";
 import { useTheme, font, space, ff, motion } from "@/lib/theme";
 import type { Move, Rule, Task, Warn } from "@/lib/types";
@@ -292,11 +293,19 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
   const th = useTheme();
   const [open, setOpen] = useState(false);
   const [unfold, setUnfold] = useState<Set<string>>(new Set()); // folded repeats opened in place
+  const [weekFold, setWeekFold] = useState(false);
   const end = day + 86400_000;
   const { hidden, folds } = foldRepeats(tasks, now);
   const fold = folds.filter((f) => f.first === day);
   const live_ = onDay(tasks, day).filter((x) => !hidden.has(x.id));
-  const real = [...live_, ...tasks.filter((x) => pop.has(x.id) && x.start! >= day && x.start! < end && !live_.includes(x))];
+  const ps = parents(tasks);
+  // views.html "Day, enough": today's done time plus the placed flexible work still open reaches the day's cap. Then the card leads, that work
+  // folds under "Để tuần sau", and the done rows stay. Today's rest view only.
+  const flex = live_.filter((x) => live(x) && !x.fixed && !ps.has(x.id) && x.start !== undefined);
+  const enoughDay = empty === "rest" && !noCard && day === startOfDay(now)
+    && worked(tasks, day, now) + flex.reduce((n, x) => n + (x.end !== undefined ? x.end - x.start! : x.effort * 60_000), 0) >= capOf(tasks, day, now).ms;
+  const overflow = new Set((enoughDay ? flex : []).map((x) => x.id));
+  const real = [...live_.filter((x) => !overflow.has(x.id)), ...tasks.filter((x) => pop.has(x.id) && x.start! >= day && x.start! < end && !live_.includes(x))];
   // Ghost: moved off this day, left at its old time saying where it went.
   const ghosts = moves.filter((m) => m.from >= day && m.from < end && (m.to < day || m.to >= end) && !real.some((x) => x.id === m.id)).flatMap((m) => {
     const x = tasks.find((a) => a.id === m.id);
@@ -306,16 +315,17 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
   // A spoken "để trống" window, striped in time order among the rows (magic.html 9: the kept evening shows as stripes).
   const kept = hols.has(day) ? [] : keptOn(rules, day);
   const keptBefore = (i: number) => kept.filter((r) => day + r.from * 60_000 <= (rows[i]?.x.start ?? Infinity) && (i === 0 || day + r.from * 60_000 > rows[i - 1].x.start!));
-  const ps = parents(tasks);
   // Work with no time yet is never hidden: past the 30-day plan it waits on its own day; inside it (no free slot) it sits on its due or
   // window day, today once that day is gone (a repeat's gone day stays missed). Muted, with its length; a tap on the time picks one.
-  const today = startOfDay(now), far = day >= addDays(today, 30);
+  const today = startOfDay(now), far = day >= addDays(today, 7);
   const homeOf = (x: Task) => { const a = x.deadline ?? x.notAfter, d = a === undefined ? today : startOfDay(a - 1); return d >= today ? d : x.rrule ? undefined : today; };
-  const unplaced = tasks.filter((x) => live(x) && x.start === undefined && !x.fixed && !ps.has(x.id) && homeOf(x) === day);
+  const unplacedAll = tasks.filter((x) => live(x) && x.start === undefined && !x.fixed && !ps.has(x.id) && homeOf(x) === day);
+  const unplaced = enoughDay ? [] : unplacedAll;
+  const folded = enoughDay ? [...flex, ...unplacedAll] : [];
   const done =tasks.filter((x) => x.doneAt && !x.deletedAt && !pop.has(x.id) && x.start !== undefined && x.start >= day && x.start < end && !ps.has(x.id));
   const title = hols.get(day);
   const hol: Task | undefined = title === undefined ? undefined : { id: `hol${day}`, title, kind: "other", source: "user", fixed: "busy", effort: 0, start: day, end: day + 86400_000, createdAt: 0 };
-  const isEmpty = !rows.length && !hol && !unplaced.length && !fold.length;
+  const isEmpty = !enoughDay && !rows.length && !hol && !unplaced.length && !fold.length;
   const after = (from: number, to = Infinity) => shown(tasks).filter((x) => !hidden.has(x.id) && x.start! >= from && x.start! < to).sort((a, b) => a.start! - b.start!).slice(0, 3);
   const near = isEmpty && empty === "inl" ? after(Math.max(end, now))[0] : undefined;
   // The day is over from 20:00 and past its last block: only then may tomorrow show (views.html "Day, all done, night").
@@ -357,6 +367,7 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
   );
   return (
     <View>
+      {enoughDay && <RestCard lab={t("today")} title={t("enoughT")} sub={t("enoughSub", { n: done.length })} leaf="color" h={176} />}
       {warns.map((w, k) => {
         const late = w.deadline <= now, own = tasks.find((x) => x.id === w.id), vars = { title: w.title, need: mins(w.need), when: when(w.deadline, now), free: mins(w.free) };
         // Past due: pushing others can't help, so the one tap is "done" (often it was handed in already).
@@ -415,6 +426,16 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
           ))}</View>
           {far && <Text style={[s.got, { color: th.muted, marginTop: 6 }]}>{t("unplacedNote")}</Text>}
         </View>
+      )}
+      {!!folded.length && (
+        <Animated.View entering={fadeIn} exiting={fadeOut} layout={glide} style={{ marginTop: 6 }}>
+          <Tap onPress={() => setWeekFold(!weekFold)} scale={0.98} accessibilityRole="button" accessibilityState={{ expanded: weekFold }} style={[s.fold, { borderColor: th.line }]}>
+            <Text style={[s.foldT, { color: th.muted }]}>{t("foldWeek", { n: folded.length })}</Text>
+          </Tap>
+          {weekFold && folded.map((x) => (
+            <Row key={`w${x.id}`} task={x} now={now} sub={x.rrule ? undefined : mins(x.effort)} onToggle={() => act.onToggle(x)} onTitle={(v) => act.onTitle(x, v)} onTime={(a) => act.onTime(x, a)} onEnd={act.onEnd && ((a) => act.onEnd!(x, a))} onOpen={() => act.onOpen(x)} onDelete={() => act.onSwipeDelete(x)} onSeries={(b, c) => act.onSwipeDelete(x, b, c)} onHold={act.itemsFor(x).length ? (b, c) => act.onHold(x, b, c) : undefined} />
+          ))}
+        </Animated.View>
       )}
       {isEmpty && (
         <Animated.View entering={fadeIn} exiting={fadeOut} layout={glide}>

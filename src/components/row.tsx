@@ -15,6 +15,7 @@ import { day, when } from "@/lib/when";
 import { useTheme, font, space, ff, motion } from "@/lib/theme";
 import type { Task } from "@/lib/types";
 import { typeOf } from "@/planner";
+import { dueOf as dueAt } from "@/planner/features";
 
 // Where a part of the day opens (adapt.ts FROM; the older bounds too, for tasks made before them) -> its name.
 const PART_AT: Record<number, string> = { 300: "sáng", 660: "trưa", 720: "chiều", 780: "chiều", 1020: "tối", 1080: "tối", 1320: "đêm" };
@@ -123,7 +124,9 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
   const canTime = task.start !== undefined && !allDay && !tm && !done && !ghost && (task.fixed ? task.fixed === "busy" && task.source !== "dlu" && !task.forId : true);
   const check = type === "plan" || type === "assignment";
   // Missed: a checkable task whose block has ended without a tick; vermilion circle and time (views.html "Day, missed").
-  const late = check && !done && !allDay && (task.end ?? task.start ?? Infinity) <= now;
+  // A flexible block Zen placed is not missed by the clock alone: only a said (fixed, pinned) or due time makes it late.
+  const flexible = !task.fixed && !task.pinned && dueAt(task) === undefined;
+  const late = check && !done && !allDay && !flexible && (task.end ?? task.start ?? Infinity) <= now;
   const sub = subOver ?? (allDay ? t("noPlan") : subOf(task, type, now));
   // ui.css .ck.pop then .ck.on: ink, 1.12 and a 7px chip ring for a beat, then settles to chip with an ink check.
   const popV = useSharedValue(0), was = useRef(done);

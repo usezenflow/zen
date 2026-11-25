@@ -11,6 +11,7 @@ import { Icon, TypeArt } from "@/components/art";
 import { hhmm } from "@/components/cal";
 import type { HoldState } from "@/components/hold";
 import { t } from "@/lib/i18n";
+import { kvGet, kvSet } from "@/lib/store";
 import { reasonText, topReason } from "@/lib/reasons";
 import { useTheme, font, ff } from "@/lib/theme";
 import { when } from "@/lib/when";
@@ -21,35 +22,55 @@ import { typeOf } from "@/planner";
 export type Card = { task: Task; start?: number; end?: number; gap?: string };
 
 // Art card with progress meter; the circle marks it done. Swipe is handled by the caller.
+// Thử 15p: a fifteen-minute ramp on a block of 45 minutes or more, or one put off before; kv "now.micro" keeps it across restarts.
+type Micro = { id: string; startedAt: number; endsAt: number };
+const MICRO_KEY = "now.micro", MICRO_MIN = 15;
+const parseMicro = (v: string | null): Micro | null => { try { return v ? JSON.parse(v) : null; } catch { return null; } };
+
 // views.html "Day, next up": a flexible block not started yet also offers Làm luôn (onStart: that sitting moves to now).
-export function NowCard({ card, onDone, onStart, onLater }: { card: Card; onDone: () => void; onStart?: () => void; onLater?: () => void }) {
+export function NowCard({ card, onDone, onStart, onLater, onMicroRest }: { card: Card; onDone: () => void; onStart?: () => void; onLater?: () => void; onMicroRest?: (minutes: number) => void }) {
   const th = useTheme();
   const [now, setNow] = useState(() => Date.now());
+  const [micro, setMicro] = useState<Micro | null>(null);
   useEffect(() => { // the meter fills continuously: a slow ticker is smooth enough for a 54px capsule
     const i = setInterval(() => setNow(Date.now()), 3000);
     return () => clearInterval(i);
   }, []);
+  useEffect(() => { let live = true; kvGet(MICRO_KEY).then((v) => { if (live) setMicro(parseMicro(v)); }).catch(() => {}); return () => { live = false; }; }, []);
+  const saveMicro = (m: Micro | null) => { setMicro(m); kvSet(MICRO_KEY, JSON.stringify(m)).catch(() => {}); };
   const { task, start = 0, end = 0 } = card;
   const going = !card.gap && start <= now && now < end;
-  const p = going ? Math.max(0, Math.min(1, (now - start) / (end - start))) : 0;
+  const mic = micro?.id === task.id ? micro : null; // a try on another task is not this card's
+  const micDone = !!mic && now >= mic.endsAt;
+  const p = mic ? Math.max(0, Math.min(1, (now - mic.startedAt) / (mic.endsAt - mic.startedAt))) : going ? Math.max(0, Math.min(1, (now - start) / (end - start))) : 0;
   const mins = Math.max(1, Math.round((going ? end - now : end - start) / 60000));
+  const left = Math.max(1, Math.ceil(((mic?.endsAt ?? 0) - now) / 60000));
   const moving = !going && !task.fixed && !card.gap && !!onLater;
+  const microOk = !going && !task.fixed && !card.gap && (end - start >= 45 * 60000 || (task.misses ?? 0) > 0);
+  const big = mic ? (micDone ? t("microFull") : t("nMin", { n: left })) : going ? t("nMin", { n: mins }) : hhmm(start);
+  const small = mic ? (micDone ? t("microSub") : t("until", { time: hhmm(mic.endsAt) })) : going ? t("until", { time: hhmm(end) }) : t("nMin", { n: mins });
   return (
     <View style={[s.art, { backgroundColor: th.chip }]}>
       <View style={StyleSheet.absoluteFill}><TypeArt type={typeOf(task)} w={264} h={220} seed={4} /></View>
-      <Text style={[s.lab, { color: th.onart }]}>{t(going ? "doingNow" : "nextUp")}</Text>
+      <Text style={[s.lab, { color: th.onart }]}>{t(going || mic ? "doingNow" : "nextUp")}</Text>
       <Text style={[s.t, { color: th.onart }]} numberOfLines={3}>{card.gap ? bolded(t("gapT", { free: card.gap, title: task.title })) : task.title}</Text>
       <View style={s.foot}>
         <View style={s.meter}>
           <View style={s.cap}><Fill p={p} /></View>
           <View>
-            <Rise text={going ? t("nMin", { n: mins }) : hhmm(start)} style={[s.big, { color: th.onart }]} />
-            <Text style={[s.small, { color: th.onart }]}>{going ? t("until", { time: hhmm(end) }) : t("nMin", { n: mins })}</Text>
+            <Rise text={big} style={[s.big, { color: th.onart }]} />
+            <Text style={[s.small, { color: th.onart }]}>{small}</Text>
           </View>
         </View>
         <View style={s.acts2}>
-          {moving && onStart && <Tap onPress={onStart} scale={0.94} accessibilityRole="button" accessibilityLabel={t("startLab")} style={[s.glass, s.start]}><Glass /><Text style={s.startT}>{t("startLab")}</Text></Tap>}
-          {moving && <Tap onPress={onLater} scale={0.94} accessibilityRole="button" accessibilityLabel={t("laterBtn")} style={[s.glass, s.start, s.soft]}><Glass /><Text style={s.startT}>{t("laterBtn")}</Text></Tap>}
+          {mic && micDone ? <>
+            <Tap onPress={() => { saveMicro(null); onMicroRest?.(MICRO_MIN); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microRest")} style={[s.glass, s.start, s.soft]}><Glass /><Text style={s.startT} numberOfLines={1}>{t("microRest")}</Text></Tap>
+            {onStart && <Tap onPress={() => { saveMicro(null); onStart(); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microGo")} style={[s.glass, s.start]}><Glass /><Text style={s.startT} numberOfLines={1}>{t("microGo")}</Text></Tap>}
+          </> : <>
+            {moving && onStart && <Tap onPress={onStart} scale={0.94} accessibilityRole="button" accessibilityLabel={t("startLab")} style={[s.glass, s.start]}><Glass /><Text style={s.startT}>{t("startLab")}</Text></Tap>}
+            {moving && <Tap onPress={onLater} scale={0.94} accessibilityRole="button" accessibilityLabel={t("laterBtn")} style={[s.glass, s.start, s.soft]}><Glass /><Text style={s.startT}>{t("laterBtn")}</Text></Tap>}
+            {microOk && !mic && <Tap onPress={() => { const at0 = Date.now(); saveMicro({ id: task.id, startedAt: at0, endsAt: at0 + MICRO_MIN * 60000 }); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microBtn")} style={[s.glass, s.start]}><Glass /><Text style={s.startT} numberOfLines={1}>{t("microBtn")}</Text></Tap>}
+          </>}
           <Tap onPress={onDone} hitSlop={8} scale={0.88} testID="nowDone" accessibilityRole="button" accessibilityLabel={t("markDone")} style={[s.glass, s.solid]}><Glass /><Icon name="check" size={22} color="#0b0b0c" w={2.2} /></Tap>
         </View>
       </View>
@@ -146,7 +167,8 @@ function useFlick(onDismiss?: () => void) {
 }
 
 // views.html .mvp: moves not yet briefed, slim, under the now card or above the week grid. Tap opens the story; a swipe or screen-reader action dismisses.
-export function MovesPill({ moves, now, onOpen, onDismiss }: { moves: Move[]; now: number; onOpen: () => void; onDismiss?: () => void }) {
+// head/sub: another proposal's words in the same pill (a rebalance offer), in place of the moves' own.
+export function MovesPill({ moves, now, onOpen, onDismiss, head, sub }: { moves: Move[]; now: number; onOpen: () => void; onDismiss?: () => void; head?: string; sub?: string }) {
   const th = useTheme();
   const { pan, flick } = useFlick(onDismiss);
   if (!moves.length) return null;
@@ -160,8 +182,8 @@ export function MovesPill({ moves, now, onOpen, onDismiss }: { moves: Move[]; no
       <View style={[s.mvDot, { backgroundColor: th.seal }]} />
       {/* two lines: how many, then the biggest move with its title in bold (never " · " run on) */}
       <View style={s.mvTx}>
-        <Text numberOfLines={1} style={[s.mvT, { color: th.ink }]}>{t("briefN", { n: moves.length })}</Text>
-        <Text numberOfLines={1} style={[s.mvS, { color: th.muted }]}>{bolded(t("briefMove", { title: m.title, when: when(m.to, now) }), { color: th.ink })}</Text>
+        <Text numberOfLines={1} style={[s.mvT, { color: th.ink }]}>{head ?? t("briefN", { n: moves.length })}</Text>
+        <Text numberOfLines={1} style={[s.mvS, { color: th.muted }]}>{sub ?? bolded(t("briefMove", { title: m.title, when: when(m.to, now) }), { color: th.ink })}</Text>
       </View>
       <View style={[s.mvX, { backgroundColor: th.ink }]}><Text style={[s.mvXT, { color: th.bg }]}>{t("briefSee")}</Text></View>
     </Tap>
@@ -172,7 +194,8 @@ export function MovesPill({ moves, now, onOpen, onDismiss }: { moves: Move[]; no
 
 // magic 2: the moves grouped by cause, old time struck, new time, one reason each.
 // `onUndo`: where the user made the change (the detail screen), the story can take it back.
-export function Story({ moves, now, onClose, onUndo }: { moves: Move[]; now: number; onClose: () => void; onUndo?: () => void }) {
+// onApply (a rebalance proposal): the two actions are Để nguyên (onKeep) and Áp dụng; nothing moved until Áp dụng.
+export function Story({ moves, now, onClose, onUndo, onKeep, onApply }: { moves: Move[]; now: number; onClose: () => void; onUndo?: () => void; onKeep?: () => void; onApply?: () => void }) {
   const th = useTheme();
   const groups = new Map<string, Move[]>();
   const rank = (c?: string) => (!c ? 2 : c === t("causeKnock") ? 1 : 0); // real causes first, then knock-ons, then plain refinements
@@ -200,7 +223,11 @@ export function Story({ moves, now, onClose, onUndo }: { moves: Move[]; now: num
         </View>
       ))}
       <View style={s.acts}>
-        <Tap onPress={onClose} accessibilityRole="button" accessibilityLabel={t("briefClose")} style={[s.close, { backgroundColor: th.ink }]}><Text style={[s.ct, { color: th.bg }]}>{t("briefClose")}</Text></Tap>
+        {onApply ? <>
+          <Tap onPress={onKeep} accessibilityRole="button" accessibilityLabel={t("rebalKeep")} style={[s.close, { flex: 1, alignSelf: "auto", backgroundColor: th.chip }]}><Text style={[s.ct, { color: th.ink }]}>{t("rebalKeep")}</Text></Tap>
+          <Tap onPress={onApply} accessibilityRole="button" accessibilityLabel={t("rebalApply")} style={[s.close, { flex: 1, alignSelf: "auto", backgroundColor: th.ink }]}><Text style={[s.ct, { color: th.bg }]}>{t("rebalApply")}</Text></Tap>
+        </> : <>
+        <Tap onPress={onClose} accessibilityRole="button" accessibilityLabel={t("briefClose")} style={[s.close, { backgroundColor: th.ink }]}><Text style={[s.ct, { color: th.bg }]}>{t("briefClose")}</Text></Tap></>}
         {onUndo && <Tap onPress={onUndo} accessibilityRole="button" accessibilityLabel={t("undo")} style={[s.close, { borderColor: th.line, borderWidth: 1 }]}><Text style={[s.ct, { color: th.ink, fontFamily: ff("500") }]}>{t("undo")}</Text></Tap>}
       </View>
     </Animated.View>

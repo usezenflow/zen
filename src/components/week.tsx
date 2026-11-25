@@ -10,6 +10,7 @@ import { addDays, holLines, keptOn, onDay, short, startOfDay, type Hols } from "
 import { Tap, glide, settle } from "@/components/tap";
 import { MovesPill } from "@/components/nowcard";
 import type { Box } from "@/components/outside";
+import { t } from "@/lib/i18n";
 import { useTheme, ff, motion } from "@/lib/theme";
 import type { Move, Rule, Task } from "@/lib/types";
 import { typeOf } from "@/planner";
@@ -87,12 +88,14 @@ function fit(hs: number[]) {
   return { hs: list.map((h) => Math.max(MINH, Math.floor(h * sc))), more };
 }
 
-export function Week({ tasks, hols, monday, selected, now, onSelect, onStep, rules = [], gridRef, hover, moves = [], brief = [], onMoves, onDismiss }: {
+export function Week({ tasks, hols, monday, selected, now, onSelect, onStep, rules = [], gridRef, hover, moves = [], brief = [], onMoves, onDismiss, onRebalance }: {
   tasks: Task[]; hols: Hols; monday: number; selected: number; now: number; onSelect: (day: number) => void; onStep: (d: -1 | 1) => void; rules?: Rule[];
   /** gridRef: the seven columns, measured for a drop; hover: the day under a dragged row */
   gridRef?: React.Ref<Box>; hover?: number;
   /** moves: ids not yet seen (a seal dot on each block); brief: moves not yet briefed (the pill above the grid), onMoves opens its story */
   moves?: string[]; brief?: Move[]; onMoves?: () => void; onDismiss?: () => void;
+  /** onRebalance: asks for a fresh rebalance proposal for the week (the link above the grid) */
+  onRebalance?: () => void;
 }) {
   const th = useTheme();
   const [gw, setGw] = useState(0);
@@ -104,6 +107,7 @@ export function Week({ tasks, hols, monday, selected, now, onSelect, onStep, rul
   return (
     <View>
     {!!onMoves && <MovesPill moves={brief} now={now} onOpen={onMoves} onDismiss={onDismiss} />}
+    {!!onRebalance && <Tap onPress={onRebalance} accessibilityRole="button" style={{ alignSelf: "flex-end", paddingVertical: 8 }}><Text style={{ color: th.muted, fontSize: 14, fontFamily: ff("600") }}>{t("rebalWeek")}</Text></Tap>}
     <Swipe onStep={onStep} stepKey={monday}>
       <View ref={gridRef} collapsable={false} testID="wkGrid" style={s.wk} onLayout={(e) => setGw(e.nativeEvent.layout.width)}>
         {short.map((d, i) => {

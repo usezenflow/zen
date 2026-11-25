@@ -1,26 +1,30 @@
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import Animated, { Extrapolation, FadeOut, interpolate, useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, ZoomIn, type SharedValue } from "react-native-reanimated";
+import Animated, { FadeOut, ZoomIn, useSharedValue } from "react-native-reanimated";
+import { GestureHandlerRootView, GestureDetector, usePanGesture } from "react-native-gesture-handler";
+import Svg, { Circle, Line, Text as SvgText } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
 import { useDrop } from "@/components/outside";
 import { EASE, Hit } from "@/components/tap";
 import { t } from "@/lib/i18n";
 import { ff, useTheme } from "@/lib/theme";
 
-// views.html .dial: zen's small time drum dropped from its chip like a menu. Three 44px rows, the middle one in a band; minutes step 5.
-// Three rows: with five, the hours before today's first (or an end's start) left blank rows above the band.
-const ROW = 44, SHOW = 3, COL = 60, SEP = 16, PADX = 12, PADY = 10;
+// views.html .dial: zen's round time dial dropped from its chip like a menu. A header HH:MM (tap a segment to switch), then a face: hours first, then minutes in 5p stops.
+const PADX = 12, PADY = 10;
 const PRE = 44, PILL = 44, GAP = 8; // the preset row: views.html .pre, one tap picks and closes
-const H = SHOW * ROW + 2 * PADY;
 const TW = 208; // two presets to a line, each centred with room on both sides
+const HEAD = 44, FACE = 184, C = FACE / 2, RO = 76, RI = 48; // the face: outer ring 1-12 (stops 00-55 for minutes), inner ring 13-23 and 00
 // A start's usual morning, afternoon, after class, evening; a due's before midnight and midnight.
 const TPRE: [number, number][] = [[8, 0], [14, 0], [17, 0], [20, 0]], DPRE: [number, number][] = [[23, 59], [0, 0]];
-const TH = (n: number) => H + 8 + Math.ceil(n / 2) * PILL + (Math.ceil(n / 2) - 1) * GAP; // drum, the 8 above the presets, the pill lines; the pad adds its own bottom 10
-const HOURS = Array.from({ length: 24 }, (_, i) => i), MINUTES = Array.from({ length: 12 }, (_, i) => i * 5); // any 5p; the presets cover the usual
+const TH = (n: number) => 2 * PADY + HEAD + FACE + 8 + Math.ceil(n / 2) * PILL + (Math.ceil(n / 2) - 1) * GAP; // header, face, the 8 above the presets, the pill lines
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const pad = (n: number) => String(n).padStart(2, "0");
 const tick = () => { Haptics.selectionAsync().catch(() => {}); };
+// Stop keys: 0-11 the outer ring (12, 1-11), 12-23 the inner (00, 13-23); minutes use 0-11 (00-55).
+const hourOf = (k: number) => (k < 12 ? (k === 0 ? 12 : k) : k === 12 ? 0 : k);
+const pt = (r: number, i: number): [number, number] => [C + r * Math.sin((i * Math.PI) / 6), C - r * Math.cos((i * Math.PI) / 6)];
 
 export type Anchor = { x: number; y: number; w: number; h: number };
 
@@ -37,60 +41,6 @@ function Presets({ items, style, pill }: { items: { label: string; off?: boolean
     </View>
   );
 }
-
-function Cell({ i, y, label }: { i: number; y: SharedValue<number>; label: string }) {
-  const th = useTheme();
-  const st = useAnimatedStyle(() => {
-    const d = (y.get() - i * ROW) / ROW, a = Math.abs(d);
-    return {
-      opacity: interpolate(a, [0, 1, 2], [1, 0.5, 0.22], Extrapolation.CLAMP),
-      // no rotateX: a 3D tilt next to the card's BlurView rendered as hard blurred blocks on iOS
-      transform: [{ scale: interpolate(a, [0, 1], [1, 0.96], Extrapolation.CLAMP) }],
-    };
-  });
-  return (
-    <Animated.View style={[s.cell, st]}>
-      <Text style={[s.num, { color: th.ink }]}>{label}</Text>
-    </Animated.View>
-  );
-}
-
-const COPIES = 5; // a wrapping drum shows its values five times over, the middle copy is home
-
-/** One drum. Ticks a light haptic per row passed; `onPick` once it settles on a new row. `wrap`: 55 runs on into 00 and 23 into 00 (once it stops near an edge copy it jumps back to the middle one). */
-function Drum({ values, start, onPick, fmt = pad, wrap }: { values: number[]; start: number; onPick: (v: number) => void; fmt?: (v: number) => string; wrap?: boolean }) {
-  const ref = useAnimatedRef<Animated.ScrollView>();
-  const n = values.length, base = wrap ? 2 * n : 0, rows = wrap ? COPIES * n : n;
-  const y = useSharedValue((base + start) * ROW), seen = useSharedValue(base + start);
-  const settled = useRef(start);
-  const onScroll = useAnimatedScrollHandler({
-    onScroll: (e) => {
-      y.set(e.contentOffset.y);
-      const k = Math.round(e.contentOffset.y / ROW);
-      if (k !== seen.get()) { seen.set(k); scheduleOnRN(tick); }
-    },
-  });
-  const land = (off: number) => {
-    const k = Math.max(0, Math.min(rows - 1, Math.round(off / ROW))), j = k % n;
-    if (wrap && (k < n || k >= 4 * n)) { ref.current?.scrollTo({ y: (base + j) * ROW, animated: false }); y.set((base + j) * ROW); seen.set(base + j); }
-    if (j !== settled.current) { settled.current = j; onPick(values[j]); }
-  };
-  return (
-    <Animated.ScrollView
-      ref={ref} onScroll={onScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false}
-      snapToInterval={ROW} decelerationRate="fast" contentOffset={{ x: 0, y: (base + start) * ROW }}
-      onLayout={() => ref.current?.scrollTo({ y: (base + start) * ROW, animated: false })} // Android ignores contentOffset
-      onMomentumScrollEnd={(e) => land(e.nativeEvent.contentOffset.y)}
-      onScrollEndDrag={(e) => { if (Math.abs(e.nativeEvent.velocity?.y ?? 0) < 0.05) land(e.nativeEvent.contentOffset.y); }} // let go without a flick: no momentum event follows
-      contentContainerStyle={{ paddingVertical: ((SHOW - 1) / 2) * ROW }} style={{ width: COL, height: SHOW * ROW }}
-    >
-      {Array.from({ length: rows }, (_, i) => <Cell key={i} i={i} y={y} label={fmt(values[i % n])} />)}
-    </Animated.ScrollView>
-  );
-}
-
-// A due date's 23 also offers :59, the usual "before midnight" (views.html "Detail, due date").
-const minutesAt = (h: number, due?: boolean) => (due && h === 23 ? [...MINUTES, 59] : MINUTES);
 
 /** A frosted dropdown (ui.css .menu) hanging 6px under `anchor`, its left or right edge on the chip's; above it when the screen ends first. */
 function Drop({ anchor, w, h, side, onClose, children }: { anchor: Anchor; w: number; h: number; side: "left" | "right"; onClose: () => void; children: React.ReactNode }) {
@@ -112,59 +62,108 @@ function Drop({ anchor, w, h, side, onClose, children }: { anchor: Anchor; w: nu
   );
 }
 
-function Clock({ value, due, min, past, presets, onChange, onClose }: { value: Date; due?: boolean; min?: Date; past?: boolean; presets?: Preset[]; onChange: (d: Date) => void; onClose: () => void }) {
+type Phase = "h" | "m";
+type St = { h: number; m: number; ph: Phase; touched: boolean };
+
+/** The dial itself. Turning it moves the hand and the header only; `onChange` fires once, when the dial closes (a tap outside), and only if the time moved. */
+function Clock({ anchor, height, side, value, due, min, past, presets, onChange, onClose }: { anchor: Anchor; height: number; side: "left" | "right"; value: Date; due?: boolean; min?: Date; past?: boolean; presets?: Preset[]; onChange: (d: Date) => void; onClose: () => void }) {
   const th = useTheme();
   // On today only now to midnight is offered: an hour once a quarter of it is left, minutes from now on. `past`: any time (a manual edit).
   const [now] = useState(() => new Date(Date.now())); // Date.now, as the calendar: one clock for both
   const today = value.toDateString() === now.toDateString(), nh = now.getHours(), nm = now.getMinutes();
   // The earliest time offered, in minutes of the day: now on today; an end's `min` (its start + 15) on the start's day.
-  const floor = Math.max(today && !past ? nh * 60 + nm : -1, min && min.toDateString() === value.toDateString() ? min.getHours() * 60 + min.getMinutes() : -1);
-  const minsOf = (h: number) => minutesAt(h, due).filter((m) => h * 60 + m >= floor);
-  const open = HOURS.filter((h) => minsOf(h).length);
-  const hours = open.length ? open : HOURS; // shortcut: past the day's last step (23:46 for a start) nothing is left today; the whole day shows rather than an empty drum
-  const allowed = (h: number) => (open.length ? minsOf(h) : minutesAt(h, due));
-  const [first] = useState(() => {
-    const h0 = value.getHours(), mm = value.getMinutes();
-    const h = hours.includes(h0) ? h0 : hours[0]; // a time already gone starts on the first one left
-    const want = h !== h0 ? -1 : due && h === 23 && mm === 59 ? 59 : MINUTES[Math.round(mm / 5) % 12];
-    const ms = allowed(h);
-    return { h, m: ms.includes(want) ? want : ms[0] }; // where the drums start
+  const raw = Math.max(today && !past ? nh * 60 + nm : -1, min && min.toDateString() === value.toDateString() ? min.getHours() * 60 + min.getMinutes() : -1);
+  const last = (h: number) => (due && h === 23 ? 59 : 55); // a due's 23 also offers :59, the usual "before midnight"
+  const floor = HOURS.some((h) => h * 60 + last(h) >= raw) ? raw : -1; // shortcut: past the day's last step nothing is left today; the whole day shows
+  const off = (h: number, m: number) => h * 60 + m < floor;
+  const hourOff = (h: number) => off(h, last(h));
+  // a minute before the floor moves up to the first stop left; a :59 that is still allowed stays as it is
+  const fit = (h: number, m: number) => (off(h, m) ? Math.min(last(h), Math.ceil(Math.max(0, floor - h * 60) / 5) * 5) : m);
+  const [st, setSt] = useState<St>(() => {
+    const h0 = value.getHours();
+    const h = hourOff(h0) ? HOURS.find((x) => !hourOff(x)) ?? h0 : h0; // a time already gone starts on the first hour left
+    return { h, m: fit(h, value.getMinutes()), ph: "h", touched: false };
   });
-  const at = useRef({ ...first });
-  const [hour, setHour] = useState(first.h);
-  const mins = allowed(hour);
-  const set = (part: "h" | "m", v: number) => {
-    at.current[part] = v;
-    if (part === "h") {
-      setHour(v);
-      const ms = allowed(v);
-      if (!ms.includes(at.current.m)) at.current.m = ms.find((m) => m >= at.current.m) ?? ms[ms.length - 1]; // :59 belongs to 23 only; today's hour starts at now
-    }
-    const d = new Date(value);
-    d.setHours(at.current.h, at.current.m, 0, 0);
-    onChange(d);
+  const { h, m, ph, touched } = st;
+  // a value picked on the current phase; the hours and minutes that are off take no pick
+  const pick = (p: St, phase: Phase, v: number): St => (phase === "h" ? (hourOff(v) ? p : { ...p, h: v, m: fit(v, p.m), touched: true }) : off(p.h, v) ? p : { ...p, m: v, touched: true });
+  // the hand's stop: the hour, or the nearest 5p (a 59 sits at 00)
+  const stop = ph === "h" ? h : Math.round(m / 5) % 12;
+  const prev = useRef(stop);
+  useEffect(() => { if (prev.current !== stop) { prev.current = stop; tick(); } }, [stop]); // one tick per stop the hand passes
+  // Drags report the stop under the hand (a key, see hourOf); the phase turns on release.
+  const drag = (k: number) => setSt((p) => pick(p, p.ph, p.ph === "h" ? hourOf(k) : (k % 12) * 5));
+  const release = () => setSt((p) => (p.ph === "h" ? { ...p, ph: "m" } : p)); // letting go of an hour turns to the minutes
+  const lastKey = useSharedValue(-1);
+  const pan = usePanGesture({
+    onActivate: () => { "worklet"; lastKey.set(-1); },
+    onUpdate: (e) => {
+      "worklet";
+      const dx = e.x - C, dy = e.y - C;
+      const i = Math.round(((Math.atan2(dx, -dy) + 2 * Math.PI) % (2 * Math.PI)) / (Math.PI / 6)) % 12; // nearest stop by angle, 0 at the top
+      const k = Math.hypot(dx, dy) < (RO + RI) / 2 ? 12 + i : i; // the inner ring for hours close to the centre
+      if (k !== lastKey.get()) { lastKey.set(k); scheduleOnRN(drag, k); }
+    },
+    onDeactivate: () => { "worklet"; scheduleOnRN(release); },
+  });
+  const close = () => {
+    if (touched && (h !== value.getHours() || m !== value.getMinutes())) { const d = new Date(value); d.setHours(h, m, 0, 0); onChange(d); }
+    onClose();
   };
-  const gone = (h: number, m: number) => !!open.length && h * 60 + m < floor;
+  const items = Array.from({ length: ph === "h" ? 24 : 12 }, (_, k) => {
+    const inner = ph === "h" && k >= 12, v = ph === "h" ? hourOf(k) : k * 5;
+    const [x, y] = pt(inner ? RI : RO, k % 12);
+    const sel = ph === "h" ? v === h : k === stop;
+    return { k, x, y, inner, sel, dis: ph === "h" ? hourOff(v) : off(h, v), label: ph === "h" && !inner ? String(v) : pad(v), v };
+  });
+  const cur = items.find((x) => x.sel) ?? items[0];
+  const seg = (p: Phase, text: string, label: string) => (
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={() => setSt((q) => ({ ...q, ph: p }))} style={[s.seg, ph === p && { backgroundColor: th.chip }]}>
+      <Text style={[s.rd, { color: ph === p ? th.ink : th.muted }]}>{text}</Text>
+    </Pressable>
+  );
   return (
-    <View style={s.pad}>
-      <View style={[s.band, { backgroundColor: th.dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" }]} />
-      <View style={s.row}>
-        <Drum values={hours} start={hours.indexOf(first.h)} wrap={hours.length === 24} onPick={(v) => set("h", v)} />
-        <Text style={[s.num, s.sep, { color: th.ink }]}>:</Text>
-        {/* keyed by its minutes: gaining or losing :59, or today's first hour, starts the drum again on the current minute */}
-        <Drum key={mins.join()} values={mins} start={Math.max(0, mins.indexOf(at.current.m))} wrap={mins.length === 12} onPick={(v) => set("m", v)} />
-      </View>
-      <Presets style={s.dpre} pill={s.dpill} items={presets ? presets.map((x) => ({ label: x.label, on: x.on, onPress: () => { onChange(x.at); onClose(); } })) : (due ? DPRE : TPRE).map(([h, m]) => ({ label: `${h}:${pad(m)}`, off: gone(h, m), onPress: () => { const d = new Date(value); d.setHours(h, m, 0, 0); onChange(d); onClose(); } }))} />
-    </View>
+    <Drop anchor={anchor} w={TW} h={height} side={side} onClose={close}>
+      <GestureHandlerRootView style={s.pad}>
+        <View style={s.head}>
+          {seg("h", pad(h), "hour")}
+          <Text style={[s.rd, { color: th.ink }]}>:</Text>
+          {seg("m", pad(m), "minute")}
+        </View>
+        <GestureDetector gesture={pan}>
+          <View style={s.face}>
+            <Svg width={FACE} height={FACE}>
+              <Circle cx={C} cy={C} r={C} fill={th.chip} />
+              <Line x1={C} y1={C} x2={cur.x} y2={cur.y} stroke={th.ink} strokeWidth={1.5} />
+              <Circle cx={cur.x} cy={cur.y} r={cur.inner ? 15 : 17} fill={th.ink} />
+              <Circle cx={C} cy={C} r={3} fill={th.ink} />
+              {items.map((x) => (
+                <SvgText key={x.k} x={x.x} y={x.y} fontSize={x.inner ? 12 : 14} fontWeight="600" textAnchor="middle" alignmentBaseline="central" fill={x.sel ? th.bg : x.inner ? th.muted : th.ink} opacity={x.dis ? 0.3 : 1}>{x.label}</SvgText>
+              ))}
+            </Svg>
+            {/* the touch targets: 40px over each number, the labels are what a screen reader and the tests find */}
+            {items.map((x) => (
+              <Pressable
+                key={x.k} disabled={x.dis}
+                onPress={() => setSt((p) => { const q = pick(p, p.ph, x.v); return p.ph === "h" ? { ...q, ph: "m" } : q; })} // an hour picked turns to the minutes
+                accessibilityRole="button" accessibilityLabel={x.label} accessibilityState={{ selected: x.sel, disabled: x.dis }}
+                style={[s.stop, { left: x.x - 20, top: x.y - 20 }]}
+              />
+            ))}
+          </View>
+        </GestureDetector>
+        <Presets style={s.dpre} pill={s.dpill} items={presets ? presets.map((x) => ({ label: x.label, on: x.on, onPress: () => { onChange(x.at); onClose(); } })) : (due ? DPRE : TPRE).map(([hh, mm]) => ({ label: `${hh}:${pad(mm)}`, off: off(hh, mm), onPress: () => { const d = new Date(value); d.setHours(hh, mm, 0, 0); onChange(d); onClose(); } }))} />
+      </GestureHandlerRootView>
+    </Drop>
   );
 }
 
 export type Preset = { label: string; at: Date; on?: boolean };
 
-/** The time dial under `anchor` (from measureInWindow). Each settled drum calls `onChange`; a tap outside closes. `presets`: replace the usual times (an end offers lengths). */
+/** The time dial under `anchor` (from measureInWindow). Nothing saves while it turns; `onChange` fires once when it closes (a tap outside), or at once for a preset. `presets`: replace the usual times (an end offers lengths). */
 export function TimeDial({ open, anchor, value, due, min, past, presets, side = "right", onChange, onClose }: { open: boolean; anchor?: Anchor; value: Date; due?: boolean; min?: Date; past?: boolean; presets?: Preset[]; side?: "left" | "right"; onChange: (d: Date) => void; onClose: () => void }) {
   if (!open || !anchor) return null;
-  return <Drop anchor={anchor} w={TW} h={TH(presets ? presets.length : (due ? DPRE : TPRE).length)} side={side} onClose={onClose}><Clock value={value} due={due} min={min} past={past} presets={presets} onChange={onChange} onClose={onClose} /></Drop>;
+  return <Clock anchor={anchor} height={TH(presets ? presets.length : (due ? DPRE : TPRE).length)} side={side} value={value} due={due} min={min} past={past} presets={presets} onChange={onChange} onClose={onClose} />;
 }
 
 // views.html .cal: the month, Monday first, six weeks. Today vermilion, the picked day a filled vermilion circle, days before today or `min` greyed out.
@@ -228,7 +227,11 @@ export function DateDrop({ open, anchor, value, min, past, parts, side = "left",
 const s = StyleSheet.create({
   card: { position: "absolute", borderRadius: 16, overflow: "hidden", boxShadow: "0 0 0 0.5px rgba(0,0,0,0.08), 0 18px 40px -8px rgba(0,0,0,0.28)" },
   pad: { paddingHorizontal: PADX, paddingVertical: PADY },
-  band: { position: "absolute", left: PADX, right: PADX, top: PADY + ((SHOW - 1) / 2) * ROW, height: ROW, borderRadius: 9 },
+  head: { height: HEAD, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 2 },
+  seg: { height: 40, paddingHorizontal: 8, borderRadius: 10, justifyContent: "center" },
+  rd: { fontSize: 30, fontFamily: ff("600"), fontVariant: ["tabular-nums"] },
+  face: { width: FACE, height: FACE, alignSelf: "center" },
+  stop: { position: "absolute", width: 40, height: 40 },
   cal: { paddingTop: 14, paddingHorizontal: 12, paddingBottom: 10 },
   mh: { height: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 4 },
   mt: { fontSize: 17, fontFamily: ff("600") },
@@ -240,14 +243,10 @@ const s = StyleSheet.create({
   dc: { width: "14.2857%", height: CELL, alignItems: "center", justifyContent: "center" },
   dot: { width: CELL, height: CELL, borderRadius: CELL / 2, alignItems: "center", justifyContent: "center" },
   dn: { fontSize: 17, fontFamily: ff("500"), fontVariant: ["tabular-nums"] },
-  row: { flexDirection: "row", alignItems: "center", justifyContent: "center" },
   pre: { flexDirection: "row", gap: GAP, justifyContent: "center" },
   dpre: { paddingTop: 8, flexWrap: "wrap" },
   dpill: { width: (TW - 2 * PADX - GAP) / 2, paddingHorizontal: 0 }, // two to a line, the time centred
   cpill: { flex: 1, minWidth: 0, paddingHorizontal: 4 },
   pill: { height: PILL, paddingHorizontal: 10, borderRadius: 99, alignItems: "center", justifyContent: "center" },
   pt: { fontSize: 16, fontFamily: ff("600"), fontVariant: ["tabular-nums"] },
-  cell: { height: ROW, alignItems: "center", justifyContent: "center" },
-  num: { fontSize: 20, fontFamily: ff("600"), fontVariant: ["tabular-nums"] },
-  sep: { width: SEP, textAlign: "center" },
 });

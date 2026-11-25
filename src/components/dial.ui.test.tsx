@@ -1,32 +1,57 @@
-import { act, fireEvent, render, screen } from "@testing-library/react-native";
+import { fireEvent, render, screen } from "@testing-library/react-native";
 import { View } from "react-native";
 import { DateDrop, TimeDial } from "./dial";
 
 const A = { x: 200, y: 200, w: 60, h: 34 };
-const drums = () => screen.container.queryAll((n) => typeof n.props.onMomentumScrollEnd === "function" && n.props.snapToInterval === 44);
-const settle = (el: { props: Record<string, unknown> }, row: number) => act(() => { (el.props.onMomentumScrollEnd as (e: object) => void)({ nativeEvent: { contentOffset: { x: 0, y: row * 44 } } }); });
 const at = (h: number, m: number) => new Date(2026, 10, 20, h, m);
-const draw = (value: Date, due: boolean, onChange = jest.fn()) => render(<View><TimeDial open anchor={A} due={due} value={value} onChange={onChange} onClose={jest.fn()} /></View>);
+const draw = (value: Date, due: boolean, onChange = jest.fn(), min?: Date) => render(<View><TimeDial open anchor={A} due={due} min={min} value={value} onChange={onChange} onClose={jest.fn()} /></View>);
+const close = () => fireEvent.press(screen.getByLabelText("close"));
 
-it("a due at 23 offers :59", async () => {
-  await draw(at(23, 59), true);
-  expect(screen.getByText("59")).toBeOnTheScreen();
+it("tapping 17 then 35 then closing saves once: 17:35", async () => {
+  const onChange = jest.fn();
+  await draw(at(9, 0), false, onChange);
+  await fireEvent.press(screen.getByLabelText("17")); // the hour: the minutes come up
+  await fireEvent.press(screen.getByLabelText("35"));
+  expect(onChange).not.toHaveBeenCalled(); // nothing saves while the dial turns
+  await close();
+  expect(onChange).toHaveBeenCalledTimes(1);
+  expect(onChange).toHaveBeenCalledWith(at(17, 35));
 });
 
-it("a plain time at 23 keeps steps of 5", async () => {
-  await draw(at(23, 45), false);
-  expect(screen.queryByText("59")).toBeNull();
+it("the hour segment of the header goes back to the hours", async () => {
+  await draw(at(9, 0), false);
+  await fireEvent.press(screen.getByLabelText("17"));
+  expect(screen.queryByLabelText("17")).toBeNull(); // the minutes: 00 to 55 only
+  expect(screen.getByLabelText("35")).toBeOnTheScreen();
+  await fireEvent.press(screen.getByLabelText("hour"));
+  expect(screen.getByLabelText("17")).toBeOnTheScreen();
+  expect(screen.queryByLabelText("35")).toBeNull();
 });
 
-it("leaving 23 from :59 lands on :55, and 23:59 can be picked again", async () => {
+it("hours before min are disabled and greyed; the minutes before it too", async () => {
+  await draw(at(18, 0), false, jest.fn(), at(17, 30));
+  expect(screen.getByLabelText("8")).toBeDisabled();
+  expect(screen.getByLabelText("16")).toBeDisabled();
+  expect(screen.getByLabelText("17")).toBeEnabled();
+  await fireEvent.press(screen.getByLabelText("17"));
+  expect(screen.getByLabelText("25")).toBeDisabled();
+  expect(screen.getByLabelText("30")).toBeEnabled();
+});
+
+it("a due 23:59 left untouched stays 23:59: nothing is saved on close", async () => {
   const onChange = jest.fn();
   await draw(at(23, 59), true, onChange);
-  await settle(drums()[0], 22);
-  expect(onChange).toHaveBeenLastCalledWith(at(22, 55));
-  expect(screen.queryByText("59")).toBeNull();
-  await settle(drums()[0], 23);
-  await settle(drums()[1], 12);
-  expect(onChange).toHaveBeenLastCalledWith(at(23, 59));
+  expect(screen.getByText("59")).toBeOnTheScreen(); // the header shows the minute the due has
+  await close();
+  expect(onChange).not.toHaveBeenCalled();
+});
+
+it("a due 23:59 keeps its :59 when the hour changes, until the minutes are touched", async () => {
+  const onChange = jest.fn();
+  await draw(at(23, 59), true, onChange);
+  await fireEvent.press(screen.getByLabelText("22")); // the inner ring's 22
+  await close();
+  expect(onChange).toHaveBeenCalledWith(at(22, 59));
 });
 
 beforeEach(() => jest.spyOn(Date, "now").mockReturnValue(new Date(2026, 10, 15, 9).getTime())); // today: Sun 15/11
@@ -98,11 +123,13 @@ it("on today only now to midnight: no hour gone, the current hour from now, pres
   jest.spyOn(Date, "now").mockReturnValue(at(14, 7).getTime());
   const onChange = jest.fn();
   await draw(at(17, 30), false, onChange);
-  expect(screen.queryByText("13")).toBeNull();
-  expect(screen.getByText("14")).toBeOnTheScreen();
-  await settle(drums()[0], 0); // 14
-  expect(onChange).toHaveBeenLastCalledWith(at(14, 30));
-  expect(screen.queryByText("00")).toBeNull(); // 14:00 is gone; 14:15 on
+  expect(screen.getByLabelText("14")).toBeEnabled();
+  expect(screen.getByLabelText("13")).toBeDisabled();
+  await fireEvent.press(screen.getByLabelText("14"));
+  expect(screen.getByLabelText("00")).toBeDisabled(); // 14:00 is gone; 14:15 on
+  await fireEvent.press(screen.getByLabelText("15"));
+  await close();
+  expect(onChange).toHaveBeenLastCalledWith(at(14, 15));
   onChange.mockClear();
   await fireEvent.press(screen.getByLabelText("8:00"));
   expect(onChange).not.toHaveBeenCalled();
@@ -123,32 +150,30 @@ it("a day picked whose time is already gone takes the next quarter hour", async 
 it("another day keeps the whole day", async () => {
   jest.spyOn(Date, "now").mockReturnValue(at(14, 7).getTime());
   await draw(new Date(2026, 10, 21, 9, 0), false);
-  expect(screen.getAllByText("08")[0]).toBeOnTheScreen();
+  expect(screen.getByLabelText("8")).toBeEnabled();
 });
 
 // An end's dial starts 15 minutes after its start, on the start's day; on another day the whole day is offered.
 it("an end offers only times at least 15 minutes after its start", async () => {
-  const start = at(17, 0), onChange = jest.fn();
-  await render(<View><TimeDial open anchor={A} value={at(18, 0)} min={new Date(start.getTime() + 15 * 60_000)} onChange={onChange} onClose={jest.fn()} /></View>);
-  const [hours] = drums();
-  expect(screen.queryByText("16")).toBeNull();
-  expect(screen.getByText("17")).toBeOnTheScreen();
-  await settle(hours, 0); // the first hour offered: 17, its first minute 15
+  const onChange = jest.fn();
+  await draw(at(18, 0), false, onChange, new Date(at(17, 0).getTime() + 15 * 60_000));
+  expect(screen.getByLabelText("16")).toBeDisabled();
+  expect(screen.getByLabelText("17")).toBeEnabled();
+  await fireEvent.press(screen.getByLabelText("17")); // the first hour offered: its first minute 15
+  expect(screen.getByLabelText("00")).toBeDisabled();
+  expect(screen.getByLabelText("15")).toBeEnabled();
+  await close();
   expect(onChange).toHaveBeenLastCalledWith(at(17, 15));
-  expect(screen.getByLabelText("14:00")).toBeDisabled(); // before the floor: off
-  expect(screen.getByLabelText("20:00")).toBeEnabled();
 });
 
 it("an end on a later day than its start keeps the whole day", async () => {
   await render(<View><TimeDial open anchor={A} value={new Date(2026, 10, 21, 9, 0)} min={new Date(at(17, 0).getTime() + 15 * 60_000)} onChange={jest.fn()} onClose={jest.fn()} /></View>);
-  expect(screen.getAllByText("08")[0]).toBeOnTheScreen();
+  expect(screen.getByLabelText("8")).toBeEnabled();
 });
 
-it("the minutes run on from 55 into 00 and the hours from 23 into 00", async () => {
-  const onChange = jest.fn();
-  await draw(at(17, 55), false, onChange);
-  await settle(drums()[1], 12); // one row past 55 in the next copy
-  expect(onChange).toHaveBeenLastCalledWith(at(17, 0));
-  await settle(drums()[0], 24 + 1); // one past 23, in the second copy of the hours
-  expect(onChange).toHaveBeenLastCalledWith(at(1, 0));
+it("the minutes are 00 to 55 and the hand snaps to the nearest 5p: 17:57 selects 55", async () => {
+  await draw(at(17, 57), false);
+  await fireEvent.press(screen.getByLabelText("17"));
+  expect(screen.getByLabelText("55")).toBeSelected();
+  expect(screen.getByLabelText("00")).not.toBeSelected();
 });
