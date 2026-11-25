@@ -1,5 +1,12 @@
 # zen
 
+## 26.1.0-beta.2
+
+### Minor Changes
+
+- Đọc thông báo, kế hoạch dạng PDF hoặc ảnh: thông báo có một khung thời gian dưới mục đánh số ("2. Thời gian điều chỉnh học phần:" rồi "Từ 8h00 … đến 17h00 …") thành một việc có giờ bắt đầu và hạn, không còn mỗi dòng một việc; đường dẫn trong thông báo được giữ lại
+- Xem trước danh sách: tên dài cắt bớt bằng "…", hạn hiện bên phải, độ dài và loại việc ở dòng dưới như danh sách trang chủ; vuốt sang trái để bỏ một việc, "Bỏ" ở đầu nhóm để bỏ cả nhóm
+
 ## 26.1.0-beta.1
 
 ### Minor Changes

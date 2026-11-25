@@ -46,3 +46,12 @@ describe("TB CSDL: the course's assessment dates, a PDF with a text layer", () =
     ]);
   });
 });
+
+describe("TB 2077: course adjustment, the window under its own heading", () => {
+  const r = read(doc("dieu-chinh-hoc-phan-2077.txt"), { source: "ocr", ref: { y: 2026, m: 11, d: 26, h: 9, mi: 0 } });
+  it("is one task from 8h00 07/12 to 17h00 11/12, not a task per line", () => {
+    expect(pick(r.items, ["type", "title", "notBefore", "deadline"])).toEqual([
+      { type: "PLAN", title: "Điều chỉnh học phần online học kỳ II", notBefore: "2026-12-07 08:00", deadline: "2026-12-11 17:00" },
+    ]);
+  });
+});

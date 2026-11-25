@@ -230,7 +230,7 @@ function numbered(lines: string[], doc: Day): ReaderItem[] | undefined {
 // --- the subject's window --------------------------------------------------------------------------------------------
 
 /** Verbs that make the subject a task done in its window ("đăng ký học phần"), not an event attended. Folded. */
-const TASK_SUBJECT = /(?<![a-z])(?:dang ky|nop|cap nhat|khai bao|dong|hoan thanh|hoan thien|gui|xac nhan|danh gia|khao sat|dien|bo sung|tra loi|tham gia binh chon)(?![a-z])/;
+const TASK_SUBJECT = /(?<![a-z])(?:dang ky|dieu chinh|nop|cap nhat|khai bao|dong|hoan thanh|hoan thien|gui|xac nhan|danh gia|khao sat|dien|bo sung|tra loi|tham gia binh chon)(?![a-z])/;
 
 /** The subject: "Về việc …" after the kind word, or the line after it, cut before the year, the audience or the "Kính gửi". */
 function subjectOf(lines: string[]): string | undefined {
@@ -249,15 +249,19 @@ function subjectOf(lines: string[]): string | undefined {
 function windowItem(lines: string[], text: string, doc: Day): ReaderItem[] | undefined {
   const subject = subjectOf(lines);
   if (!subject) return undefined;
-  const k = lines.findIndex((l) => /^\s*thoi gian\s*:\s*tu\b/.test(fold(l).text));
+  // "Thời gian: Từ …", or a numbered "2. Thời gian điều chỉnh học phần:" heading with its "Từ …" on the next line
+  const k = lines.findIndex((l, i) => {
+    const m = /^\s*(?:\d+\.\s*)?thoi gian[^:]*:\s*(.*)$/.exec(fold(l).text);
+    return !!m && /^\s*tu\b/.test(m[1] || fold(lines[i + 1] ?? "").text);
+  });
   if (k < 0) return undefined;
-  const ps = points(lines.slice(k, k + 2).join(" ").split(/[.;](?:\s|$)/)[0], doc);
+  const ps = points(lines.slice(k, k + 2).join(" ").replace(/^\s*\d+\.\s*/, "").split(/[.;](?:\s|$)/)[0], doc);
   if (ps.length < 2) return undefined;
   const [from, to] = [ps[0], ps[ps.length - 1]];
   const link = /https?:\/\/[^\s,)]+/.exec(text)?.[0];
   if (TASK_SUBJECT.test(fold(subject).text))
     return [item("PLAN", subject, lines.slice(k, k + 2).join(" "), { notBefore: stamp(from), deadline: stamp(to), durationMinutes: 30, inferred: ["durationMinutes"], location: link })];
-  return [item("BUSY", subject, lines.slice(k, k + 2).join(" "), { startsAt: stamp(from), durationMinutes: Math.max(30, minutesOf(to) - minutesOf(from)) })];
+  return [item("BUSY", subject, lines.slice(k, k + 2).join(" "), { startsAt: stamp(from), durationMinutes: Math.max(30, minutesOf(to) - minutesOf(from)), location: link })];
 }
 
 /** The items of an official document, or undefined when the text is none or its structure is not one this reads. */
