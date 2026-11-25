@@ -16,7 +16,7 @@ import { pushReminders } from "./reminders";
 it("the latest push wins over a slower older one", async () => {
   vi.useFakeTimers();
   const soon = Date.now() + 3600_000;
-  const task = (id: string, doneAt?: number) => ({ id, title: id, kind: "study", source: "user", effort: 30, start: soon, createdAt: 0, doneAt });
+  const task = (id: string, doneAt?: number) => ({ id, title: id, kind: "study", source: "user", effort: 30, start: soon, deadline: soon, createdAt: 0, doneAt });
   st.tasks = [task("a"), task("b"), task("c")];
   pushReminders();
   await vi.advanceTimersByTimeAsync(500); // the first run is now inside its slow schedule loop

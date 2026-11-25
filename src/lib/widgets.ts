@@ -5,8 +5,7 @@ import { Platform } from "react-native";
 import { DONE, type ArtType, type WidgetName } from "@/widgets/data";
 import { USES, instants, slim, widgetData } from "@/widgets/build";
 import { swipeDone } from "./apply";
-import { allTasks, loadModel } from "./store";
-import { prepOf } from "./now";
+import { allTasks } from "./store";
 
 // A binary built before expo-widgets was added has no native module; importing it would crash the app, so load lazily.
 const has = Platform.OS !== "web" && !!requireOptionalNativeModule("ExpoWidgets");
@@ -72,16 +71,16 @@ async function push() {
   try { any = await drain(); } catch { return; } // the unapplied ticks stay in the timeline for the next try; a push now would wipe them
   if (any) onTicked?.();
   const [tasks, a] = await Promise.all([allTasks(), copyArt()]);
-  const now = Date.now(), model = await loadModel(now), prep = prepOf(model); // prepared once: the timeline asks ~150 times
+  const now = Date.now();
   const at = instants(tasks, now);
   if (Platform.OS === "ios") { // iOS redraws on its own clock from a timeline
-    const tl = at.map((t) => ({ date: new Date(t), props: widgetData(tasks, t, a, [], model, prep) })); // built once
+    const tl = at.map((t) => ({ date: new Date(t), props: widgetData(tasks, t, a) })); // built once
     for (const [name, w] of Object.entries(widgets) as [WidgetName, NonNullable<(typeof widgets)[WidgetName]>][]) w.updateTimeline(slim(tl, USES[name]));
     return;
   }
   // Android shows one snapshot: it carries the timeline, the layout picks the entry due now and the patched provider redraws at the next.
-  const tl = at.map((t) => { const { art: _a, ticked: _t, ...p } = widgetData(tasks, t, a, [], model, prep); return { at: t, p }; });
-  const snap = { ...widgetData(tasks, now, a, [], model, prep), tl };
+  const tl = at.map((t) => { const { art: _a, ticked: _t, ...p } = widgetData(tasks, t, a); return { at: t, p }; });
+  const snap = { ...widgetData(tasks, now, a), tl };
   for (const w of Object.values(widgets)) w.updateSnapshot(snap);
 }
 

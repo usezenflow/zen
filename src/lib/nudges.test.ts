@@ -26,7 +26,14 @@ it("done, deleted, fixed and untimed tasks get no nudge", () => {
   expect(r).toEqual([]);
 });
 
-it("overdue: today's open blocks past the 15 min grace, earliest first", () => {
-  const r = overdue([task("late", now - 2 * h), task("grace", now - h - 5 * 60_000), task("done", now - 2 * h, { doneAt: now }), task("class", now - 2 * h, { fixed: "lecture" }), task("yday", now - 30 * h)], now);
-  expect(r.map((x) => x.id)).toEqual(["late"]);
+it("overdue: today's said or due blocks past the 15 min grace, earliest first; flexible blocks are no miss", () => {
+  const r = overdue([
+    task("due", now - 2 * h, { deadline: now - h }),
+    task("flex", now - 2 * h), // placed by Zen, no due: its clock passing is no miss
+    task("grace", now - h - 5 * 60_000, { deadline: now }),
+    task("done", now - 2 * h, { doneAt: now, deadline: now - h }),
+    task("class", now - 3 * h, { fixed: "lecture" }),
+    task("yday", now - 30 * h, { deadline: now - 29 * h }),
+  ], now);
+  expect(r.map((x) => x.id)).toEqual(["class", "due"]);
 });

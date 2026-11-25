@@ -4,8 +4,7 @@ import { t } from "../lib/i18n";
 import type { Task } from "../lib/types";
 import { when } from "../lib/when";
 import { typeOf } from "../planner/policy";
-import type { Model } from "../planner";
-import { pickNow, type prepOf } from "../lib/now";
+import { pickNow } from "../lib/now";
 import type { ArtType, WidgetData, WidgetName, WRow } from "./data";
 
 const MIN = 60_000, DAY = 86_400_000, ROWS = 3;
@@ -18,11 +17,11 @@ const sorted = (tasks: Task[]) => { let s = memo.get(tasks); if (!s) memo.set(ta
 const onDay = (sh: Task[], day: number) => { const e = addDays(day, 1); return sh.filter((x) => x.start! < e && x.end! > day); };
 
 /** Widget props at time `now`; pure so a timeline can be built from future instants. */
-export function widgetData(tasks: Task[], now: number, art: WidgetData["art"], ticked: string[] = [], model?: Model, prep?: ReturnType<typeof prepOf>): WidgetData {
+export function widgetData(tasks: Task[], now: number, art: WidgetData["art"], ticked: string[] = []): WidgetData {
   const day = startOfDay(now), d = new Date(now);
   const sh = sorted(tasks);
   const today = onDay(sh, day);
-  const nx = model ? pickNow(tasks, now, model, prep) : pickNow(tasks, now); // the card's pick (apply.ts re-exports it); unscheduled picks have no clock to show
+  const nx = pickNow(tasks, now); // the card's pick (apply.ts re-exports it); unscheduled picks have no clock to show
   const nextToday = nx && nx.start !== undefined && nx.start < addDays(day, 1) ? nx : undefined;
   let next: WidgetData["next"];
   if (nextToday) {

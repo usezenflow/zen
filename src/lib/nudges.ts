@@ -5,6 +5,7 @@ import { Platform } from "react-native";
 import { plain, t } from "./i18n";
 import { laterChoices } from "./parts";
 import { GRACE } from "../planner/policy";
+import { dueOf } from "../planner/features";
 import { soundOf } from "./reminders";
 import { allTasks } from "./store";
 import { apply, moveToDay } from "./apply";
@@ -63,10 +64,11 @@ export async function pushNudges(now = Date.now()) {
   }
 }
 
-/** Today's blocks that ended unticked past the grace, earliest first: what the Android toast asks about when the app opens (iOS has the notification). */
+/** Today's blocks that ended unticked past the grace, earliest first: what the Android toast asks about when the app opens (iOS has the notification).
+ *  Only said or due blocks: a flexible block Zen placed is no miss when its clock passes. */
 export const overdue = (tasks: Task[], now: number): Task[] => {
   const day = new Date(now).setHours(0, 0, 0, 0);
-  return tasks.filter((x) => !x.doneAt && !x.deletedAt && !x.fixed && x.end !== undefined && x.end >= day && x.end + GRACE <= now).sort((a, b) => a.end! - b.end!);
+  return tasks.filter((x) => !x.doneAt && !x.deletedAt && (x.fixed || dueOf(x) !== undefined) && x.end !== undefined && x.end >= day && x.end + GRACE <= now).sort((a, b) => a.end! - b.end!);
 };
 
 /** A button, as the app acts on it: Để sau moves the task to the next part of a day, Xong ticks it. Bắt đầu only opens the app, which starts the block (the now card). */
