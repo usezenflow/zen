@@ -21,7 +21,9 @@ const TPRE: [number, number][] = [[8, 0], [14, 0], [17, 0], [20, 0]], DPRE: [num
 const TH = (n: number) => 2 * PADY + HEAD + FACE + 8 + Math.ceil(n / 2) * PILL + (Math.ceil(n / 2) - 1) * GAP; // header, face, the 8 above the presets, the pill lines
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const pad = (n: number) => String(n).padStart(2, "0");
-const tick = () => { Haptics.selectionAsync().catch(() => {}); };
+let lastTick = 0; // shortcut: one clock for every drum, so a fast spin buzzes at most every 40 ms
+const tick = () => { const n = Date.now(); if (n - lastTick < 40) return; lastTick = n; Haptics.selectionAsync().catch(() => {}); };
+const REL = 4; // the relative presets: +15p, +30p, tonight, tomorrow morning
 // Stop keys: 0-11 the outer ring (12, 1-11), 12-23 the inner (00, 13-23); minutes use 0-11 (00-55).
 const hourOf = (k: number) => (k < 12 ? (k === 0 ? 12 : k) : k === 12 ? 0 : k);
 const pt = (r: number, i: number): [number, number] => [C + r * Math.sin((i * Math.PI) / 6), C - r * Math.cos((i * Math.PI) / 6)];
@@ -152,10 +154,22 @@ function Clock({ anchor, height, side, value, due, min, past, presets, onChange,
             ))}
           </View>
         </GestureDetector>
-        <Presets style={s.dpre} pill={s.dpill} items={presets ? presets.map((x) => ({ label: x.label, on: x.on, onPress: () => { onChange(x.at); onClose(); } })) : (due ? DPRE : TPRE).map(([hh, mm]) => ({ label: `${hh}:${pad(mm)}`, off: off(hh, mm), onPress: () => { const d = new Date(value); d.setHours(hh, mm, 0, 0); onChange(d); onClose(); } }))} />
+        <Presets style={s.dpre} pill={s.dpill} items={presets ? presets.map((x) => ({ label: x.label, on: x.on, onPress: () => { onChange(x.at); onClose(); } })) : [
+          ...relative(value, now, past, (d) => { onChange(d); onClose(); }),
+          ...(due ? DPRE : TPRE).map(([hh, mm]) => ({ label: `${hh}:${pad(mm)}`, off: off(hh, mm), onPress: () => { const d = new Date(value); d.setHours(hh, mm, 0, 0); onChange(d); onClose(); } })),
+        ]} />
       </GestureHandlerRootView>
     </Drop>
   );
+}
+
+/** The relative chips: 15 and 30 minutes on from the value, tonight at 20:00, tomorrow at 08:00; a time already gone is off. */
+function relative(value: Date, now: Date, past: boolean | undefined, pick: (d: Date) => void): { label: string; off: boolean; onPress: () => void }[] {
+  const tonight = new Date(now); tonight.setHours(20, 0, 0, 0);
+  const morning = new Date(now); morning.setDate(morning.getDate() + 1); morning.setHours(8, 0, 0, 0);
+  const later = (k: number) => new Date(value.getTime() + k * 60_000);
+  const chip = (label: string, d: Date) => ({ label, off: !past && d.getTime() < now.getTime(), onPress: () => pick(d) });
+  return [chip(t("dialPlus15"), later(15)), chip(t("dialPlus30"), later(30)), chip(t("dialTonight"), tonight), chip(t("dialMorning"), morning)];
 }
 
 export type Preset = { label: string; at: Date; on?: boolean };
@@ -163,7 +177,7 @@ export type Preset = { label: string; at: Date; on?: boolean };
 /** The time dial under `anchor` (from measureInWindow). Nothing saves while it turns; `onChange` fires once when it closes (a tap outside), or at once for a preset. `presets`: replace the usual times (an end offers lengths). */
 export function TimeDial({ open, anchor, value, due, min, past, presets, side = "right", onChange, onClose }: { open: boolean; anchor?: Anchor; value: Date; due?: boolean; min?: Date; past?: boolean; presets?: Preset[]; side?: "left" | "right"; onChange: (d: Date) => void; onClose: () => void }) {
   if (!open || !anchor) return null;
-  return <Clock anchor={anchor} height={TH(presets ? presets.length : (due ? DPRE : TPRE).length)} side={side} value={value} due={due} min={min} past={past} presets={presets} onChange={onChange} onClose={onClose} />;
+  return <Clock anchor={anchor} height={TH(presets ? presets.length : (due ? DPRE : TPRE).length + REL)} side={side} value={value} due={due} min={min} past={past} presets={presets} onChange={onChange} onClose={onClose} />;
 }
 
 // views.html .cal: the month, Monday first, six weeks. Today vermilion, the picked day a filled vermilion circle, days before today or `min` greyed out.
@@ -229,7 +243,7 @@ const s = StyleSheet.create({
   pad: { paddingHorizontal: PADX, paddingVertical: PADY },
   head: { height: HEAD, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 2 },
   seg: { height: 40, paddingHorizontal: 8, borderRadius: 10, justifyContent: "center" },
-  rd: { fontSize: 30, fontFamily: ff("600"), fontVariant: ["tabular-nums"] },
+  rd: { fontSize: 32, fontFamily: ff("600"), fontVariant: ["tabular-nums"] },
   face: { width: FACE, height: FACE, alignSelf: "center" },
   stop: { position: "absolute", width: 40, height: 40 },
   cal: { paddingTop: 14, paddingHorizontal: 12, paddingBottom: 10 },

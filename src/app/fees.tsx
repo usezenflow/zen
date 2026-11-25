@@ -48,7 +48,7 @@ export default function Fees() {
             <View style={s.bottom}>
               <View style={{ flex: 1 }}>
                 <Text style={s.big} numberOfLines={1} adjustsFontSizeToFit>{vnd(total)}</Text>
-                <Text style={s.small}>{t("owedLines", { n: due.length, term: term(`${due[0].YearStudy}|${due[0].TermID}`) })}</Text>
+                <Text style={s.small} numberOfLines={2}>{t("owedLines", { n: due.length, term: term(`${due[0].YearStudy}|${due[0].TermID}`) })}</Text>
               </View>
               <Tap onPress={() => { paying.current = true; Linking.openURL(payUrl(id)).catch(() => {}); }} accessibilityRole="link" style={s.pay}>
                 <Text style={s.payT}>{t("pay")}</Text>
@@ -63,7 +63,7 @@ export default function Fees() {
           return (
             <Animated.View key={k} entering={FadeInDown.delay(60 + Math.min(ti, 8) * 30).duration(220).easing(EASE)}>
               <View style={[s.labRow, ti > 0 && { marginTop: 22 }]}>
-                <Text style={[s.labT, { color: th.muted }]}>{term(k)}</Text>
+                <Text numberOfLines={1} style={[s.labT, { color: th.muted, flexShrink: 1 }]}>{term(k)}</Text>
                 <Text style={[s.labT, { color: th.muted }]}>{vnd(mine.reduce((a, r) => a + (r.DebtAmount ?? 0), 0))}</Text>
               </View>
               {mine.map((r, i) => {

@@ -1,9 +1,11 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Icon } from "@/components/art";
 import { hhmm } from "@/components/cal";
+import { foldSittings } from "@/components/fold";
 import { DateChip, TimeChip } from "@/components/pick";
 import { Tap } from "@/components/tap";
+import { t } from "@/lib/i18n";
 import { font, ff, useTheme } from "@/lib/theme";
 import { day, endAt } from "@/lib/when";
 import type { Task } from "@/lib/types";
@@ -11,22 +13,48 @@ import type { Task } from "@/lib/types";
 const nextQuarter = () => Math.ceil(Date.now() / 900_000) * 900_000;
 const sameDay = (ts: number, d: Date) => { const n = new Date(ts); n.setFullYear(d.getFullYear(), d.getMonth(), d.getDate()); return n.getTime(); };
 
-/** "Các buổi" (views.html .si): "Buổi 2/3", a day-and-part chip, a length chip, x. Each chip drops its picker; closing it saves once. A done one keeps its place, struck. */
+/** "Các buổi" (views.html .si): a summary line "{done}/{total} buổi · còn {left}" with one-tap "Làm thêm" / "Đủ rồi"; tapping the line opens the rows. Later sittings past today fold into one row. Each chip drops its picker; closing it saves once. A done one keeps its place, struck. */
 export const SittingList = memo(function SittingList({ sits, me, canDrop, canAdd, onTime, onDrop, onAdd, onSettle }: {
   sits: Task[]; me?: string; canDrop: boolean; canAdd: boolean;
   onTime: (id: string, s: number, m: number) => void; onDrop: (id: string) => void; onAdd: () => void; onSettle: () => void;
 }) {
   const th = useTheme();
+  const [open, setOpen] = useState(false);
+  const [more, setMore] = useState(false); // the folded later sittings, in place
+  const [now] = useState(() => Date.now()); // folded as of opening: a render never reads the clock
+  const { shown, folded } = foldSittings(sits, now);
+  const add = canAdd ? (
+    <Tap onPress={onAdd} accessibilityRole="button" accessibilityLabel={t("addSit")} style={[s.add, { borderColor: th.line }]}>
+      <Icon name="plus" size={20} color={th.ink} w={2.2} />
+      <Text style={[s.addT, { color: th.ink }]}>{t("addSit")}</Text>
+    </Tap>
+  ) : null;
+  if (sits.length <= 1) return <View>{add}</View>; // a lone sitting is the task itself: no "Buổi 1/1" row, only the add button
+  const done = sits.filter((k) => !!k.doneAt).length, left = sits.length - done;
+  const lastOpen = sits.filter((k) => !k.doneAt).pop();
+  const sum = t("sitSum", { done, total: sits.length, left });
+  const pill = { backgroundColor: th.chip, borderColor: th.line };
   return (
     <View>
-      {sits.length > 1 && sits.map((k) => ( // a lone sitting is the task itself: no "Buổi 1/1" row, only the add button
-        <SittingRow key={k.id} k={k} canDrop={canDrop} onTime={onTime} onDrop={onDrop} onSettle={onSettle} />
-      ))}
-      {canAdd && (
-        <Tap onPress={onAdd} accessibilityRole="button" accessibilityLabel="Thêm buổi" style={[s.add, { borderColor: th.line }]}>
-          <Icon name="plus" size={20} color={th.ink} w={2.2} />
-          <Text style={[s.addT, { color: th.ink }]}>Thêm buổi</Text>
+      <View style={s.sum}>
+        <Tap onPress={() => setOpen((o) => !o)} accessibilityRole="button" accessibilityLabel={sum} accessibilityState={{ expanded: open }} style={s.sumT}>
+          <Text style={[s.sumTxt, { color: th.ink }]} numberOfLines={1}>{sum}</Text>
         </Tap>
+        {canAdd && <Tap onPress={onAdd} accessibilityRole="button" accessibilityLabel={t("sitMore")} style={[s.pl, pill]}><Text style={[s.plT, { color: th.ink }]}>{t("sitMore")}</Text></Tap>}
+        {canDrop && lastOpen && <Tap onPress={() => onDrop(lastOpen.id)} accessibilityRole="button" accessibilityLabel={t("enoughT")} style={[s.pl, pill]}><Text style={[s.plT, { color: th.ink }]}>{t("enoughT")}</Text></Tap>}
+      </View>
+      {open && (
+        <View>
+          {(more ? [...shown, ...folded] : shown).map((k) => (
+            <SittingRow key={k.id} k={k} canDrop={canDrop} onTime={onTime} onDrop={onDrop} onSettle={onSettle} />
+          ))}
+          {!more && folded.length > 0 && (
+            <Tap onPress={() => setMore(true)} accessibilityRole="button" accessibilityLabel={t("sitFold", { n: folded.length })} style={[s.add, { borderColor: th.line }]}>
+              <Text style={[s.addT, { color: th.muted }]}>{t("sitFold", { n: folded.length })}</Text>
+            </Tap>
+          )}
+          {add}
+        </View>
       )}
     </View>
   );
@@ -58,7 +86,7 @@ const SittingRow = memo(function SittingRow({ k, canDrop, onTime, onDrop, onSett
             <Text style={[s.dash, { color: th.muted, width: 10, textAlign: "center" }]}>-</Text>
             <Text style={[s.cell, m, { width: TW }]}>{hhmm(end)}</Text>
           </>
-        ) : <Text style={[s.cell, m, { flex: 1, textAlign: "left" }]}>chưa có giờ</Text>}
+        ) : <Text style={[s.cell, m, { flex: 1, textAlign: "left" }]}>{t("sitNoTime")}</Text>}
         <View style={s.p} />
         {!done && canDrop ? <Drop id={k.id} onDrop={onDrop} /> : <View style={s.x} />}
       </View>
@@ -80,13 +108,18 @@ const SittingRow = memo(function SittingRow({ k, canDrop, onTime, onDrop, onSett
 function Drop({ id, onDrop }: { id: string; onDrop: (id: string) => void }) {
   const th = useTheme();
   return (
-    <Tap onPress={() => onDrop(id)} accessibilityRole="button" accessibilityLabel="Bỏ buổi này" style={s.x}>
+    <Tap onPress={() => onDrop(id)} accessibilityRole="button" accessibilityLabel={t("dropSit")} style={s.x}>
       <Icon name="x" size={20} color={th.muted} w={2} />
     </Tap>
   );
 }
 
 const s = StyleSheet.create({
+  sum: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, minHeight: 48 },
+  sumT: { flex: 1, minWidth: 0, minHeight: 44, justifyContent: "center" },
+  sumTxt: { fontSize: font.sub, fontFamily: ff("600"), fontVariant: ["tabular-nums"] },
+  pl: { height: 44, paddingHorizontal: 14, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  plT: { fontSize: font.sub, fontFamily: ff("600") },
   si: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 48 },
   cell: { fontSize: font.sub, fontFamily: ff("500"), fontVariant: ["tabular-nums"] },
   dash: { fontSize: font.sub, fontFamily: ff("600") },

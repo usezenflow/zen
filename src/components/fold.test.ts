@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { foldRepeats } from "./fold";
+import { foldRepeats, foldSittings } from "./fold";
 import { at, DAY, NOW, TODAY, task } from "../../test/factories";
 
 // A daily flexible repeat: one stored occurrence per day from today, 30 days.
@@ -30,5 +30,24 @@ describe("foldRepeats", () => {
     const xs = daily(30);
     xs[20].doneAt = NOW - DAY;
     expect(foldRepeats(xs, NOW).folds[0].xs).toHaveLength(15);
+  });
+});
+
+// A split task's sittings: one per day from today, 9:00.
+const sits = (n = 4, over: Partial<Parameters<typeof task>[0]> = {}) =>
+  Array.from({ length: n }, (_, i) => task({ id: `p#${i + 1}`, parentId: "p", start: at(9, 0, TODAY + i * DAY), end: at(10, 0, TODAY + i * DAY), ...over }));
+
+describe("foldSittings", () => {
+  it("sittings from tomorrow on fold into one row; today's and earlier ones stay rows", () => {
+    const { shown, folded } = foldSittings(sits(4), NOW);
+    expect(shown.map((x) => x.id)).toEqual(["p#1"]);
+    expect(folded.map((x) => x.id)).toEqual(["p#2", "p#3", "p#4"]);
+  });
+  it("a done sitting and an unplaced one are never folded", () => {
+    const xs = [...sits(3), task({ id: "p#9", parentId: "p" })];
+    xs[1].doneAt = NOW - 1;
+    const { shown, folded } = foldSittings(xs, NOW);
+    expect(folded.map((x) => x.id)).toEqual(["p#3"]);
+    expect(shown.map((x) => x.id)).toEqual(["p#1", "p#2", "p#9"]);
   });
 });

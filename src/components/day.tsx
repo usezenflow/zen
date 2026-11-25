@@ -193,7 +193,7 @@ const soonSub = (x: Task, now: number, all: Task[]) => {
 export function RestCard({ lab, title, sub, leaf = "line", h = 220 }: { lab?: string; title: string; sub: string; leaf?: "line" | "color"; h?: number }) {
   const th = useTheme();
   return (
-    <View style={[s.rest, { height: h, backgroundColor: th.chip }]}>
+    <View style={[s.rest, { minHeight: h, backgroundColor: th.chip }]}>
       {!!lab && <Text style={[s.lab, { color: th.muted }]}>{lab}</Text>}
       <View style={s.restLf}><Logo size={52} mode={leaf} color={th.ink} /></View>
       <Text style={[s.restT, { color: th.ink }]}>{title}</Text>
@@ -474,7 +474,7 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
 const s = StyleSheet.create({
   fill: { flex: 1 },
   pad: { padding: space.gutter, paddingTop: 0, paddingBottom: 200 }, // .scr: the safe area stands in for its 54px top
-  peek: { position: "absolute", alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 8, height: 36, paddingLeft: 10, paddingRight: 16, borderRadius: 99, overflow: "hidden", zIndex: 15 },
+  peek: { position: "absolute", alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 8, minHeight: 36, paddingLeft: 10, paddingRight: 16, borderRadius: 99, overflow: "hidden", zIndex: 15 },
   pr: { width: 18, height: 18 },
   mid: { alignItems: "center", justifyContent: "center" },
   peekT: { fontSize: font.sub, fontFamily: ff("700") },
@@ -494,7 +494,7 @@ const s = StyleSheet.create({
   nm: { flex: 1, minWidth: 0 },
   pl: { height: 40, paddingHorizontal: 16, borderRadius: 99, alignItems: "center", justifyContent: "center", flexShrink: 1, minWidth: 0 },
   plt: { fontSize: font.sub, fontFamily: ff("500") },
-  rest: { marginTop: 16, borderRadius: 28, padding: 20 },
+  rest: { marginTop: 18, borderRadius: 28, padding: 20 },
   restLf: { position: "absolute", top: 18, right: 18 },
   restT: { marginTop: "auto", paddingRight: 58, fontSize: 24, lineHeight: 32, fontFamily: ff("600"), letterSpacing: -0.48 },
   restS: { marginTop: 6, fontSize: 15, lineHeight: 20, fontFamily: ff("500") },

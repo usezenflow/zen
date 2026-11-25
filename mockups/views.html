@@ -299,7 +299,7 @@ const rowTime = `${head("T2", "16/11", "5 việc, 1 tiết học")}${tabs("Ngày
   <div class="list" style="margin-top:6px">${row("14:30", "Ôn Giải tích", "plan")}
     <div class="r"><span class="ck"></span><div class="tx"><b>Báo cáo nhóm</b><small>Hạn 23:59</small></div><span class="tm">${pk("16:00", 1, dialCard(16, 0))}</span></div>
     ${row("17:30|19:00", "Cơ sở dữ liệu", "lecture", "", "A2.104")}</div><div class="mscrim"></div>`;
-const MORE = [["Đặt hạn", "hourglass"], ["Thêm địa điểm", "pin"], ["Để zen xếp lại", "sync"]];
+const MORE = [["Đặt hạn", "hourglass"], ["Thêm địa điểm", "pin"], ["Để Zen xếp lại", "sync"]];
 const detailMore = detailPlain + menu(MORE, 96, 62);
 const detailDue = dt("plan", mine("Việc nhà"), "Mua pin cho chuột",
   edLine("hourglass", `${pk("T6 20/11")}${pk("23:59", 1, dialCard(23, 59, DPRE, ["45", "59", ""]))}<span class="clr">Bỏ hạn</span>`, "red") + ml("clock", `Làm ${when("2026-11-17", "17:00")} - 17:30`), PH, "", dtop2) + '<div class="mscrim"></div>'; // a due at 23 also offers :59, the usual "before midnight"
@@ -389,13 +389,13 @@ const dayNight = `${head("T2", "16/11", "5 việc, xong hết")}${tabs("Ngày")}
   <div class="list" style="margin-top:6px">${row("8:00", "Ôn thi", "plan", "", "Buổi 2/6 · Xác suất")}${row("13:30", "Thi Xác suất", "exam", "", "B1.201")}</div>
   <div class="lab" style="margin-top:20px">Xong (5) ${ic(I.down, 14)}</div>`;
 const dayFirst = `${head("Chào bạn", "T2, 16/11", "Chưa có gì")}${tabs("Ngày")}
-  ${rest("Bắt đầu", "Giữ nút và kể tuần này", "Nói tự nhiên, zen xếp giờ.", "line", 168)}
+  ${rest("Bắt đầu", "Giữ nút và kể tuần này", "Cứ nói tự nhiên, Zen sẽ xếp giờ.", "line", 168)}
   <div class="lab" style="margin-top:22px">Thử nói</div>
   <div style="margin-top:10px">${say("Mai 9 giờ ôn Giải tích")}${say("T6 nộp báo cáo nhóm")}${say("Tối nào cũng đọc sách")}</div>
   <div class="lab" style="margin-top:22px"><span>Hoặc lấy lịch từ Online</span>${ic(I.right, 14)}</div>`;
 const weekFree = `${head("Tuần sau", "23 - 29/11", "Chưa có gì")}${tabs("Tuần")}
   <div class="wk" style="margin-top:20px">${["T2", "T3", "T4", "T5", "T6", "T7", "CN"].map((d, i) => `<div class="c"><span class="d ${i === 0 ? "on" : ""}">${d}<i>${23 + i}</i></span><div class="nil"></div></div>`).join("")}</div>
-  <div class="inl">${LOGO(34, "line")}<div><b>Tuần trống</b><small>Kể kế hoạch, zen xếp vào.</small></div></div>
+  <div class="inl">${LOGO(34, "line")}<div><b>Tuần trống</b><small>Kể kế hoạch, Zen sẽ xếp giúp.</small></div></div>
   <div class="lab" style="margin-top:24px">Tuần này còn</div>
   <div class="list" style="margin-top:6px">${row("14:00", "Báo cáo nhóm", "assignment", "", when("2026-11-20"))}</div>`;
 const monthFree = `${head("Năm 2026", "Tháng 11", "42 việc, 3 bài thi")}${tabs("Tháng")}
@@ -519,7 +519,7 @@ mount([
   { tag: "Detail, place", sub: "The place is typed in the line itself, like the title. Return saves.", html: chrome(detailPlace, { dock: null }) },
   { tag: "Detail, link place", sub: "A pasted link lands as the place. It shows its site and opens on tap; Sửa địa điểm in the dots menu edits it. A pasted text with no note of its own keeps the whole text as the note.", html: chrome(detailLink, { dock: null }) },
   { tag: "Detail, kind", sub: "Zen reads the kind from the words of the title: học, tập thể dục, việc nhà, gặp gỡ, việc khác, công việc, việc vặt, tài chính or bản thân. Tap the tag to correct it. A corrected title teaches: the next task that reads alike gets the same kind. The kind is what habits are learned about (“Việc tập thể dục hợp nhất lúc 7h-10h”).", html: chrome(detailKind, { dock: null }) },
-  { tag: "Detail, fixed time", sub: "Something you said with an exact time is a busy block, not a plan: Zen did not choose it, so it never explains or re-plans it: no “Vì sao lúc này”, no “Để zen xếp lại”, no other good time. Its time line opens the same three chips.", html: chrome(detailBusy, { dock: null }) },
+  { tag: "Detail, fixed time", sub: "Something you said with an exact time is a busy block, not a plan: Zen did not choose it, so it never explains or re-plans it: no “Vì sao lúc này”, no “Để Zen xếp lại”, no other good time. Its time line opens the same three chips.", html: chrome(detailBusy, { dock: null }) },
   { tag: "Detail, LMS assignment, change the time", sub: "For school items the school owns the due date, room and teacher, so those lines do not open. The planned time is Zen's, so that one does.", html: chrome(detailLmsTime, { dock: null }) },
   { tag: "Row, swipe to delete", sub: "Swipe a row right to left: a red trash bed shows behind it, a light tick at the threshold. A single task goes at once with Undo.", html: chrome(lst("swiping")) },
   { tag: "Row, swiped series", sub: "A lecture or repeating task springs back and the same three choices drop under the row. Tap outside to cancel.", html: chrome(lst("lift") + menu(DEL, 262, "c")) },
@@ -534,7 +534,7 @@ mount([
   { tag: "Reminder, lecture", sub: "Lectures and exams name the room instead. A busy block you said gets one too. Phone-calendar events get none: their own calendar already reminds.", html: chrome(nt("Cấu trúc dữ liệu", "Bắt đầu lúc 13:30 · A2.301") + daySit(), { time: "13:20" }) },
   { tag: "Campus, many changes", sub: "A campus sync that brings three or more changes (new exams, assignments or room changes, an exam moved, a due date moved, a makeup lecture, an item the campus took back) posts one notification, not one each: the count, then the first two names and +n, like Created, many. One or two still come one by one. A new term's timetable and new marks keep their own line. Inside the app the same one toast shows.", html: chrome(nt("Trường cập nhật 5 việc", "Bài tập lớn: Quản lý sinh viên, Thi Giải tích 2 +3") + daySit(), { time: "7:12" }) },
   { tag: "Fees owed", sub: "On the 15th of Oct, Mar and Jun, the first sync after noon checks fees. If something is unpaid, one local notification (no push server): the amount left. Tap opens the school's e-bills page for this student. Nothing owed, nothing said.", html: chrome(nt("Còn nợ học phí", "1.590.000 đ · Chạm để đóng") + daySit(), { time: "12:05" }) },
-  { tag: "Campus, password refused", sub: "The campus refuses the saved password (not a slow answer, which says nothing): one notification when the refusal starts, not on every sync after it. Tap opens Settings, where the red card is. The same for LMS: “LMS không nhận mật khẩu”.", html: chrome(nt("Online không nhận mật khẩu", "Bạn chưa đổi? Kiểm tra tài khoản.") + daySit(), { time: "7:05" }) },
+  { tag: "Campus, password refused", sub: "The campus refuses the saved password (not a slow answer, which says nothing): one notification when the refusal starts, not on every sync after it. Tap opens Settings, where the red card is. The same for LMS: “LMS từ chối mật khẩu”.", html: chrome(nt("Online từ chối mật khẩu", "Bạn chưa đổi? Kiểm tra tài khoản.") + daySit(), { time: "7:05" }) },
   { tag: "Reminder, dark", sub: "Same at night.", dark: true, html: chrome(nt("Đọc sách mỗi tối", "Bắt đầu lúc 20:00") + daySit(), { time: "19:50" }) },
   { tag: "Overlap", sub: "Campus lands on a time you fixed: a busy block you said, or a task you pinned or timed by hand. A small card under the two rows: move mine, or keep both. Nothing moves until you tap.", html: chrome(overlap) },
   { tag: "Search, opening", sub: "Like Spotlight: tap the search circle and it grows leftward into the field (about 280 ms) while the view behind blurs and fades out to plain paper, so nothing colourful sits under the rows. The keyboard rises once the field is full; the suggestions drop in one after another.", html: chrome(opening, { dock: null }) },

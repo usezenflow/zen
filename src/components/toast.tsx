@@ -55,10 +55,10 @@ export function Toast({ text, sub, onAction, actionLabel, onAlt, altLabel, altPl
       </View>
       {(!!alt || !!onAction) && (
         <View style={s.row}>
-          {alt && <Tap onPress={onAlt} hitSlop={8} style={[s.a, { borderWidth: 1, borderColor: "rgba(127,127,127,0.5)" }]}><Text style={[s.at, { color: fg }]}>{altPlain ? altLabel : t("orWhen", { when: altLabel })}</Text></Tap>}
+          {alt && <Tap onPress={onAlt} hitSlop={8} style={[s.a, { borderWidth: 1, borderColor: "rgba(127,127,127,0.5)" }]}><Text numberOfLines={1} style={[s.at, { color: fg }]}>{altPlain ? altLabel : t("orWhen", { when: altLabel })}</Text></Tap>}
           {onAction && (
             <Tap onPress={onAction} hitSlop={8} style={[s.a, { backgroundColor: error ? "#fff" : th.bg }]}>
-              <Text style={[s.at, { color: bg }]}>{actionLabel ?? t("undo")}</Text>
+              <Text numberOfLines={1} style={[s.at, { color: bg }]}>{actionLabel ?? t("undo")}</Text>
             </Tap>
           )}
         </View>
@@ -76,8 +76,8 @@ const s = StyleSheet.create({
   tl: { flexDirection: "row", alignItems: "center", gap: 12 }, // ui.css .toast .tl
   tx: { minWidth: 0, flexShrink: 1 },
   row: { flexDirection: "row", justifyContent: "flex-end", gap: 8 },
-  t1: { fontSize: font.md, fontFamily: ff("600"), lineHeight: 19.5 }, // the title in it 800 (bolded) // 15px, line-height 1.3
-  sub: { marginTop: 1, fontSize: font.label, fontFamily: ff("500"), lineHeight: 19.5, color: "rgb(127,127,127)" },
-  a: { height: 40, paddingHorizontal: 13, borderRadius: 99, alignItems: "center", justifyContent: "center" },
+  t1: { fontSize: font.md, fontFamily: ff("600"), lineHeight: 22 }, // the title in it 800 (bolded) // 15px, line-height 1.3
+  sub: { marginTop: 1, fontSize: font.label, fontFamily: ff("500"), lineHeight: 22, color: "rgb(127,127,127)" },
+  a: { height: 44, flexShrink: 1, minWidth: 0, paddingHorizontal: 13, borderRadius: 99, alignItems: "center", justifyContent: "center" },
   at: { fontSize: font.sub, fontFamily: ff("700") },
 });

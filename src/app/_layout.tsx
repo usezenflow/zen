@@ -9,6 +9,7 @@ import { kvGet } from "@/lib/store";
 import * as Notifications from "expo-notifications";
 import { askReminders, pushReminders } from "@/lib/reminders";
 import { nudgeAction } from "@/lib/nudges";
+import { proposeRebalance } from "@/lib/apply";
 import { setupBackground } from "@/lib/sync";
 import { feedTaps } from "@/components/outside";
 import { UpdatePrompt } from "@/components/update";
@@ -23,6 +24,8 @@ SplashScreen.setOptions({ duration: 300, fade: true });
 // A widget or link opening a task cold still has Home under it, so back has somewhere to go.
 export const unstable_settings = { initialRouteName: "index" };
 
+let lastTap: string | undefined; // the notification tap already acted on (survives a re-render, not a restart)
+
 export default function Layout() {
   const [ready, setReady] = useState(false);
   const dark = useColorScheme() === "dark"; // follows the in-app theme override too
@@ -35,7 +38,14 @@ export default function Layout() {
   useEffect(() => {
     // The overrun and start nudges' buttons: Xong ticks the task, Để sau moves it on; neither opens the app.
     const id = tapped?.notification.request.content.data?.id, act = tapped?.actionIdentifier;
+    // useLastNotificationResponse replays the last tap on every cold start: a tap acts once.
+    const tapKey = tapped ? `${tapped.notification.request.identifier}:${act}:${tapped.notification.date}` : undefined;
+    if (!tapKey || tapKey === lastTap) return;
+    if (ready) lastTap = tapKey;
     if (ready && typeof id === "string" && (act === "done" || act === "later")) nudgeAction(id, act).then(pushReminders).catch(() => {});
+    // The night-before note: "Xếp nhẹ lại" stores a lighter-week proposal (the Rebalance pill shows it on the next look at Home); "Xem ngày mai" opens the app, which is Home.
+    if (ready && act === "light") void proposeRebalance(Date.now(), true).catch(() => {});
+    if (ready && act === "see") { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + 1); router.navigate({ pathname: "/", params: { day: String(d.getTime()) } }); }
     const route = tapped?.notification.request.content.data?.route;
     if (!ready || typeof route !== "string") return;
     if (route.startsWith("https://")) Linking.openURL(route).catch(() => {});

@@ -94,7 +94,7 @@
 .rest .lf { position: absolute; top: 18px; right: 18px; color: var(--ink); }
 .rest .t { margin-top: auto; padding-right: 58px; font-size: 24px; line-height: 1.15; font-weight: 600; letter-spacing: -.02em; }
 .rest .s { margin-top: 6px; font-size: 15px; color: var(--muted); font-weight: 500; line-height: 1.35; }
-/* Zen đã học được gì: one rule per row, Bỏ at 44px; the calm empty line. */
+/* Zen đã học: one rule per row, Bỏ at 44px; the calm empty line. */
 .rb { flex: none; min-width: 44px; min-height: 44px; padding: 0 14px; border-radius: 99px; border: 1px solid var(--line); display: inline-grid; place-items: center; font-size: 15px; font-weight: 600; }
 .calm { margin-top: 22px; font-size: 16px; font-weight: 500; line-height: 1.35; }
 /* Toast chips: 44px touch targets. */
@@ -261,7 +261,7 @@ const rule = toast("Mình sẽ giữ Tối T6 để trống", "Đọc sách chuy
   <div class="list" style="margin-top:6px">${row("7:00", "Cơ sở dữ liệu", "lecture", "A2.104")}</div>
   <div class="kept"><b>Tối T6 để trống</b><small>18:00 - 24:00</small></div>`;
 
-// 11. Zen đã học được gì: the rules the planner applies now, in plain words; swipe a row away to forget it. Only a rule that changes the plan from the default is listed.
+// 11. Zen đã học: the rules the planner applies now, in plain words; swipe a row away to forget it. Only a rule that changes the plan from the default is listed.
 const WDS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"], PRT = ["Sáng", "Trưa", "Chiều", "Tối"];
 const mx = (v, hot = []) => `<div class="mx"><span></span>${WDS.map((d) => `<b>${d}</b>`).join("")}${PRT.map((p, r) => `<u>${p}</u>${v[r].map((x, c) => `<i class="${hot.some(([a, b]) => a === r && b === c) ? "pk" : ""}" style="opacity:${(0.2 + x * 0.8).toFixed(2)}"></i>`).join("")}`).join("")}</div>`;
 const GRID = [[.9, .8, 1, .7, .9, .2, .1], [.2, .3, .2, .3, .2, .1, .1], [.4, .5, .3, .6, .3, .5, .4], [.3, .2, .4, .2, .1, .6, .7]];
@@ -274,18 +274,18 @@ const learnedRow = ([icon, t, v, guess]) => `<div class="set" style="gap:12px;pa
 // What you said yourself comes first, with its days and hours and no bar: it is exact, not a guess. A swipe forgets it.
 const SAID = [["Tối thứ sáu để trống", "T6 18:00 - 22:00"], ["Không xếp việc sau 22h", "Mỗi ngày từ 22:00"]];
 const saidRow = ([t, sub]) => `<div class="set" style="gap:12px;padding:8px 0">${tile("mic")}<div class="tx" style="font-size:16px">${t}<small>${sub}</small></div></div>`;
-const rhythm = () => `${head("Mình hiểu bạn", "Zen đã học được gì", `${SAID.length + LEARNED.length} quy tắc`)}${tabs("Nhịp")}
+// The three tabs under the week card: one panel at a time (Bạn dặn, Đã học, Biểu đồ). Same text tabs as Ngày / Tuần / Tháng.
+const rtabs = (on) => `<div class="tabs" style="margin-top:18px">${["Bạn dặn", "Đã học", "Biểu đồ"].map((v) => `<span class="${v === on ? "on" : ""}">${v}</span>`).join("")}</div>`;
+const rhythm = (on = "Bạn dặn") => `${head("Mình hiểu bạn", "Zen đã học", `${SAID.length + LEARNED.length} quy tắc`)}${tabs("Nhịp")}
   <div class="art" style="margin-top:16px;padding:18px 20px">${art("plan", { w: 264, h: 170, seed: 5, cls: "bgart" })}
     <div class="lab" style="color:#fff;opacity:.85">Tuần này</div><div class="t" style="margin-top:6px">Sáng ngày thường</div>
     <div style="margin-top:14px">${mx(GRID, HOT)}</div></div>
-  <div class="lab" style="margin-top:22px">Bạn dặn</div>
-  <div>${SAID.map(saidRow).join("")}</div>
-  <div class="lab" style="margin-top:22px">Mình đang theo</div>
-  <div>${LEARNED.map(learnedRow).join("")}</div>`;
+  ${rtabs(on)}
+  <div style="margin-top:14px">${(on === "Bạn dặn" ? SAID.map(saidRow) : LEARNED.map(learnedRow)).join("")}</div>`;
 
 // 12. Nothing learned yet: the same card with the week dim (a guess, not a claim), the logo in its corner, and one short line under it.
 const FLAT = Array.from({ length: 4 }, () => Array(7).fill(0.1));
-const cold = `${head("Mình hiểu bạn", "Zen đã học được gì", "")}${tabs("Nhịp")}
+const cold = `${head("Mình hiểu bạn", "Zen đã học", "")}${tabs("Nhịp")}
   <div class="art" style="margin-top:16px;padding:18px 20px">${art("plan", { w: 264, h: 170, seed: 5, cls: "bgart" })}<span style="position:absolute;top:16px;right:18px;color:#fff">${LOGO(34, "line")}</span>
     <div class="lab" style="color:#fff;opacity:.85">Tuần này</div><div class="t" style="margin-top:6px">Mình đang học bạn</div>
     <div style="margin-top:14px">${mx(FLAT)}</div></div>
@@ -550,7 +550,7 @@ mount([
   { tag: "7h. Set from the list: the story", sub: "Xem opens the same story on today, in the art card’s slot: the list and the dock step aside until Xong or Hoàn tác.", html: chrome(setHome, { dock: null }) },
   { tag: "7i. A done frees time", sub: "Finishing or deleting frees its time: a later task moves up into it, never later, and the toast says it moved up. A task that was set by hand, or pinned, never moves.", html: chrome(pullIn) },
   { tag: "7j. Several move up", sub: "When more than one task moves up into the freed time, the toast counts them and Hoàn tác undoes them all at once.", html: chrome(pullMany) },
-  { tag: "7k. A drag teaches", sub: "Move a task by hand and the toast says what Zen learned, in parts of the day: “Hiểu rồi: việc học để chiều”. Luôn vậy keeps it as a rule (it shows in Zen đã học được gì); Chỉ lần này lets it go after this once. It counts for every kind of task, and a second consistent drag turns a guess into a rule.", html: chrome(learned) },
+  { tag: "7k. A drag teaches", sub: "Move a task by hand and the toast says what Zen learned, in parts of the day: “Hiểu rồi: việc học để chiều”. Luôn vậy keeps it as a rule (it shows in Zen đã học); Chỉ lần này lets it go after this once. It counts for every kind of task, and a second consistent drag turns a guess into a rule.", html: chrome(learned) },
   { tag: "7l. The slot you left stays empty", sub: "What you set pushes overlapping flexible tasks later, after it; nothing moves into the time you just left. On a full day the slot may still be used.", html: chrome(leftEmpty, { dock: null }) },
   { tag: "7m. A gap pulls work up", sub: "When a gap opens earlier in the day, a later task moves up into it: “Kéo Đọc sách lên 14:00”, with Xem for the story and Hoàn tác to put it back.", html: chrome(pullUp) },
   { tag: "7n. The day's leftovers", sub: "At 21:30 what is still undone moves to tomorrow after 9h instead of rotting in the past. One toast; Hoàn tác brings the whole sweep back.", html: chrome(sweep) },
@@ -560,7 +560,8 @@ mount([
   { tag: "8. Put it back", sub: "Long-press a moved row. Back to the old time, the other good time, or pin it. The first two teach the model, the same as changing the time by hand; pinning just holds it.", html: chrome(back) },
   { tag: "9. Heads up", sub: "After a re-plan, a due date that cannot be met in free time shows on today's list: how much work is left and how much time is free. Each pill pushes one other flexible task to after that due date, longest first; each pill is a full-width block, the task name on the left (one too long ends in an ellipsis) and its day on the right, so every pill shares both edges. One tap applies. Tapping the words opens the task. The card shows only while it is true: real shortfall, the task still open; a task late by its own pin with time to spare raises none.", html: chrome(heads) },
   { tag: "10. A rule, said once", sub: "“Tối thứ sáu để trống nhé.” Zen repeats it in its own words and names the first task it moved to keep it. The week shows the kept evening as a striped block; the day shows it with its words and hours.", html: chrome(rule) },
-  { tag: "11. Zen đã học được gì", sub: "The pill right of Tháng opens it. The week at a glance (weekday by part of the day, brighter where you finish and move work, fully white where it is yours), then Bạn dặn: what you said yourself, with its days and hours and no bar. Then Mình đang theo: what Zen learned, one row per part of the day, each with an icon tile and a bar for how sure it is (dashed while it is still a guess). Swipe a row away to forget it; there is no Bỏ button. The dock reads Giữ để dặn here.", html: chrome(rhythm(), { dock: "rule" }) },
+  { tag: "11. Zen đã học", sub: "The pill right of Tháng opens it. The week at a glance (weekday by part of the day, brighter where you finish and move work, fully white where it is yours), then three text tabs like Ngày / Tuần / Tháng: Bạn dặn (what you said yourself, with its days and hours and no bar), Đã học (what Zen learned, one row per part of the day, each with an icon tile and a bar for how sure it is, dashed while it is still a guess) and Biểu đồ (the day and the kind-by-part charts). One panel at a time; a tab with nothing in it is not shown. Swipe a row away to forget it; there is no Bỏ button. The dock reads Giữ để dặn here.", html: chrome(rhythm(), { dock: "rule" }) },
+  { tag: "11b. Zen đã học, Đã học", sub: "The second tab: what Zen picked up by itself.", html: chrome(rhythm("Đã học"), { dock: "rule" }) },
   { tag: "12. Nothing learned yet", sub: "Before a rule has formed the card is still there: the week dim, the logo in its corner, one short line under it. Never an empty page.", html: chrome(cold, { dock: "rule" }) },
   { tag: "14. Sunday", sub: "Sundays only, and only when the model is at least fairly sure of something: one sentence. The line under it is the share of Zen's placements kept this week and the change from last week, once the week had 10+ placements and the change is 5 points or more; otherwise it reads “12 việc xong, 2 lần dời”. Tap through to Nhịp.", html: chrome(sunday) },
   { tag: "15. Missed, no nag", sub: "A block that passed undone turns vermilion in place. The next time you open the app it has moved to the next good time within two days, and the row says so. That hour counts a little against itself.", html: chrome(missed) },

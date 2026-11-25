@@ -43,7 +43,7 @@ export default function Marks() {
             {terms.map((tm, ti) => (
               <Animated.View key={`${tm.yearStudy}|${tm.termId}`} entering={FadeInDown.delay(60 + Math.min(ti, 8) * 30).duration(220).easing(EASE)}>
                 <View style={[s.labRow, ti > 0 && { marginTop: 20 }]}>
-                  <Text style={[s.labT, { color: th.muted }]}>{t("termOf", { t: tm.termId.replace(/^HK0?/, ""), y: tm.yearStudy })}</Text>
+                  <Text numberOfLines={1} style={[s.labT, { color: th.muted, flexShrink: 1 }]}>{t("termOf", { t: tm.termId.replace(/^HK0?/, ""), y: tm.yearStudy })}</Text>
                   <Text style={[s.labT, { color: th.muted }]}>{num(tm.gpa4)}</Text>
                 </View>
                 {m.marks.filter((k) => k.credits > 0 && k.yearStudy === tm.yearStudy && k.termId === tm.termId).map((k, i) => (

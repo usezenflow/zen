@@ -29,6 +29,16 @@ describe("NowCard", () => {
     expect(screen.getByText(t("nMin", { n: 90 }))).toBeOnTheScreen();
     expect(fill()).toBe(0);
   });
+  it("time's up says Hết giờ; Thêm 15 phút and Chuyển việc act, and the caption names the next task", async () => {
+    const onExtend = jest.fn(), onLater = jest.fn();
+    await render(<NowCard card={{ task: task({ title: "LeetCode" }), start: at(13), end: at(14) }} onDone={jest.fn()} onLater={onLater} onExtend={onExtend} over={{ next: task({ title: "Ôn CSDL" }) }} />);
+    expect(screen.getByText(t("overLab", { time: "14:00" }))).toBeOnTheScreen();
+    await fireEvent.press(screen.getByLabelText(t("overExtend")));
+    await fireEvent.press(screen.getByLabelText(t("overMove")));
+    expect(onExtend).toHaveBeenCalledTimes(1);
+    expect(onLater).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(t("overNext", { next: "Ôn CSDL", title: "LeetCode" }))).toBeOnTheScreen();
+  });
   it("a zero-length card still says 1 minute", async () => {
     await render(<NowCard card={{ task: task(), start: at(14), end: at(14) }} onDone={jest.fn()} />);
     expect(screen.getByText(t("nMin", { n: 1 }))).toBeOnTheScreen();
@@ -65,15 +75,15 @@ describe("NowCard", () => {
   });
 });
 
-describe("NowCard Thử 15p", () => {
+describe("NowCard Thử 10p", () => {
   const micro = async () => JSON.parse((await kvGet("now.micro")) ?? "null");
-  it("a block of 45 minutes or more offers it beside Để sau; tapping stores the fifteen minutes and shows them", async () => {
+  it("a block of 45 minutes or more offers it beside Để sau; tapping stores the ten minutes and shows them", async () => {
     const tk = task();
     await render(<NowCard card={{ task: tk, start: at(14), end: at(15, 30) }} onDone={jest.fn()} onStart={jest.fn()} onLater={jest.fn()} />);
     await fireEvent.press(screen.getByLabelText(t("microBtn")));
-    expect(await micro()).toEqual({ id: tk.id, startedAt: NOW, endsAt: NOW + 15 * MIN });
+    expect(await micro()).toEqual({ id: tk.id, startedAt: NOW, endsAt: NOW + 10 * MIN });
     expect(screen.getByText(t("doingNow"))).toBeOnTheScreen();
-    expect(screen.getByLabelText(t("nMin", { n: 15 }))).toBeOnTheScreen();
+    expect(screen.getByLabelText(t("nMin", { n: 10 }))).toBeOnTheScreen();
     expect(screen.queryByLabelText(t("microBtn"))).toBeNull();
   });
   it("a shorter block has no ramp unless it was put off before", async () => {
@@ -90,23 +100,23 @@ describe("NowCard Thử 15p", () => {
     await render(<NowCard card={{ task: task(), start: at(14), end: at(16), gap: "30p" }} onDone={jest.fn()} onLater={jest.fn()} />);
     expect(screen.queryByLabelText(t("microBtn"))).toBeNull();
   });
-  it("at fifteen minutes: stopping credits fifteen minutes and clears the try", async () => {
+  it("at ten minutes: stopping credits ten minutes and clears the try", async () => {
     const onMicroRest = jest.fn();
     await render(<NowCard card={{ task: task(), start: at(14), end: at(15, 30) }} onDone={jest.fn()} onStart={jest.fn()} onLater={jest.fn()} onMicroRest={onMicroRest} />);
     await fireEvent.press(screen.getByLabelText(t("microBtn")));
-    await act(async () => { jest.advanceTimersByTime(15 * MIN); });
+    await act(async () => { jest.advanceTimersByTime(10 * MIN); });
     expect(screen.getByLabelText(t("microFull"))).toBeOnTheScreen();
     expect(screen.getByLabelText(t("microRest"))).toBeOnTheScreen();
     expect(screen.getByLabelText(t("microGo"))).toBeOnTheScreen();
     await fireEvent.press(screen.getByLabelText(t("microRest")));
-    expect(onMicroRest).toHaveBeenCalledWith(15);
+    expect(onMicroRest).toHaveBeenCalledWith(10);
     expect(await micro()).toBeNull();
   });
-  it("at fifteen minutes: Làm tiếp takes the block through onStart and clears the try", async () => {
+  it("at ten minutes: Làm tiếp cho xong takes the block through onStart and clears the try", async () => {
     const onStart = jest.fn();
     await render(<NowCard card={{ task: task(), start: at(14), end: at(15, 30) }} onDone={jest.fn()} onStart={onStart} onLater={jest.fn()} />);
     await fireEvent.press(screen.getByLabelText(t("microBtn")));
-    await act(async () => { jest.advanceTimersByTime(15 * MIN); });
+    await act(async () => { jest.advanceTimersByTime(10 * MIN); });
     await fireEvent.press(screen.getByLabelText(t("microGo")));
     expect(onStart).toHaveBeenCalledTimes(1);
     expect(await micro()).toBeNull();

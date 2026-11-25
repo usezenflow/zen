@@ -28,7 +28,7 @@ import { pageText } from "@/components/webtext";
 import { actionsOf, outline, type Group } from "@/lib/nlu/reader/outline";
 import type { Item } from "@/components/menu";
 import { Month } from "@/components/month";
-import { Live, MovesPill, NowCard, SeriesAsk, Steps, Story, Weekly, type Card } from "@/components/nowcard";
+import { kindItems, Live, MovesPill, NowCard, SeriesAsk, Steps, Story, Weekly, type Card } from "@/components/nowcard";
 import { RowMenu, menuTop, sittingItems } from "@/components/rowmenu";
 import { fadeIn, fadeOut, glide, popIn, settle, Tap, EASE } from "@/components/tap";
 import { Sweep, useSweep } from "@/components/sweep";
@@ -36,7 +36,7 @@ import { Toast } from "@/components/toast";
 import { Swipe, Week } from "@/components/week";
 import { SERIES_NO, acceptSeries, addWorked, apply, markRolled, reshapeSeries, declineSeries, retime, forgetWhen, makeRoom, moveMine, moveToDay, pickNow, addRule, addSitting, dropSitting, loadClassMult, needMore, pin, putBack, removeRule, removeScope, scopeIds, swipeDone, swipeLater, take, type Result, applyProposal, dismissProposal, maybeRebalance, proposalFor, proposeRebalance } from "@/lib/apply";
 import { briefMoves, loadMoves, loadWarn, seeMoves } from "@/lib/moves";
-import { reasonText, stepText, topReason } from "@/lib/reasons";
+import { reasonText, topReason } from "@/lib/reasons";
 import { holidays } from "@/lib/holidays";
 import { askMic, listenLive, micReset, type Heard } from "@/lib/ears";
 import { WEEKDAY_VI, t } from "@/lib/i18n";
@@ -55,8 +55,8 @@ import { compose, inferred, whereOf, type Ctx } from "@/lib/say";
 import { keepBoth, pendingOverlaps, type Overlap } from "@/lib/overlap";
 import * as store from "@/lib/store";
 import { getMarks, onForeground, onSynced, onTick } from "@/lib/sync";
-import { nudgeAction, overdue } from "@/lib/nudges";
-import { pushReminders } from "@/lib/reminders";
+import { overdue } from "@/lib/nudges";
+import { GRACE } from "@/planner/policy";
 import { listenWidgets, pushWidgets } from "@/lib/widgets";
 import { useTheme, font, space, ff } from "@/lib/theme";
 import type { Action, Move, Notice, Rule, Step, Task, Warn } from "@/lib/types";
@@ -122,10 +122,10 @@ export default function Home() {
   const setStory = (on: boolean) => setStoryAt(on ? `${view}${sel}` : "");
   const [mine, setMine] = useState<{ moves: Move[]; r: Result }>(); // what the user's own change just moved, opened from its toast (magic.html 7d)
   const shuf = useRef(false); // the plan is playing out on the list; no second run until it ends
-  const [shufOn, setShufOn] = useState(false);
+  const [shufOn] = useState(false);
   const tasksRef = useRef<Task[]>([]);
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
-  const [lines, setLines] = useState<string[]>([]); // narrated solver steps while thinking
+  const [lines] = useState<string[]>([]); // narrated solver steps while thinking
   const [mind, setMind] = useState<{ i: Insights; rules: Rule[]; m: Model }>();
   // capture.html: the thumb on a satellite, the type field, the photo dropdown, the photo or PDF being read.
   const [aside, setAside] = useState<Aside>("");
@@ -225,34 +225,14 @@ export default function Home() {
   const shuffle = useCallback(async (r?: Result, old = tasksRef.current, jump = true) => {
     const id = (st: Step) => st.id;
     const steps = (r?.steps ?? []).slice(0, 4);
-    if (shuf.current || !old.length || !steps.some(id)) return refresh();
-    shuf.current = true;
+    if (!old.length || !steps.some(id)) return refresh();
     const fresh = new Map((await store.allTasks()).map((x) => [x.id, x]));
     // A step names the task; when it was split into sittings, its rows are the sittings (the parent only loses its time).
     const one = (tid?: string) => { const x = tid ? fresh.get(tid) : undefined; return x ? [x, ...[...fresh.values()].filter((c) => c.parentId === tid && !c.deletedAt)] : []; };
     const rows = (st?: Step) => (st?.ids ?? [st?.id]).flatMap(one); // a series line lands every occurrence at once
     const firstAt = Math.min(...rows(steps.find((st) => id(st) && !old.some((o) => o.id === id(st)))).flatMap((x) => x.start ?? []));
-    setTasks(old);
     if (jump && Number.isFinite(firstAt)) setSel(startOfDay(firstAt));
-    setShufOn(true);
-    setState("thinking");
-    try {
-      for (let i = 0; i < steps.length; i++) {
-        await new Promise((ok) => setTimeout(ok, 350));
-        setLines(steps.slice(0, i + 1).map(stepText));
-        const xs = rows(steps[i]);
-        if (!xs.length) continue;
-        setTasks((p) => [...p.filter((a) => !xs.some((x) => x.id === a.id)), ...xs]);
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-      }
-      await new Promise((ok) => setTimeout(ok, 350));
-      await refresh();
-    } finally {
-      shuf.current = false;
-      setShufOn(false);
-      setLines([]);
-      setState("idle");
-    }
+    await refresh(); // no step-by-step lock: the list glides to its new times in one frame
   }, [refresh]);
   // A sync result: every notice gets its own toast with "Xem"; otherwise the plain result.
   const landed = useCallback((r?: Result & { notices?: Notice[] }) => {
@@ -278,15 +258,6 @@ export default function Home() {
     return () => sub.remove();
   }, [refresh, landed]);
   useEffect(() => { pushWidgets(); return listenWidgets(refresh); }, [refresh]);
-  // Android: the overrun question as a toast once per launch (the notification's two buttons are the same Xong / Để sau).
-  const asked = useRef(false);
-  useEffect(() => {
-    const x = overdue(tasks, now)[0];
-    if (Platform.OS !== "android" || asked.current || !x) return;
-    asked.current = true;
-    const act = (a: "done" | "later") => () => { setToasts((q) => q.slice(1)); void nudgeAction(x.id, a).then(() => { refresh(); pushReminders(); }); };
-    setToasts((q) => [...q, { text: t("overrunSub", { title: x.title }), sub: t("overrunQ"), action: { label: t("finishDone"), run: act("done") }, alt: { label: t("laterAfter"), run: act("later"), plain: true } }]);
-  }, [tasks, now, refresh]);
   useEffect(() => onLeftSaved(refresh), [refresh]); // the detail screen's last edits, saved as it closed
   // Rolled five times: a flexible task the planner has moved past its block five times is asked once, the question over the chips (Bỏ / Chia nhỏ / Giữ).
   useEffect(() => {
@@ -301,8 +272,13 @@ export default function Home() {
       ] });
     }, () => {});
   }, [tasks, ask, chips, say, refresh]);
-  const cardRef = useRef(card);
-  useEffect(() => { cardRef.current = card; }, [card]);
+  // calm.html "Hết giờ": a block that ran out unticked (overdue: its end plus the grace) is the now card until it is extended, moved or ticked.
+  // The card's swipe and buttons act on the same task (cardRef), so they never reach the next block by mistake.
+  const late = overdue(tasks, now + GRACE)[0];
+  const lateNext = late ? pickNow(tasks.filter((x) => x.id !== late.id), now) : undefined;
+  const shown = late && late.start !== undefined ? { task: late, start: late.start, end: late.end } : card;
+  const cardRef = useRef(shown);
+  useEffect(() => { cardRef.current = shown; });
   // `now` otherwise moves only on a refresh: left open, rows would never turn late and "today" would not roll over at midnight.
   useEffect(() => {
     let day = startOfDay(Date.now());
@@ -325,11 +301,14 @@ export default function Home() {
   const held = useRef(false);
   // Opened from the talk widget (zen:///?listen=1): already listening, so the next touch on the button ends it.
   const latched = useRef(false);
-  const { listen, scan, type, view: openView, h: openHour, at: openAt } = useLocalSearchParams<{ listen?: string; scan?: string; type?: string; view?: string; h?: string; at?: string }>();
+  const { listen, scan, type, view: openView, h: openHour, at: openAt, day: openDay } = useLocalSearchParams<{ listen?: string; scan?: string; type?: string; view?: string; h?: string; at?: string; day?: string }>();
   // "Xem nhịp của bạn" from a task's why: each new link opens Nhịp once (set while rendering, React's pattern for state from props)
   const [opened, setOpened] = useState<string>();
   const openKey = openView === "rhythm" ? `${openHour ?? ""}@${openAt ?? ""}` : undefined; // `at`: a second tap reopens it
   if (openKey !== undefined && openKey !== opened) { setOpened(openKey); setView("rhythm"); }
+  // The night-before notice's "Xem ngày mai": opens that day once.
+  const [openedDay, setOpenedDay] = useState<string>();
+  if (openDay !== undefined && openDay !== openedDay) { setOpenedDay(openDay); setView("day"); setSel(startOfDay(Number(openDay))); }
 
   useEffect(() => { micReset(); }, []);
   useEffect(() => { // once: the on-device models (whisper, Qwen, e5) are gone; their ~1.6 GB must not linger
@@ -968,7 +947,7 @@ export default function Home() {
   const empty = weekEmpty ? "week" : view === "day" && selEmpty && !(isToday && card) && !sunOn ? "rest" : "inl";
   const closeMine = () => { if (mine) void seeMoves(mine.moves.map((m) => m.id)).then(refresh); setMine(undefined); };
   const undoMine = async () => { const r = mine?.r; setMine(undefined); await r?.undo(); setToasts((u) => [{ text: t("undone") }, ...u.slice(1)]); refresh(); };
-  const hero = mine ? "mine" : sunOn ? "sun" : card ? card.task.id : rest ? "rest" : "none";
+  const hero = mine ? "mine" : sunOn ? "sun" : shown ? shown.task.id : rest ? "rest" : "none";
 
   const restView = rest && (
     <GestureDetector gesture={swipe}>
@@ -977,22 +956,25 @@ export default function Home() {
       </Reanimated.View>
     </GestureDetector>
   );
-  const cardView = card && (
+  // Hết giờ: Thêm 15 phút lengthens the block by 15 (the replan moves what clashes); Chuyển việc is Để sau for it; the kind chip opens the kind menu beside it.
+  const cardView = shown && (
     <GestureDetector gesture={swipe}>
       <Reanimated.View style={flick}>
-        <NowCard card={card} onDone={card.gap ? startNow : () => void finish("done")} onStart={startNow} onLater={() => void finish("later")} onMicroRest={(min) => void addWorked(card.task.id, min).then(refresh, () => {})} />
+        <NowCard card={shown} over={late ? { next: lateNext } : undefined} onDone={shown.gap ? startNow : () => void finish("done")} onStart={startNow} onLater={() => void finish("later")} onMicroRest={(min) => void addWorked(shown.task.id, min).then(refresh, () => {})}
+          onExtend={() => late && void retime(late.id, late.start!, late.effort + 15).then((r) => { if (r) say(r.toast, r); refresh(); }, failed)}
+          onKind={(x, top, bottom) => setMenu({ task: x, ...menuAt(bottom, top, kindItems((k) => void apply([{ op: "edit", target: x.id, kind: k }]).then((r) => { say(r.toast, r); refresh(); }, failed))) })} />
       </Reanimated.View>
     </GestureDetector>
   );
 
   const first = (hello: string, h: string, sub?: string) => (
     <View style={s.top}>
-      <View>
+      <View style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>
         <Text style={{ color: th.ink, fontSize: font.md, fontFamily: ff("500") }}>{hello}</Text>
-        <Text style={[s.h, { color: th.ink }]}>{h}</Text>
+        <Text numberOfLines={2} style={[s.h, { color: th.ink }]}>{h}</Text>
         {!!sub && <Text style={[s.sub, { color: th.muted }]}>{sub}</Text>}
       </View>
-      <View style={{ flexDirection: "row", gap: 8 }}>
+      <View style={{ flexDirection: "row", gap: 8, flexShrink: 0 }}>
         {/* Hidden while open: the field grows out of this circle and shrinks back into it. */}
         <View ref={findBtn} collapsable={false} style={{ opacity: finding ? 0 : 1 }}>
           <Tap onPress={() => findBtn.current?.measureInWindow((x, y) => setFinding({ x, y }))} hitSlop={8} style={[s.o, { borderColor: th.line, backgroundColor: th.bg }]} accessibilityRole="button" accessibilityLabel={t("search")}>
@@ -1021,13 +1003,13 @@ export default function Home() {
           <View style={s.tabL}>
             {VIEWS.map((v) => (
               <Tap key={v} onPress={() => setView(v)} hitSlop={10} accessibilityRole="tab" accessibilityState={{ selected: view === v }} style={{ paddingVertical: 10 }}>
-                <Text style={{ fontSize: font.md, fontFamily: ff(view === v ? "600" : "500"), color: view === v ? th.ink : th.muted }}>{t(v === "day" ? "tabDay" : v === "week" ? "tabWeek" : "tabMonth")}</Text>
+                <Text numberOfLines={1} style={{ fontSize: font.md, fontFamily: ff(view === v ? "600" : "500"), color: view === v ? th.ink : th.muted }}>{t(v === "day" ? "tabDay" : v === "week" ? "tabWeek" : "tabMonth")}</Text>
                 {view === v && <Reanimated.View entering={ZoomIn.duration(180).easing(EASE)} exiting={ZoomOut.duration(120)} style={[s.tabDot, { backgroundColor: th.seal }]} />}
               </Tap>
             ))}
           </View>
           {/* Not a calendar view: a hairline pill with the leaf, so it reads as Zen talking about you. */}
-          <Tap onPress={() => setView("rhythm")} hitSlop={8} accessibilityRole="tab" accessibilityState={{ selected: view === "rhythm" }} accessibilityLabel={t("rhythm")}
+          <Tap onPress={() => setView("rhythm")} hitSlop={7} accessibilityRole="tab" accessibilityState={{ selected: view === "rhythm" }} accessibilityLabel={t("rhythm")}
             style={[s.mind, view === "rhythm" ? { backgroundColor: th.ink, borderColor: th.ink } : { borderColor: th.line }]}>
             <Logo size={14} mode="line" color={view === "rhythm" ? th.bg : th.ink} />
             <Text style={{ fontSize: 14, fontFamily: ff("600"), color: view === "rhythm" ? th.bg : th.ink }}>{t("rhythmTab")}</Text>
@@ -1056,6 +1038,8 @@ export default function Home() {
           prevLabel={dayLabel(addDays(sel, -1))} nextLabel={dayLabel(addDays(sel, 1))}
         >
           {header}
+          {/* "Which one" chips (calm.html pick): in the list under the header, so a long list scrolls with it. */}
+          {chips && <View style={[s.chips, { borderColor: th.line, backgroundColor: th.bg }]}>{chips.ask && <Text style={[s.chipAsk, { color: th.ink }]}>{chips.ask}</Text>}<View style={{ marginTop: 12, gap: 8 }}>{chips.options.map((o) => <Pressable key={o.label} onPress={o.run} style={[s.chip, { borderColor: th.line }]}><Text numberOfLines={1} ellipsizeMode="tail" style={[s.chipT, { color: th.ink }]}>{o.label}</Text>{o.detail && <Text numberOfLines={1} style={[s.chipD, { color: th.ink }]}>{o.detail}</Text>}</Pressable>)}</View></View>}
           {view === "day" && isToday && (
             // Keyed per branch so hero swaps cross-fade; a new now-card lands with a small pop.
             <Reanimated.View key={hero} entering={card && hero === card.task.id ? popIn : fadeIn} exiting={fadeOut} layout={glide}>
@@ -1103,7 +1087,6 @@ export default function Home() {
       {finding && <Search origin={finding} tasks={tasks} now={now} acts={rowActs} initial={findQ} onClose={() => { setFinding(undefined); setFindQ(undefined); }} />}
       {dd.ghost}
       {menu && <RowMenu items={menu.items} top={menu.top} onClose={() => setMenu(undefined)} />}
-      {chips && <View style={s.chips} pointerEvents="box-none">{chips.ask && <Text style={[s.chipAsk, { color: th.ink }]}>{chips.ask}</Text>}{chips.options.map((o) => <Pressable key={o.label} onPress={o.run} style={[s.chip, { backgroundColor: th.chip }]}><Text numberOfLines={1} ellipsizeMode="tail" style={[s.chipT, { color: th.ink }]}>{o.label}</Text>{o.detail && <Text numberOfLines={1} style={[s.chipD, { color: th.muted }]}>{o.detail}</Text>}</Pressable>)}</View>}
       {toast && <Toast key={toastKey(toast)} onDismiss={() => setToasts((q) => q.slice(1))} error={toast.error} text={toast.text} sub={toast.sub} onAction={toast.action?.run} actionLabel={toast.action?.label} onAlt={toast.alt?.run} altLabel={toast.alt?.label} altPlain={toast.alt?.plain} />}
     </SafeAreaView>
     </Sweep>
@@ -1123,11 +1106,12 @@ function ThemeTap() {
 }
 
 const s = StyleSheet.create({
-  chips: { position: "absolute", left: 24, right: 24, bottom: 150, flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center" },
-  chip: { height: 44, maxWidth: "100%", flexDirection: "row", alignItems: "center", paddingHorizontal: 14, borderRadius: 14 },
-  chipAsk: { width: "100%", textAlign: "center", marginBottom: 4, fontSize: 16, lineHeight: 22, fontFamily: ff("500") },
-  chipT: { flexShrink: 1, fontSize: 16, fontFamily: ff("500") },
-  chipD: { flexShrink: 0, marginLeft: 10, fontSize: 14, fontFamily: ff("500") },
+  // calm.html .find + .pills.blk .pl: a bordered card, the question, then full-width outlined pills (name left, day right)
+  chips: { marginTop: 16, borderRadius: 22, borderWidth: 1, paddingVertical: 16, paddingHorizontal: 18 },
+  chip: { height: 44, width: "100%", flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 18, borderRadius: 99, borderWidth: 1 },
+  chipAsk: { fontSize: 17, lineHeight: 23, fontFamily: ff("600") },
+  chipT: { flex: 1, minWidth: 0, fontSize: 15, fontFamily: ff("500") },
+  chipD: { flexShrink: 0, opacity: 0.7, fontSize: 15, fontFamily: ff("500"), fontVariant: ["tabular-nums"] },
   root: { flex: 1 },
   pad: { padding: space.gutter, paddingTop: 0 }, // .scr: the safe area stands in for its 54px top
   top: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginTop: 6 },
@@ -1136,8 +1120,8 @@ const s = StyleSheet.create({
   sub: { marginTop: 6, fontFamily: ff(), fontSize: font.md },
   o: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, alignItems: "center", justifyContent: "center", marginTop: 2 },
   tabs: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 18 }, // magic.html .tabs: text and the Nhịp pill share a centre line
-  tabL: { flexDirection: "row", gap: 20 },
-  mind: { flexDirection: "row", alignItems: "center", gap: 6, height: 36, paddingHorizontal: 11, borderRadius: 99, borderWidth: 1 }, // magic.html .mind
+  tabL: { flexDirection: "row", gap: 20, flexShrink: 1 },
+  mind: { flexDirection: "row", alignItems: "center", gap: 6, height: 30, paddingHorizontal: 11, borderRadius: 99, borderWidth: 1 }, // magic.html .mind: 30 high, the touch reach is the hitSlop (7)
   tabDot: { position: "absolute", bottom: 0, left: "50%", width: 5, height: 5, marginLeft: -2.5, borderRadius: 3 },
   fade: { position: "absolute", left: 0, right: 0, bottom: 0, height: 120 },
   dock: { position: "absolute", left: 0, right: 0, bottom: 0 },

@@ -14,7 +14,9 @@ import { SittingList } from "@/components/sittings";
 import { useTapOutside, type Box } from "@/components/outside";
 import { DropMenu } from "@/components/menu";
 import { RichText } from "@/components/richtext";
-import { addSitting, apply, dropSitting, lastMore, moveMine, removeScope, stillMore, toAction, type LiveEdit, type Result } from "@/lib/apply";
+import { addSitting, apply, clearRepeat, dropPrep, dropSitting, lastMore, moveMine, removeScope, reshapeSeries, splitInto, stillMore, toAction, type LiveEdit, type Result } from "@/lib/apply";
+import { askMic, listenLive, type Heard } from "@/lib/ears";
+import { patchOf } from "@/lib/nlu/patch";
 import { Story } from "@/components/nowcard";
 import { seeMoves } from "@/lib/moves";
 import { keepBoth } from "@/lib/overlap";
@@ -32,7 +34,7 @@ import { dayLabel, endAt, startDay, when } from "@/lib/when";
 type Scope = "this" | "following" | "all";
 const KINDS = Object.keys(KIND_VI) as Kind[];
 const cap = (x: string) => x[0].toUpperCase() + x.slice(1);
-const kindLabel = (k: Kind) => (k === "other" ? "Khác" : cap(KIND_VI[k])); // "Việc của bạn · Khác", not "· Việc khác"
+const kindLabel = (k: Kind) => (k === "other" ? t("kindOther") : cap(KIND_VI[k])); // "Việc của bạn · Khác", not "· Việc khác"
 const host = (u: string) => u.replace(/^https?:\/\/(www\.)?/i, "").split(/[/?#]/)[0];
 const QUARTER = 900_000, LENS = [15, 30, 45, 60, 90, 120]; // the end chip offers these lengths from the start
 const clock = (base: number, d: Date) => { const n = new Date(base); n.setHours(d.getHours(), d.getMinutes(), 0, 0); return n.getTime(); };
@@ -65,6 +67,7 @@ export default function Detail() {
   const [draft] = useState(() => new Map<string, LiveEdit>()); // a plain box, written in handlers only
   const [told, setTold] = useState<{ r: Result; ids: string[] }>(); // what the saved value did, shown in place (magic.html 7d)
   const [added, setAdded] = useState<Result>(); // what "Còn nữa" or a sitting change just did: its toast and Undo, in place
+  const [quickMsg, setQuickMsg] = useState<string>(); // the quick bar's calm line: nothing understood, or a kind it cannot patch here
   const saved = useRef("");
   const latest = useRef("");
   const seen = useRef<Record<string, string>>({}); // last loaded values, so a reload that changes nothing sets no state
@@ -302,6 +305,31 @@ export default function Detail() {
   const canSplit = !task.fixed && !task.rrule && !task.doneAt;
   const dropOne = async (sid: string) => { await saveFirst(); setAdded(await dropSitting(task.parentId ?? task.id, undefined, sid)); void load(); };
   const addOne = async () => { await saveFirst(); setAdded(await addSitting(task.parentId ?? task.id)); void load(); };
+  // A bare phrase on this task ("mai 3h chiều 90 phút", "mỗi T3 T5"): patched, applied, Undo in place like the other edits here.
+  const quickSay = async (text: string) => {
+    if (!task) return;
+    const p = patchOf(text, task, new Date());
+    setAdded(undefined);
+    if (p.clearRepeat && !task.rrule) return setQuickMsg(t("quickNotRepeat"));
+    if (!p.edit && !p.reshape && !p.splitCount && !p.clearRepeat) return setQuickMsg(t("quickNone"));
+    setQuickMsg(undefined);
+    await saveFirst();
+    try {
+      if (p.edit) setAdded(await apply([p.edit]));
+      if (p.reshape) setAdded(await reshapeSeries(task.id, p.reshape.from, p.reshape.rrule));
+      if (p.splitCount) setAdded(await splitInto(task.parentId ?? task.id, p.splitCount));
+      if (p.clearRepeat) setAdded(await clearRepeat(task.id));
+    } catch { setQuickMsg(t("quickNotRepeat")); }
+    void load();
+  };
+  // "Không cần ôn" on a prep (or one of its sittings): dropped for good with its open sittings, Undo on Home like the other deletes.
+  const prepId = task.forId !== undefined && (task.parentId ?? task.id).startsWith("prep:") ? (task.parentId ?? task.id) : undefined;
+  const skipPrepNow = once(async () => {
+    await saveFirst();
+    const r: Result = await dropPrep(prepId!);
+    setFlash({ text: r.toast, r });
+    router.back();
+  });
   const undoMore = async () => { const r = added; setAdded(undefined); await r?.undo(); void load(); };
   const me = split ? tt?.id : task.id;
   // "Cũng hợp" only for a real other time: one the planner found, not the current one, not already gone
@@ -351,7 +379,9 @@ export default function Detail() {
             )}
           </View>
           <Field value={title} rev={rev} onText={typeTitle} selectionColor={th.seal} cursorColor={th.seal} onEndEditing={submitTitle} returnKeyType="done" submitBehavior="blurAndSubmit" multiline style={[s.h, { color: th.ink }]} />
-          {noTitle && <Text accessibilityLiveRegion="polite" style={[s.hint, { color: th.seal }]}>Gõ tên việc để lưu</Text>}
+          {noTitle && <Text accessibilityLiveRegion="polite" style={[s.hint, { color: th.seal }]}>{t("noTitleHint")}</Text>}
+          <QuickBar onSay={quickSay} onMsg={setQuickMsg} />
+          {quickMsg && <Text accessibilityLiveRegion="polite" style={[s.hint, { color: th.muted }]}>{quickMsg}</Text>}
           {lines.length > 0 && <View style={s.meta}>{lines}</View>}
           {/* magic.html 7d/7e: what the time just set did, in place: a clash with a class asks, the moves tell their story with Undo */}
           {told && (
@@ -381,6 +411,7 @@ export default function Detail() {
             </View>
           )}
           {still && sits.length < 2 && <Tap onPress={addMore} accessibilityRole="button" accessibilityLabel={t("stillMore")} style={s.more}><Text style={[s.moreT, { color: th.ink }]}>{t("stillMore")}</Text></Tap>}
+          {prepId && <Tap onPress={skipPrepNow} accessibilityRole="button" accessibilityLabel={t("prepSkip")} style={s.more}><Text style={[s.moreT, { color: th.muted }]}>{t("prepSkip")}</Text></Tap>}
           {added && (
             <View style={s.addRow}>
               <Text style={[s.sp, { color: th.muted }]}>{added.toast}</Text>
@@ -454,9 +485,9 @@ const s = StyleSheet.create({
   who: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 14 },
   sw: { width: 34, height: 34, borderRadius: 17, overflow: "hidden" },
   sub: { fontFamily: ff(), fontSize: font.md },
-  h: { marginTop: 8, fontSize: font.h, lineHeight: 36, minHeight: 48, fontFamily: ff("600"), letterSpacing: -0.75, padding: 0 },
+  h: { marginTop: 8, fontSize: 32, lineHeight: 37, minHeight: 48, fontFamily: ff("600"), letterSpacing: -0.75, padding: 0 },
   hint: { marginTop: 4, fontFamily: ff("600"), fontSize: font.sub },
-  meta: { marginTop: 10, gap: 2 },
+  meta: { marginTop: 16, gap: 10 },
   kd: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 44 },
   lms: { marginTop: 12, paddingVertical: 14, paddingHorizontal: 16, borderWidth: 1, borderRadius: 16 },
   lab: { fontSize: font.label, fontFamily: ff("500") },
@@ -466,6 +497,9 @@ const s = StyleSheet.create({
   moreT: { fontSize: font.sub, fontFamily: ff("600"), textDecorationLine: "underline" },
   addRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" },
   sp: { flex: 1, fontSize: font.sub, fontFamily: ff("500") },
+  quick: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 12 },
+  quickIn: { flex: 1, minWidth: 0, height: 44, borderRadius: 22, paddingHorizontal: 16, fontSize: font.sub },
+  quickMic: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   wr: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 6 },
   wt: { flex: 1, fontFamily: ff("500"), fontSize: font.meta, lineHeight: 21.6 },
   bar2: { width: 46, height: 4, borderRadius: 4, overflow: "hidden" },
@@ -478,8 +512,42 @@ const s = StyleSheet.create({
   pill: { height: 48, paddingHorizontal: 16, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   clr: { marginLeft: "auto", minHeight: 44, justifyContent: "center" },
   dash: { fontSize: font.sub, fontFamily: ff("500") },
-  note: { marginTop: 12, fontFamily: ff(), fontSize: font.base, lineHeight: 25.5, minHeight: 120, textAlignVertical: "top", paddingVertical: 14, paddingHorizontal: 16, borderRadius: 18 },
+  note: { marginTop: 12, fontFamily: ff(), fontSize: 18, lineHeight: 27, minHeight: 120, textAlignVertical: "top", paddingVertical: 14, paddingHorizontal: 16, borderRadius: 18 },
 });
+
+/** The one-line "Sửa nhanh" field under the title: typed, or said (tap the mic to listen, tap again to finish). */
+function QuickBar({ onSay, onMsg }: { onSay(text: string): unknown; onMsg(msg: string): void }) {
+  const th = useTheme();
+  const [v, setV] = useState("");
+  const [on, setOn] = useState(false);
+  const rec = useRef<{ stop(): Promise<Heard> } | undefined>(undefined);
+  useEffect(() => () => { void rec.current?.stop().catch(() => {}); }, []);
+  const submit = () => { const x = v.trim(); if (!x) return; setV(""); void onSay(x); };
+  const mic = async () => {
+    const live = rec.current;
+    if (live) {
+      rec.current = undefined;
+      setOn(false);
+      try {
+        const h = await live.stop();
+        if (!h.text) return onMsg(t("heardNothing"));
+        void onSay(h.text);
+      } catch { onMsg(t("micFail")); }
+      return;
+    }
+    if (!(await askMic())) return onMsg(t("mic"));
+    try { rec.current = await listenLive({ onPartial: setV }); setOn(true); } catch { onMsg(t("micFail")); }
+  };
+  return (
+    <View style={s.quick}>
+      <TextInput value={v} onChangeText={setV} onSubmitEditing={submit} returnKeyType="done" placeholder={t("quickPh")} placeholderTextColor={th.muted}
+        accessibilityLabel={t("quickPh")} style={[s.quickIn, { color: th.ink, backgroundColor: th.chip, fontFamily: ff("500") }]} />
+      <Tap onPress={mic} accessibilityRole="button" accessibilityLabel={on ? t("quickMicStop") : t("quickMic")} style={[s.quickMic, { backgroundColor: on ? th.seal : th.chip }]}>
+        <Icon name="mic" size={20} color={on ? th.bg : th.ink} />
+      </Tap>
+    </View>
+  );
+}
 
 /** A text field that owns what is typed: the screen hears the text through `onText` (a ref write) and shows `value` again only when it changes or `rev` bumps. */
 const Field = memo(function Field({ value, rev, onText, ...p }: Omit<ComponentProps<typeof TextInput>, "value" | "onChangeText"> & { value: string; rev: number; onText: (v: string) => void }) {

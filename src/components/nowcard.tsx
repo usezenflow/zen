@@ -1,6 +1,6 @@
 import { bolded } from "@/components/bold";
 import { BlurView } from "expo-blur";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ComponentRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Animated, { Easing, FadeInDown, interpolate, Keyframe, useAnimatedStyle, useFrameCallback, useSharedValue, withRepeat, withTiming, type SharedValue } from "react-native-reanimated";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
@@ -12,23 +12,27 @@ import { hhmm } from "@/components/cal";
 import type { HoldState } from "@/components/hold";
 import { t } from "@/lib/i18n";
 import { kvGet, kvSet } from "@/lib/store";
-import { reasonText, topReason } from "@/lib/reasons";
+import { KIND_VI, reasonText, topReason } from "@/lib/reasons";
 import { useTheme, font, ff } from "@/lib/theme";
 import { when } from "@/lib/when";
-import type { Move, Task } from "@/lib/types";
+import type { Move, Kind, Task } from "@/lib/types";
+import type { Item } from "@/components/menu";
 import { typeOf } from "@/planner";
 
 // gap: magic.html 17, a later task offered for the free time now (its label, e.g. "30p"); the circle takes it now.
 export type Card = { task: Task; start?: number; end?: number; gap?: string };
 
 // Art card with progress meter; the circle marks it done. Swipe is handled by the caller.
-// Thử 15p: a fifteen-minute ramp on a block of 45 minutes or more, or one put off before; kv "now.micro" keeps it across restarts.
+// Thử 10p: a ten-minute ramp on a block of 45 minutes or more, or one put off before; kv "now.micro" keeps it across restarts.
 type Micro = { id: string; startedAt: number; endsAt: number };
-const MICRO_KEY = "now.micro", MICRO_MIN = 15;
+const MICRO_KEY = "now.micro", MICRO_MIN = 10;
 const parseMicro = (v: string | null): Micro | null => { try { return v ? JSON.parse(v) : null; } catch { return null; } };
 
 // views.html "Day, next up": a flexible block not started yet also offers Làm luôn (onStart: that sitting moves to now).
-export function NowCard({ card, onDone, onStart, onLater, onMicroRest }: { card: Card; onDone: () => void; onStart?: () => void; onLater?: () => void; onMicroRest?: (minutes: number) => void }) {
+// calm.html "Hết giờ": a block whose end passed unticked; Thêm 15 phút and Chuyển việc replace the usual buttons.
+// onKind: the kind chip's tap, with the chip's window top and bottom so the caller can open the kind menu beside it.
+export type KindPick = (task: Task, top: number, bottom: number) => void;
+export function NowCard({ card, onDone, onStart, onLater, onMicroRest, onKind, onExtend, over }: { card: Card; onDone: () => void; onStart?: () => void; onLater?: () => void; onMicroRest?: (minutes: number) => void; onKind?: KindPick; onExtend?: () => void; over?: { next?: Task } }) {
   const th = useTheme();
   const [now, setNow] = useState(() => Date.now());
   const [micro, setMicro] = useState<Micro | null>(null);
@@ -49,12 +53,19 @@ export function NowCard({ card, onDone, onStart, onLater, onMicroRest }: { card:
   const microOk = !going && !task.fixed && !card.gap && (end - start >= 45 * 60000 || (task.misses ?? 0) > 0);
   const big = mic ? (micDone ? t("microFull") : t("nMin", { n: left })) : going ? t("nMin", { n: mins }) : hhmm(start);
   const small = mic ? (micDone ? t("microSub") : t("until", { time: hhmm(mic.endsAt) })) : going ? t("until", { time: hhmm(end) }) : t("nMin", { n: mins });
-  return (
+  return (<>
     <View style={[s.art, { backgroundColor: th.chip }]}>
       <View style={StyleSheet.absoluteFill}><TypeArt type={typeOf(task)} w={264} h={220} seed={4} /></View>
-      <Text style={[s.lab, { color: th.onart }]}>{t(going || mic ? "doingNow" : "nextUp")}</Text>
+      <View style={s.head}>
+        <Text numberOfLines={1} style={[s.lab, { color: th.onart, flexShrink: 1 }]}>{over ? t("overLab", { time: hhmm(end) }) : t(going || mic ? "doingNow" : "nextUp")}</Text>
+        {onKind && !card.gap && <KindChip task={task} onKind={onKind} />}
+      </View>
       <Text style={[s.t, { color: th.onart }]} numberOfLines={3}>{card.gap ? bolded(t("gapT", { free: card.gap, title: task.title })) : task.title}</Text>
       <View style={s.foot}>
+        {over ? <View style={s.overActs}>
+          <Tap onPress={onExtend} scale={0.94} accessibilityRole="button" accessibilityLabel={t("overExtend")} style={[s.glass, s.start, s.overBtn, s.soft]}><Glass /><Text style={s.startT} numberOfLines={1}>{t("overExtend")}</Text></Tap>
+          <Tap onPress={onLater} scale={0.94} accessibilityRole="button" accessibilityLabel={t("overMove")} style={[s.glass, s.start, s.overBtn, s.primary]}><Glass /><Text style={[s.startT, s.primaryT]} numberOfLines={1}>{t("overMove")}</Text></Tap>
+        </View> : <>
         <View style={s.meter}>
           <View style={s.cap}><Fill p={p} /></View>
           <View>
@@ -65,15 +76,36 @@ export function NowCard({ card, onDone, onStart, onLater, onMicroRest }: { card:
         <View style={s.acts2}>
           {mic && micDone ? <>
             <Tap onPress={() => { saveMicro(null); onMicroRest?.(MICRO_MIN); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microRest")} style={[s.glass, s.start, s.soft]}><Glass /><Text style={s.startT} numberOfLines={1}>{t("microRest")}</Text></Tap>
-            {onStart && <Tap onPress={() => { saveMicro(null); onStart(); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microGo")} style={[s.glass, s.start]}><Glass /><Text style={s.startT} numberOfLines={1}>{t("microGo")}</Text></Tap>}
+            {onStart && <Tap onPress={() => { saveMicro(null); onStart(); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microGo")} style={[s.glass, s.start, s.primary]}><Glass /><Text style={[s.startT, s.primaryT]} numberOfLines={1}>{t("microGo")}</Text></Tap>}
           </> : <>
-            {moving && onStart && <Tap onPress={onStart} scale={0.94} accessibilityRole="button" accessibilityLabel={t("startLab")} style={[s.glass, s.start]}><Glass /><Text style={s.startT}>{t("startLab")}</Text></Tap>}
-            {moving && <Tap onPress={onLater} scale={0.94} accessibilityRole="button" accessibilityLabel={t("laterBtn")} style={[s.glass, s.start, s.soft]}><Glass /><Text style={s.startT}>{t("laterBtn")}</Text></Tap>}
-            {microOk && !mic && <Tap onPress={() => { const at0 = Date.now(); saveMicro({ id: task.id, startedAt: at0, endsAt: at0 + MICRO_MIN * 60000 }); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microBtn")} style={[s.glass, s.start]}><Glass /><Text style={s.startT} numberOfLines={1}>{t("microBtn")}</Text></Tap>}
+            {moving && <Tap onPress={onLater} scale={0.94} accessibilityRole="button" accessibilityLabel={t("laterBtn")} style={[s.glass, s.start, s.soft]}><Glass /><Text style={s.startT} numberOfLines={1}>{t("laterBtn")}</Text></Tap>}
+            {moving && onStart && <Tap onPress={onStart} scale={0.94} accessibilityRole="button" accessibilityLabel={t("startLab")} style={[s.glass, s.start, s.primary]}><Glass /><Text style={[s.startT, s.primaryT]} numberOfLines={1}>{t("startLab")}</Text></Tap>}
+            {microOk && !mic && <Tap onPress={() => { const at0 = Date.now(); saveMicro({ id: task.id, startedAt: at0, endsAt: at0 + MICRO_MIN * 60000 }); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microBtn")} style={[s.glass, s.start, s.primary]}><Glass /><Text style={[s.startT, s.primaryT]} numberOfLines={1}>{t("microBtn")}</Text></Tap>}
           </>}
-          <Tap onPress={onDone} hitSlop={8} scale={0.88} testID="nowDone" accessibilityRole="button" accessibilityLabel={t("markDone")} style={[s.glass, s.solid]}><Glass /><Icon name="check" size={22} color="#0b0b0c" w={2.2} /></Tap>
+          {!moving && !micDone && <Tap onPress={onDone} hitSlop={8} scale={0.88} testID="nowDone" accessibilityRole="button" accessibilityLabel={t("markDone")} style={[s.glass, s.solid]}><Glass /><Icon name="check" size={22} color="#0b0b0c" w={2.2} /></Tap>}
         </View>
+        </>}
       </View>
+    </View>
+    {over && <Text style={[s.note, { color: th.muted }]}>{over.next ? t("overNext", { next: over.next.title, title: task.title }) : t("overStay", { title: task.title })}</Text>}
+  </>);
+}
+
+// calm.html .kc: the kind as a pill beside the label; the caller opens the kind menu from its window position.
+const cap1 = (x: string) => x[0].toUpperCase() + x.slice(1);
+export const kindName = (k: Kind) => (k === "other" ? t("kindOther") : cap1(KIND_VI[k]));
+// The kind menu the detail screen shows (same names, same order); pick gets the chosen kind.
+export const kindItems = (pick: (k: Kind) => void): Item[] => (Object.keys(KIND_VI) as Kind[]).map((k) => ({ label: kindName(k), icon: k, onPress: () => pick(k) }));
+function KindChip({ task, onKind }: { task: Task; onKind: KindPick }) {
+  const th = useTheme();
+  const at = useRef<ComponentRef<typeof View>>(null);
+  return (
+    <View ref={at} style={s.kcWrap}>
+      <Tap onPress={() => at.current?.measureInWindow((_x, y, _w, h) => onKind(task, y, y + h))} scale={0.94} hitSlop={7} accessibilityRole="button" accessibilityLabel={t("kindChange")} style={s.kc}>
+        <Icon name={task.kind} size={15} color={th.onart} w={2} />
+        <Text numberOfLines={1} style={[s.kcT, { color: th.onart }]}>{kindName(task.kind)}</Text>
+        <Icon name="down" size={13} color={th.onart} w={2} />
+      </Tap>
     </View>
   );
 }
@@ -297,20 +329,22 @@ export function Steps({ lines }: { lines: string[] }) {
 }
 
 const s = StyleSheet.create({
-  art: { marginTop: 16, height: 220, borderRadius: 28, overflow: "hidden", paddingHorizontal: 20, paddingTop: 20 },
+  art: { marginTop: 16, height: 236, borderRadius: 28, overflow: "hidden", paddingHorizontal: 20, paddingTop: 20 },
   lab: { fontSize: font.label, fontFamily: ff("500"), opacity: 0.85 },
   t: { marginTop: 8, fontSize: 24, lineHeight: 32, fontFamily: ff("600"), letterSpacing: -0.48 }, // .art .t: 24/600, line 32 so stacked Vietnamese marks (Ế, Ữ) are not clipped
   foot: { position: "absolute", left: 20, right: 16, bottom: 16, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" },
-  meter: { flexDirection: "row", alignItems: "center", gap: 12 },
+  meter: { flexDirection: "row", alignItems: "center", gap: 12, flexShrink: 0 },
   cap: { width: 18, height: 54, borderRadius: 10, borderWidth: 2, borderColor: "rgba(255,255,255,0.9)", justifyContent: "flex-end", padding: 2 },
   rise: { flexDirection: "row", overflow: "hidden", marginVertical: -5 }, // pulls the taller line back to the old 26px footprint
   big: { fontSize: 26, fontFamily: ff("600"), lineHeight: 36 }, // headroom so the clip keeps vi tone marks (phút)
   small: { fontSize: font.md, fontFamily: ff("500"), opacity: 0.9, marginTop: 3 },
   glass: { width: 52, height: 52, borderRadius: 26, overflow: "hidden", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.28)", borderWidth: 1, borderColor: "rgba(255,255,255,0.5)" },
   solid: { backgroundColor: "rgba(255,255,255,0.85)" },
-  acts2: { flexDirection: "row", alignItems: "center", gap: 8 },
-  start: { width: undefined, paddingHorizontal: 18 }, // views.html "Day, next up": a glass pill as tall as the check
+  acts2: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1, minWidth: 0 },
+  start: { width: undefined, paddingHorizontal: 16, flexShrink: 1, minWidth: 0 }, // views.html "Day, next up": a glass pill as tall as the check
   startT: { color: "#fff", fontSize: font.sub, fontFamily: ff("700") },
+  primary: { backgroundColor: "rgba(255,255,255,0.9)", borderColor: "transparent" }, // calm.html .gbtn.solid
+  primaryT: { color: "#0b0b0c" },
   soft: { opacity: 0.72 }, // Dời: one tap, Zen picks the day and hour; lighter than Bắt đầu
   words: { fontSize: 24, lineHeight: LINE, fontFamily: ff("600"), letterSpacing: -0.48 }, // .words: 24/600, 1.3, -.02em
   wordsBox: { maxHeight: MAX, overflow: "hidden", justifyContent: "flex-end" },
@@ -338,4 +372,11 @@ const s = StyleSheet.create({
   st: { flexDirection: "row", alignItems: "center", gap: 10 },
   spin: { width: 16, height: 16, borderRadius: 8, borderWidth: 2 },
   rest: { alignItems: "center", gap: 16, paddingVertical: 36 },
+  head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  kcWrap: { flexShrink: 0 },
+  kc: { flexDirection: "row", alignItems: "center", gap: 6, height: 30, paddingHorizontal: 12, borderRadius: 99, backgroundColor: "rgba(255,255,255,0.22)" }, // calm.html .kc
+  kcT: { maxWidth: 150, fontSize: 14, fontFamily: ff("600") },
+  overActs: { flex: 1, flexDirection: "row", gap: 8 },
+  overBtn: { flex: 1 },
+  note: { marginTop: 12, fontSize: font.md, lineHeight: 20, fontFamily: ff("500") }, // calm.html: the caption under the card
 });

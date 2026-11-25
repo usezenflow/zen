@@ -34,7 +34,7 @@ export function UpdateDialog({ d, onClose }: { d: Dlg; onClose: () => void }) {
             ))}
           </ScrollView>
           <Tap onPress={() => go()} style={[s.btn, { backgroundColor: th.ink }]} accessibilityRole="button"><Text style={[s.bt, { color: th.bg }]}>{label}</Text></Tap>
-          {up && Platform.OS === "ios" && <Tap onPress={() => go("altstore")} hitSlop={8} accessibilityRole="button"><Text style={[s.ghost, { color: th.ink }]}>{t("installAltStore")}</Text></Tap>}
+          {up && Platform.OS === "ios" && <Tap onPress={() => go("altstore")} style={[s.sec, { borderColor: th.line }]} accessibilityRole="button"><Text style={[s.st, { color: th.ink }]}>{t("installAltStore")}</Text></Tap>}
           {up && <Tap onPress={onClose} hitSlop={8} accessibilityRole="button"><Text style={[s.ghost, { color: th.muted }]}>{t("notNow")}</Text></Tap>}
         </View>
       </View>
@@ -100,7 +100,9 @@ const s = StyleSheet.create({
   h: { marginTop: 4, marginBottom: 8, fontSize: 24, lineHeight: 28.8, fontFamily: ff("600"), letterSpacing: -0.6 },
   li: { flexDirection: "row", gap: 8, marginTop: 6 },
   note: { fontSize: 15, lineHeight: 21.75, fontFamily: ff("400") },
-  btn: { marginTop: 22, height: 50, borderRadius: 99, alignItems: "center", justifyContent: "center" },
-  bt: { fontSize: 16, fontFamily: ff("700") },
+  btn: { marginTop: 22, height: 56, borderRadius: 99, alignItems: "center", justifyContent: "center" },
+  bt: { fontSize: 17, fontFamily: ff("700") },
+  sec: { marginTop: 10, height: 50, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" }, // ui.css .btn.sm.ol: not the ghost's plain text
+  st: { fontSize: 16, fontFamily: ff("700") },
   ghost: { marginTop: 12, textAlign: "center", fontSize: 15, fontFamily: ff("600") },
 });

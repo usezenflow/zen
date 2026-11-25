@@ -55,7 +55,7 @@ export function EdLine({ icon, word, tone, children, ref }: { icon?: Glyph; word
 const s = StyleSheet.create({
   ed: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 44 }, // one line: its chips shrink their text to fit rather than wrap
   edIcon: { opacity: 0.85, marginRight: 4, minWidth: 20 }, // .meta svg opacity, .meta .ed svg margin-right
-  word: { width: 20, fontFamily: ff("500"), fontSize: font.label, textAlign: "center" }, // fits the glyph's 20px
+  word: { minWidth: 20, fontFamily: ff("500"), fontSize: font.label, textAlign: "center" }, // fits the glyph's 20px
   row: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 44 }, // a whole 48px line to tap
   t: { fontFamily: ff(), fontSize: font.meta, lineHeight: 22.4, flexShrink: 1 },
 });

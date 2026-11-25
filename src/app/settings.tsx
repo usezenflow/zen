@@ -15,7 +15,13 @@ import { getFreeDiskStorageAsync } from "expo-file-system/legacy";
 import { loadCreds, owed } from "@/lib/dlu";
 import { t } from "@/lib/i18n";
 import * as stats from "@/lib/stats";
-import { kvGet, kvSet } from "@/lib/store";
+import { exportAll, importAll, kvGet, kvSet, resetAll } from "@/lib/store";
+import { loadAreas, loadZenModes, saveAreas, saveZenModes } from "@/lib/areas-store";
+import { DEFAULT_AREAS, type Area } from "@/lib/area";
+import { ZEN_RULES, type ZenMode, type ZenRule } from "@/planner/zen";
+import * as DocumentPicker from "expo-document-picker";
+import { File, Paths } from "expo-file-system";
+import * as Sharing from "expo-sharing";
 import { ask, disconnect, getFeeRows, getMarks, kvStorage, loginError, onQueue, partStates, partTimes, syncNow, syncStatus, vnd, type Login, type Part, type PartState } from "@/lib/sync";
 import { hasLms, hasPortal } from "@/lib/dlu/creds";
 import { useTheme, font, space, ff } from "@/lib/theme";
@@ -48,15 +54,86 @@ const Spin = ({ color }: { color: string }) => {
   return <Animated.View style={st}><Icon name="sync" size={14} color={color} /></Animated.View>;
 };
 
-function Row({ label, right, onPress, flat, line = !flat, dense }: { label: string; right?: React.ReactNode; onPress?: () => void; flat?: boolean; line?: boolean; dense?: boolean }) {
+function Row({ label, right, onPress, flat, line = !flat, dense, color }: { color?: string; label: string; right?: React.ReactNode; onPress?: () => void; flat?: boolean; line?: boolean; dense?: boolean }) {
   const th = useTheme();
   return (
     // The press highlight bleeds 14px past the text; the hairline stays on the text column.
     <Tap variant="fade" onPress={onPress} disabled={!onPress} style={[s.row, dense && { paddingVertical: 13 }, flat && { paddingBottom: 4 }]}>
-      <Text style={{ fontSize: dense ? font.meta : font.base, fontFamily: ff("600"), color: th.ink }}>{label}</Text>
+      <Text style={{ fontSize: dense ? font.meta : font.base, fontFamily: ff("600"), color: color ?? th.ink }}>{label}</Text>
       <View style={s.right}>{right}</View>
       {line && <View style={[s.hair, { backgroundColor: th.line }]} />}
     </Tap>
+  );
+}
+
+const splitWords = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
+
+/** Mảng việc cân bằng: rename, keywords (comma separated), add a custom area, delete a custom one. Saves when a field is left. */
+function Areas({ areas, onSave }: { areas: Area[]; onSave: (a: Area[]) => void }) {
+  const th = useTheme();
+  const [name, setName] = useState(""), [words, setWords] = useState("");
+  const isCore = (id: string) => DEFAULT_AREAS.some((d) => d.id === id);
+  const put = (id: string, patch: Partial<Area>) => onSave(areas.map((a) => (a.id === id ? { ...a, ...patch } : a)));
+  const add = () => {
+    const n = name.trim();
+    if (!n) return;
+    onSave([...areas, { id: `custom-${Date.now().toString(36)}`, name: n, kinds: [], words: splitWords(words) }]);
+    setName(""); setWords("");
+  };
+  const remove = (a: Area) => Alert.alert(t("areaDelete"), a.name, [
+    { text: t("cancel"), style: "cancel" },
+    { text: t("areaDelete"), style: "destructive", onPress: () => onSave(areas.filter((x) => x.id !== a.id)) },
+  ]);
+  return (
+    <View>
+      {areas.map((a) => (
+        <View key={a.id} style={[s.area, { borderColor: th.line }]}>
+          <TextInput defaultValue={a.name} accessibilityLabel={t("areaNew")} returnKeyType="done" maxLength={40}
+            onEndEditing={(e) => { const v = e.nativeEvent.text.trim(); if (v && v !== a.name) put(a.id, { name: v }); }}
+            style={[s.in, { color: th.ink, borderColor: th.line }]} />
+          <TextInput defaultValue={a.words.join(", ")} accessibilityLabel={t("areaWords")} placeholder={t("areaWords")} placeholderTextColor={th.muted} returnKeyType="done"
+            onEndEditing={(e) => { const v = splitWords(e.nativeEvent.text); if (v.join() !== a.words.join()) put(a.id, { words: v }); }}
+            style={[s.in, s.inSub, { color: th.ink, borderColor: th.line }]} />
+          {!isCore(a.id) && <Tap onPress={() => remove(a)} hitSlop={8} accessibilityRole="button" style={s.del}><Text style={{ fontSize: font.sub, fontFamily: ff("600"), color: th.seal }}>{t("areaDelete")}</Text></Tap>}
+        </View>
+      ))}
+      <View style={[s.area, { borderColor: th.line }]}>
+        <TextInput value={name} onChangeText={setName} placeholder={t("areaNew")} placeholderTextColor={th.muted} accessibilityLabel={t("areaNew")} returnKeyType="next" maxLength={40}
+          style={[s.in, { color: th.ink, borderColor: th.line }]} />
+        <TextInput value={words} onChangeText={setWords} placeholder={t("areaWords")} placeholderTextColor={th.muted} accessibilityLabel={t("areaWords")} returnKeyType="done" onSubmitEditing={add}
+          style={[s.in, s.inSub, { color: th.ink, borderColor: th.line }]} />
+        <Tap onPress={add} disabled={!name.trim()} accessibilityRole="button" style={[s.addB, { borderColor: th.line, opacity: name.trim() ? 1 : 0.4 }]}>
+          <Text style={{ fontSize: font.sub, fontFamily: ff("600"), color: th.ink }}>{t("areaAdd")}</Text>
+        </Tap>
+      </View>
+    </View>
+  );
+}
+
+/** Quy tắc của Zen: each rule Tắt / Tự động / Giữ chặt, as one segmented control. */
+function ZenRules({ modes, onSet }: { modes: Record<ZenRule, ZenMode>; onSet: (r: ZenRule, m: ZenMode) => void }) {
+  const th = useTheme();
+  const label: Record<ZenRule, string> = { rest: t("zenRest"), early: t("zenEarly"), night: t("zenNight"), balance: t("zenBalance") };
+  const opts: [ZenMode, string][] = [["off", t("zenOff")], ["auto", t("zenAuto")], ["strict", t("zenStrict")]];
+  return (
+    <View>
+      {ZEN_RULES.map((r) => (
+        <View key={r} style={[s.area, { borderColor: th.line }]}>
+          <Text style={{ fontSize: font.base, fontFamily: ff("600"), color: th.ink }}>{label[r]}</Text>
+          <View style={s.seg}>
+            {opts.map(([m, text]) => {
+              const on = modes[r] === m;
+              return (
+                <Tap key={m} variant="fade" accessibilityRole="radio" accessibilityState={{ checked: on }} accessibilityLabel={`${label[r]}: ${text}`} onPress={() => onSet(r, m)}
+                  style={[s.segI, { borderColor: on ? th.ink : th.line, backgroundColor: on ? th.ink : "transparent" }]}>
+                  <Text numberOfLines={1} style={{ fontSize: font.sub, fontFamily: ff(on ? "700" : "500"), color: on ? th.bg : th.ink }}>{text}</Text>
+                </Tap>
+              );
+            })}
+          </View>
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -73,6 +150,12 @@ export default function Settings() {
   const [fees, setFees] = useState<number | null>(null); // owed, or null before the first fee check
   const [gpa, setGpa] = useState<number | null>(null);
   const [share, setShare] = useState(true);
+  const [areas, setAreas] = useState<Area[]>(DEFAULT_AREAS); // kv "areas"
+  const [zen, setZen] = useState<Record<ZenRule, ZenMode>>({ rest: "auto", early: "auto", night: "auto", balance: "auto" }); // kv "zen.rules"
+  const [openAreas, setOpenAreas] = useState(false), [openZen, setOpenZen] = useState(false);
+  useEffect(() => { void loadAreas().then(setAreas); void loadZenModes().then(setZen); }, []);
+  const saveAreasNow = (a: Area[]) => { setAreas(a); saveAreas(a).catch(() => setToast({ text: t("backupFail"), sub: "" })); };
+  const setZenRule = (r: ZenRule, m: ZenMode) => { const next = { ...zen, [r]: m }; setZen(next); saveZenModes(next).catch(() => setToast({ text: t("backupFail"), sub: "" })); };
   const [open, setOpen] = useState<Src | "all" | null>(null); // "all": first connect, ID + both passwords; else one account's field
   const [toast, setToast] = useState<{ text: string; sub: string }>();
   const [now, setNow] = useState(0);
@@ -104,7 +187,7 @@ export default function Settings() {
     void Promise.resolve().then(refresh);
     stats.isOptedOut(kvStorage).then((o) => setShare(!o));
     kvGet("theme").then((m) => { if (m === "light" || m === "dark") setMode(m); });
-    checkUpdate().then(setUp);
+    checkUpdate().then(setUp).catch(() => {});
     kvGet("stt.engine").then((e) => setStt((x) => ({ ...x, setting: engineOf(e) })));
     sttInstalled().then((t) => setStt((x) => ({ ...x, installed: t })));
     getFreeDiskStorageAsync().then(setFreeDisk, () => {});
@@ -140,6 +223,35 @@ export default function Settings() {
     if (!bench.pcm || !bench.text.trim()) return;
     setBench({ text: "", saved: await saveClip(bench.pcm, bench.text.trim()) });
   };
+
+  // Backup: the share sheet offers Save to Files / iCloud Drive; import reads such a file back and replaces what is on the device.
+  const doExport = async () => {
+    try {
+      const f = new File(Paths.cache, `zen-${new Date().toISOString().slice(0, 10)}.json`);
+      f.create({ overwrite: true });
+      f.write(await exportAll());
+      await Sharing.shareAsync(f.uri, { mimeType: "application/json", UTI: "public.json" });
+    } catch { setToast({ text: t("backupFail"), sub: "" }); }
+  };
+  const doImport = () => Alert.alert(t("importData"), t("importAsk"), [
+    { text: t("cancel"), style: "cancel" },
+    { text: t("importDo"), style: "destructive", onPress: async () => {
+      try {
+        const r = await DocumentPicker.getDocumentAsync({ type: "application/json", copyToCacheDirectory: true });
+        if (r.canceled) return;
+        const n = await importAll(await new File(r.assets[0].uri).text());
+        setToast({ text: t("imported", { n }), sub: "" });
+      } catch { setToast({ text: t("backupBad"), sub: "" }); }
+    } },
+  ]);
+
+  const doReset = () => Alert.alert(t("resetData"), t("resetAsk"), [
+    { text: t("cancel"), style: "cancel" },
+    { text: t("backupFirst"), onPress: doExport },
+    { text: t("resetData"), style: "destructive", onPress: async () => {
+      try { await resetAll(); setToast({ text: t("resetDone"), sub: "" }); } catch { setToast({ text: t("backupFail"), sub: "" }); }
+    } },
+  ]);
 
   const pickMode = async (m: Mode) => { setMode(m); Appearance.setColorScheme(m === "system" ? "unspecified" : m); await kvSet("theme", m); };
 
@@ -186,7 +298,7 @@ export default function Settings() {
           ))}
         </View>
 
-        <Text onLongPress={() => setBenchOn((v) => !v)} style={[s.lab, { color: th.muted, marginTop: 26 }]}>Nhận dạng giọng nói</Text>
+        <Text onLongPress={() => setBenchOn((v) => !v)} style={[s.lab, { color: th.muted, marginTop: 26 }]}>Giọng nói</Text>
         {/* Radio list: tap a row to choose it; a tier not on disk downloads, and its row shows the progress. */}
         {([
           ["os", "Của máy", "Nhận giọng có sẵn trên máy"],
@@ -196,7 +308,7 @@ export default function Settings() {
           const on = effective === k, d = k !== "os" && stt.dl?.tier === k ? stt.dl : undefined;
           const right = k === "os" ? "" : d?.pct != null ? `Đang tải ${d.pct}%` : stt.installed === k ? "Đã tải" : `${Math.round(TIERS[k].bytes / 1e6)} MB`;
           return (
-            <Tap key={k} variant="fade" accessibilityRole="radio" accessibilityState={{ checked: on }} accessibilityLabel={name} onPress={() => setEngine(k)} style={[s.row, { paddingVertical: 13 }]}>
+            <Tap key={k} variant="fade" accessibilityRole="radio" accessibilityState={{ checked: on }} accessibilityLabel={name} onPress={() => setEngine(k)} style={[s.row, { paddingVertical: 17 }]}>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={{ fontSize: font.base, fontFamily: ff("600"), color: th.ink }}>{name}</Text>
                 <Text style={{ fontSize: font.meta, fontFamily: ff("500"), color: th.muted, marginTop: 2 }}>{sub}</Text>
@@ -206,16 +318,16 @@ export default function Settings() {
             </Tap>
           );
         })}
-        <Text style={{ marginTop: 12, fontSize: font.meta, color: th.muted, lineHeight: 20 }}>
+        <Text style={{ marginTop: 12, fontSize: font.meta, fontFamily: ff("400"), color: th.muted, lineHeight: 20 }}>
           {sttRec === "os" ? "Máy này ít bộ nhớ, nên dùng nhận giọng của máy." : "Nghe ngay trên máy, không gửi đi đâu. Lỗi thì tự chuyển về nhận giọng của máy."}
         </Text>
         {benchOn && <>
           <Row dense label={bench.rec ? "Đang ghi · chạm để dừng" : "Ghi mẫu thử"} onPress={benchTap} />
           {bench.pcm && <>
-            <TextInput value={bench.text} onChangeText={(text) => setBench((b) => ({ ...b, text }))} placeholder="Câu nói đúng" placeholderTextColor={th.muted} style={{ fontSize: font.base, color: th.ink, paddingVertical: 10, borderBottomWidth: 1, borderColor: th.line }} />
+            <TextInput value={bench.text} onChangeText={(text) => setBench((b) => ({ ...b, text }))} placeholder="Câu nói đúng" placeholderTextColor={th.muted} style={{ fontSize: font.base, fontFamily: ff("500"), color: th.ink, paddingVertical: 10, borderBottomWidth: 1, borderColor: th.line }} />
             <Row dense label="Lưu mẫu" onPress={benchSave} />
           </>}
-          {bench.saved && <Text style={{ fontSize: font.sub, color: th.muted }}>{bench.saved}</Text>}
+          {bench.saved && <Text style={{ fontSize: font.sub, fontFamily: ff("400"), color: th.muted }}>{bench.saved}</Text>}
         </>}
 
         {/* Online (timetable, exams, marks) and LMS (assignments) are separate sections: each connects, syncs and disconnects on its own. */}
@@ -269,6 +381,14 @@ export default function Settings() {
             <Row label={t("stats")} right={<Tap onPress={() => { setShare(!share); stats.setOptOut(kvStorage, share); }} accessibilityRole="switch" accessibilityState={{ checked: share }} accessibilityLabel={t("stats")} style={[s.tog, { backgroundColor: share ? th.ink : th.line, alignItems: share ? "flex-end" : "flex-start" }]}><View style={[s.knob, { backgroundColor: share ? th.bg : th.muted }]} /></Tap>} />
           </Animated.View>
         )}
+        <Row flat={openAreas} label={t("areasSec")} right={<Chevron open={openAreas} size={16} color={th.muted} />} onPress={() => setOpenAreas((v) => !v)} />
+        {openAreas && <Animated.View entering={fadeIn} exiting={fadeOut} layout={glide}><Areas areas={areas} onSave={saveAreasNow} /></Animated.View>}
+        <Row flat={openZen} label={t("zenSec")} right={<Chevron open={openZen} size={16} color={th.muted} />} onPress={() => setOpenZen((v) => !v)} />
+        {openZen && <Animated.View entering={fadeIn} exiting={fadeOut} layout={glide}><ZenRules modes={zen} onSet={setZenRule} /></Animated.View>}
+        <Text style={[s.lab, { color: th.muted, marginTop: 26 }]}>{t("dataSec")}</Text>
+        <Row label={t("exportData")} onPress={doExport} />
+        <Row label={t("importData")} onPress={doImport} />
+        <Row label={t("resetData")} color={th.seal} onPress={doReset} />
         {/* settings.html Version: the last row; a newer release turns it vermilion and opens the update dialog. */}
         <Row label={t("version")}
           right={<Text style={{ fontSize: font.sub, fontFamily: ff(up ? "600" : "500"), color: up ? th.seal : th.muted }}>{dl ? t("downloadingPct", { n: dl.pct }) : up ? t("hasVersion", { version: up.version }) : `${installed} · ${buildHash}`}</Text>}
@@ -301,7 +421,14 @@ const s = StyleSheet.create({
   artLab: { color: "#fff", opacity: 0.85 },
   artId: { color: "#fff", fontSize: 20, fontFamily: ff("600"), marginTop: 4, paddingRight: 50 },
   artSub: { color: "#fff", opacity: 0.9, fontFamily: ff("500"), fontSize: 14, marginTop: 3, paddingRight: 50 },
-  chevO: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  chevO: { width: 30, height: 30, borderRadius: 20, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   off: { paddingTop: 14, paddingBottom: 17, flexDirection: "row", gap: 22 },
+  area: { paddingVertical: 12, gap: 8, borderBottomWidth: 1 },
+  in: { minWidth: 0, fontSize: font.base, fontFamily: ff("500"), paddingVertical: 8, borderBottomWidth: 1 },
+  inSub: { fontSize: font.sub, fontFamily: ff("400") },
+  del: { alignSelf: "flex-start", minHeight: 36, justifyContent: "center" },
+  addB: { alignSelf: "flex-start", minHeight: 40, paddingHorizontal: 16, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  seg: { flexDirection: "row", gap: 6 },
+  segI: { flex: 1, minWidth: 0, minHeight: 40, paddingHorizontal: 6, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   glass: { position: "absolute", right: 14, bottom: 14, width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,.28)", borderWidth: 1, borderColor: "rgba(255,255,255,.5)" },
 });

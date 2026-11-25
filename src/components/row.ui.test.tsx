@@ -258,6 +258,11 @@ describe("Row", () => {
     expect(flat(screen.getByText(hhmm(NOW - 2 * HOUR))).color).toBe(seal);
   });
 
+  it("a flexible block past its deadline is missed even before its block ends", async () => {
+    await draw({ task: task({ start: NOW - 2 * HOUR, end: NOW + HOUR, deadline: NOW - HOUR }) });
+    expect(flat(screen.getByText(hhmm(NOW - 2 * HOUR))).color).toBe(seal);
+  });
+
   it("a done or future task is not missed", async () => {
     await draw({ task: task({ start: NOW - 2 * HOUR, end: NOW - HOUR }), done: true });
     expect(flat(screen.getByText(hhmm(NOW - 2 * HOUR))).color).not.toBe(seal);

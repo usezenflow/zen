@@ -35,7 +35,7 @@ export function MenuPanel({ items, onPick, style, origin = "top right" }: { item
       {items.map((i, k) => (
         <Tap variant="row" key={i.label} onPress={() => onPick(i)} accessibilityRole="menuitem" style={[s.mi, k > 0 && s.sep]}>
           <Icon name={i.icon} size={20} color={i.destructive ? "#ff3b30" : th.ink} />
-          <Text style={[s.t, { color: i.destructive ? "#ff3b30" : th.ink }]}>{i.label}</Text>
+          <Text numberOfLines={1} style={[s.t, { color: i.destructive ? "#ff3b30" : th.ink }]}>{i.label}</Text>
         </Tap>
       ))}
     </Animated.View>
@@ -66,5 +66,5 @@ const s = StyleSheet.create({
   center: { position: "absolute", left: 0, right: 0 },
   mi: { height: 50, paddingHorizontal: 20, flexDirection: "row", alignItems: "center", gap: 12 },
   sep: { borderTopWidth: 0.5, borderTopColor: "rgba(127,127,127,0.28)" },
-  t: { fontSize: font.base, fontFamily: ff("500") },
+  t: { flexShrink: 1, fontSize: font.base, fontFamily: ff("500") },
 });
