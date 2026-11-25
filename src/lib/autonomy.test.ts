@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { newModel, plan } from "../planner";
 import type { Task, TaskEvent } from "./types";
-import { swipeLater } from "./apply";
+import { markRolled, swipeLater } from "./apply";
 import { reactToTime } from "./sync";
 
 const db = vi.hoisted(() => ({ tasks: new Map<string, any>(), events: new Map<string, any>(), kv: new Map<string, string>(), model: null as any }));
@@ -112,6 +112,11 @@ describe("reactToTime (the 30 s tick, launch and background)", () => {
     expect(r?.changed).toBe(true);
     expect(db.tasks.get("left").start).toBeGreaterThanOrEqual(at(9, 0, 1));
     expect(db.tasks.get("later").start).toBe(at(21, 40));
+    expect(r?.silent).toBe(true); // the move happened, the user is not told
+  });
+  it("a sweep with nothing to roll is not reported at all", async () => {
+    db.tasks.set("later", task("later", { start: at(21, 40), end: at(21, 55), effort: 15 }));
+    expect(await reactToTime(at(21, 30), false)).toBeUndefined();
   });
   it("inside the grace nothing is replanned", async () => {
     db.kv.set("plannedAt", String(at(5)));
@@ -119,5 +124,17 @@ describe("reactToTime (the 30 s tick, launch and background)", () => {
     const r = await reactToTime(NOW, true);
     expect(r).toBeUndefined();
     expect(db.tasks.get("m").start).toBe(NOW - 2 * H);
+  });
+});
+
+describe("markRolled: the five-misses question is marked once", () => {
+  it("the first call marks it and says so; later calls do not", async () => {
+    db.tasks.set("r", task("r", { misses: 5 }));
+    expect(await markRolled("r")).toBe(true);
+    expect(db.tasks.get("r").askedRolled).toBe(true);
+    expect(await markRolled("r")).toBe(false);
+  });
+  it("an unknown task is not marked", async () => {
+    expect(await markRolled("nope")).toBe(false);
   });
 });

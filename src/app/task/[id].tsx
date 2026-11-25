@@ -425,7 +425,6 @@ const WhyBlock = memo(function WhyBlock({ items, notes, alt, start, now, onMove 
       {notes.map((x) => (
         <View key={x.text} style={s.wr}>
           <Text style={[s.wt, { color: th.ink }]}>{x.text}</Text>
-          <Text style={{ fontSize: font.sub, fontFamily: ff("500"), color: th.muted, marginTop: 2 }}>{t("atlasBasis", { n: x.n })}</Text>
         </View>
       ))}
       {start !== undefined && (

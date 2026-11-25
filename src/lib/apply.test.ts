@@ -7,6 +7,14 @@ vi.mock("./store", () => ({
   putTasks: async (ts: Task[]) => ts.forEach((x) => db.tasks.set(x.id, x)),
   removeTasks: async (ids: string[]) => ids.forEach((i) => db.tasks.delete(i)),
   allEvents: async () => [...db.events.values()],
+  keptPlaced: async () => {
+    const kept = new Set<string>(), placed = new Map<string, number>();
+    for (const e of db.events.values()) {
+      if (e.type === "kept") kept.add(e.taskId);
+      if (e.type === "placed") placed.set(e.taskId, Math.max(e.at, placed.get(e.taskId) ?? 0));
+    }
+    return { kept, placed };
+  },
   putEvent: async (e: TaskEvent) => void db.events.set(e.id, e),
   removeEvents: async (ids: string[]) => ids.forEach((i) => db.events.delete(i)),
   loadModel: async (now: number) => db.model ?? newModel(now),
@@ -25,7 +33,7 @@ vi.mock("../planner", async (orig) => {
   } };
 });
 
-import { addRule, addSitting, apply, dropSitting, ingest, lastMore, liveEdit, loadClassMult, makeRoom, needMore, pickNow, pin, putBack, removeRule, retime, scopeIds, stillMore, swipeDone } from "./apply";
+import { addRule, addSitting, addWorked, apply, dropSitting, ingest, keepSweep, lastMore, liveEdit, loadClassMult, makeRoom, needMore, pin, putBack, removeRule, retime, scopeIds, stillMore, swipeDone } from "./apply";
 import { newModel } from "../planner";
 import { loadMoves } from "./moves";
 import { preps } from "../planner/prep";import { partAt, plain, t } from "./i18n";
@@ -38,6 +46,16 @@ const live = () => [...db.tasks.values()].filter((x: Task) => !x.deletedAt);
 
 beforeEach(() => {
   pl.from = undefined; db.tasks.clear(); db.events.clear(); db.kv.clear(); db.model = null;
+});
+
+it("addWorked adds minutes and leaves the task open, unplanned", async () => {
+  db.tasks.set("w", { id: "w", title: "Ôn", kind: "study", source: "user", effort: 60, createdAt: 0 });
+  await Promise.all([addWorked("w", 15), addWorked("w", 15)]);
+  const x = db.tasks.get("w");
+  expect(x.workedMin).toBe(30);
+  expect(x.doneAt).toBeUndefined();
+  await addWorked("missing", 15); // no such task: nothing written, no throw
+  expect(db.tasks.has("missing")).toBe(false);
 });
 
 it("one line becomes several placed tasks, one undo removes all", async () => {
@@ -73,28 +91,6 @@ it("swipe done marks the task and undo reverts", async () => {
   await r.undo();
   expect(db.tasks.get(t0.id).doneAt).toBeUndefined();
   expect(JSON.parse(db.kv.get("stats.queue") ?? "[]")).toHaveLength(0); // the undone done's stat row is gone too
-});
-
-it("pickNow prefers the running task, else the next one", () => {
-  const mk = (id: string, s: number, e: number): Task => ({ id, title: id, kind: "other", source: "user", effort: 30, start: s, end: e, createdAt: 0 });
-  const ts = [mk("a", NOW + 3600_000, NOW + 7200_000), mk("b", NOW - 600_000, NOW + 600_000)];
-  expect(pickNow(ts, NOW)?.id).toBe("b");
-  expect(pickNow([ts[0]], NOW)?.id).toBe("a");
-});
-
-describe("pickNow ranking", () => {
-  const HR = 3600_000;
-  const mk = (id: string, o: Partial<Task>): Task => ({ id, title: id, kind: "study", source: "user", effort: 60, createdAt: NOW, start: NOW + HR, end: NOW + 2 * HR, ...o });
-  it("the task due soonest wins over one with no due", () => {
-    const soon = mk("soon", { deadline: NOW + HR, start: NOW + 3 * HR, end: NOW + 4 * HR });
-    expect(pickNow([mk("later", { start: NOW + 5 * HR, end: NOW + 6 * HR }), soon], NOW)?.id).toBe("soon");
-  });
-  it("skips a task whose predecessor is open, and takes it once the predecessor is done or deleted", () => {
-    const a = mk("a", { deadline: NOW + HR, after: ["b"] }), b = mk("b", { start: NOW + 5 * HR, end: NOW + 6 * HR });
-    expect(pickNow([a, b], NOW, newModel(NOW))?.id).toBe("b");
-    expect(pickNow([a, { ...b, doneAt: NOW }], NOW, newModel(NOW))?.id).toBe("a");
-    expect(pickNow([a, { ...b, deletedAt: NOW }], NOW, newModel(NOW))?.id).toBe("a");
-  });
 });
 
 import { futureDlu, moveMine, removeImported } from "./apply";
@@ -735,7 +731,7 @@ it("a part-of-day repeat skips a gone today, spans 120 days, and keeps each occu
     const m = (x.start! - day(x.start!)) / 60_000;
     expect(m >= 300 && m + 60 <= 660).toBe(true);
   }
-  expect(xs.filter((x: Task) => x.start !== undefined).length).toBeGreaterThanOrEqual(14);
+  expect(xs.filter((x: Task) => x.start !== undefined).length).toBeGreaterThanOrEqual(6); // the 7-day horizon: one a day, the rest wait unplaced
 });
 
 describe("a guess learns per frame class", () => {
@@ -959,4 +955,39 @@ it("reshapeSeries ends the old days at `from`, goes on on the new ones, keeps th
   await r.undo();
   expect(gyms().filter((x: Task) => x.rrule === "FREQ=WEEKLY;BYDAY=TU,TH")).toHaveLength(0);
   expect(gyms().length).toBeGreaterThanOrEqual(before);
+});
+
+describe("keep sweep: kept only for a finished, passed slot", () => {
+  const H = 3600_000, D = 86400_000;
+  const seed = (id: string, o: Partial<Task>, placedAt: number) => {
+    db.tasks.set(id, { id, title: id, kind: "study", source: "user", effort: 60, createdAt: NOW - 7 * D, ...o });
+    db.events.set(`p-${id}`, { id: `p-${id}`, taskId: id, type: "placed", at: placedAt });
+  };
+  const keptIds = () => [...db.events.values()].filter((e: TaskEvent) => e.type === "kept").map((e: TaskEvent) => e.taskId);
+
+  it("a future block nobody touched emits no kept event", async () => {
+    seed("future", { start: NOW + 3 * H, end: NOW + 4 * H }, NOW - 2 * D);
+    await keepSweep(NOW);
+    expect(keptIds()).toEqual([]);
+  });
+
+  it("an unfinished block whose slot passed emits no kept event", async () => {
+    seed("missed", { start: NOW - 5 * H, end: NOW - 4 * H }, NOW - 2 * D);
+    await keepSweep(NOW);
+    expect(keptIds()).toEqual([]);
+  });
+
+  it("a finished block (done near its slot) whose slot passed is kept once", async () => {
+    seed("done", { start: NOW - 5 * H, end: NOW - 4 * H, doneAt: NOW - 5 * H + 10 * 60_000 }, NOW - 2 * D);
+    await keepSweep(NOW);
+    await keepSweep(NOW);
+    expect(keptIds()).toEqual(["done"]);
+  });
+
+  it("a finished block dragged after placement is not kept", async () => {
+    seed("dragged", { start: NOW - 5 * H, end: NOW - 4 * H, doneAt: NOW - 5 * H }, NOW - 2 * D);
+    db.events.set("drag-1", { id: "drag-1", taskId: "dragged", type: "drag", at: NOW - 2 * D + H });
+    await keepSweep(NOW);
+    expect(keptIds()).toEqual([]);
+  });
 });

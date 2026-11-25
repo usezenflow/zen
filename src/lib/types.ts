@@ -42,6 +42,8 @@ export interface Task {
   deletedAt?: number;
   userEdited?: string[]; // fields the user changed, upstream never overwrites; "deleted" = user removed it, never revived
   misses?: number; // blocks that passed unfinished and were replanned (one per distinct missed start, apply.ts)
+  askedRolled?: boolean; // asked once what to do after five misses (rolled.ts): never asked again
+  workedMin?: number; // minutes worked on it without finishing ("Nghỉ" after a 15-minute try); the task stays open
   pinned?: boolean; // "Đừng dời việc này nữa": the planner treats it as busy at start..end
   userDay?: boolean; // dropped on a day by hand: the planner keeps the task inside that day and never rewrites the window to another
   holdUntil?: number; // a time set by hand (drag): busy only until this or its start passes, then a preference the planner may move

@@ -34,13 +34,14 @@ import { fadeIn, fadeOut, glide, popIn, settle, Tap, EASE } from "@/components/t
 import { Sweep, useSweep } from "@/components/sweep";
 import { Toast } from "@/components/toast";
 import { Swipe, Week } from "@/components/week";
-import { SERIES_NO, acceptSeries, apply, reshapeSeries, declineSeries, retime, forgetWhen, makeRoom, moveMine, moveToDay, pickNow, addRule, addSitting, dropSitting, loadClassMult, needMore, pin, putBack, removeRule, removeScope, scopeIds, swipeDone, swipeLater, take, type Result } from "@/lib/apply";
+import { SERIES_NO, acceptSeries, addWorked, apply, markRolled, reshapeSeries, declineSeries, retime, forgetWhen, makeRoom, moveMine, moveToDay, pickNow, addRule, addSitting, dropSitting, loadClassMult, needMore, pin, putBack, removeRule, removeScope, scopeIds, swipeDone, swipeLater, take, type Result, applyProposal, dismissProposal, maybeRebalance, proposalFor, proposeRebalance } from "@/lib/apply";
 import { briefMoves, loadMoves, loadWarn, seeMoves } from "@/lib/moves";
 import { reasonText, stepText, topReason } from "@/lib/reasons";
 import { holidays } from "@/lib/holidays";
 import { askMic, listenLive, micReset, type Heard } from "@/lib/ears";
 import { WEEKDAY_VI, t } from "@/lib/i18n";
 import { seriesOffer, type SeriesOffer } from "@/lib/series";
+import { rolledPick } from "@/lib/rolled";
 import { marksOf, readErrors, readFull, readNotes, sizedSub } from "@/lib/nlu/adapt";
 import { think } from "@/lib/nlu/commands";
 import { askOf, kinOf, learn, splitHeard, VERB_VI, type Command, type Learned, type SeriesScope } from "@/lib/nlu/intent";
@@ -95,7 +96,7 @@ export default function Home() {
   const [words, setWords] = useState("");
   const [toasts, setToasts] = useState<ToastState[]>([]); // [0] is showing, the rest wait their turn
   // Chips under the toast: which task a line meant, or which exam an anchor points at. One tap, then they go.
-  const [chips, setChips] = useState<{ options: { label: string; run: () => void }[] }>();
+  const [chips, setChips] = useState<{ ask?: string; options: { label: string; detail?: string; run: () => void }[] }>();
   const toast = toasts[0];
   const [now, setNow] = useState(() => Date.now());
   const [view, setView] = useState<View_>("day");
@@ -111,6 +112,8 @@ export default function Home() {
   const level = useSharedValue(0); // real mic level 0..1 for the listening wave
   const [moves, setMoves] = useState<Move[]>([]); // unseen only
   const [warns, setWarns] = useState<Warn[]>([]);
+  const [rebal, setRebal] = useState<Move[]>(); // a fresh rebalance proposal: nothing moved until Áp dụng
+  const [rebalOpen, setRebalOpen] = useState(false);
   const [maps, setMaps] = useState<{ trail: Record<string, string>; froms: Record<string, number>; reason: Record<string, string>; alts: Record<string, number> }>({ trail: {}, froms: {}, reason: {}, alts: {} });
   const [wk, setWk] = useState<{ title: string; sub: string } | undefined>(); // Sunday card
   // The story is open for one view and day only: leaving them folds it back (the moves stay until seen).
@@ -144,7 +147,7 @@ export default function Home() {
     setTasks(all);
     setOver(await pendingOverlaps(now));
     // Moves and the model load once per refresh; rows get plain maps.
-    const [model, mv, wn] = await Promise.all([store.loadModel(now), loadMoves(), loadWarn()]);
+    const [model, mv, wn, rp] = await Promise.all([store.loadModel(now), loadMoves(), loadWarn(), proposalFor(all)]);
     if (mine !== gen.current) return; // a newer refresh began while these loaded
     // A notice is stale once its task sits somewhere else (moved again since, by hand or by another replan): it goes, never to come back.
     const stale = mv.filter((m, i) => !m.seen && (mv.slice(i + 1).some((n) => n.id === m.id) || all.some((x) => x.id === m.id && x.start !== m.to)));
@@ -169,11 +172,11 @@ export default function Home() {
     setMind({ i: ins, rules: model.rules ?? [], m: model });
     // A saved card outlives its task until the next re-plan: drop it once the task is gone or ticked, or it was never short of time.
     const open = (id: string) => all.some((x) => x.id === id && !x.doneAt && !x.deletedAt);
-    setMoves(unseen); setWarns(wn.filter((w) => open(w.id) && (w.deadline <= now || w.free < w.need))); setMaps({ trail, froms, reason, alts });
+    setMoves(unseen); setRebal(rp); if (!rp) setRebalOpen(false); setWarns(wn.filter((w) => open(w.id) && (w.deadline <= now || w.free < w.need))); setMaps({ trail, froms, reason, alts });
     const k = ins.keep;
-    setWk(w ? { title: w, sub: k ? t("sundayKeep", { pct: k.pct, delta: `${k.delta > 0 ? "+" : ""}${k.delta}%` }) : t("sundaySub", { done: all.filter((x) => x.doneAt && x.doneAt >= wkAgo).length, moved: mv.filter((m) => m.at >= wkAgo).length }) } : undefined);
+    setWk(w ? { title: w, sub: (k ? t("sundayKeep", { pct: k.pct, delta: `${k.delta > 0 ? "+" : ""}${k.delta}%` }) : t("sundaySub", { done: all.filter((x) => x.doneAt && x.doneAt >= wkAgo).length, moved: mv.filter((m) => m.at >= wkAgo).length })) + (ins.sunday ? `\n${ins.sunday}` : "") } : undefined);
     setAsk(seriesOffer(all, now, JSON.parse((await store.kvGet(SERIES_NO)) ?? "[]")));
-    const cur = pickNow(all, now, model);
+    const cur = pickNow(all, now);
     if (cur && cur.start === undefined) { setRest(undefined); const s = Math.ceil(now / 60_000) * 60_000; return setCard({ task: cur, start: s, end: s + cur.effort * 60_000 }); } // unscheduled: shown from now for its length
     if (cur && cur.start! <= now) { setRest(undefined); return setCard({ task: cur, start: cur.start, end: cur.end }); }
     // views.html "Day, all done": a task of another day is not today's art card; the rest card takes its slot and names tomorrow.
@@ -254,10 +257,10 @@ export default function Home() {
   // A sync result: every notice gets its own toast with "Xem"; otherwise the plain result.
   const landed = useCallback((r?: Result & { notices?: Notice[] }) => {
     if (r?.notices?.length) setToasts((q) => [...q, ...r.notices!.map((n): ToastState => ({ text: n.title, sub: n.sub, action: n.route ? { label: t("view"), run: () => go(n.route!) } : undefined }))]);
-    else if (r && r.toast !== t("nothing")) say(r.toast, r); // a sync that found nothing to do says nothing
+    else if (r && !r.silent && r.toast !== t("nothing")) say(r.toast, r); // a sync that found nothing to do says nothing; the 21:30 sweep is silent
     // a result nobody asked for (a sync, a series topped up 120 days out) keeps the day in view
-    if (r) void shuffle(r, undefined, false); // nothing landed: focus already refreshed, resume refreshes itself
-  }, [say, go, shuffle]);
+    if (r) void shuffle(r, undefined, false).then(() => maybeRebalance()).then((p) => { if (p) void refresh(); }, () => {}); // nothing landed: focus already refreshed, resume refreshes itself; an overloaded or at-risk replan may offer a rebalance (once a day)
+  }, [say, go, shuffle, refresh]);
 
   useFocusEffect(useCallback(() => {
     const d = takeHomeDay();
@@ -285,6 +288,19 @@ export default function Home() {
     setToasts((q) => [...q, { text: t("overrunSub", { title: x.title }), sub: t("overrunQ"), action: { label: t("finishDone"), run: act("done") }, alt: { label: t("laterAfter"), run: act("later"), plain: true } }]);
   }, [tasks, now, refresh]);
   useEffect(() => onLeftSaved(refresh), [refresh]); // the detail screen's last edits, saved as it closed
+  // Rolled five times: a flexible task the planner has moved past its block five times is asked once, the question over the chips (Bỏ / Chia nhỏ / Giữ).
+  useEffect(() => {
+    const x = rolledPick(tasks);
+    if (!x || ask || chips) return; // chips up (a voice or typed command): skip; still unasked, so a later tick offers it
+    void markRolled(x.id).then((first) => {
+      if (!first) return; // asked already, or another refresh got here first
+      setChips({ ask: `${t("rolledAsk", { title: x.title })} ${t("rolledSub")}`, options: [
+        { label: t("rolledDrop"), run: () => { setChips(undefined); void removeScope(x.id, "this").then((r) => { say(r.toast, r); refresh(); }, () => {}); } },
+        { label: t("rolledSplit"), run: () => { setChips(undefined); void addSitting(x.id).then((r) => { say(r.toast, r); refresh(); }, () => {}); } },
+        { label: t("rolledKeep"), run: () => setChips(undefined) },
+      ] });
+    }, () => {});
+  }, [tasks, ask, chips, say, refresh]);
   const cardRef = useRef(card);
   useEffect(() => { cardRef.current = card; }, [card]);
   // `now` otherwise moves only on a refresh: left open, rows would never turn late and "today" would not roll over at midnight.
@@ -413,7 +429,7 @@ export default function Home() {
     }
     if (cmd.kind === "choose") {
       if (cmd.ask) setToasts((q) => [...q, { text: cmd.ask! }]);
-      setChips({ options: [...cmd.options.map((o) => ({ label: o.label, run: () => { void teach(cmd.key, o.actions[0]?.target ?? o.series?.id, "pick"); then(o.series ? delSeries(o.series) : applyCommand(o.actions)); } })), { label: "Tạo việc mới", run: () => then(run(text, via, undefined, true)) }] });
+      setChips({ options: [...cmd.options.map((o) => ({ label: o.label, detail: o.detail, run: () => { void teach(cmd.key, o.actions[0]?.target ?? o.series?.id, "pick"); then(o.series ? delSeries(o.series) : applyCommand(o.actions)); } })), { label: "Tạo việc mới", run: () => then(run(text, via, undefined, true)) }] });
     }
   };
   // A session added to a series: one-off, with the "mỗi tuần" alt chip to make it weekly. A weekly line makes it weekly at once.
@@ -558,14 +574,14 @@ export default function Home() {
       lastIds.current = mine.map((x) => x.id);
       const stuckDay = stuck.length && !made.length ? startOfDay(Math.max(now, (stuck[0].deadline ?? stuck[0].notAfter ?? now + 1) - 1)) : undefined;
       if (stuckDay !== undefined) setSel(stuckDay);
-      // A deadline past the 30-day horizon is kept as the due date; the sittings land inside the horizon. Said once, for the furthest one.
-      const far = Math.max(0, ...(await store.allTasks()).filter((x) => x.createdAt === now && x.source === "user" && !x.deletedAt && x.deadline !== undefined && x.deadline > addDays(now, 30)).map((x) => x.deadline!));
+      // A deadline past the 7-day horizon is kept as the due date; the sittings land inside the horizon. Said once, for the furthest one.
+      const far = Math.max(0, ...(await store.allTasks()).filter((x) => x.createdAt === now && x.source === "user" && !x.deletedAt && x.deadline !== undefined && x.deadline > addDays(now, 7)).map((x) => x.deadline!));
       const farSub = far ? t("farDue", { date: dayLabel(far).slice(4) }) : undefined; // dayLabel: "T6, 21/11" → "21/11"
       // An anchor the reader could not pin ("ôn trước kỳ thi Toán" with two Toán exams): the chips pick one, and its start becomes the deadline.
       if (anchor) {
         const target = mine.find((x) => x.title === anchor.title);
         const options = anchor.alternatives!.flatMap((id) => { const c = all.find((x) => x.id === id); return c?.start !== undefined ? [c] : []; });
-        if (target && options.length) setChips({ options: options.map((c) => ({ label: `${c.title} · ${dayLabel(c.start!)}`, run: () => void applyCommand([{ op: "edit", target: target.id, deadline: new Date(c.start!).toISOString(), ...(c.fixed === "exam" ? { anchor: c.id } : {}) }]) })) });
+        if (target && options.length) setChips({ options: options.map((c) => ({ label: c.title, detail: dayLabel(c.start!), run: () => void applyCommand([{ op: "edit", target: target.id, deadline: new Date(c.start!).toISOString(), ...(c.fixed === "exam" ? { anchor: c.id } : {}) }]) })) });
       }
       const playing = (r.steps ?? []).some((st) => st.id); // the shuffle picks the day itself
       if (!playing && titles.length && Number.isFinite(firstAt)) setSel(startOfDay(firstAt));
@@ -930,8 +946,13 @@ export default function Home() {
   const fresh = moves.filter((m) => !m.briefed), unseen = moves.filter((m) => !m.seen).map((m) => m.id);
   const pillOn = fresh.length > 0 && !mine && (view === "day" || view === "week" || view === "month");
   const sunOn = quiet && !!wk;
-  const showStory = !!mine || (story && pillOn); // the list becomes the story, in place
+  const showStory = !!mine || (story && pillOn) || (rebalOpen && !!rebal); // the list becomes the story, in place
   const dismissBrief = () => { void briefMoves(fresh.map((m) => m.id)).then(refresh); }; // magic 1b: swiped away for good
+  // Rebalance: "Để nguyên" keeps the calendar and is not offered again until it changes; "Áp dụng" moves exactly what was shown, undoable.
+  const keepRebal = () => { setRebalOpen(false); setRebal(undefined); void dismissProposal().then(refresh); };
+  const applyRebal = () => { setRebalOpen(false); setRebal(undefined); void applyProposal().then((r) => { if (r) say(r.toast, r); refresh(); }, (e) => { fail(t("saveFailed"), e); refresh(); }); };
+  // The week's own link: a proposal now, even one dismissed before; nothing to offer says so.
+  const rebalanceWeek = () => { void proposeRebalance(Date.now(), true).then((p) => { if (p) { setRebal(p); setRebalOpen(true); } else setToasts((q) => [{ text: t("rebalNone") }, ...q.slice(1)]); }, (e) => fail(t("saveFailed"), e)); };
   const closeStory = async () => { setStory(false); await seeMoves(fresh.map((m) => m.id)); await briefMoves(fresh.map((m) => m.id)); refresh(); };
   const busy = state !== "idle";
   const listing = busy && !shufOn && !!words; // the day stays under the veil until words are heard; while the plan plays out the list stays, the dock keeps thinking
@@ -959,7 +980,7 @@ export default function Home() {
   const cardView = card && (
     <GestureDetector gesture={swipe}>
       <Reanimated.View style={flick}>
-        <NowCard card={card} onDone={card.gap ? startNow : () => void finish("done")} onStart={startNow} onLater={() => void finish("later")} />
+        <NowCard card={card} onDone={card.gap ? startNow : () => void finish("done")} onStart={startNow} onLater={() => void finish("later")} onMicroRest={(min) => void addWorked(card.task.id, min).then(refresh, () => {})} />
       </Reanimated.View>
     </GestureDetector>
   );
@@ -1045,13 +1066,16 @@ export default function Home() {
           {(view === "day" || view === "month") && pillOn && (story
             ? <Story moves={fresh} now={now} onClose={closeStory} />
             : <MovesPill moves={fresh} now={now} onOpen={() => setStory(true)} onDismiss={dismissBrief} />)}
+          {(view === "day" || view === "week" || view === "month") && !!rebal && !mine && (rebalOpen
+            ? <Story moves={rebal} now={now} onClose={() => setRebalOpen(false)} onKeep={keepRebal} onApply={applyRebal} />
+            : <MovesPill moves={rebal} now={now} onOpen={() => setRebalOpen(true)} onDismiss={keepRebal} head={t("rebalPill", { n: rebal.length })} sub={t("rebalSub")} />)}
           {view === "rhythm" && mind && <Rhythm i={mind.i} rules={mind.rules} m={mind.m} hour={openHour !== undefined ? Number(openHour) : undefined} onForget={async (x) => { const r = await removeRule(x.id); say(r.toast, r); refresh(); }} onForgetWhen={async (w) => { const r = await forgetWhen(w); say(r.toast, r); refresh(); }} />}
           {(view === "week" || view === "month") && (
             <Reanimated.View key={view} entering={fadeIn}>
               {view === "week"
                 ? <>
                     {story && pillOn && <Story moves={fresh} now={now} onClose={closeStory} />}
-                    <Week tasks={tasks} hols={hols} rules={mind?.rules ?? []} now={now} monday={dd.anchor} selected={sel} onSelect={setSel} onStep={stepWeek} gridRef={dd.gridRef} hover={dd.hover} moves={unseen} brief={pillOn && !story ? fresh : []} onMoves={() => setStory(true)} onDismiss={dismissBrief} />
+                    <Week tasks={tasks} hols={hols} rules={mind?.rules ?? []} now={now} monday={dd.anchor} selected={sel} onSelect={setSel} onStep={stepWeek} gridRef={dd.gridRef} hover={dd.hover} moves={unseen} brief={pillOn && !story ? fresh : []} onMoves={() => setStory(true)} onDismiss={dismissBrief} onRebalance={rebalanceWeek} />
                   </>
                 : <Month tasks={tasks} hols={hols} now={now} selected={sel} anchor={dd.anchor} onSelect={setSel} onStep={stepMonth} gridRef={dd.gridRef} hover={dd.hover} />}
             </Reanimated.View>
@@ -1079,7 +1103,7 @@ export default function Home() {
       {finding && <Search origin={finding} tasks={tasks} now={now} acts={rowActs} initial={findQ} onClose={() => { setFinding(undefined); setFindQ(undefined); }} />}
       {dd.ghost}
       {menu && <RowMenu items={menu.items} top={menu.top} onClose={() => setMenu(undefined)} />}
-      {chips && <View style={s.chips} pointerEvents="box-none">{chips.options.map((o) => <Pressable key={o.label} onPress={o.run} style={[s.chip, { backgroundColor: th.chip }]}><Text style={[s.chipT, { color: th.ink }]}>{o.label}</Text></Pressable>)}</View>}
+      {chips && <View style={s.chips} pointerEvents="box-none">{chips.ask && <Text style={[s.chipAsk, { color: th.ink }]}>{chips.ask}</Text>}{chips.options.map((o) => <Pressable key={o.label} onPress={o.run} style={[s.chip, { backgroundColor: th.chip }]}><Text numberOfLines={1} ellipsizeMode="tail" style={[s.chipT, { color: th.ink }]}>{o.label}</Text>{o.detail && <Text numberOfLines={1} style={[s.chipD, { color: th.muted }]}>{o.detail}</Text>}</Pressable>)}</View>}
       {toast && <Toast key={toastKey(toast)} onDismiss={() => setToasts((q) => q.slice(1))} error={toast.error} text={toast.text} sub={toast.sub} onAction={toast.action?.run} actionLabel={toast.action?.label} onAlt={toast.alt?.run} altLabel={toast.alt?.label} altPlain={toast.alt?.plain} />}
     </SafeAreaView>
     </Sweep>
@@ -1100,8 +1124,10 @@ function ThemeTap() {
 
 const s = StyleSheet.create({
   chips: { position: "absolute", left: 24, right: 24, bottom: 150, flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center" },
-  chip: { height: 34, paddingHorizontal: 14, borderRadius: 99, justifyContent: "center" },
-  chipT: { fontSize: 16, fontFamily: ff("500") },
+  chip: { height: 44, maxWidth: "100%", flexDirection: "row", alignItems: "center", paddingHorizontal: 14, borderRadius: 14 },
+  chipAsk: { width: "100%", textAlign: "center", marginBottom: 4, fontSize: 16, lineHeight: 22, fontFamily: ff("500") },
+  chipT: { flexShrink: 1, fontSize: 16, fontFamily: ff("500") },
+  chipD: { flexShrink: 0, marginLeft: 10, fontSize: 14, fontFamily: ff("500") },
   root: { flex: 1 },
   pad: { padding: space.gutter, paddingTop: 0 }, // .scr: the safe area stands in for its 54px top
   top: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginTop: 6 },

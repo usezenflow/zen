@@ -224,12 +224,11 @@ const S = {
   briefHide: "Ẩn",
   pulledIn: "{title} nhích lên, {part} thoáng hơn",
   pulledInN: "{n} việc nhích lên, {part} thoáng hơn",
-  swept: "{n} việc chưa xong, mai xếp lại sau 9h",
   lostSlot: "{title} chưa có giờ trống",
   addedN: "Đã thêm {n} việc",
-  farDue: "Lên lịch 30 ngày tới · hạn {date}",
+  farDue: "Xếp trước 7 ngày tới · hạn {date}",
   unplaced: "Chưa xếp giờ",
-  unplacedNote: "Có giờ khi vào 30 ngày tới",
+  unplacedNote: "Có giờ khi vào 7 ngày tới",
   noRoom: "Chưa có giờ trống",
   noRoomN: "{n} việc chưa có giờ trống",
   pickTime: "Chọn giờ",
@@ -395,24 +394,15 @@ const S = {
   repeatPerWeek: "{n} buổi/tuần",
   repeatEveryWeek: "Mỗi tuần",
   // Rhythm: "Zen đã học được gì" (rules the planner applies, each forgettable)
-  // Atlas inside Nhịp: what the outcomes show, by hour, by kind and part, and what goes together (planner/atlas.ts)
+  // Atlas inside Nhịp: what the outcomes show, by hour and by kind and part (planner/atlas.ts)
   atlasDay: "Trong ngày",
   atlasChart: "Lá số",
-  atlasTogether: "Đi cùng nhau",
   atlasHour: "{h} giờ",
   atlasWell: "Hay xong",
   atlasDrop: "Hay bỏ dở",
-  atlasThin: "Chưa đủ dữ liệu",
-  atlasCtx: "Lúc này thường là",
-  atlasFlat: "Chưa thấy khác biệt rõ",
-  atlasBasis: "Dựa trên khoảng {n} lần",
-  atlasNote: "Chỉ cho biết điều gì hay đi cùng nhau, không phải điều gì giúp bạn xong việc.",
+  atlasThin: "Zen còn đang học",
+  atlasFlat: "Giờ nào cũng được",
   atlasEmpty: "Zen chưa đủ dữ liệu để vẽ. Cứ dùng tiếp, nhịp của bạn sẽ hiện dần.",
-  atlasTogetherR: "Xanh: hay cùng lúc. Đỏ: ít khi cùng lúc.",
-  ctxWeekend: "Cuối tuần",
-  ctxBusy: "Ngày dày lịch",
-  ctxDue: "Gần hạn",
-  ctxAfter: "Ngay sau {kind}",
   seeRhythm: "Xem nhịp của bạn",
   learnedTitle: "Zen đã học được gì",
   learnedN: "{n} quy tắc",
@@ -442,8 +432,8 @@ const S = {
   // Insight clauses (planner/mine.ts): one literal contrast each, up then down; no causes, no numbers
   insKindPartUp: "{kind} buổi {part} xong nhiều hơn buổi {to}",
   insKindPartDown: "{kind} buổi {part} xong ít hơn buổi {to}",
-  insSeqUp: "Buổi {part}, việc xếp ngay sau một khối {prev} trong lịch xong nhiều hơn",
-  insSeqDown: "Buổi {part}, việc xếp ngay sau một khối {prev} trong lịch xong ít hơn",
+  insSeqUp: "Sau {prev} buổi {part}, bạn hay xong việc. Mình xếp việc vào đó",
+  insSeqDown: "Sau {prev} buổi {part}, việc hay bị dời. Mình tránh xếp vào đó",
   insBusyUp: "Ngày nhiều việc cố định, buổi {part} vẫn xong nhiều hơn",
   insBusyDown: "Ngày nhiều việc cố định, buổi {part} xong ít hơn",
   insWeekendUp: "Cuối tuần, buổi {part} xong nhiều hơn",
@@ -452,6 +442,28 @@ const S = {
   insDeadlineDown: "Việc gần hạn xong ít hơn, buổi {part}",
   insLengthUp: "{kind} thường dài hơn lúc ước lượng",
   insLengthDown: "{kind} thường ngắn hơn lúc ước lượng",
+  enoughT: "Đủ rồi",
+  enoughSub: "Xong {n} việc. Phần còn lại để mai.",
+  foldWeek: "Để tuần sau · {n} việc",
+  microBtn: "Thử 15p", // the now card, beside Để sau: a fifteen-minute ramp on a long or put-off block
+  microFull: "15p", // the fifteen-minute try is done (calm.html "Now, fifteen minutes done")
+  microSub: "đã vào đà",
+  microRest: "Nghỉ", // stops with the ten minutes credited; not a failure
+  microGo: "Tiếp", // carries on with the block, through the same take as Bắt đầu
+  rolledAsk: "{title} chưa vào việc được mấy lần.", // a flexible task rolled five times: asked once (rolled.ts)
+  rolledSub: "Bỏ, chia nhỏ hay giữ? Mình chỉ hỏi một lần.",
+  rolledDrop: "Bỏ",
+  rolledSplit: "Chia nhỏ",
+  rolledKeep: "Giữ",
+  dealTitle: "Mai: {n} việc, {len}", // the night-before note (reminders.ts dealOf)
+  dealBody: "{k} việc gần hạn. Chạm để xem hoặc xếp nhẹ lại.",
+  rebalPill: "Có thể xếp thoáng hơn {n} việc",
+  rebalSub: "Chưa việc nào dời cho đến khi bạn đồng ý",
+  rebalKeep: "Để nguyên",
+  rebalApply: "Áp dụng",
+  rebalWeek: "Sắp lại tuần cho thoáng",
+  rebalNone: "Tuần này đã khá thoáng",
+  rebalApplied: "Đã xếp thoáng {n} việc",
 } as const;
 export type Key = keyof typeof S;
 

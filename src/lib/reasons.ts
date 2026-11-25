@@ -19,7 +19,7 @@ const R: Record<ReasonKey, W> = {
   similar: { short: ["Giống việc trước", "Việc tương tự buổi {pn}"], long: ["Việc giống vậy bạn {oft} xong vào buổi {pn}", "Việc giống vậy bạn hay xong lúc {hour}h"], neg: "Việc tương tự hợp giờ khác" },
   energy: { short: ["Lúc bạn khoẻ"], long: ["Buổi {pn} là lúc bạn khoẻ nhất", "Gần giờ bạn làm tốt nhất"], neg: "Hơi xa giờ bạn khoẻ" },
   weekend: { short: ["Ngày thong thả hơn"], long: ["Hôm đó thong thả"], neg: "Hôm đó bận hơn" }, // no weekday names: day load, not the calendar
-  busy: { short: ["Ngày nhẹ"], long: ["Hôm đó ít lịch"], neg: "Hôm đó dày lịch" },
+  busy: { short: ["Ngày nhẹ"], long: ["Hôm đó ít lịch"], neg: "Ngày khá kín" },
   kind: { short: ["Hợp {kind}"], long: ["Buổi {pn} hợp {kind}", "Giờ này hợp {kind}"], neg: "Giờ này ít hợp {kind}" },
   deadline: { short: ["{ahead}", "Hạn {due}, làm sớm"], long: ["Hạn {due}, {aheadLong}", "Hạn {due}, làm sớm cho nhẹ"], neg: "Hơi sát hạn {due}" },
   pace: { short: ["Buổi {k}/{n}"], long: ["Buổi {k}/{n}, rải đều tới hạn"], neg: "Các buổi hơi dồn" },

@@ -7,9 +7,10 @@ import { addClassLog, classLogsOf, classMults } from "./nlu/context";
 import { fill, partAt, t } from "./i18n";
 import { day, hm, when as at12 } from "./when";
 import { holidays } from "./holidays";
+import { capOf } from "./rest";
 import * as stats from "./stats";
 import * as store from "./store";
-import { recordMoves, saveWarn, seeMoves } from "./moves";
+import { loadWarn, recordMoves, saveWarn, seeMoves } from "./moves";
 import type { Action, Cause, Diff, EventType, Gone, Kind, Move, Notice, Rule, Step, Task, TaskEvent, Warn } from "./types";
 import type { SeriesOffer } from "./series";
 
@@ -31,7 +32,7 @@ const ms = (iso?: string) => {
 };
 
 /** `moves`: what the plan moved; `clashes`: classes, exams and busy blocks a time set here lands on; `lost`: tasks that had a time and now have none. */
-export interface Result { toast: string; sub?: string; changed: boolean; undo: () => Promise<void>; undoable?: boolean; steps?: Step[]; warn?: Warn[]; moved?: number; moves?: Move[]; clashes?: { mine: Task; fixed: Task }[]; lost?: Task[];
+export interface Result { toast: string; sub?: string; changed: boolean; undo: () => Promise<void>; undoable?: boolean; silent?: boolean; /** the change happened, the user is not told (the 21:30 sweep) */ steps?: Step[]; warn?: Warn[]; moved?: number; moves?: Move[]; clashes?: { mine: Task; fixed: Task }[]; lost?: Task[];
   /** No room: the shrink-to-fit length that is free, or a split across days, for the toast to offer instead of a new time. */
   alt?: { id: string; title: string; minutes?: number; split?: boolean } }
 
@@ -427,13 +428,13 @@ export const serial = <T>(fn: () => Promise<T>): Promise<T> => { const r = chain
 /** A flexible task still waiting for a time (not a split parent, whose sittings hold the time): any freed time should take it. */
 export const waiting = (all: Task[], now = Date.now()) => {
   const parents = new Set(all.filter((c) => c.parentId && !c.deletedAt).map((c) => c.parentId));
-  // a repeat's gone day stays missed (the planner skips it), so it is not waiting; nor is one whose window already closed, or one a month off (never placeable yet)
+  // a repeat's gone day stays missed (the planner skips it), so it is not waiting; nor is one whose window already closed, or one starting past the 7-day horizon (place.ts cells: 30 days for a dlu, a prep or a day picked by hand)
   return all.filter((x) => !x.fixed && !x.doneAt && !x.deletedAt && x.start === undefined && !parents.has(x.id) && !(x.rrule && (x.deadline ?? x.notAfter ?? Infinity) <= now)
-    && (x.deadline ?? x.notAfter ?? Infinity) > now && (x.notBefore ?? now) < now + 30 * DAY);
+    && (x.deadline ?? x.notAfter ?? Infinity) > now && (x.notBefore ?? now) < now + (x.source === "dlu" || x.forId !== undefined || x.userDay ? 30 : 7) * DAY);
 };
 
 /** A transaction's options. `cause` plans (none plans nothing); `dry` plans but writes nothing; `self`: moves are the user's own. */
-type TxOpts = { cause?: Cause; self?: boolean; quiet?: boolean; dry?: boolean; plan?: Opts; text?: (d: Diff | undefined, w: Work) => string | undefined };
+type TxOpts = { cause?: Cause; self?: boolean; quiet?: boolean; dry?: boolean; fill?: boolean; plan?: Opts; text?: (d: Diff | undefined, w: Work) => string | undefined };
 
 /** Runs one mutation, optionally replans, mirrors to the calendar and persists. One call is one undo group. */
 function transact(now: number, mutate: (w: Work) => Promise<void> | void, o: TxOpts = {}): Promise<Result> {
@@ -484,6 +485,8 @@ async function transactNow(now: number, mutate: (w: Work) => Promise<void> | voi
   const waits = waitIds.length > 0;
   const clashes = set.flatMap((mine) => [...w.tasks.values()].filter((f) => f.fixed && f.id !== mine.id && span(f) && f.start! < mine.end! && mine.start! < f.end!).map((fixed) => ({ mine, fixed })));
   const cause = o.cause ?? (clashes.length ? "conflict" : undefined); // a time set over a fixed item plans even with no cause of its own
+  // Place once: a new task, a done or a delete, or the clock's own placing only fill open time; a direct clash, a deadline or a kind change may still move what is placed
+  const fillOnly = o.fill ?? (cause === "create" || cause === "early-done" || cause === "delete");
   if (((cause && !pullCause) || hasPull || waits) && (!past || hasPull || waits)) {
     // The newest time set by hand wins: an older hand-set flexible task under it gives way and is planned again (not one already running).
     for (const a of set) for (const x of [...w.tasks.values()]) {
@@ -495,7 +498,7 @@ async function transactNow(now: number, mutate: (w: Work) => Promise<void> | voi
     // The slots the user just set tasks off: a flexible task is not knocked back into one (soft, see value.ts moveCost).
     const avoid = w.events.filter((e) => e.type === "drag" && e.data?.fromStart !== undefined && e.data?.fromEnd !== undefined).map((e) => ({ from: Number(e.data!.fromStart), to: Number(e.data!.fromEnd) }));
     const only = w.only ?? (waits ? waitIds : undefined);
-    const r = plan([...w.tasks.values()], [], w.model, now, { ...o.plan, avoid, ...(hasPull ? { pull: pullGaps } : {}), ...(only ? { only } : {}) });
+    const r = plan([...w.tasks.values()], [], w.model, now, { ...o.plan, avoid, ...(hasPull ? { pull: pullGaps } : {}), ...(only ? { only } : {}), ...(fillOnly ? { fill: true } : {}) });
     diff = r.diff;
     w.model = r.model;
     // What changed under the plan this time: new or moved fixed/pinned items, and new rules. A move's cause is the one over its old slot.
@@ -537,7 +540,7 @@ async function transactNow(now: number, mutate: (w: Work) => Promise<void> | voi
       if (!task || owned(task)) continue;
       const mis = missedReplan(task, pl, now), shrunk = mis?.effort !== undefined;
       w.tasks.set(pl.id, { ...task, start: pl.start, end: shrunk ? pl.start + mis.effort! * 60_000 : pl.end, effort: shrunk ? mis.effort! : Math.round((pl.end - pl.start) / 60_000), ...(mis ? { misses: mis.misses } : {}) });
-      if (hasPull && (pl.from === undefined || pl.from > pl.start)) pulled.push(pl.id);
+      if (hasPull && (pl.from !== undefined ? pl.from > pl.start : before.get(pl.id)?.start !== pl.start)) pulled.push(pl.id); // a piece the model did not know has no `from`: pulled only if its start changed
       if (pl.from !== undefined && pl.from !== pl.start && !dragged.has(pl.id)) w.moves.push({ id: pl.id, title: task.title, from: pl.from, to: pl.start, why: pl.why, cause: causeOf(task, pl.from, pl.from + pl.end - pl.start), at: now, ...(o.self === false ? {} : { self: true }) });
       w.events.push({ id: uid(), taskId: pl.id, type: "placed", at: now, data: { policy: pl.policy, arm: pl.arm, x: pl.x } });
     }
@@ -549,7 +552,7 @@ async function transactNow(now: number, mutate: (w: Work) => Promise<void> | voi
   const changed = [...w.tasks.values()].filter((x) => before.get(x.id) !== x);
   const lost = (diff?.unplaced ?? []).map((u) => before.get(u.id)).filter((x): x is Task => !!x && x.start !== undefined && x.start > now);
   const extra = { moves: w.moves, clashes, lost };
-  if (o.dry) return { toast: "", changed: false, undo: async () => {}, ...extra }; // a preview: nothing written
+  if (o.dry) return { toast: "", changed: false, undo: async () => {}, ...extra, warn: diff?.warn }; // a preview: nothing written
   await store.putTasks(changed);
   for (const e of w.events) await store.putEvent(e);
   // a guessed length (per frame class) against what the user finished: its multiplier learns from it
@@ -670,6 +673,18 @@ export const take = (id: string, start: number, end: number, now = Date.now()) =
 
 /** "Lặp lại … hằng tuần" said yes: the repeat is created through the usual series path (Action.repeat). */
 export const acceptSeries = (o: SeriesOffer, now = Date.now()) => apply([{ op: "create", title: o.title, kind: o.kind, effortMinutes: o.effort, repeat: o.rrule }], now);
+/** The rolled-five-times question is asked once: true for the call that marks it (the one to ask), false once it is marked. */
+export const markRolled = (id: string) => serial(async () => {
+  const x = (await store.allTasks()).find((y) => y.id === id);
+  if (!x || x.askedRolled) return false;
+  await store.putTasks([{ ...x, askedRolled: true }]);
+  return true;
+});
+/** Minutes worked on a task that stays open ("Nghỉ" after a 15-minute try): added to workedMin, nothing is planned or completed. */
+export const addWorked = (id: string, minutes: number) => serial(async () => {
+  const x = (await store.allTasks()).find((y) => y.id === id);
+  if (x && minutes > 0) await store.putTasks([{ ...x, workedMin: (x.workedMin ?? 0) + minutes }]);
+});
 export const SERIES_NO = "series.no";
 /** "Không": remembered, so the same title on the same weekday is not offered again. */
 export async function declineSeries(key: string) {
@@ -847,7 +862,11 @@ export function dropSitting(parentId: string, now = Date.now(), id?: string): Pr
 export const keepSweep = (now = Date.now()) => serial(() => keepSweepNow(now));
 async function keepSweepNow(now: number) {
   const [tasks, { kept, placed }] = [await store.allTasks(), await store.keptPlaced()];
-  const due = tasks.filter((x) => !x.doneAt && !x.deletedAt && x.start !== undefined && x.start > now && !kept.has(x.id) && (placed.get(x.id) ?? now) <= now - DAY);
+  // kept only when the slot has passed and the task was finished within an hour of it; never for a future or unfinished block
+  const finished = tasks.filter((x) => !x.deletedAt && x.start !== undefined && x.end !== undefined && x.end <= now && x.doneAt !== undefined && Math.abs(x.doneAt - x.start) <= HOUR_MS && !kept.has(x.id) && (placed.get(x.id) ?? now) <= now - DAY);
+  if (!finished.length) return;
+  const moved = new Set((await store.allEvents()).filter((e) => (e.type === "drag" || e.type === "later") && e.at > (placed.get(e.taskId) ?? 0)).map((e) => e.taskId)); // moved since placed: not the slot that was kept
+  const due = finished.filter((x) => !moved.has(x.id));
   if (!due.length) return;
   let m = await store.loadModel(now), own = false;
   for (const x of due) {
@@ -896,7 +915,7 @@ export const moveToDay = (id: string, dayMs: number, now = Date.now(), part?: [n
 /** A change the clock or a sync made, not the user: its result shows no Undo. */
 const quiet = (r: Result): Result => ({ ...r, undoable: false });
 
-/** 21:30: what was left undone today (its block has ended) is placed tomorrow from 9h, one toast; Undo brings it back. Running, later and hand-set work stay. */
+/** 21:30: what was left undone today (its block has ended) is placed tomorrow from 9h. Silent: no toast, no count, no Undo. Running, later and hand-set work stay. */
 export function sweepUndone(now = Date.now()): Promise<Result | undefined> {
   const tomorrow = addDays(dayStart(now), 1), from = tomorrow + 9 * HOUR_MS;
   const pick = (x: Task) => !x.doneAt && !x.deletedAt && !x.fixed && !x.pinned && !x.rrule && !holding(x, now) && !x.userEdited?.includes("start")
@@ -904,13 +923,12 @@ export function sweepUndone(now = Date.now()): Promise<Result | undefined> {
     && (x.deadline ?? Infinity) > from && (x.notAfter ?? Infinity) > from;
   return serial(async () => {
     if (!(await store.allTasks()).some(pick)) return undefined;
-    return transactNow(now, (w) => { // transactNow, not transact: this already holds the write queue (transact would wait on itself)
+    const r = await transactNow(now, (w) => { // transactNow, not transact: this already holds the write queue (transact would wait on itself)
       const moved = [...w.tasks.values()].filter(pick);
       for (const x of moved) w.tasks.set(x.id, { ...x, start: undefined, end: undefined, notBefore: Math.max(x.notBefore ?? 0, from) });
       w.only = moved.map((x) => x.id);
-      w.toast = t("swept", { n: moved.length });
-      w.sub = moved.map((x) => x.title).join(", ");
-    }, { cause: "user-task", text: (_, w) => w.toast });
+    }, { cause: "user-task", text: () => undefined });
+    return { ...r, silent: true };
   });
 }
 
@@ -923,3 +941,83 @@ export const removeImported = (now = Date.now()) =>
   transact(now, async (w) => {
     for (const x of futureDlu([...w.tasks.values()], now)) w.tasks.set(x.id, { ...x, deletedAt: now, userEdited: [...new Set([...(x.userEdited ?? []), "deleted"])] });
   });
+
+// Rebalance: a dry plan that only proposes. Nothing moves until applyProposal; a proposal is dropped once the task set changes.
+const REB = { prop: "rebalance.proposal", off: "rebalance.dismissed", day: "rebalance.day" };
+const atRisk = (ws: Warn[], now: number) => ws.filter((w) => w.deadline <= now || w.free < w.need);
+/** Days (next 7, from today) whose booked time is over the day's cap. shortcut: the cap is capOf without what was learned, as policy.ts uses. */
+const overDays = (tasks: Task[], now: number) => {
+  const out = new Set<number>(), d0 = dayStart(now);
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(d0, i), e = addDays(d, 1);
+    const load = tasks.reduce((s, x) => (!x.doneAt && !x.deletedAt && x.start !== undefined && x.end !== undefined && x.start < e && x.end > d ? s + Math.min(x.end, e) - Math.max(x.start, d) : s), 0);
+    if (load > capOf(tasks, d, now, 0, false).ms) out.add(d);
+  }
+  return out;
+};
+/** The task set as ids, starts and ends: a proposal is only for the calendar it was made from. */
+const taskSig = (tasks: Task[]) => {
+  const s = tasks.map((x) => `${x.id}:${x.start ?? ""}:${x.end ?? ""}`).sort().join("|");
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0;
+  return `${h >>> 0}:${s.length}`;
+};
+const rawProposal = async () => {
+  try { return JSON.parse((await store.kvGet(REB.prop)) ?? "null") as { sig: string; moves: Move[] } | null; } catch { return null; }
+};
+
+/** The fresh proposal's moves for this task set, or undefined when none is stored or the tasks changed since. */
+export async function proposalFor(tasks: Task[]): Promise<Move[] | undefined> {
+  const p = await rawProposal();
+  return p && p.sig === taskSig(tasks) ? p.moves : undefined;
+}
+
+/** A dry plan with the solver free to move placed tasks. Kept only when it moves something and helps: an overloaded day drops under its cap, or an at-risk deadline is saved. `force`: ignore a dismissal (the user asked). */
+export async function proposeRebalance(now = Date.now(), force = false): Promise<Move[] | undefined> {
+  const tasks = await store.allTasks(), sig = taskSig(tasks);
+  if (!force && (await store.kvGet(REB.off)) === sig) return undefined;
+  const box: { w?: Work } = {};
+  const r = await transact(now, (w) => { box.w = w; }, { dry: true, cause: "deadline", fill: false });
+  const moves = r.moves ?? [];
+  const open = (w: Warn) => tasks.some((x) => x.id === w.id && !x.doneAt && !x.deletedAt);
+  const after = new Set(atRisk(r.warn ?? [], now).map((w) => w.id));
+  const saved = atRisk((await loadWarn()).filter(open), now).some((w) => !after.has(w.id));
+  const helps = overDays(tasks, now).size > overDays([...box.w!.tasks.values()], now).size || saved;
+  if (!moves.length || !helps) { await store.kvSet(REB.prop, ""); return undefined; }
+  await store.kvSet(REB.prop, JSON.stringify({ sig, moves }));
+  return moves;
+}
+
+/** Applies the proposal exactly: each move's task starts at its proposed time, its length kept, nothing replanned. One undo. */
+export async function applyProposal(now = Date.now()): Promise<Result | undefined> {
+  const p = await rawProposal();
+  if (!p?.moves.length) return undefined;
+  await store.kvSet(REB.prop, "");
+  const r = await transact(now, (w) => {
+    if (taskSig([...w.tasks.values()]) !== p.sig) return; // the tasks changed since: stale, nothing moves
+    for (const m of p.moves) {
+      const x = w.tasks.get(m.id);
+      if (x?.start !== undefined && x.end !== undefined) w.tasks.set(m.id, { ...x, start: m.to, end: m.to + (x.end - x.start) });
+    }
+  });
+  if (!r.changed) return undefined;
+  const moves = p.moves.map((m) => ({ ...m, at: now, self: true }));
+  await recordMoves(moves); // the trail only: the user chose these, so no brief
+  return { ...r, toast: t("rebalApplied", { n: moves.length }), moves };
+}
+
+/** "Để nguyên": the proposal goes and is not offered again until the tasks change. */
+export async function dismissProposal(): Promise<void> {
+  await store.kvSet(REB.off, taskSig(await store.allTasks()));
+  await store.kvSet(REB.prop, "");
+}
+
+/** The open app after a replan: a day overloaded or a deadline at risk proposes, at most once a day. */
+export async function maybeRebalance(now = Date.now()): Promise<Move[] | undefined> {
+  const day = String(dayStart(now));
+  if ((await store.kvGet(REB.day)) === day) return undefined;
+  const tasks = await store.allTasks();
+  if (!atRisk(await loadWarn(), now).length && !overDays(tasks, now).size) return undefined;
+  await store.kvSet(REB.day, day);
+  return proposeRebalance(now);
+}
