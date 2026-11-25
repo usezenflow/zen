@@ -147,3 +147,52 @@ export async function kvGet(key: string): Promise<string | null> {
 export async function kvSet(key: string, value: string) {
   await (await open()).runAsync("INSERT OR REPLACE INTO kv(key,value) VALUES(?,?)", [key, value]);
 }
+
+const BACKUP = "zen.backup";
+/** Everything the app keeps on the device as one JSON string (vectors are left out: import recomputes them). Credentials are never included. */
+export async function exportAll(): Promise<string> {
+  const d = await open();
+  const model = await d.getFirstAsync<Row>("SELECT json FROM model WHERE key='planner'");
+  const kv = await d.getAllAsync<Row>("SELECT key, value FROM kv WHERE key != 'vec.version'");
+  const tasks = (await allTasks()).map(({ vec, ...t }) => t);
+  return JSON.stringify({ [BACKUP]: 1, tasks, events: await allEvents(), model: model ? JSON.parse(model.json) : null, kv });
+}
+
+/** Replaces everything on the device with a file from exportAll; throws before touching anything if the file is not one. */
+export async function importAll(text: string): Promise<number> {
+  const j = JSON.parse(text);
+  if (j?.[BACKUP] !== 1 || !Array.isArray(j.tasks) || !Array.isArray(j.events) || !Array.isArray(j.kv)) throw new Error("not a zen backup");
+  if (j.tasks.some((t: Task) => typeof t?.id !== "string" || typeof t.title !== "string")) throw new Error("not a zen backup");
+  const d = await open();
+  dropTasks();
+  const run = writing.catch(() => {}).then(() => d.withTransactionAsync(async () => {
+    for (const tb of ["tasks", "events", "model", "kv"]) await d.runAsync(`DELETE FROM ${tb}`);
+    for (const t of j.tasks as Task[]) {
+      await d.runAsync(
+        `INSERT OR REPLACE INTO tasks(id,title,vec,kind,effort,deadline,notBefore,rrule,start,"end",doneAt,meta) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
+        toRow({ ...t, vec: embed(t.title) }) as SQLite.SQLiteBindValue[],
+      );
+    }
+    for (const e of j.events as TaskEvent[]) await d.runAsync("INSERT OR REPLACE INTO events(id,taskId,type,at,data) VALUES(?,?,?,?,?)", [e.id, e.taskId, e.type, e.at, e.data ? JSON.stringify(e.data) : null]);
+    if (j.model) await d.runAsync("INSERT OR REPLACE INTO model(key,json) VALUES('planner',?)", [JSON.stringify(j.model)]);
+    for (const r of j.kv as { key: string; value: string }[]) if (r.key !== "vec.version") await d.runAsync("INSERT OR REPLACE INTO kv(key,value) VALUES(?,?)", [r.key, r.value]);
+    await d.runAsync("INSERT OR REPLACE INTO kv(key,value) VALUES('vec.version',?)", [VEC_VERSION]);
+  }));
+  writing = run;
+  try { await run; } finally { dropTasks(); cached = undefined; }
+  widgets();
+  return j.tasks.length;
+}
+
+/** Empties tasks, history, the learned model and settings; the campus accounts (keychain) stay, so the next sync refills the school's part. */
+export async function resetAll() {
+  const d = await open();
+  dropTasks();
+  const run = writing.catch(() => {}).then(() => d.withTransactionAsync(async () => {
+    for (const tb of ["tasks", "events", "model", "kv"]) await d.runAsync(`DELETE FROM ${tb}`);
+    await d.runAsync("INSERT OR REPLACE INTO kv(key,value) VALUES('vec.version',?)", [VEC_VERSION]);
+  }));
+  writing = run;
+  try { await run; } finally { dropTasks(); cached = undefined; }
+  widgets();
+}

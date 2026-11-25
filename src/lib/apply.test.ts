@@ -33,7 +33,7 @@ vi.mock("../planner", async (orig) => {
   } };
 });
 
-import { addRule, addSitting, addWorked, apply, dropSitting, ingest, keepSweep, lastMore, liveEdit, loadClassMult, makeRoom, needMore, pin, putBack, removeRule, retime, scopeIds, stillMore, swipeDone } from "./apply";
+import { previewCreates, addRule, addSitting, addWorked, apply, dropSitting, ingest, keepSweep, lastMore, liveEdit, loadClassMult, makeRoom, needMore, pin, putBack, removeRule, retime, scopeIds, stillMore, swipeDone } from "./apply";
 import { newModel } from "../planner";
 import { loadMoves } from "./moves";
 import { preps } from "../planner/prep";import { partAt, plain, t } from "./i18n";
@@ -413,6 +413,13 @@ describe("said times, edits, replans, causes", () => {
     expect(g).toMatchObject({ fixed: "busy", start: clock(2, 18), end: clock(2, 19), notBefore: undefined, deadline: undefined });
     await apply([{ op: "create", title: "Read", kind: "study", effortMinutes: 60 }], NOW + 1000);
     expect(db.tasks.get(g.id)).toMatchObject({ start: clock(2, 18), end: clock(2, 19) });
+  });
+
+  it("previewCreates places a list's creates and writes nothing", async () => {
+    const m = await previewCreates([{ op: "create", ref: "l1", title: "Gym", fixed: "busy", when: iso(clock(2, 18)), effortMinutes: 60 }, { op: "create", ref: "l2", title: "Read", kind: "study", effortMinutes: 60 }], NOW);
+    expect(m.get("l1")).toMatchObject({ start: clock(2, 18), end: clock(2, 19) });
+    expect(m.get("l2")?.start).toBeGreaterThanOrEqual(NOW);
+    expect(live()).toHaveLength(0);
   });
 
   it("a fixed block without a length takes the model's", async () => {
@@ -871,6 +878,15 @@ it("a name, place or note set on one of a repeat reaches every one that still sh
   expect([by(a.id).location, by(b.id).location, by(c.id).location]).toEqual(["Phòng C", "Phòng C", "Phòng C"]);
 });
 
+it("a sitting of a split deadline task takes its own name; the others and the whole keep theirs", async () => {
+  await apply([{ op: "create", title: "Essay", kind: "study", effortMinutes: 240, deadline: "2026-11-17T23:00:00" }], NOW);
+  const sits = live().filter((x: Task) => x.parentId).sort((x: Task, y: Task) => x.start! - y.start!);
+  expect(sits.length).toBeGreaterThan(1);
+  await apply([{ op: "edit", target: sits[0].id, title: "Essay: mở bài" }], NOW + 1);
+  expect(db.tasks.get(sits[0].id).title).toBe("Essay: mở bài");
+  for (const x of sits.slice(1)) expect(db.tasks.get(x.id).title).toBe("Essay");
+});
+
 it("a time dragged to start in the past, end ahead, still moves what it clashes with", async () => {
   // flexible planned task across [NOW+10m, NOW+40m); a hand-set one reaching [NOW-30m, NOW+30m)
   db.tasks.set("f", { id: "f", title: "Flex", kind: "study", effortMinutes: 30, start: NOW + 10 * 60_000, end: NOW + 40 * 60_000 });
@@ -990,4 +1006,80 @@ describe("keep sweep: kept only for a finished, passed slot", () => {
     await keepSweep(NOW);
     expect(keptIds()).toEqual([]);
   });
+});
+
+import { clearRepeat, dropPrep, splitInto } from "./apply";
+describe("move toast chip, quick say and the prep skip", () => {
+  const at = (h: number) => new Date(NOW).setHours(h, 0, 0, 0);
+
+  it("Chỉ lần này on a drag across parts keeps the time and takes its learning back", async () => {
+    await apply([{ op: "create", title: "Read", kind: "study", effortMinutes: 30 }], NOW);
+    const id = live()[0].id;
+    db.tasks.set(id, { ...db.tasks.get(id), start: at(9), end: at(9) + 30 * 60_000, notBefore: at(9) });
+    const before = structuredClone(db.model);
+    const r = await putBack(id, at(15), NOW + 2000);
+    expect(r.once).toBeDefined();
+    expect(db.model.hyps).toEqual([expect.objectContaining({ kind: "study", state: "new" })]);
+    await r.once!();
+    expect(db.tasks.get(id).start).toBe(at(15)); // the time stays
+    expect(db.model.arms.map((a: { b: number[] }) => a.b)).toEqual(before.arms.map((a: { b: number[] }) => a.b));
+    expect(db.model.hyps).toEqual([expect.objectContaining({ kind: "study", state: "off" })]);
+  });
+
+  it("a drag inside one part offers no Chỉ lần này", async () => {
+    await apply([{ op: "create", title: "Read", kind: "study", effortMinutes: 30 }], NOW);
+    const id = live()[0].id;
+    db.tasks.set(id, { ...db.tasks.get(id), start: at(9), end: at(9) + 30 * 60_000, notBefore: at(9) });
+    expect((await putBack(id, at(10), NOW + 2000)).once).toBeUndefined();
+  });
+
+  it("chia n buổi makes n open sittings in one change; a second call with the same n adds none", async () => {
+    await apply([{ op: "create", title: "Essay", kind: "study", effortMinutes: 120 }], NOW);
+    const pid = live().find((x: Task) => !x.parentId)!.id;
+    const open = () => live().filter((x: Task) => x.parentId === pid && !x.doneAt);
+    const r = await splitInto(pid, 3, NOW + 1000);
+    expect(open()).toHaveLength(3);
+    expect(plain(r.toast)).toBe("Essay chia 3 buổi");
+    await splitInto(pid, 3, NOW + 2000);
+    expect(open()).toHaveLength(3);
+    await splitInto(pid, 2, NOW + 3000);
+    expect(open()).toHaveLength(2);
+  });
+
+  it("bỏ lặp deletes the open occurrences from this one on, clears the rule on all, keeps this one and the past", async () => {
+    await apply([{ op: "create", title: "Gym", kind: "exercise", repeat: "FREQ=WEEKLY;COUNT=3" }], NOW);
+    const gyms = () => live().filter((x: Task) => x.title === "Gym").sort((a: Task, b: Task) => a.start! - b.start!);
+    const [g0, g1, g2] = gyms();
+    expect(g0.rrule).toBeDefined();
+    await clearRepeat(g1.id, NOW + 1000);
+    expect(gyms().map((x: Task) => x.id)).toEqual([g0.id, g1.id]);
+    expect(gyms().every((x: Task) => x.rrule === undefined)).toBe(true);
+    expect(db.tasks.get(g2.id).deletedAt).toBeDefined();
+  });
+
+  it("Không cần ôn drops the prep and its open sittings for good; one undo brings them back", async () => {
+    db.tasks.set("prep:e1", { id: "prep:e1", title: "Ôn Toán", kind: "study", source: "user", effort: 120, forId: "e1", deadline: NOW + 5 * DAYMS, createdAt: NOW } as Task);
+    const pid = "prep:e1";
+    const r0 = await splitInto(pid, 2, NOW + 1000);
+    const open = () => live().filter((x: Task) => x.parentId === pid && !x.doneAt);
+    expect(open()).toHaveLength(2);
+    const r = await dropPrep(pid, NOW + 2000);
+    expect(db.tasks.get(pid).deletedAt).toBeDefined();
+    expect(db.tasks.get(pid).userEdited).toContain("deleted");
+    expect(open()).toHaveLength(0);
+    await r.undo();
+    expect(db.tasks.get(pid).deletedAt).toBeUndefined();
+    expect(open()).toHaveLength(2);
+    expect(r0.toast).toBeDefined();
+  });
+});
+
+it("a task made longer never overlaps the one placed right after it", async () => {
+  const M = 60_000;
+  db.tasks.set("a", { id: "a", title: "A", kind: "study", source: "user", effort: 30, start: NOW + 60 * M, end: NOW + 90 * M, createdAt: NOW, userEdited: ["start"], pinned: false, holdUntil: NOW + 24 * 60 * M } as Task);
+  db.tasks.set("b", { id: "b", title: "B", kind: "study", source: "user", effort: 30, start: NOW + 90 * M, end: NOW + 120 * M, createdAt: NOW } as Task);
+  await apply([{ op: "edit", target: "a", effortMinutes: 90 }], NOW + 1);
+  const [a, b] = ["a", "b"].map((id) => db.tasks.get(id) as Task);
+  expect(a.end! - a.start!).toBe(90 * M);
+  expect(a.end! <= b.start! || b.end! <= a.start!).toBe(true);
 });

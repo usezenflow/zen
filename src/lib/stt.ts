@@ -124,15 +124,25 @@ export function promptOf(terms: string[], tokens = 200): string {
 
 // shortcut: the 30 s slices are whisper.rn's default cadence; tune with the bench once a clip set exists.
 /** Live Vietnamese from PhoWhisper, same shape as the OS listenLive: `onPartial` gets the whole text so far; `stop()` resolves it. Throws when the model cannot start, so ears.ts falls back. */
-export async function whisperListen(o: { onPartial?(text: string): void; hints?: string[]; tier: Tier }) {
+export async function whisperListen(o: { onPartial?(text: string): void; onLevel?(level: number): void; hints?: string[]; tier: Tier }) {
   const { RealtimeTranscriber, AudioPcmStreamAdapter } = await import("./whisper-native");
   const whisperContext = await context(o.tier);
   const stable: string[] = [];
   let live = "";
   let failed: string | undefined;
   const text = () => [...stable, live].filter(Boolean).join(" ");
+  const mic = new AudioPcmStreamAdapter();
+  // The transcriber owns the adapter's one data callback: tap it so the volume bars move on this path too (rms of 16-bit PCM, 0..1).
+  const own = mic.onData.bind(mic);
+  mic.onData = (cb) => own((d) => {
+    const v = new DataView(d.data.buffer, d.data.byteOffset, d.data.byteLength - (d.data.byteLength % 2));
+    let sum = 0;
+    for (let i = 0; i < v.byteLength; i += 2) sum += (v.getInt16(i, true) / 32768) ** 2;
+    o.onLevel?.(Math.min(1, Math.sqrt(sum / Math.max(1, v.byteLength / 2)) * 6));
+    cb(d);
+  });
   const rt = new RealtimeTranscriber(
-    { whisperContext, audioStream: new AudioPcmStreamAdapter() },
+    { whisperContext, audioStream: mic },
     { audioSliceSec: 30, initialPrompt: promptOf(o.hints ?? []), transcribeOptions: { language: "vi" } },
     {
       onSliceTranscriptionStabilized: (t) => { stable.push(t.trim()); live = ""; o.onPartial?.(text()); },
@@ -143,6 +153,7 @@ export async function whisperListen(o: { onPartial?(text: string): void; hints?:
   await rt.start();
   return {
     async stop() {
+      await rt.nextSlice().catch(() => {}); // without a VAD nothing ends a slice: a short take would never be transcribed
       await rt.stop();
       const t = text();
       if (failed && !t) throw new Error(failed);

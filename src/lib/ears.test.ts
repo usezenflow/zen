@@ -8,8 +8,8 @@ vi.mock("expo-speech-recognition", () => ({ ExpoSpeechRecognitionModule: SR }));
 const W = vi.hoisted(() => ({ init: vi.fn(async () => ({})) }));
 vi.mock("./whisper-native", () => ({
   initWhisper: W.init,
-  RealtimeTranscriber: class { start = vi.fn(async () => {}); stop = vi.fn(async () => {}); },
-  AudioPcmStreamAdapter: class {},
+  RealtimeTranscriber: class { start = vi.fn(async () => {}); stop = vi.fn(async () => {}); nextSlice = vi.fn(async () => {}); },
+  AudioPcmStreamAdapter: class { onData() {} },
 }));
 const kv = new Map<string, string>();
 const FS = { exists: false, size: 0 };

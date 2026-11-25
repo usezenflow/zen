@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Task } from "../types";
 import type { Fetched } from "./client";
-import { digestNotices, marksNotice, materialize } from "./materialize";import { plain as plainText } from "../i18n";
+import { digestNotices, marksNotice, materialize } from "./materialize";
+import { skipPrep } from "../../planner/prep";import { plain as plainText } from "../i18n";
 
 
 const NOW = Date.UTC(2026, 8, 1);
@@ -192,7 +193,7 @@ describe("materialize", () => {
     it("adds one prep with a new exam, sized by the marks multiplier of its course", () => {
       const { upserts } = materialize([exam()] as Fetched, [], NOW, (title) => (title === exam().title ? 1.6 : 1));
       const prep = upserts.find((t) => t.id.startsWith("prep:"))!;
-      expect(prep).toMatchObject({ id: "prep:dlu:portal:exam:9", title: "Ôn thi", course: exam().title, effort: 300, maxSitting: 60, deadline: NOW + 5 * D });
+      expect(prep).toMatchObject({ id: "prep:dlu:portal:exam:9", title: "Ôn Môn mẫu: ôn thi", course: exam().title, effort: 300, maxSitting: 60, deadline: NOW + 5 * D });
     });
     it("adds the prep for an exam stored before preps existed", () => {
       const { upserts } = materialize([exam()] as Fetched, [stored(exam())], NOW);
@@ -215,7 +216,7 @@ describe("materialize", () => {
     });
     it("adds a writing prep for a report exam", () => {
       const { upserts } = materialize([exam(NOW + 5 * D, { examFormat: "Báo cáo(TL)" })] as Fetched, [], NOW);
-      expect(upserts.filter((t) => t.id.startsWith("prep:"))).toMatchObject([{ title: "Viết báo cáo", effort: 270 }]);
+      expect(upserts.filter((t) => t.id.startsWith("prep:"))).toMatchObject([{ title: "Ôn Môn mẫu: viết báo cáo", effort: 270 }]);
     });
     it("renames a prep made under the old title and its open sittings, but not one the student renamed", () => {
       const [ex, prep] = withPrep();
@@ -225,6 +226,11 @@ describe("materialize", () => {
     });
     it("is idempotent", () => {
       expect(materialize([exam()] as Fetched, withPrep(), NOW)).toMatchObject({ upserts: [], deletes: [] });
+    });
+    it("Không cần ôn: a prep the student skipped is never brought back by a sync", () => {
+      const [ex, prep] = withPrep();
+      const skipped = skipPrep(prep, NOW);
+      expect(materialize([exam()] as Fetched, [ex, skipped], NOW)).toMatchObject({ upserts: [], deletes: [] });
     });
     it("links a prep to its exam, also one stored before forId existed", () => {
       const old = withPrep().find((t) => t.id.startsWith("prep:"))!;

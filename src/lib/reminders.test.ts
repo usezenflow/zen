@@ -1,8 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
-vi.mock("expo-notifications", () => ({}));
+const n = vi.hoisted(() => ({ cat: vi.fn(async () => {}), schedule: vi.fn(async () => {}) }));
+vi.mock("expo-notifications", () => ({
+  AndroidImportance: {}, SchedulableTriggerInputTypes: { DATE: "date" },
+  getPermissionsAsync: async () => ({ granted: true }), getAllScheduledNotificationsAsync: async () => [],
+  setNotificationCategoryAsync: n.cat, scheduleNotificationAsync: n.schedule,
+}));
 vi.mock("react-native", () => ({ Platform: { OS: "ios" } }));
 vi.mock("./store", () => ({}));
-import { dealOf, upcoming } from "./reminders";
+import { dealOf, pushDeal, upcoming } from "./reminders";
+import { t } from "./i18n";
 import type { Task } from "./types";
 
 const now = Date.UTC(2026, 10, 13, 2); // 09:00 in Vietnam
@@ -80,6 +86,11 @@ describe("night-before note", () => {
   it("omits the body when no task is due within 48 h, and skips an empty tomorrow", () => {
     expect(dealOf([plan("a", at(1, 10), { deadline: at(4, 10) })], at(0, 20))?.body).toBeUndefined();
     expect(dealOf([plan("a", at(0, 10)), plan("b", at(2, 10))], at(0, 20))).toBeUndefined();
+  });
+  it("the note schedules under deal:tomorrow with the zen-deal category: see tomorrow, or a light re-plan", async () => {
+    await pushDeal([plan("a", at(1, 10))], at(0, 20));
+    expect(n.cat).toHaveBeenCalledWith("zen-deal", [expect.objectContaining({ identifier: "see", buttonTitle: t("dealSee") }), expect.objectContaining({ identifier: "light", buttonTitle: t("dealLight") })]);
+    expect(n.schedule).toHaveBeenCalledWith(expect.objectContaining({ identifier: "deal:tomorrow", content: expect.objectContaining({ categoryIdentifier: "zen-deal" }) }));
   });
   it("counts only open, placed, non-deleted work, and a busy block only when the user made it", () => {
     const tmr = at(1, 10);

@@ -3,12 +3,11 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { plain, t } from "./i18n";
-import { laterChoices } from "./parts";
 import { GRACE } from "../planner/policy";
 import { dueOf } from "../planner/features";
-import { soundOf } from "./reminders";
-import { allTasks } from "./store";
-import { apply, moveToDay } from "./apply";
+import { soundOf, upcoming } from "./reminders";
+import { allTasks, kvGet } from "./store";
+import { apply, swipeLater } from "./apply";
 import type { Task } from "./types";
 
 const PREFIX = "nudge:";
@@ -18,14 +17,21 @@ export type NudgeAction = "start" | "later" | "done";
 
 export interface Nudge { id: string; at: number; kind: "start" | "over"; title: string }
 
-/** Nudges still ahead for open, timed, flexible tasks: the start at its start time, the overrun at its end. Soonest first. */
-export function nudgesOf(tasks: Task[], now: number): Nudge[] {
+/** Nudges still ahead for open, timed, flexible tasks. A block Zen placed is passive: it gets no start and no overrun nudge.
+ *  A start only for a clock the user set (pinned, or their own start); an overrun only for a block they started (take, the micro try `micro`, their own start). Soonest first. */
+export function nudgesOf(tasks: Task[], now: number, micro?: string): Nudge[] {
+  // a said block with a reminder still to ring gets no start nudge: the reminder is its one ping before the start
+  const reminded = new Set(upcoming(tasks, now).map((r) => r.id));
   return tasks
     .filter((x) => !x.doneAt && !x.deletedAt && !x.fixed && x.start !== undefined && x.end !== undefined)
-    .flatMap((x): Nudge[] => [
-      ...(x.start! > now ? [{ id: x.id, at: x.start!, kind: "start" as const, title: x.title }] : []),
-      ...(x.end! > now ? [{ id: x.id, at: x.end!, kind: "over" as const, title: x.title }] : []),
-    ])
+    .flatMap((x): Nudge[] => {
+      const said = !!x.pinned || !!x.userEdited?.includes("start");
+      const started = x.id === micro || !!x.userEdited?.includes("start");
+      return [
+        ...(said && x.start! > now && !reminded.has(x.id) ? [{ id: x.id, at: x.start!, kind: "start" as const, title: x.title }] : []),
+        ...(started && x.end! > now ? [{ id: x.id, at: x.end!, kind: "over" as const, title: x.title }] : []),
+      ];
+    })
     .sort((a, b) => a.at - b.at)
     .slice(0, MAX);
 }
@@ -43,12 +49,17 @@ export async function registerNudgeCategories() {
   ]);
 }
 
+/** The task of the running ten-minute try (kv "now.micro"), if any. */
+async function microId(): Promise<string | undefined> {
+  try { return JSON.parse((await kvGet("now.micro")) ?? "null")?.id; } catch { return undefined; }
+}
+
 /** Replaces the nudges from the store (like pushReminders, which is separate): the caller runs it where reminders are pushed. */
 export async function pushNudges(now = Date.now()) {
   if (Platform.OS === "web") return;
   if (!(await Notifications.getPermissionsAsync()).granted) return;
   await registerNudgeCategories();
-  const want = nudgesOf(await allTasks(), now), ids = new Set(want.map((n) => `${PREFIX}${n.kind}:${n.id}`));
+  const want = nudgesOf(await allTasks(), now, await microId()), ids = new Set(want.map((n) => `${PREFIX}${n.kind}:${n.id}`));
   // Only what is no longer wanted is cancelled: a same-id schedule replaces in place, so a killed app never sits with none.
   for (const n of await Notifications.getAllScheduledNotificationsAsync())
     if (n.identifier.startsWith(PREFIX) && !ids.has(n.identifier)) await Notifications.cancelScheduledNotificationAsync(n.identifier);
@@ -75,8 +86,7 @@ export const overdue = (tasks: Task[], now: number): Task[] => {
 export function nudgeAction(id: string, action: NudgeAction, now = Date.now()) {
   if (action === "done") return apply([{ op: "done", target: id }], now);
   if (action === "later") {
-    const c = laterChoices(now)[0];
-    return c ? moveToDay(id, c.day, now, c.part) : Promise.resolve(undefined);
+    return swipeLater(id, now);
   }
   return Promise.resolve(undefined);
 }

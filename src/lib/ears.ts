@@ -52,7 +52,7 @@ const local = () => (onDevice ??= SR.getSupportedLocales({}).then((l) => l.insta
  */
 export async function listenLive(o: { onPartial?(text: string): void; onLevel?(level: number): void; hints?: string[] } = {}): Promise<{ stop(): Promise<Heard> }> {
   const engine = pickEngine({ setting: engineOf(await kvGet("stt.engine")), installed: await installed(), totalMemory: Device.totalMemory, yearClass: Device.deviceYearClass });
-  if (engine !== "os") { try { return await whisperListen({ ...o, tier: engine }); } catch { /* a model that cannot start: the OS recognizer below */ } }
+  if (engine !== "os") { try { return await whisperListen({ ...o, tier: engine }); } catch (e) { console.warn("whisper failed, using the OS recognizer:", e); } }
   const dev = await local();
   const finals: string[][] = [];
   let partial: string[] = [];

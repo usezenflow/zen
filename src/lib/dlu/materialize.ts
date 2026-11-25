@@ -186,6 +186,7 @@ export function materialize(items: Fetched, tasks: Task[], now = Date.now(), mul
     const old = prepOf.get(`prep:${e.id}`);
     const live = !e.deletedAt && !dropped.has(e.id) && e.start! > now;
     const [want] = live ? preps(e, mult(e.title), pace) : [];
+    if (old?.deletedAt && old.userEdited?.includes("deleted")) continue; // "Không cần ôn": the student dropped this prep, a sync never brings it back
     if (want && !old) upserts.push(want);
     else if (want && old && !old.deletedAt && !old.doneAt) {
       const title = old.userEdited?.includes("title") ? old.title : want.title; // a name the student gave stays

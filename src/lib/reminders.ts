@@ -7,7 +7,7 @@ import { allTasks, kvGet, kvSet } from "./store";
 import { when } from "./when";
 import { dueOf } from "../planner/features";
 
-const DEAL = "deal:tomorrow"; // the night-before note, one slot of the 64
+const DEAL = "deal:tomorrow", DEAL_CAT = "zen-deal"; // the night-before note, one slot of the 64
 
 const LEAD = 10 * 60_000;
 const LOOK = 15 * 60_000; // a reminder this soon after an open is not needed: the user is already looking
@@ -92,9 +92,13 @@ export async function pushDeal(tasks: Task[], now = Date.now()) {
     return;
   }
   await ensureChannels();
+  await Notifications.setNotificationCategoryAsync(DEAL_CAT, [
+    { identifier: "see", buttonTitle: t("dealSee"), options: { opensAppToForeground: true } },
+    { identifier: "light", buttonTitle: t("dealLight"), options: { opensAppToForeground: false } },
+  ]);
   await Notifications.scheduleNotificationAsync({
     identifier: DEAL,
-    content: { title: plain(d.title), body: d.body && plain(d.body), sound: soundOf("default") },
+    content: { title: plain(d.title), body: d.body && plain(d.body), sound: soundOf("default"), categoryIdentifier: DEAL_CAT },
     trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: d.at, ...(Platform.OS === "android" ? { channelId: "zen-default" } : {}) },
   });
 }
@@ -103,7 +107,7 @@ export async function pushDeal(tasks: Task[], now = Date.now()) {
 export async function askReminders() {
   if (Platform.OS === "web") return;
   await ensureChannels();
-  await Notifications.requestPermissionsAsync();
+  if (!(await Notifications.requestPermissionsAsync()).granted) throw new Error("notifications denied"); // the caller skips scheduling what nobody will see
 }
 
 let timer: ReturnType<typeof setTimeout> | undefined;

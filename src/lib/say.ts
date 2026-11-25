@@ -35,7 +35,10 @@ export function compose(r: Result | undefined, c: Ctx = {}): Toast {
   const title = c.title ?? r?.toast ?? "";
   const sub = [c.sub, r?.sub, c.clash, c.stuck, c.reason, c.understood, c.where, c.notes, c.far].find((x) => !!x && !repeats(title, x, c.name));
   const moved = (r?.moves?.length ?? 0) > 1 || !!r?.moves?.some((m) => m.cause);
-  return { title, sub: sub || undefined, alt: c.alt, more: !c.alt && c.see && moved ? { label: t("briefSee"), plain: true, run: c.see } : undefined, undo: r?.undo };
+  // a drag that taught a hypothesis offers "Chỉ lần này" as its one alt (the caller's own alt wins)
+  const once = r?.once;
+  const alt = c.alt ?? (once ? { label: t("onceOnly"), run: () => void once().catch(() => {}) } : undefined);
+  return { title, sub: sub || undefined, alt, more: !alt && c.see && moved ? { label: t("briefSee"), plain: true, run: c.see } : undefined, undo: r?.undo };
 }
 
 /** "Mình hiểu": only what Zen inferred beyond the words, a length it guessed and the sittings or due it worked out. */

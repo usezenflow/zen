@@ -2,6 +2,8 @@ import { embed } from "./nlu/embed";
 import { learn, missedReplan, outcome, plan, type Model, type Opts } from "../planner";
 import { GRACE, holding } from "../planner/policy";
 import { dayGone } from "../planner/place";
+import { partIdx } from "../planner/features";
+import { skipPrep } from "../planner/prep";
 import { cosine, effort, forgetWhen as forgetLearned, settleHyp as settleLearned } from "../planner/habits";
 import { addClassLog, classLogsOf, classMults } from "./nlu/context";
 import { fill, partAt, t } from "./i18n";
@@ -10,6 +12,8 @@ import { holidays } from "./holidays";
 import { capOf } from "./rest";
 import * as stats from "./stats";
 import * as store from "./store";
+import { loadAreas, loadZenModes } from "./areas-store";
+import { type ZenRule, zenWeights } from "../planner/zen";
 import { loadWarn, recordMoves, saveWarn, seeMoves } from "./moves";
 import type { Action, Cause, Diff, EventType, Gone, Kind, Move, Notice, Rule, Step, Task, TaskEvent, Warn } from "./types";
 import type { SeriesOffer } from "./series";
@@ -34,7 +38,9 @@ const ms = (iso?: string) => {
 /** `moves`: what the plan moved; `clashes`: classes, exams and busy blocks a time set here lands on; `lost`: tasks that had a time and now have none. */
 export interface Result { toast: string; sub?: string; changed: boolean; undo: () => Promise<void>; undoable?: boolean; silent?: boolean; /** the change happened, the user is not told (the 21:30 sweep) */ steps?: Step[]; warn?: Warn[]; moved?: number; moves?: Move[]; clashes?: { mine: Task; fixed: Task }[]; lost?: Task[];
   /** No room: the shrink-to-fit length that is free, or a split across days, for the toast to offer instead of a new time. */
-  alt?: { id: string; title: string; minutes?: number; split?: boolean } }
+  alt?: { id: string; title: string; minutes?: number; split?: boolean };
+  /** A drag that taught a hypothesis: "Chỉ lần này" keeps the time and takes the learning back (see transactNow). */
+  once?: () => Promise<void> }
 
 interface Work {
   timed: Set<string>; // tasks given a time by hand in this transaction, whether or not they had one before (a drag needs a place to come from)
@@ -263,6 +269,17 @@ export function topUp(now = Date.now()): Promise<Result | undefined> {
   });
 }
 
+// Zen rule weights are mined from the whole history, so they are worked out once a day, not on every plan.
+let zenCache: { day: number; zen: Partial<Record<ZenRule, number>> } | undefined;
+async function planExtras(tasks: Task[], events: TaskEvent[], now: number): Promise<Pick<Opts, "areas" | "zen">> {
+  try {
+    const areas = await loadAreas();
+    const day = dayStart(now);
+    if (zenCache?.day !== day) zenCache = { day, zen: zenWeights(tasks, events, now, await loadZenModes(), areas) };
+    return { areas, zen: zenCache.zen };
+  } catch { return {}; } // a bad kv value must never stop a plan
+}
+
 /** Resolves an id the model gave; a split parent resolves to its sittings. */
 function targets(w: Work, id?: string, whole = false): Task[] {
   const task = id ? w.tasks.get(id) : undefined;
@@ -283,7 +300,8 @@ function seriesWide(w: Work, a: Action, own: Task[]): [Task, Action][] {
   if (!kin.length) return [];
   const same = (f: (x: Task) => unknown) => [...own, ...kin].every((x) => f(x) === f(me));
   const b: Action = { op: "edit", target: a.target };
-  if (a.title && same((x) => x.title)) b.title = a.title;
+  // A sitting of a split task may take its own name ("Viết báo cáo: phần mở đầu"); a repeat or timetable section renames them all.
+  if (a.title && !me.parentId && same((x) => x.title)) b.title = a.title;
   if (a.location !== undefined && same((x) => x.location ?? "")) b.location = a.location;
   if (a.note !== undefined && same((x) => x.note ?? "")) b.note = a.note;
   return b.title !== undefined || b.location !== undefined || b.note !== undefined ? kin.map((x) => [x, b]) : [];
@@ -374,6 +392,8 @@ async function act(w: Work, a: Action, refs = new Map<string, string>()) {
       const next: Task = { ...tk };
       if (a.title) { next.title = a.title; edited.add("title"); w.toast = t("renamed", { title: a.title }); }
       if (a.effortMinutes) { next.effort = a.effortMinutes; edited.add("effort"); next.effortGuessed = undefined; } // said now, no longer a guess
+      // A length said alone ("90 phút") stretches the block it already has from its start; with a new time the `when` branch below sets the end.
+      if (a.effortMinutes && a.when === undefined && next.start !== undefined && next.end !== undefined && !next.fixed) next.end = next.start + a.effortMinutes * 60_000;
       if (a.kind) { next.kind = a.kind as Kind; edited.add("kind"); }
       if (a.location !== undefined) { next.location = a.location || undefined; edited.add("location"); } // "" clears it
       if (a.deadline === "") { next.deadline = undefined; edited.add("deadline"); }
@@ -403,11 +423,13 @@ async function act(w: Work, a: Action, refs = new Map<string, string>()) {
         next.end = when + (next.effort || 30) * 60_000; // next.effort: the length may be edited in the same action
         // From where it was before the wheel's held values (a.from), else a settled move would teach from its own new time.
         const from = a.from?.start !== undefined ? a.from : { start: tk.start, end: tk.end };
-        // Another day at the same time of day is a change of day, not of time: nothing to learn about the hour, and not "dời".
-        const sameClock = from.start !== undefined && from.start !== when && hm(from.start) === hm(when);
-        if (from.start !== undefined && from.start !== when && !sameClock) {
+        // Another day at the same time of day is a change of day, not of time; under 30p is a nudge, not a lesson: neither is learned from.
+        const sameClock = from.start !== undefined && hm(from.start) === hm(when);
+        const nudge = from.start !== undefined && Math.abs(when - from.start) < 30 * 60_000;
+        if (from.start !== undefined && from.start !== when && !sameClock && !nudge) {
           w.log("drag", tk, { fromStart: from.start, fromEnd: from.end, toStart: when });
-          w.sub = t("learnedAvoid", { time: partAt(new Date(from.start).getHours()) }); // the part it was dragged away from, never the clock
+          // Only a move across parts says "avoid": inside one part (20h to 21h) it is logistics, so no line and no lesson on the part (policy learn).
+          if (partIdx(new Date(from.start).getHours()) !== partIdx(new Date(when).getHours())) w.sub = t("learnedAvoid", { time: partAt(new Date(from.start).getHours()) });
         }
         w.toast = t("moved", { title: next.title, time: at12(when, now) }); // one line for a move, a day change or a put-back alike
       }
@@ -458,6 +480,7 @@ async function transactNow(now: number, mutate: (w: Work) => Promise<void> | voi
   };
   const kv0 = { moves: await store.kvGet("moves"), warn: await store.kvGet("warn") };
   await mutate(w);
+  const learned = w.model.hypNow; // read before the plan: a drag across parts that the learning just gave a hypothesis
 
   let diff: Diff | undefined;
   // Times set by hand in this transaction (a held wheel value was saved before, so `before` already has it: this is how we know).
@@ -491,14 +514,16 @@ async function transactNow(now: number, mutate: (w: Work) => Promise<void> | voi
     // The newest time set by hand wins: an older hand-set flexible task under it gives way and is planned again (not one already running).
     for (const a of set) for (const x of [...w.tasks.values()]) {
       if (x.id === a.id || x.fixed || !span(x) || !(x.start! < a.end! && a.start! < x.end!)) continue;
-      if (!x.pinned) { if (x.start! <= now && now < x.end!) w.tasks.set(x.id, { ...x, start: undefined, end: undefined }); continue; } // a running flexible block is busy to the planner: free it so it is planned again
+      // A hand-set hold is as firm as a pin: it gives way too, and loses its hold so plan() moves it and records the Move cause.
+      if (!x.pinned && !holding(x, now)) { if (x.start! <= now && now < x.end!) w.tasks.set(x.id, { ...x, start: undefined, end: undefined }); continue; } // a running flexible block is busy to the planner: free it so it is planned again
       if (x.start! <= now) continue;
-      w.tasks.set(x.id, { ...x, pinned: false, notBefore: x.notBefore === x.start ? undefined : x.notBefore, userEdited: x.userEdited?.filter((f) => f !== "start") });
+      w.tasks.set(x.id, { ...x, pinned: false, holdUntil: undefined, notBefore: x.notBefore === x.start ? undefined : x.notBefore, userEdited: x.userEdited?.filter((f) => f !== "start") });
     }
     // The slots the user just set tasks off: a flexible task is not knocked back into one (soft, see value.ts moveCost).
     const avoid = w.events.filter((e) => e.type === "drag" && e.data?.fromStart !== undefined && e.data?.fromEnd !== undefined).map((e) => ({ from: Number(e.data!.fromStart), to: Number(e.data!.fromEnd) }));
     const only = w.only ?? (waits ? waitIds : undefined);
-    const r = plan([...w.tasks.values()], [], w.model, now, { ...o.plan, avoid, ...(hasPull ? { pull: pullGaps } : {}), ...(only ? { only } : {}), ...(fillOnly ? { fill: true } : {}) });
+    const extras = await planExtras([...w.tasks.values()], w.events, now); // the balance areas and the evidence-based rules: neutral until configured or proven
+    const r = plan([...w.tasks.values()], [], w.model, now, { ...extras, ...o.plan, avoid, ...(hasPull ? { pull: pullGaps } : {}), ...(only ? { only } : {}), ...(fillOnly ? { fill: true } : {}) });
     diff = r.diff;
     w.model = r.model;
     // What changed under the plan this time: new or moved fixed/pinned items, and new rules. A move's cause is the one over its old slot.
@@ -573,7 +598,16 @@ async function transactNow(now: number, mutate: (w: Work) => Promise<void> | voi
   const short = diff?.warn?.find((x) => x.free > 0 && x.free < x.need);
   const stuck = diff?.unplaced?.find((u) => w.tasks.get(u.id)?.title);
   const alt = short ? { id: short.id, title: short.title, minutes: short.free } : stuck ? { id: stuck.id, title: w.tasks.get(stuck.id)!.title, split: true } : undefined;
+  // "Chỉ lần này": the time stays, the model goes back to what it was before this change and the hypothesis is switched off (never promoted).
+  // Only while the stored model is still this change's, as undo; a later learning stays.
+  const once = learned && modelV !== undefined ? () => serial(async () => {
+    if ((await store.kvGet("model.v")) !== modelV) return;
+    const m = { ...model0, hyps: (w.model.hyps ?? []).map((h) => ({ ...h })) };
+    settleLearned(m, learned.kind, learned.part, "off");
+    await store.saveModel(m);
+  }) : undefined;
   return {
+    once,
     toast,
     sub: [w.sub ?? (ins && toast === insTitle ? fill(ins.sub, ins.vars) : undefined), w.short ? t("repeatShort") : undefined].filter(Boolean).join(". ") || undefined,
     changed: changed.length > 0,
@@ -627,6 +661,17 @@ export function apply(actions: Action[], now = Date.now()): Promise<Result> {
       return d?.insight ? fill(d.insight.template, d.insight.vars) : w.toast;
     },
   });
+}
+
+/** Where a list's creates would land: a dry plan, nothing written. The task each action's `ref` would become, with its start and end when placed. */
+export async function previewCreates(actions: Action[], now = Date.now()): Promise<Map<string, Task>> {
+  const box: { w?: Work; ids?: Map<string, string> } = {};
+  await transact(now, async (w) => {
+    const refs = new Map(actions.flatMap((a) => (a.ref ? [[a.ref, uid()] as const] : [])));
+    for (const a of actions) await act(w, a, refs);
+    box.w = w; box.ids = refs;
+  }, { dry: true, cause: causeOf(actions) });
+  return new Map([...box.ids!].flatMap(([ref, id]) => { const x = box.w!.tasks.get(id); return x ? [[ref, x] as const] : []; }));
 }
 
 export type LiveEdit = { when?: number; effortMinutes?: number; deadline?: number | "" };
@@ -809,21 +854,28 @@ function respread(w: Work, parentId: string, now: number): number {
   return n;
 }
 
+/** One sitting more, a copy of the last one (no time yet); an unsplit task first becomes its own first sitting. Returns its id, or undefined when there is none to copy. */
+function addOne(w: Work, parentId: string): string | undefined {
+  const parent = w.tasks.get(parentId);
+  // An unsplit task becomes a split one: it is its own first sitting (time and done state kept), and the parent is the container.
+  if (parent && !parent.deletedAt && !sitsOf(w, parentId).length) {
+    w.tasks.set(`${parentId}#1`, { ...parent, id: `${parentId}#1`, parentId });
+    w.tasks.set(parentId, { ...parent, start: undefined, end: undefined, doneAt: undefined, pinned: false });
+  }
+  const last = openSits(w, parentId).pop() ?? sitsOf(w, parentId).pop();
+  if (!last) return undefined;
+  const kids = [...w.tasks.values()].filter((c) => c.parentId === parentId);
+  const added = `${parentId}#${Math.max(...kids.map(sitIx)) + 1}`; // past every id made, deleted ones too
+  w.tasks.set(added, { ...last, id: added, start: undefined, end: undefined, pinned: false, fixed: undefined, notBefore: undefined, userEdited: undefined, doneAt: undefined, deletedAt: undefined });
+  return added;
+}
+
 export function addSitting(parentId: string, now = Date.now()): Promise<Result> {
   let added: string | undefined;
   return transact(now, (w) => {
-    const parent = w.tasks.get(parentId);
-    // An unsplit task becomes a split one: it is its own first sitting (time and done state kept), and the parent is the container.
-    if (parent && !parent.deletedAt && !sitsOf(w, parentId).length) {
-      w.tasks.set(`${parentId}#1`, { ...parent, id: `${parentId}#1`, parentId });
-      w.tasks.set(parentId, { ...parent, start: undefined, end: undefined, doneAt: undefined, pinned: false });
-    }
-    const last = openSits(w, parentId).pop() ?? sitsOf(w, parentId).pop();
-    if (!last) return;
-    const kids = [...w.tasks.values()].filter((c) => c.parentId === parentId);
-    added = `${parentId}#${Math.max(...kids.map(sitIx)) + 1}`; // past every id made, deleted ones too
-    w.tasks.set(added, { ...last, id: added, start: undefined, end: undefined, pinned: false, fixed: undefined, notBefore: undefined, userEdited: undefined, doneAt: undefined, deletedAt: undefined });
-    w.toast = t("sittingAdded", { title: last.title });
+    added = addOne(w, parentId);
+    if (!added) return;
+    w.toast = t("sittingAdded", { title: w.tasks.get(added)!.title });
     const n = respread(w, parentId, now);
     if (n > 1) w.sub = t("respread", { n });
   }, {
@@ -856,6 +908,45 @@ export function dropSitting(parentId: string, now = Date.now(), id?: string): Pr
     const n = respread(w, parentId, now);
     if (n > 1) w.sub = t("respread", { n });
   }, { cause: "user-task", text: (_, w) => w.toast });
+}
+
+/** "chia n buổi": the task ends with n open sittings in one change: split or re-split, copies added or the last open ones dropped, then spread. */
+export function splitInto(id: string, n: number, now = Date.now()): Promise<Result> {
+  return transact(now, async (w) => {
+    const task = w.tasks.get(id);
+    if (!task || task.deletedAt || task.doneAt || task.fixed || task.rrule) return; // the same tasks the sittings button offers
+    while (openSits(w, id).length < n && addOne(w, id)) continue;
+    while (openSits(w, id).length > n) await act(w, { op: "delete", target: openSits(w, id).pop()!.id });
+    respread(w, id, now);
+    w.toast = t("plannedSplit", { title: task.title, k: openSits(w, id).length });
+  }, { cause: "create", text: (_, w) => w.toast });
+}
+
+/** "bỏ lặp": the series rule goes from every occurrence of it. The open ones from this one on are deleted; this one and the past stay. */
+export function clearRepeat(id: string, now = Date.now()): Promise<Result> {
+  return transact(now, async (w) => {
+    const me = w.tasks.get(id);
+    if (!me?.rrule || me.section) return;
+    const key = seriesKey(me);
+    for (const x of [...w.tasks.values()].filter((y) => y.rrule && seriesKey(y) === key)) {
+      if (x.id !== me.id && !x.deletedAt && !x.doneAt && at(x) >= at(me)) await act(w, { op: "delete", target: x.id });
+      w.tasks.set(x.id, { ...w.tasks.get(x.id)!, rrule: undefined }); // done ones too: a repeat left on any of them would be made again
+    }
+    w.toast = t("repeatCleared", { title: me.title });
+  }, { cause: "delete", text: (_, w) => w.toast });
+}
+
+/** "Không cần ôn": the prep is marked dropped (skipPrep: no replan makes it again) and its open sittings are deleted. One undo. */
+export function dropPrep(id: string, now = Date.now()): Promise<Result> {
+  return transact(now, async (w) => {
+    const tk = w.tasks.get(id);
+    if (!tk || tk.deletedAt) return;
+    const sits = [...w.tasks.values()].filter((c) => c.parentId === id && !c.doneAt && !c.deletedAt);
+    w.tasks.set(id, skipPrep(tk, now));
+    w.log("delete", tk);
+    for (const c of sits) await act(w, { op: "delete", target: c.id });
+    w.toast = t("deleted", { title: tk.title });
+  }, { cause: "delete", text: (_, w) => w.toast });
 }
 
 /** Marks tasks placed over a day ago and still in place as kept. */
@@ -925,7 +1016,7 @@ export function sweepUndone(now = Date.now()): Promise<Result | undefined> {
     if (!(await store.allTasks()).some(pick)) return undefined;
     const r = await transactNow(now, (w) => { // transactNow, not transact: this already holds the write queue (transact would wait on itself)
       const moved = [...w.tasks.values()].filter(pick);
-      for (const x of moved) w.tasks.set(x.id, { ...x, start: undefined, end: undefined, notBefore: Math.max(x.notBefore ?? 0, from) });
+      for (const x of moved) w.tasks.set(x.id, { ...x, notBefore: Math.max(x.notBefore ?? 0, from) }); // start and end stay: the replan sees the lost block and counts the miss
       w.only = moved.map((x) => x.id);
     }, { cause: "user-task", text: () => undefined });
     return { ...r, silent: true };
