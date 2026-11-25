@@ -26,6 +26,8 @@ type Gap = { from: number; to: number };
 export interface Opts { later?: string; hourOnly?: boolean; pull?: Gap | Gap[]; avoid?: { from: number; to: number }[]; only?: string[]; fill?: boolean; areas?: Area[]; zen?: Partial<Record<ZenRule, number>> } // only: ids (or a split parent's) that may move; every other placed piece holds, unscheduled ones wait // pull: time freed by a done or delete (one gap or several), from its start (or now) to its end; avoid: slots the user just left by hand // fill: place once, never move silently: a placed piece keeps its slot (only what clashes with held time gives way), no overload unlock, no bump; unplaced pieces take open cells
 /** A block that ended this long ago is still busy (the user may be finishing it); missed after. */
 export const GRACE = 15 * MIN;
+/** The short try ("Thử 15p"): how long the now card ramps, and what the start notification promises. One number for both. */
+export const MICRO_MIN = 15;
 /** A time set by hand is busy only until its hold ends or its start passes (then a preference the planner may move). */
 export const holding = (t: Task, now: number) => t.holdUntil !== undefined && now < Math.min(t.holdUntil, t.start ?? -Infinity);
 

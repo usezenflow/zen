@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Svg, { Circle } from "react-native-svg";
 import { AppState, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Icon } from "@/components/art";
 import { Tap } from "@/components/tap";
 import { Toast } from "@/components/toast";
 import { t } from "@/lib/i18n";
@@ -26,14 +27,16 @@ export function UpdateDialog({ d, onClose }: { d: Dlg; onClose: () => void }) {
       <View style={[s.scrim, { paddingTop: ins.top + 24, paddingBottom: ins.bottom + 24 }]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel={t("close")} />
         <View style={[s.dlg, { backgroundColor: th.bg }]} accessibilityViewIsModal>
-          <Text style={[s.lab, { color: th.muted }]}>{t(up ? "newVersion" : "whatsNew")}</Text>
+          <View style={s.labRow}><Icon name={up ? "download" : "target"} size={16} color={th.muted} w={2} /><Text style={[s.lab, { color: th.muted }]}>{t(up ? "newVersion" : "whatsNew")}</Text></View>
           <Text style={[s.h, { color: th.ink }]}>zen {up ? d.update.version : d.version}</Text>
           <ScrollView style={s.list} contentContainerStyle={s.listIn} showsVerticalScrollIndicator>
             {(up ? d.update.notes : d.notes).map((n, i) => (
               <View key={i} style={s.li}><Text style={[s.note, { color: th.ink }]}>•</Text><Text style={[s.note, { color: th.ink, flex: 1 }]}>{n}</Text></View>
             ))}
           </ScrollView>
-          <Tap onPress={() => go()} style={[s.btn, { backgroundColor: th.ink }]} accessibilityRole="button"><Text style={[s.bt, { color: th.bg }]}>{label}</Text></Tap>
+          <Tap onPress={() => go()} style={[s.btn, { backgroundColor: th.accent }]} accessibilityRole="button">
+            <Icon name={!up ? "checkCircle" : "download"} size={18} color={th.onAccent} w={2} /><Text style={[s.bt, { color: th.onAccent }]}>{label}</Text>
+          </Tap>
           {up && Platform.OS === "ios" && <Tap onPress={() => go("altstore")} style={[s.sec, { borderColor: th.line }]} accessibilityRole="button"><Text style={[s.st, { color: th.ink }]}>{t("installAltStore")}</Text></Tap>}
           {up && <Tap onPress={onClose} hitSlop={8} accessibilityRole="button"><Text style={[s.ghost, { color: th.muted }]}>{t("notNow")}</Text></Tap>}
         </View>
@@ -60,8 +63,8 @@ export function Ring({ pct, color, size = 30, w = 3 }: { pct: number; color: str
 export function DownloadToast() {
   const th = useTheme(), dl = useDownload();
   if (!dl) return null;
-  if (dl.failed) return <Toast text={t("updFailed", { version: dl.version })} sub={t("updFailedSub")} lead={<Ring pct={dl.pct} color={th.seal} />} />;
-  return <Toast text={t("updDownloading", { version: dl.version })} sub={t("updDownloadingSub", { n: dl.pct })} lead={<Ring pct={dl.pct} color={th.bg} />} />;
+  if (dl.failed) return <Toast error text={t("updFailed", { version: dl.version })} sub={t("updFailedSub")} lead={<Ring pct={dl.pct} color={th.seal} />} />;
+  return <Toast text={t("updDownloading", { version: dl.version })} sub={t("updDownloadingSub", { n: dl.pct })} lead={<Ring pct={dl.pct} color={th.ink} />} />;
 }
 
 let offered: string | null = null; // each version is offered once a run
@@ -96,13 +99,14 @@ const s = StyleSheet.create({
   dlg: { maxHeight: "100%", borderRadius: 28, paddingTop: 24, paddingHorizontal: 22, paddingBottom: 18, boxShadow: "0 24px 48px -20px rgba(0,0,0,0.5)" }, // ui.css .dlg
   list: { flexGrow: 0, flexShrink: 1, marginHorizontal: -22 }, // out to the dialog's edge: the scrollbar sits there, not 22 in
   listIn: { paddingHorizontal: 22 },
-  lab: { fontSize: 15, fontFamily: ff("500") },
-  h: { marginTop: 4, marginBottom: 8, fontSize: 24, lineHeight: 28.8, fontFamily: ff("600"), letterSpacing: -0.6 },
+  labRow: { flexDirection: "row", alignItems: "center", gap: 7 },
+  lab: { fontSize: 12.5, lineHeight: 16, fontFamily: ff("300"), letterSpacing: 1.1, textTransform: "uppercase" }, // the eyebrow, as ui.css .lab
+  h: { marginTop: 4, marginBottom: 14, fontSize: 24, lineHeight: 32, fontFamily: ff("500"), letterSpacing: -0.6 },
   li: { flexDirection: "row", gap: 8, marginTop: 6 },
   note: { fontSize: 15, lineHeight: 21.75, fontFamily: ff("400") },
-  btn: { marginTop: 22, height: 56, borderRadius: 99, alignItems: "center", justifyContent: "center" },
-  bt: { fontSize: 17, fontFamily: ff("700") },
+  btn: { marginTop: 22, height: 50, borderRadius: 99, flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center" }, // .dlg .btn.sm
+  bt: { fontSize: 16, fontFamily: ff("600") },
   sec: { marginTop: 10, height: 50, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" }, // ui.css .btn.sm.ol: not the ghost's plain text
-  st: { fontSize: 16, fontFamily: ff("700") },
-  ghost: { marginTop: 12, textAlign: "center", fontSize: 15, fontFamily: ff("600") },
+  st: { fontSize: 16, fontFamily: ff("600") },
+  ghost: { marginTop: 12, textAlign: "center", fontSize: 15, fontFamily: ff("500") },
 });

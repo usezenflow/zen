@@ -8,10 +8,10 @@ import { startOfDay } from "@/components/cal";
 import { Row } from "@/components/row";
 import { previewCreates } from "@/lib/apply";
 import type { Kind, Task } from "@/lib/types";
-import { ff, useTheme } from "@/lib/theme";
+import { ff, fd, useTheme } from "@/lib/theme";
 import { day, hm } from "@/lib/when";
 
-const dur = (m: number) => (m >= 60 ? (m % 60 ? `${Math.floor(m / 60)} giờ ${m % 60}` : `${m / 60} giờ`) : `${m} phút`);
+const dur = (m: number) => (m >= 60 ? (m % 60 ? `${Math.floor(m / 60)} giờ ${m % 60}` : `${m / 60} giờ`) : `${m}p`);
 const leavesOf = (gs: Group[]): Leaf[] => gs.flatMap((g) => [...g.items, ...leavesOf(g.groups ?? [])]);
 // A leaf or a whole group out of the tree, wherever it sits.
 const without = (gs: Group[], x: Leaf | Group): Group[] => gs.filter((g) => g !== x).map((g) => ({ ...g, items: g.items.filter((l) => l !== x), groups: g.groups && without(g.groups, x) }));
@@ -52,7 +52,8 @@ export function OutlinePreview({ groups, from, onSave, onClose }: { groups: Grou
         now={now}
         done={l.done}
         first={i === 0}
-        sub={[step !== undefined ? `Bước ${step}` : undefined, windowOf(l)].filter(Boolean).join(" · ") || undefined}
+        lead={step !== undefined ? String(step) : undefined}
+        sub={windowOf(l)}
         onToggle={() => edit(() => { l.done = !l.done; })}
         onTitle={(v) => edit(() => { l.title = v; })}
         onTime={(at) => edit(() => { l.start = at.getTime(); l.minutes ??= task.effort; })}
@@ -73,7 +74,7 @@ export function OutlinePreview({ groups, from, onSave, onClose }: { groups: Grou
             <Text style={[s.gt, { color: th.ink }]} numberOfLines={1}>{g.title}</Text>
             {budget > 0 && <Text style={[s.gb, { color: th.muted }]}>{dur(budget)}</Text>}
             <Pressable onPress={() => remove(g)} accessibilityRole="button" accessibilityLabel={`Bỏ cả nhóm ${g.title}`} hitSlop={10}>
-              <Text style={[s.gb, { color: th.seal }]}>Bỏ</Text>
+              <Text style={[s.gb, { color: th.muted }]}>Bỏ</Text>
             </Pressable>
           </View>
         )}
@@ -89,7 +90,7 @@ export function OutlinePreview({ groups, from, onSave, onClose }: { groups: Grou
         <Icon name="back" size={20} color={th.ink} />
       </Pressable>
       <Text style={[s.h, { color: th.ink }]} numberOfLines={1}>{heading}</Text>
-      <Text style={[s.sub, { color: th.muted }]}>{`Từ ${from}, ${all.length} việc, ${doneN} đã xong`}</Text>
+      <Text style={[s.sub, { color: th.muted }]}>{`${all.length} việc, ${doneN} đã xong. Vuốt trái để bỏ việc bạn không cần.`}</Text>
       <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 120 }}>
         {gs.map(block)}
       </ScrollView>
@@ -99,6 +100,7 @@ export function OutlinePreview({ groups, from, onSave, onClose }: { groups: Grou
         accessibilityRole="button"
         accessibilityLabel={`Thêm ${count} việc`}
         style={[s.btn, { backgroundColor: th.ink, bottom: insets.bottom + 24, opacity: count ? 1 : 0.4 }]}>
+        <Icon name="plus" size={18} color={th.bg} w={2} />
         <Text style={[s.btnT, { color: th.bg }]}>{`Thêm ${count} việc`}</Text>
       </Pressable>
     </View>
@@ -107,12 +109,12 @@ export function OutlinePreview({ groups, from, onSave, onClose }: { groups: Grou
 
 const s = StyleSheet.create({
   back: { marginLeft: 24, width: 36, height: 36, justifyContent: "center" },
-  h: { fontFamily: ff("700"), fontSize: 26, marginTop: 18, marginHorizontal: 24 },
-  sub: { fontFamily: ff("400"), fontSize: 16, marginTop: 4, marginHorizontal: 24, marginBottom: 8 },
+  h: { fontFamily: fd("500"), fontSize: 30, marginTop: 18, marginHorizontal: 24 }, // ui.css .h: display 500, 30px
+  sub: { fontFamily: ff("400"), fontSize: 17, marginTop: 6, marginHorizontal: 24, marginBottom: 8 },
   grp: { marginTop: 20 },
   gh: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", gap: 12 },
-  gt: { flex: 1, fontFamily: ff("600"), fontSize: 15 },
+  gt: { flex: 1, fontFamily: ff("500"), fontSize: 15 },
   gb: { fontFamily: ff("500"), fontSize: 15 },
-  btn: { position: "absolute", left: 24, right: 24, height: 56, borderRadius: 99, alignItems: "center", justifyContent: "center" },
+  btn: { position: "absolute", left: 24, right: 24, height: 56, borderRadius: 99, flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center" },
   btnT: { fontFamily: ff("600"), fontSize: 17 },
 });

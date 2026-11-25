@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_AREAS, areaOf, areaShare, underServed } from "./area";
+import { DEFAULT_AREAS, addWord, areaOf, areaShare, foldWord, ownerOf, underServed, weekCount, type Area } from "./area";
 import type { Task } from "./types";
 
 const MIN = 60_000;
@@ -52,5 +52,73 @@ describe("areaShare and underServed", () => {
 
   it("is all zero with no worked time", () => {
     expect(Object.values(underServed([], DEFAULT_AREAS, now)).every((v) => v === 0)).toBe(true);
+  });
+});
+
+describe("keyword normalisation and dedupe", () => {
+  it("folds diacritics, case and spacing for comparison", () => {
+    expect(foldWord("  Ôn   THI ")).toBe("on thi");
+    expect(foldWord("Đọc sách")).toBe("doc sach");
+  });
+
+  it("stores the trimmed, space-collapsed word", () => {
+    expect(addWord([], "  chạy   bộ ")).toEqual(["chạy bộ"]);
+  });
+
+  it("refuses a word shorter than 2 characters", () => {
+    expect(addWord([], " a ")).toBeNull();
+    expect(addWord([], "   ")).toBeNull();
+  });
+
+  it("dedupes within an area by folded form", () => {
+    expect(addWord(["ôn thi"], "ON THI")).toBeNull();
+    expect(addWord(["ôn thi"], "on  thi")).toBeNull();
+  });
+
+  it("refuses the 21st word", () => {
+    const full = Array.from({ length: 20 }, (_, i) => `từ ${i}`);
+    expect(addWord(full, "thêm")).toBeNull();
+    expect(addWord(full.slice(1), "thêm")).toHaveLength(20);
+  });
+});
+
+describe("cross-area keyword conflict", () => {
+  const areas: Area[] = [
+    { id: "health", name: "Sức khoẻ", kinds: ["exercise"], words: ["gym"] },
+    { id: "study", name: "Học tập", kinds: ["study"], words: ["bài tập"] },
+  ];
+
+  it("names the other area that owns a word", () => {
+    expect(ownerOf("GYM", areas, "study")?.id).toBe("health");
+  });
+
+  it("does not flag a word against its own area", () => {
+    expect(ownerOf("gym", areas, "health")).toBeUndefined();
+  });
+
+  it("is undefined for a word nobody owns", () => {
+    expect(ownerOf("sách", areas, "study")).toBeUndefined();
+  });
+
+  it("the longest match wins when both areas hold a matching word", () => {
+    const both: Area[] = [
+      { id: "a", name: "A", kinds: [], words: ["lab"] },
+      { id: "b", name: "B", kinds: [], words: ["lab report"] },
+    ];
+    expect(areaOf({ id: "x", title: "Lab report", kind: "self", source: "user", effort: 60, createdAt: 0 }, both)?.id).toBe("b");
+  });
+});
+
+describe("weekCount", () => {
+  it("counts tasks done in the last 7 days per matching area", () => {
+    const day = 24 * 60 * 60_000;
+    const base = { source: "user" as const, effort: 60, createdAt: 0, kind: "self" as const };
+    const tasks = [
+      { ...base, id: "1", title: "Gym sáng", doneAt: now - 1 * day },
+      { ...base, id: "2", title: "Gym tối", doneAt: now - 2 * day },
+      { ...base, id: "3", title: "Gym cũ", doneAt: now - 30 * day },
+      { ...base, id: "4", title: "Ôn thi", doneAt: now - 3 * day },
+    ];
+    expect(weekCount(tasks, DEFAULT_AREAS, now)).toEqual({ health: 2, study: 1 });
   });
 });

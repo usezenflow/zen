@@ -1,7 +1,7 @@
 import type { Task } from "../lib/types";
 import { frameOf } from "../lib/nlu/frame";
 import { sizeOf } from "../lib/nlu/size";
-import { courseName } from "../lib/find";
+import { courseAbbr, courseName } from "../lib/find";
 
 export const PREP_SITTING = 60; // minutes: the planner splits a prep into sittings of at most an hour, in half hours
 
@@ -39,7 +39,7 @@ function prepEffort(exam: Task, mult: number, pace: number): number {
 
 /**
  * The user's own plan item (source "user"; UI tells a prep by `forId`, not by deadline). One task due at the exam start; the planner splits it into sittings.
- * The title names the course's short name and the format ("Ôn Giải tích 2: luyện đề"); `course` keeps the exam's own title.
+ * The title is the format and the course's initials ("Luyện đề GT2", "Viết báo cáo KTPM"); `course` keeps the exam's own title, which the list shows under it.
  * `pace`: the learned multiplier per class (loadClassMult). `guessMin` is the length before it, as a done task's minutes are measured against.
  * shortcut: effortGuessed stays off, a guessed prep would shrink to fit its exam window (policy.ts); so the class learns nothing yet.
  */
@@ -50,7 +50,7 @@ export function preps(exam: Task, mult = 1, pace: Record<string, number> = {}): 
   const { title, short } = workOf(exam.format ?? "");
   const course = courseName(exam.title);
   return [{
-    id: `prep:${exam.id}`, title: course ? `Ôn ${course}: ${short}` : title, effort: prepEffort(exam, mult, pace[cls] ?? 1), course: exam.title, kind: "study", source: "user", forId: exam.id,
+    id: `prep:${exam.id}`, title: course ? `${short[0].toUpperCase()}${short.slice(1)} ${courseAbbr(course)}` : title, effort: prepEffort(exam, mult, pace[cls] ?? 1), course: exam.title, kind: "study", source: "user", forId: exam.id,
     maxSitting: PREP_SITTING, deadline: due, createdAt: exam.createdAt, cls, guessMin: prepEffort(exam, mult, 1),
   }];
 }

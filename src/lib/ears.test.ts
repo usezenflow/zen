@@ -5,18 +5,6 @@ const SR = {
   addListener: vi.fn(() => ({ remove() {} })), getSupportedLocales: vi.fn(async () => ({ installedLocales: [] })),
 };
 vi.mock("expo-speech-recognition", () => ({ ExpoSpeechRecognitionModule: SR }));
-const W = vi.hoisted(() => ({ init: vi.fn(async () => ({})) }));
-vi.mock("./whisper-native", () => ({
-  initWhisper: W.init,
-  RealtimeTranscriber: class { start = vi.fn(async () => {}); stop = vi.fn(async () => {}); nextSlice = vi.fn(async () => {}); },
-  AudioPcmStreamAdapter: class { onData() {} },
-}));
-const kv = new Map<string, string>();
-const FS = { exists: false, size: 0 };
-vi.mock("./store", () => ({ kvGet: vi.fn(async (k: string) => kv.get(k) ?? null), kvSet: vi.fn() }));
-vi.mock("expo-device", () => ({ totalMemory: 8 * 1024 ** 3, deviceYearClass: 2022 }));
-vi.mock("expo-file-system", () => ({ File: class {} }));
-vi.mock("expo-file-system/legacy", () => ({ documentDirectory: "file:///d/", getInfoAsync: vi.fn(async () => FS), makeDirectoryAsync: vi.fn(), createDownloadResumable: vi.fn(), deleteAsync: vi.fn(), EncodingType: { Base64: "base64" } }));
 const { askMic, level, listenLive, lowWords, transcripts } = await import("./ears");
 
 it("asks for the mic only when it is missing (Android's ask pauses the app and cancels the hold)", async () => {
@@ -52,30 +40,9 @@ it("lists the words the recognizer doubted, not the ones it gave no confidence f
   expect(lowWords(undefined)).toEqual([]);
 });
 
-// The fallback runs first: a failed load is not cached, so the success case below loads again.
-it("falls back to the OS recognizer when the whisper model cannot start", async () => {
-  FS.exists = true; FS.size = 487601984; kv.clear(); SR.start.mockClear();
-  W.init.mockRejectedValueOnce(new Error("load failed"));
-  await listenLive({});
-  expect(SR.start).toHaveBeenCalledTimes(1);
-  FS.exists = false;
-});
-
-it("uses whisper when the recommended model is on disk and it starts", async () => {
-  FS.exists = true; FS.size = 487601984; kv.clear(); SR.start.mockClear();
+it("listens through the system recognizer", async () => {
+  SR.start.mockClear();
   const s = await listenLive({});
-  expect(SR.start).not.toHaveBeenCalled();
+  expect(SR.start).toHaveBeenCalledTimes(1);
   expect(s).toHaveProperty("stop");
-  FS.exists = false;
-});
-
-it("uses the OS recognizer when the setting says so or no model is on disk", async () => {
-  SR.start.mockClear();
-  FS.exists = true; FS.size = 487601984; kv.set("stt.engine", "os");
-  await listenLive({});
-  expect(SR.start).toHaveBeenCalledTimes(1);
-  FS.exists = false; kv.clear();
-  SR.start.mockClear();
-  await listenLive({});
-  expect(SR.start).toHaveBeenCalledTimes(1);
 });

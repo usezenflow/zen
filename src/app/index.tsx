@@ -13,7 +13,7 @@ import Reanimated, { interpolate, useAnimatedStyle, useSharedValue, withTiming, 
 import { scheduleOnRN } from "react-native-worklets";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
-import { Icon, Logo } from "@/components/art";
+import { artOf, Icon, Logo } from "@/components/art";
 import { Rhythm, rhythmHead } from "@/components/rhythm";
 import { addDays, live, mondayOf, monthLabel, onDay, parents, short, startOfDay, weekday, type Hols } from "@/components/cal";
 import { Day, DayPull, First, RestCard, mins } from "@/components/day";
@@ -34,7 +34,7 @@ import { fadeIn, fadeOut, glide, popIn, settle, Tap, EASE } from "@/components/t
 import { Sweep, useSweep } from "@/components/sweep";
 import { Toast } from "@/components/toast";
 import { Swipe, Week } from "@/components/week";
-import { SERIES_NO, acceptSeries, addWorked, apply, markRolled, reshapeSeries, declineSeries, retime, forgetWhen, makeRoom, moveMine, moveToDay, pickNow, addRule, addSitting, dropSitting, loadClassMult, needMore, pin, putBack, removeRule, removeScope, scopeIds, swipeDone, swipeLater, take, type Result, applyProposal, dismissProposal, maybeRebalance, proposalFor, proposeRebalance } from "@/lib/apply";
+import { SERIES_NO, acceptSeries, addWorked, apply, markRolled, reshapeSeries, declineSeries, retime, forgetWhen, makeRoom, moveMine, moveToDay, pickNow, addRule, addSitting, dropSitting, loadClassMult, needMore, pin, putBack, removeRule, removeScope, scopeIds, swipeDone, swipeLater, take, type Result, applyProposal, canRebalance, dismissProposal, maybeRebalance, proposalFor, proposeRebalance } from "@/lib/apply";
 import { briefMoves, loadMoves, loadWarn, seeMoves } from "@/lib/moves";
 import { reasonText, topReason } from "@/lib/reasons";
 import { holidays } from "@/lib/holidays";
@@ -58,7 +58,7 @@ import { getMarks, onForeground, onSynced, onTick } from "@/lib/sync";
 import { overdue } from "@/lib/nudges";
 import { GRACE } from "@/planner/policy";
 import { listenWidgets, pushWidgets } from "@/lib/widgets";
-import { useTheme, font, space, ff } from "@/lib/theme";
+import { useTheme, font, space, ff, fd } from "@/lib/theme";
 import type { Action, Move, Notice, Rule, Step, Task, Warn } from "@/lib/types";
 import { dayLabel, day as dayName, endAt, when } from "@/lib/when";
 import { grounded, insights, typeOf, type Insights } from "@/planner";
@@ -69,7 +69,7 @@ const VIEWS: View_[] = ["day", "week", "month"];
 // A row says only what Zen learned or was told; "the day is free" on every row is noise, so that stays on the detail screen.
 const FIT = new Set(["packed", "fit", "over"]); // what came of what was asked, said in the add toast too
 const ROW = new Set(["hour", "after", "similar", "kind", "energy", "weekend", "said", "pace", "rule", "pinned", "chose", "packed", "fit", "over"]);
-type ToastState = { text: string; sub?: string; error?: boolean; action?: { label?: string; run: () => void }; alt?: { label: string; run: () => void; plain?: boolean } };
+type ToastState = { text: string; sub?: string; error?: boolean; art?: ReturnType<typeof artOf>; action?: { label?: string; run: () => void }; alt?: { label: string; run: () => void; plain?: boolean } };
 
 const longDate = (ms: number) => { const d = new Date(ms); return `${d.getDate()}/${d.getMonth() + 1}`; };
 const dm = (ms: number) => { const d = new Date(ms); return `${d.getDate()}/${d.getMonth() + 1}`; };
@@ -96,7 +96,7 @@ export default function Home() {
   const [words, setWords] = useState("");
   const [toasts, setToasts] = useState<ToastState[]>([]); // [0] is showing, the rest wait their turn
   // Chips under the toast: which task a line meant, or which exam an anchor points at. One tap, then they go.
-  const [chips, setChips] = useState<{ ask?: string; options: { label: string; detail?: string; run: () => void }[] }>();
+  const [chips, setChips] = useState<{ ask?: string; sub?: string; row?: boolean; options: { label: string; detail?: string; on?: boolean; run: () => void }[] }>();
   const toast = toasts[0];
   const [now, setNow] = useState(() => Date.now());
   const [view, setView] = useState<View_>("day");
@@ -207,6 +207,7 @@ export default function Home() {
     setToasts((q) => [{
       text: out.title,
       sub: out.sub,
+      art: ctx.art,
       alt: out.alt ?? out.more,
       action: once && { run: once },
     }, ...q.slice(1)]);
@@ -265,10 +266,10 @@ export default function Home() {
     if (!x || ask || chips) return; // chips up (a voice or typed command): skip; still unasked, so a later tick offers it
     void markRolled(x.id).then((first) => {
       if (!first) return; // asked already, or another refresh got here first
-      setChips({ ask: `${t("rolledAsk", { title: x.title })} ${t("rolledSub")}`, options: [
+      setChips({ ask: t("rolledAsk", { title: x.title }), sub: t("rolledSub"), row: true, options: [
         { label: t("rolledDrop"), run: () => { setChips(undefined); void removeScope(x.id, "this").then((r) => { say(r.toast, r); refresh(); }, () => {}); } },
         { label: t("rolledSplit"), run: () => { setChips(undefined); void addSitting(x.id).then((r) => { say(r.toast, r); refresh(); }, () => {}); } },
-        { label: t("rolledKeep"), run: () => setChips(undefined) },
+        { label: t("rolledKeep"), on: true, run: () => setChips(undefined) },
       ] });
     }, () => {});
   }, [tasks, ask, chips, say, refresh]);
@@ -395,29 +396,34 @@ export default function Home() {
   // A series said whole ("xoá hết gym", "xoá gym từ giờ"): its scope, as the long-press does, so top-up does not bring it back.
   const delSeries = (sc: SeriesScope) => { setChips(undefined); const x = tasks.find((y) => y.id === sc.id); if (x) void del(x, sc.scope); };
   // Bulk asks first, with a count. A choice shows one chip per task, and "Tạo việc mới" makes the line a new task.
+  const artById = (id?: string) => { const x = id ? tasks.find((y) => y.id === id) : undefined; return x && artOf(x); }; // the task's palette for its toast
   const offerCommand = (cmd: Command, text: string, via: "voice" | "type" | "photo" | "pdf" | "scan") => {
     if (cmd.kind === "bulk") {
-      setToasts((q) => [...q, { text: cmd.label ?? `${VERB_VI[cmd.verb]} ${cmd.count} việc?`, action: { label: VERB_VI[cmd.verb], run: () => then(cmd.series ? delSeries(cmd.series) : applyCommand(cmd.actions)) }, alt: { label: "Huỷ", run: () => then(setChips(undefined)), plain: true } }]);
+      // calm.html "Command, many at once": the question with Thôi and the verb as pills, nothing happens until the tap
+      setChips({ ask: cmd.label ?? `${VERB_VI[cmd.verb]} ${cmd.count} việc?`, row: true, options: [
+        { label: "Thôi", run: () => setChips(undefined) },
+        { label: `${VERB_VI[cmd.verb]} ${cmd.count} việc`, on: true, run: () => then(cmd.series ? delSeries(cmd.series) : applyCommand(cmd.actions)) },
+      ] });
       return;
     }
     if (cmd.kind === "rule") {
       // a series' weekdays change from a day on: confirmed, then one undo for the end and the new days
-      const go = async () => { try { const r = await reshapeSeries(cmd.id, cmd.from, cmd.rrule, Date.now()); lastIds.current = [cmd.id]; say(r.toast, r); refresh(); } catch (e) { fail("Không đổi được lịch lặp", e); } };
+      const go = async () => { try { const r = await reshapeSeries(cmd.id, cmd.from, cmd.rrule, Date.now()); lastIds.current = [cmd.id]; say(r.toast, r, { art: artById(cmd.id) }); refresh(); } catch (e) { fail("Mình chưa đổi được lịch lặp", e); } };
       setToasts((q) => [...q, { text: cmd.label, action: { label: "Đổi", run: () => then(go()) }, alt: { label: "Huỷ", run: () => then(setChips(undefined)), plain: true } }]);
       return;
     }
     if (cmd.kind === "choose") {
       if (cmd.ask) setToasts((q) => [...q, { text: cmd.ask! }]);
-      setChips({ options: [...cmd.options.map((o) => ({ label: o.label, detail: o.detail, run: () => { void teach(cmd.key, o.actions[0]?.target ?? o.series?.id, "pick"); then(o.series ? delSeries(o.series) : applyCommand(o.actions)); } })), { label: "Tạo việc mới", run: () => then(run(text, via, undefined, true)) }] });
+      setChips({ options: [...cmd.options.map((o, i) => ({ label: o.label, detail: o.detail, on: i === 0, run: () => { void teach(cmd.key, o.actions[0]?.target ?? o.series?.id, "pick"); then(o.series ? delSeries(o.series) : applyCommand(o.actions)); } })), { label: "Tạo việc mới", run: () => then(run(text, via, undefined, true)) }] });
     }
   };
   // A session added to a series: one-off, with the "mỗi tuần" alt chip to make it weekly. A weekly line makes it weekly at once.
   const addSession = async (cmd: Extract<Command, { kind: "session" }>) => {
     const now = Date.now();
     const r = await apply(cmd.actions, now);
-    const weekly = t("seriesDays", { title: cmd.title, days: cmd.days });
-    if (!cmd.alt) say(weekly, r);
-    else say(t("sessionAdded", { n: cmd.count, title: cmd.title }), r, { sub: t("sessionSub", { when: when(new Date(cmd.actions[0].notBefore!).getTime(), now), title: cmd.title }), alt: { label: t("sessionAlt"), run: async () => { await r.undo(); say(weekly, await apply(cmd.alt!, Date.now())); refresh(); } } });
+    const weekly = t("seriesDays", { title: cmd.title, days: cmd.days }), art = artById(cmd.actions[0].target);
+    if (!cmd.alt) say(weekly, r, { art });
+    else say(t("sessionAdded", { n: cmd.count, title: cmd.title }), r, { art, sub: t("sessionSub", { when: when(new Date(cmd.actions[0].notBefore!).getTime(), now), title: cmd.title }), alt: { label: t("sessionAlt"), run: async () => { await r.undo(); say(weekly, await apply(cmd.alt!, Date.now())); refresh(); } } });
     refresh();
   };
 
@@ -433,7 +439,7 @@ export default function Home() {
       say(t("addedN", { n: acts.filter((a) => a.ref?.startsWith("l")).length }), r);
       refresh();
     } catch (e) {
-      fail("Không lưu được danh sách", e);
+      fail("Mình chưa lưu được danh sách", e);
     }
   };
 
@@ -443,7 +449,7 @@ export default function Home() {
     if (/^https?:\/\/\S+$/.test(text.trim())) {
       setState("thinking");
       let body: string;
-      try { body = await pageText(text.trim()); } catch (e) { setState("idle"); fail("Không mở được liên kết", e); return; }
+      try { body = await pageText(text.trim()); } catch (e) { setState("idle"); fail("Mình chưa mở được liên kết", e); return; }
       return run(body, via, alternatives);
     }
     while (shuf.current) await new Promise((r) => setTimeout(r, 150)); // the plan is still playing out: wait for it, never drop what was said
@@ -932,6 +938,14 @@ export default function Home() {
   const applyRebal = () => { setRebalOpen(false); setRebal(undefined); void applyProposal().then((r) => { if (r) say(r.toast, r); refresh(); }, (e) => { fail(t("saveFailed"), e); refresh(); }); };
   // The week's own link: a proposal now, even one dismissed before; nothing to offer says so.
   const rebalanceWeek = () => { void proposeRebalance(Date.now(), true).then((p) => { if (p) { setRebal(p); setRebalOpen(true); } else setToasts((q) => [{ text: t("rebalNone") }, ...q.slice(1)]); }, (e) => fail(t("saveFailed"), e)); };
+  // The week's link shows only when a dry plan has something to move: asked on entering week view and when tasks change, never stored.
+  const [weekReb, setWeekReb] = useState(false);
+  useEffect(() => {
+    if (view !== "week") return;
+    let live = true;
+    void canRebalance(Date.now()).then((ok) => { if (live) setWeekReb(ok); }, () => { if (live) setWeekReb(false); });
+    return () => { live = false; };
+  }, [view, tasks]);
   const closeStory = async () => { setStory(false); await seeMoves(fresh.map((m) => m.id)); await briefMoves(fresh.map((m) => m.id)); refresh(); };
   const busy = state !== "idle";
   const listing = busy && !shufOn && !!words; // the day stays under the veil until words are heard; while the plan plays out the list stays, the dock keeps thinking
@@ -952,7 +966,7 @@ export default function Home() {
   const restView = rest && (
     <GestureDetector gesture={swipe}>
       <Reanimated.View style={flick}>
-        <RestCard lab={selEmpty ? t("today") : undefined} title={t("restT")} sub={t("restSub")} leaf="color" />
+        <RestCard lab={selEmpty ? t("today") : undefined} title={t("restT")} sub={t("restSub")} leaf="color" art="clay" />
       </Reanimated.View>
     </GestureDetector>
   );
@@ -970,7 +984,7 @@ export default function Home() {
   const first = (hello: string, h: string, sub?: string) => (
     <View style={s.top}>
       <View style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>
-        <Text style={{ color: th.ink, fontSize: font.md, fontFamily: ff("500") }}>{hello}</Text>
+        <Text style={{ color: th.muted, fontSize: font.label, fontFamily: ff("300") }}>{hello}</Text>
         <Text numberOfLines={2} style={[s.h, { color: th.ink }]}>{h}</Text>
         {!!sub && <Text style={[s.sub, { color: th.muted }]}>{sub}</Text>}
       </View>
@@ -989,7 +1003,7 @@ export default function Home() {
       {/* Back to today from any other day: bottom right, level with the count line. */}
       {!firstRun && view !== "rhythm" && !isToday && (
         <Tap onPress={() => setSel(today0)} hitSlop={8} accessibilityRole="button" style={[s.go, { borderColor: th.line }]}>
-          <Text style={{ color: th.ink, fontSize: font.md - 1, fontFamily: ff("600") }}>{t("today")}</Text>
+          <Text style={{ color: th.ink, fontSize: font.md - 1, fontFamily: ff("500") }}>{t("today")}</Text>
         </Tap>
       )}
     </View>
@@ -1003,8 +1017,8 @@ export default function Home() {
           <View style={s.tabL}>
             {VIEWS.map((v) => (
               <Tap key={v} onPress={() => setView(v)} hitSlop={10} accessibilityRole="tab" accessibilityState={{ selected: view === v }} style={{ paddingVertical: 10 }}>
-                <Text numberOfLines={1} style={{ fontSize: font.md, fontFamily: ff(view === v ? "600" : "500"), color: view === v ? th.ink : th.muted }}>{t(v === "day" ? "tabDay" : v === "week" ? "tabWeek" : "tabMonth")}</Text>
-                {view === v && <Reanimated.View entering={ZoomIn.duration(180).easing(EASE)} exiting={ZoomOut.duration(120)} style={[s.tabDot, { backgroundColor: th.seal }]} />}
+                <Text numberOfLines={1} style={{ fontSize: font.md, fontFamily: ff(view === v ? "500" : "500"), color: view === v ? th.ink : th.muted }}>{t(v === "day" ? "tabDay" : v === "week" ? "tabWeek" : "tabMonth")}</Text>
+                {view === v && <Reanimated.View entering={ZoomIn.duration(180).easing(EASE)} exiting={ZoomOut.duration(120)} style={[s.tabDot, { backgroundColor: th.ink }]} />}
               </Tap>
             ))}
           </View>
@@ -1012,7 +1026,7 @@ export default function Home() {
           <Tap onPress={() => setView("rhythm")} hitSlop={7} accessibilityRole="tab" accessibilityState={{ selected: view === "rhythm" }} accessibilityLabel={t("rhythm")}
             style={[s.mind, view === "rhythm" ? { backgroundColor: th.ink, borderColor: th.ink } : { borderColor: th.line }]}>
             <Logo size={14} mode="line" color={view === "rhythm" ? th.bg : th.ink} />
-            <Text style={{ fontSize: 14, fontFamily: ff("600"), color: view === "rhythm" ? th.bg : th.ink }}>{t("rhythmTab")}</Text>
+            <Text style={{ fontSize: 14, fontFamily: ff("500"), color: view === "rhythm" ? th.bg : th.ink }}>{t("rhythmTab")}</Text>
           </Tap>
         </Reanimated.View>
         </Swipe>
@@ -1039,7 +1053,7 @@ export default function Home() {
         >
           {header}
           {/* "Which one" chips (calm.html pick): in the list under the header, so a long list scrolls with it. */}
-          {chips && <View style={[s.chips, { borderColor: th.line, backgroundColor: th.bg }]}>{chips.ask && <Text style={[s.chipAsk, { color: th.ink }]}>{chips.ask}</Text>}<View style={{ marginTop: 12, gap: 8 }}>{chips.options.map((o) => <Pressable key={o.label} onPress={o.run} style={[s.chip, { borderColor: th.line }]}><Text numberOfLines={1} ellipsizeMode="tail" style={[s.chipT, { color: th.ink }]}>{o.label}</Text>{o.detail && <Text numberOfLines={1} style={[s.chipD, { color: th.ink }]}>{o.detail}</Text>}</Pressable>)}</View></View>}
+          {chips && <View style={[s.chips, { borderColor: th.line, backgroundColor: th.bg }]}>{chips.ask && <Text style={[s.chipAsk, { color: th.ink }]}>{chips.ask}</Text>}{chips.sub && <Text style={[s.chipSub, { color: th.muted }]}>{chips.sub}</Text>}<View style={chips.row ? s.chipRow : s.chipCol}>{chips.options.map((o) => <Pressable key={o.label} onPress={o.run} style={[chips.row ? s.chipR : s.chip, { borderColor: th.line, backgroundColor: o.on ? th.ink : "transparent" }]}><Text numberOfLines={1} ellipsizeMode="tail" style={[s.chipT, chips.row && s.chipRT, { color: o.on ? th.bg : th.ink, fontFamily: ff(o.on ? "600" : "500") }]}>{o.label}</Text>{o.detail && <Text numberOfLines={1} style={[s.chipD, { color: o.on ? th.bg : th.ink }]}>{o.detail}</Text>}</Pressable>)}</View></View>}
           {view === "day" && isToday && (
             // Keyed per branch so hero swaps cross-fade; a new now-card lands with a small pop.
             <Reanimated.View key={hero} entering={card && hero === card.task.id ? popIn : fadeIn} exiting={fadeOut} layout={glide}>
@@ -1059,7 +1073,7 @@ export default function Home() {
               {view === "week"
                 ? <>
                     {story && pillOn && <Story moves={fresh} now={now} onClose={closeStory} />}
-                    <Week tasks={tasks} hols={hols} rules={mind?.rules ?? []} now={now} monday={dd.anchor} selected={sel} onSelect={setSel} onStep={stepWeek} gridRef={dd.gridRef} hover={dd.hover} moves={unseen} brief={pillOn && !story ? fresh : []} onMoves={() => setStory(true)} onDismiss={dismissBrief} onRebalance={rebalanceWeek} />
+                    <Week tasks={tasks} hols={hols} rules={mind?.rules ?? []} now={now} monday={dd.anchor} selected={sel} onSelect={setSel} onStep={stepWeek} gridRef={dd.gridRef} hover={dd.hover} moves={unseen} brief={pillOn && !story ? fresh : []} onMoves={() => setStory(true)} onDismiss={dismissBrief} onRebalance={weekReb ? rebalanceWeek : undefined} />
                   </>
                 : <Month tasks={tasks} hols={hols} now={now} selected={sel} anchor={dd.anchor} onSelect={setSel} onStep={stepMonth} gridRef={dd.gridRef} hover={dd.hover} />}
             </Reanimated.View>
@@ -1087,7 +1101,7 @@ export default function Home() {
       {finding && <Search origin={finding} tasks={tasks} now={now} acts={rowActs} initial={findQ} onClose={() => { setFinding(undefined); setFindQ(undefined); }} />}
       {dd.ghost}
       {menu && <RowMenu items={menu.items} top={menu.top} onClose={() => setMenu(undefined)} />}
-      {toast && <Toast key={toastKey(toast)} onDismiss={() => setToasts((q) => q.slice(1))} error={toast.error} text={toast.text} sub={toast.sub} onAction={toast.action?.run} actionLabel={toast.action?.label} onAlt={toast.alt?.run} altLabel={toast.alt?.label} altPlain={toast.alt?.plain} />}
+      {toast && <Toast key={toastKey(toast)} onDismiss={() => setToasts((q) => q.slice(1))} error={toast.error} text={toast.text} sub={toast.sub} onAction={toast.action?.run} actionLabel={toast.action?.label} onAlt={toast.alt?.run} altLabel={toast.alt?.label} altPlain={toast.alt?.plain} art={toast.art} ms={toast.action ? 8000 : 6000} />}
     </SafeAreaView>
     </Sweep>
   );
@@ -1109,13 +1123,18 @@ const s = StyleSheet.create({
   // calm.html .find + .pills.blk .pl: a bordered card, the question, then full-width outlined pills (name left, day right)
   chips: { marginTop: 16, borderRadius: 22, borderWidth: 1, paddingVertical: 16, paddingHorizontal: 18 },
   chip: { height: 44, width: "100%", flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 18, borderRadius: 99, borderWidth: 1 },
-  chipAsk: { fontSize: 17, lineHeight: 23, fontFamily: ff("600") },
+  chipCol: { marginTop: 12, gap: 8 },
+  chipRow: { marginTop: 14, flexDirection: "row", gap: 8 }, // .find .acts: the answers in one row of pills
+  chipR: { height: 40, flexShrink: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 16, borderRadius: 99, borderWidth: 1 },
+  chipRT: { flex: 0, textAlign: "center" },
+  chipAsk: { fontSize: 17, lineHeight: 23, fontFamily: ff("500") },
+  chipSub: { marginTop: 6, fontSize: 15, lineHeight: 21, fontFamily: ff("400") },
   chipT: { flex: 1, minWidth: 0, fontSize: 15, fontFamily: ff("500") },
   chipD: { flexShrink: 0, opacity: 0.7, fontSize: 15, fontFamily: ff("500"), fontVariant: ["tabular-nums"] },
   root: { flex: 1 },
   pad: { padding: space.gutter, paddingTop: 0 }, // .scr: the safe area stands in for its 54px top
   top: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginTop: 6 },
-  h: { fontSize: font.h, lineHeight: 36, fontFamily: ff("600"), letterSpacing: -0.75, marginTop: 2 },
+  h: { fontSize: font.h, lineHeight: 40, fontFamily: fd("700"), letterSpacing: -1.05, marginTop: 2 },
   go: { position: "absolute", right: 0, bottom: 0, height: 36, paddingHorizontal: 12, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   sub: { marginTop: 6, fontFamily: ff(), fontSize: font.md },
   o: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, alignItems: "center", justifyContent: "center", marginTop: 2 },

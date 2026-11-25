@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
 import Animated, { Extrapolation, interpolate, interpolateColor, useAnimatedStyle, useSharedValue, withSequence, withTiming, ZoomIn, type SharedValue } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
-import { Icon, TypeArt } from "@/components/art";
+import { Icon, TypeArt, artOf, seedOf } from "@/components/art";
 import { hhmm, startOfDay } from "@/components/cal";
 import { glide, Hit, Tap, settle, EASE } from "@/components/tap";
 import { hits, type Query } from "@/lib/find";
@@ -77,8 +77,10 @@ function Over({ n }: { n: number }) {
   return n ? <Text style={[s.sup, { color: th.seal }]}>{n > 0 ? `+${n}` : `${n}`}</Text> : null;
 }
 
-export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost, tm, hl, lifted, onHold, onDelete, onSeries, onToggle, onTitle, onTime, onEnd, onOpen, drag, on }: {
+export function Row({ task, now, first, done, allDay, sub: subOver, lead, trail, ghost, tm, hl, lifted, onHold, onDelete, onSeries, onToggle, onTitle, onTime, onEnd, onOpen, drag, on }: {
   task: Task; now: number; first?: boolean; done?: boolean; allDay?: boolean; sub?: string; trail?: string; ghost?: boolean; tm?: string; hl?: Query; // hl: a search query, its matches tinted
+  /** A step number in its own column, between the box and the title (an ordered outline). */
+  lead?: string;
   /** Long-press: the row lifts (.lift) and the caller drops its menu under the row, or over it when there is no room below. */
   lifted?: boolean; onHold?: (bottom: number, top: number) => void;
   onDelete?: () => void; onSeries?: (bottom: number, top: number) => void; // swipe right: plain task deletes, series asks where the menu goes
@@ -118,7 +120,7 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
     const v = typed.current?.trim(); // a title still being typed when the row goes away is kept, as the detail screen does
     if (v && v !== live.current.task.title) live.current.onTitle(v);
   }, []);
-  const type = typeOf(task);
+  const type = typeOf(task), pal = artOf(task);
   // as the detail screen: campus lectures and exams keep their times (sync would reset the end), done and ghost rows too
   const canTime = task.start !== undefined && !allDay && !tm && !done && !ghost && (task.fixed ? task.fixed === "busy" && task.source !== "dlu" && !task.forId : true);
   const check = type === "plan" || type === "assignment";
@@ -206,16 +208,17 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
         <Hit onPress={() => { if (!done) { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {}); onToggle(); } }} hitSlop={8} testID="ck">
           <Animated.View style={[s.ck, { borderColor: late ? th.seal : th.line }, done && [{ borderWidth: 0 }, pop]]}>
             {done && <Animated.View entering={ZoomIn.duration(180).easing(EASE)}>
-              <Icon name="check" size={16} color={th.ink} w={2.4} />
-              <Animated.View style={[StyleSheet.absoluteFill, popInk]}><Icon name="check" size={16} color={th.bg} w={2.4} /></Animated.View>
+              <Icon name="check" size={18} color={th.ink} w={2} />
+              <Animated.View style={[StyleSheet.absoluteFill, popInk]}><Icon name="check" size={18} color={th.bg} w={2} /></Animated.View>
             </Animated.View>}
           </Animated.View>
         </Hit>
       ) : (
-        <View style={[s.ck, s.art, { opacity: type === "busy" ? 0.55 : 1 }, ring && { borderWidth: 2.5, borderColor: th.art[type][1], shadowColor: th.art[type][1], shadowOpacity: 0.6, shadowRadius: 8, shadowOffset: { width: 0, height: 0 }, overflow: "visible" }]}>
-          <View style={s.clip}><TypeArt type={type} w={34} h={34} seed={task.id.length} /></View>
+        <View style={[s.ck, s.art, { opacity: type === "busy" ? 0.55 : 1 }, ring && { borderWidth: 2.5, borderColor: th.art[pal].b, shadowColor: th.art[pal].b, shadowOpacity: 0.6, shadowRadius: 8, shadowOffset: { width: 0, height: 0 }, overflow: "visible" }]}>
+          <View style={s.clip}><TypeArt type={pal} w={34} h={34} seed={seedOf(task.id)} /></View>
         </View>
       )}
+      {lead !== undefined && <Text style={[s.lead, { color: th.muted }]}>{lead}</Text>}
       <Animated.View layout={glide} style={[s.tx, !first && { borderTopWidth: 1, borderTopColor: lifted ? "transparent" : th.line }]}>
         {editing ? (
           <>
@@ -275,13 +278,14 @@ export function Row({ task, now, first, done, allDay, sub: subOver, trail, ghost
 const s = StyleSheet.create({
   r: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: space.row },
   ck: { width: 34, height: 34, borderRadius: 17, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
+  lead: { width: 18, textAlign: "center", fontSize: font.sub, fontFamily: ff("400"), fontVariant: ["tabular-nums"] }, // an ordered step's number (calm.html importOrd)
   art: { borderWidth: 0 },
   clip: { width: "100%", height: "100%", borderRadius: 17, overflow: "hidden" },
   tx: { flex: 1, minWidth: 0, paddingVertical: space.row + 2, marginVertical: -space.row },
   mark: { backgroundColor: "rgba(217,67,43,0.18)" }, // as capture.tsx s.mark
   chip: { overflow: "hidden", borderWidth: 1.5, borderRadius: 9, paddingHorizontal: 8, paddingVertical: 5, marginVertical: -6.5 }, // views.html .pk.on
-  title: { fontSize: font.base, lineHeight: 23.8, fontFamily: ff("600") }, // .r line-height 1.4
-  small: { fontSize: font.sub, lineHeight: 21, fontFamily: ff("500") },
+  title: { fontSize: font.base, lineHeight: 23.8, fontFamily: ff("500") }, // .r line-height 1.4
+  small: { fontSize: font.sub, lineHeight: 21, fontFamily: ff("400") }, // ui.css .r small: regular, muted
   bleed: { marginHorizontal: -10, borderRadius: 16 },
   clipRow: { borderRadius: 16, overflow: "hidden" },
   pad10: { paddingHorizontal: 10 },
@@ -290,10 +294,10 @@ const s = StyleSheet.create({
   slt: { flex: 1 },
   dot: { width: 6, height: 6, borderRadius: 3, marginTop: 2 },
   pick: { width: 96, height: 34 },
-  tm: { fontSize: font.sub, fontFamily: ff("600"), fontVariant: ["tabular-nums"] }, // .r .tm 15/600
+  tm: { fontSize: font.sub, fontFamily: ff("500"), fontVariant: ["tabular-nums"] }, // .r .tm 15/600
   tmBox: { alignItems: "flex-end", gap: 6 }, // apart enough to tap each
   tmLine: { flexDirection: "row", alignItems: "flex-start" },
-  sup: { position: "absolute", left: "100%", top: -3, marginLeft: 1, fontSize: 10, lineHeight: 12, fontFamily: ff("700"), fontVariant: ["tabular-nums"] }, // ui.css .r .tm sup: hangs past the column, so the times stay aligned
+  sup: { position: "absolute", left: "100%", top: -3, marginLeft: 1, fontSize: 10, lineHeight: 12, fontFamily: ff("600"), fontVariant: ["tabular-nums"] }, // ui.css .r .tm sup: hangs past the column, so the times stay aligned
   tmEnd: { fontFamily: ff("400") }, // the same size as the start, regular and muted: less weight, not less size
 });
 

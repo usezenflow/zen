@@ -94,5 +94,5 @@ export function useDragDay(view: "week" | "month" | undefined, sel: number, onDr
 
 const s = StyleSheet.create({
   chip: { position: "absolute", left: 0, top: 0, maxWidth: 220, height: 40, paddingHorizontal: 16, borderRadius: 99, justifyContent: "center", boxShadow: "0 14px 30px -10px rgba(0,0,0,0.45)" },
-  t: { fontSize: font.sub, fontFamily: ff("700") },
+  t: { fontSize: font.sub, fontFamily: ff("600") },
 });

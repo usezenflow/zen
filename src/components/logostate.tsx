@@ -28,9 +28,9 @@ const s = StyleSheet.create({
   wrap: { zIndex: 40, paddingHorizontal: 24 },
   // .state: centred column, gap 6, 90px clear at the bottom
   state: { flex: 1, alignItems: "center", justifyContent: "center", gap: 6, paddingBottom: 90 },
-  h: { marginTop: 22, fontSize: 24, lineHeight: 28.8, fontFamily: ff("600"), letterSpacing: -0.6, textAlign: "center" }, // .h at 24px
-  sub: { marginTop: 6, maxWidth: 220, fontSize: 15, lineHeight: 21.75, fontFamily: ff("400"), textAlign: "center" }, // .sub, line-height 1.45
+  h: { marginTop: 26, fontSize: 26, lineHeight: 28.6, fontFamily: ff("500"), letterSpacing: -0.6, textAlign: "center" }, // logo.html .state .h: 26px, line 1.1
+  sub: { marginTop: 6, maxWidth: 230, fontSize: 15, lineHeight: 21.75, fontFamily: ff("400"), textAlign: "center" }, // .sub, line-height 1.45
   btn: { marginTop: 22, alignSelf: "stretch", height: 56, borderRadius: 99, alignItems: "center", justifyContent: "center" },
-  bt: { fontSize: 17, fontFamily: ff("700") },
-  ghost: { marginTop: 10, fontSize: 15, fontFamily: ff("600") },
+  bt: { fontSize: 17, fontFamily: ff("600") },
+  ghost: { marginTop: 10, fontSize: 15, fontFamily: ff("500") },
 });

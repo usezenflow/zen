@@ -18,7 +18,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#fbfaf7",
+        "backgroundColor": "#ffffff",
+        "backgroundImage": "./assets/images/android-icon-background.png",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
@@ -39,11 +40,11 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#fbfaf7",
+          "backgroundColor": "#ffffff",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 160,
           "dark": {
-            "backgroundColor": "#121314",
+            "backgroundColor": "#0d0d0f",
             "image": "./assets/images/splash-icon-dark.png"
           }
         }
@@ -100,7 +101,10 @@
             "./assets/fonts/BeVietnamPro-Medium.ttf",
             "./assets/fonts/BeVietnamPro-SemiBold.ttf",
             "./assets/fonts/BeVietnamPro-Bold.ttf",
-            "./assets/fonts/BeVietnamPro-ExtraBold.ttf"
+            "./assets/fonts/BeVietnamPro-ExtraBold.ttf",
+            "./assets/fonts/BricolageGrotesque_500Medium.ttf",
+            "./assets/fonts/BricolageGrotesque_700Bold.ttf",
+            "./assets/fonts/BricolageGrotesque_800ExtraBold.ttf"
           ]
         }
       ],

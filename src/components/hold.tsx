@@ -61,8 +61,8 @@ export function Hold({ state, onStart, onEnd, onAside, pinned = "", idle = "hold
     return (
       <Animated.View key={a} entering={FadeIn.duration(motion.fast)} exiting={FadeOut.duration(motion.fast)} pointerEvents="none"
         style={[s.sat, { left: HALO / 2 + x - SAT / 2, top: HALO / 2 - y - SAT / 2 }, on ? { backgroundColor: th.ink, borderColor: th.ink, transform: [{ scale: 1.18 }] } : { backgroundColor: th.bg, borderColor: th.line }]}>
-        <Icon name={icon} size={24} color={on ? th.bg : th.ink} />
-        <Text style={[s.satLabel, { color: on ? th.ink : th.muted }]}>{t(name)}</Text>
+        <Icon name={icon} size={22} color={on ? th.bg : th.ink} />
+        <Text style={[s.satLabel, { color: on ? th.ink : th.muted }]} numberOfLines={1}>{t(name)}</Text>
       </Animated.View>
     );
   };
@@ -117,10 +117,10 @@ const s = StyleSheet.create({
   // .hold: 8px bg ring, then 0 18px 30px -12px rgba(0,0,0,.35) off the 74px button (spread -20 off the 90px ring)
   halo: { width: HALO, height: HALO, borderRadius: HALO / 2, alignItems: "center", justifyContent: "center", boxShadow: "0 18px 30px -20px rgba(0,0,0,0.35)" },
   btn: { width: BTN, height: BTN, borderRadius: BTN / 2, alignItems: "center", justifyContent: "center" },
-  label: { fontSize: font.label, lineHeight: 20, fontFamily: ff("600") }, // fixed so the mic centre sits 93px up (capture.tsx MIC_Y)
+  label: { fontSize: font.label, lineHeight: 20, fontFamily: ff("500") }, // fixed so the mic centre sits 93px up (capture.tsx MIC_Y)
   // .sat in capture.html
   sat: { position: "absolute", width: SAT, height: SAT, borderRadius: SAT / 2, borderWidth: 1, alignItems: "center", justifyContent: "center", boxShadow: "0 12px 24px -14px rgba(0,0,0,0.35)" },
   trail: { position: "absolute", left: HALO / 2 - REACH, top: HALO / 2 - REACH },
   finger: { position: "absolute", left: HALO / 2 - FINGER / 2, top: HALO / 2 - FINGER / 2, width: FINGER, height: FINGER, borderRadius: FINGER / 2, backgroundColor: "rgba(127,127,127,0.22)", borderWidth: 1.5, borderColor: "rgba(127,127,127,0.45)" },
-  satLabel: { position: "absolute", top: 62, left: (SAT - 80) / 2, width: 80, textAlign: "center", fontSize: 13, fontFamily: ff("600") },
+  satLabel: { position: "absolute", top: 62, left: (SAT - 80) / 2, width: 80, textAlign: "center", fontSize: 13, fontFamily: ff("500") },
 });

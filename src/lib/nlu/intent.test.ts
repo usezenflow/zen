@@ -297,7 +297,7 @@ describe("which sessions, no name, new verbs (plan steps 7–10)", () => {
     expect(commandOf("xong gym T4", T, weekly)).toMatchObject({ kind: "one", actions: [{ op: "done", target: "g11" }] });
   });
   it("a scope with nothing in it says so", () => {
-    expect(commandOf("xoá giặt đồ tuần sau", T, tasks)).toMatchObject({ kind: "choose", ask: "Không thấy giặt đồ tuần sau", options: [] });
+    expect(commandOf("xoá giặt đồ tuần sau", T, tasks)).toMatchObject({ kind: "choose", ask: "Mình không thấy giặt đồ tuần sau", options: [] });
   });
   it("a pick teaches its words; an undo makes them ask", () => {
     expect(commandOf("huỷ gym", T, tasks)?.kind).toBe("choose");

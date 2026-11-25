@@ -5,9 +5,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import Animated from "react-native-reanimated";
 import { fadeIn, Tap } from "@/components/tap";
-import { Icon, TypeArt } from "@/components/art";
+import { Icon } from "@/components/art";
 import { repeatText } from "@/components/detail-html";
-import { EdLine, Gly, Meta } from "@/components/detail-meta";
+import { EdLine, Gly, Meta, State } from "@/components/detail-meta";
 import { hhmm } from "@/components/cal";
 import { DateChip, TimeChip } from "@/components/pick";
 import { SittingList } from "@/components/sittings";
@@ -24,8 +24,8 @@ import { t } from "@/lib/i18n";
 import { leftSaved, openedOnDay, setFlash } from "@/lib/flash";
 import { allTasks, loadModel } from "@/lib/store";
 import { KIND_VI, reasonText, sayable } from "@/lib/reasons";
-import { useTheme, type TypeName, font, space, ff } from "@/lib/theme";
-import { grounded, typeOf } from "@/planner";
+import { useTheme, font, space, ff, fd } from "@/lib/theme";
+import { grounded } from "@/planner";
 import type { Placed } from "@/planner/model";
 import { clause, findingsFor, mine as mineFindings, type Finding } from "@/planner/mine";
 import type { Kind, Rule, Task } from "@/lib/types";
@@ -182,7 +182,6 @@ export default function Detail() {
     return [slot, len].filter((f): f is Finding => !!f).map((f) => ({ text: clause(f), n: Math.round(f.n) }));
   }, [finds, plc, task]);
   if (!task) return <SafeAreaView style={{ flex: 1, backgroundColor: th.bg }} />;
-  const type: TypeName = typeOf(task);
   // A split task's time line is its next open sitting's, and edits that sitting; a task with no time yet (no free slot) can be given one by hand.
   const split = !task.parentId && sits.length > 0;
   const tt = split ? sits.find((k) => !k.doneAt) : task;
@@ -260,7 +259,7 @@ export default function Detail() {
       <DateChip value={dl} onChange={(d) => setDue(dayOf(dl, d))} onClose={settle} />
       <TimeChip value={dl} due onChange={(d) => setDue(clock(dl, d))} onClose={settle} />
       <Tap onPress={clearDue} accessibilityLabel={t("clearDue")} style={s.clr}>
-        <Text style={{ fontFamily: ff("600"), fontSize: font.sub, color: th.muted }}>{t("clearDue")}</Text>
+        <Text style={{ fontFamily: ff("500"), fontSize: font.sub, color: th.muted }}>{t("clearDue")}</Text>
       </Tap>
     </EdLine>
   );
@@ -270,9 +269,10 @@ export default function Detail() {
     if (ed === "time" && canTime) lines.push(timeLine);
     else lines.push(<Meta key="t" icon="clock" onPress={canTime ? openTime : undefined} text={task.end !== undefined && task.fixed !== "exam" ? t("toEnd", { t: at(task.start), e: startDay(task.end - 1) === startDay(task.start) ? hm(task.end) : at(task.end) }) : at(task.start)} />);
   } else {
-    if (task.deadline !== undefined && task.source === "dlu" && !task.forId) lines.push(<Meta key="d" icon="hourglass" tone="red" text={t("dueAt", { t: at(task.deadline) })} />);
+    const late = task.deadline !== undefined && task.deadline < now ? "red" : undefined; // a due time is muted; red only once missed
+    if (task.deadline !== undefined && task.source === "dlu" && !task.forId) lines.push(<Meta key="d" icon="hourglass" tone={late} text={t("dueAt", { t: at(task.deadline) })} />);
     if (mine && ed === "due" && dueLine) lines.push(dueLine);
-    else if (hasDue) lines.push(<Meta key="d" icon="hourglass" tone="red" text={t("dueAt", { t: at(task.deadline!) })} onPress={openDue} />);
+    else if (hasDue) lines.push(<Meta key="d" icon="hourglass" tone={late} text={t("dueAt", { t: at(task.deadline!) })} onPress={openDue} />);
     // The time is always shown: a split task's next open sitting (its sittings listed under "Các buổi"), else "no free slot" (views.html "Detail, no free time").
     if (ed === "time" && canTime) lines.push(timeLine);
     else if (tt?.start !== undefined) lines.push(<Meta key="t" icon="clock" text={tt.rrule ? span : t("planAt", { t: span })} onPress={canTime ? openTime : undefined} />);
@@ -290,7 +290,7 @@ export default function Detail() {
   );
   else if (task.location && task.fixed && !mine) lines.push(<Meta key="l" icon="pin" text={task.location} />);
   if (task.fixed === "lecture" && task.teacher) lines.push(<Meta key="g" icon="person" text={t("teacherIs", { n: task.teacher })} />);
-  if (task.course && !exam) lines.push(<Meta key="c" icon="book" text={task.course} />);
+  if (task.course && !exam) lines.push(<Meta key="c" icon="book" tone="link" text={task.course} />); // .dmeta: ink, with the chevron
   if (exam) lines.push(<Meta key="e" icon="book" tone="link" text={exam.title} onPress={() => router.push(`/task/${exam.id}`)} />);
   const before = task.after?.[0] ? pool.find((y) => y.id === task.after![0] && !y.deletedAt) : undefined; // an order: this waits for that
   if (before) lines.push(<Meta key="a" icon="clock" tone="link" text={`Sau: ${before.title}`} onPress={() => router.push(`/task/${before.id}`)} />);
@@ -370,12 +370,11 @@ export default function Detail() {
             </View>
           </View>
           <View style={s.who}>
-            <View style={s.sw}><TypeArt type={type} w={40} h={40} seed={7} /></View>
             {mine && !task.fixed ? (
-              <DropMenu chevron label={t("youKind", { k: kindLabel(task.kind) })} color={th.muted} size={font.md} icon={<View style={s.kd}><Text style={[s.sub, { color: th.muted }]}>{t("youKind", { k: kindLabel(task.kind) })}</Text><Icon name="down" size={14} color={th.muted} /></View>}
+              <DropMenu chevron label={t("youKind", { k: kindLabel(task.kind) })} color={th.info} size={font.sub} icon={<State tone="info" text={t("youKind", { k: kindLabel(task.kind) })} after={<Icon name="down" size={18} color={th.info} />} />}
                 items={KINDS.map((k) => ({ label: kindLabel(k), icon: k, onPress: () => void apply([{ op: "edit", target: task.id, kind: k }]).then(load).catch(() => {}) }))} />
             ) : (
-              <Text style={[s.sub, { color: th.muted }]}>{task.source === "dlu" && !task.forId ? (task.fixed ? t("fromCampus") : t("fromLms")) : mine && task.fixed === "busy" ? t("youKind", { k: t("fixedTime") }) : t("fromYou")}</Text>
+              <State tone="info" text={task.source === "dlu" && !task.forId ? (task.fixed ? t("fromCampus") : t("fromLms")) : mine && task.fixed === "busy" ? t("youKind", { k: t("fixedTime") }) : t("fromYou")} />
             )}
           </View>
           <Field value={title} rev={rev} onText={typeTitle} selectionColor={th.seal} cursorColor={th.seal} onEndEditing={submitTitle} returnKeyType="done" submitBehavior="blurAndSubmit" multiline style={[s.h, { color: th.ink }]} />
@@ -387,41 +386,45 @@ export default function Detail() {
           {told && (
               <View style={{ marginTop: 6 }}>
                 {told.r.clashes?.map((c) => (
-                  <View key={c.fixed.id} style={[s.warn, { borderColor: th.seal }]}>
-                    <Text style={[s.wht, { color: th.seal }]}>{t("clash")}</Text>
+                  <View key={c.fixed.id} style={[s.warn, { borderColor: th.warn }]}>
+                    <Text style={[s.wht, { color: th.warnInk }]}>{t("clash")}</Text>
                     <Text style={[s.wb, { color: th.muted }]}>{t("clashHere", { a: c.fixed.title })}</Text>
                     <View style={[s.pills, { marginTop: 12 }]}>
-                      <Tap onPress={() => giveBack(c.mine.id)} style={[s.pill2, { backgroundColor: th.ink }]}><Text numberOfLines={1} style={[s.plt, { color: th.bg, fontFamily: ff("700") }]}>{t("overlapMine")}</Text></Tap>
+                      <Tap onPress={() => giveBack(c.mine.id)} style={[s.pill2, { backgroundColor: th.ink }]}><Text numberOfLines={1} style={[s.plt, { color: th.bg, fontFamily: ff("600") }]}>{t("overlapMine")}</Text></Tap>
                       <Tap onPress={() => keep(c)} style={[s.pill2, { borderColor: th.line, borderWidth: 1 }]}><Text numberOfLines={1} style={[s.plt, { color: th.ink }]}>{t("overlapKeep")}</Text></Tap>
                     </View>
                   </View>
                 ))}
-                {told.r.lost?.map((x) => <Text key={x.id} style={[s.wb, { color: th.seal, marginTop: 12 }]}>{bolded(t("lostSlot", { title: x.title }))}</Text>)}
+                {told.r.lost?.map((x) => <Text key={x.id} style={[s.wb, { color: th.warnInk, marginTop: 12 }]}>{bolded(t("lostSlot", { title: x.title }))}</Text>)}
                 {toldMoves.length > 0 && <Story moves={toldMoves} now={now} onClose={seeTold} onUndo={undoTold} />}
               </View>
           )}
           {/* prep.html "Các buổi": every open, non-fixed, non-repeating task can take sittings; each open one has its own day, part and length. */}
           {(canSplit || sits.length > 1) && (
-            <View style={s.why}>
-              {sits.length > 1 && <Text style={[s.lab, { color: th.muted }]}>{t("sittings")}</Text>}
-              <View style={{ marginTop: sits.length > 1 ? 6 : 0 }}>
+            <View style={s.sit}>
+              <View>
                 <SittingList sits={sits} me={me} canDrop={open.length >= 2} canAdd={canSplit}
                   onTime={setTime} onDrop={dropOne} onAdd={addOne} onSettle={settle} />
               </View>
             </View>
           )}
-          {still && sits.length < 2 && <Tap onPress={addMore} accessibilityRole="button" accessibilityLabel={t("stillMore")} style={s.more}><Text style={[s.moreT, { color: th.ink }]}>{t("stillMore")}</Text></Tap>}
-          {prepId && <Tap onPress={skipPrepNow} accessibilityRole="button" accessibilityLabel={t("prepSkip")} style={s.more}><Text style={[s.moreT, { color: th.muted }]}>{t("prepSkip")}</Text></Tap>}
+          {((still && sits.length < 2) || prepId) && (
+            <View style={s.qbs}>
+              {still && sits.length < 2 && <Tap onPress={addMore} accessibilityRole="button" accessibilityLabel={t("stillMore")} style={s.qb}><Icon name="plus" size={18} color={th.ink} /><Text style={[s.qbT, { color: th.ink }]}>{t("stillMore")}</Text></Tap>}
+              {prepId && <Tap onPress={skipPrepNow} accessibilityRole="button" accessibilityLabel={t("prepSkip")} style={s.qb}><Icon name="skip" size={18} color={th.ink} /><Text style={[s.qbT, { color: th.ink }]}>{t("prepSkip")}</Text></Tap>}
+            </View>
+          )}
+          {/* the undo note: green-tinted, its Hoàn tác a readable pill (v2.css .undorow) */}
           {added && (
-            <View style={s.addRow}>
-              <Text style={[s.sp, { color: th.muted }]}>{added.toast}</Text>
-              <Tap onPress={undoMore} accessibilityRole="button" accessibilityLabel={t("undo")} style={s.more}><Text style={[s.moreT, { color: th.ink }]}>{t("undo")}</Text></Tap>
+            <View style={[s.undo, { backgroundColor: th.okT }]}>
+              <Text style={[s.undoT, { color: th.ink }]}>{added.toast}</Text>
+              <Tap onPress={undoMore} accessibilityRole="button" accessibilityLabel={t("undo")} style={[s.qb, { borderWidth: 0, backgroundColor: th.bg, flex: 0 }]}><Icon name="undo" size={18} color={th.ok} /><Text style={[s.qbT, { color: th.ok }]}>{t("undo")}</Text></Tap>
             </View>
           )}
           {!!task.content?.trim() && <Lms html={task.content} />}
           {(!!why?.length || notes.length > 0) && <WhyBlock items={why ?? []} notes={notes} alt={alt} start={task.start} now={now} onMove={moveTo} />}
           <Field value={note} rev={rev} onText={typing} selectionColor={th.seal} cursorColor={th.seal} onBlur={() => void saveNote()} multiline scrollEnabled={false} placeholder={t("addNote")} placeholderTextColor={th.muted}
-            style={[s.note, { color: th.ink, backgroundColor: th.chip }]} />
+            style={[s.note, { color: th.ink, borderColor: th.line }]} />
         </Animated.View>
       </ScrollView>
       </KeyboardAvoidingView>
@@ -440,40 +443,51 @@ const Lms = memo(function Lms({ html }: { html: string }) {
   );
 });
 
+/** .lab with its glyph: a quiet 300-weight tracked label, the icon in front. */
+function Eyebrow({ icon, text }: { icon: "target" | "clock"; text: string }) {
+  const th = useTheme();
+  return (
+    <View style={s.eye}>
+      <Icon name={icon} size={18} color={th.muted} w={2} />
+      <Text style={[s.lab, { color: th.muted }]}>{text}</Text>
+    </View>
+  );
+}
+
 /** "Vì sao lúc này" with weight bars, and the one other good time. */
 const WhyBlock = memo(function WhyBlock({ items, notes, alt, start, now, onMove }: { items: ReturnType<typeof grounded>; notes: { text: string; n: number }[]; alt?: number; start?: number; now: number; onMove: (ts: number) => void }) {
   const th = useTheme();
   return (
-    <View style={s.why}>
-      <Text style={[s.lab, { color: th.muted }]}>{t("whyNow")}</Text>
-      {items.map((x, i) => (
-        <View key={i} style={s.wr}>
-          <Text style={[s.wt, { color: th.ink }]}>{reasonText(x, true)}</Text>
-          <View style={[s.bar2, { backgroundColor: th.line }]}><View style={{ width: `${Math.min(1, Math.abs(x.w)) * 100}%`, height: 4, borderRadius: 4, backgroundColor: x.w < 0 ? th.seal : th.ink }} /></View>
-        </View>
-      ))}
-      {/* every finding with its basis, shown as is: nothing folded away */}
-      {notes.map((x) => (
-        <View key={x.text} style={s.wr}>
-          <Text style={[s.wt, { color: th.ink }]}>{x.text}</Text>
-        </View>
-      ))}
-      {start !== undefined && (
-        <Tap onPress={() => router.navigate({ pathname: "/", params: { view: "rhythm", h: String(new Date(start).getHours()), at: String(Date.now()) } })} accessibilityRole="link" style={{ marginTop: 10 }}>
-          <Text style={{ fontSize: font.sub, fontFamily: ff("600"), color: th.muted }}>{t("seeRhythm")}</Text>
-        </Tap>
-      )}
-      {alt !== undefined && (
-        <>
-          <Text style={[s.lab, { color: th.muted, marginTop: 14 }]}>{t("alsoFits")}</Text>
-          <View style={s.pills}>
-            <Tap onPress={() => onMove(alt)} accessibilityLabel={`${t("alsoFits")} ${when(alt, now).split(" ").pop()}`} style={[s.pill, { borderColor: th.line }]}>
-              <Text style={{ fontSize: font.sub, fontFamily: ff("500"), color: th.ink }}>{when(alt, now).split(" ").pop()}</Text>
-            </Tap>
+    <>
+      <View style={[s.whyb, { borderColor: th.line }]}>
+        <Eyebrow icon="target" text={t("whyNow")} />
+        {items.map((x, i) => (
+          <View key={i} style={s.wr}>
+            <Text style={[s.wt, { color: th.ink }]}>{reasonText(x, true)}</Text>
+            <View style={[s.bar2, { backgroundColor: th.line }]}><View style={{ width: `${Math.min(1, Math.abs(x.w)) * 100}%`, height: 6, borderRadius: 6, backgroundColor: x.w < 0 ? th.warn : th.ink }} /></View>
           </View>
-        </>
+        ))}
+        {/* every finding with its basis, shown as is: nothing folded away */}
+        {notes.map((x) => (
+          <View key={x.text} style={s.wr}>
+            <Text style={[s.wt, { color: th.ink }]}>{x.text}</Text>
+          </View>
+        ))}
+        {start !== undefined && (
+          <Tap onPress={() => router.navigate({ pathname: "/", params: { view: "rhythm", h: String(new Date(start).getHours()), at: String(Date.now()) } })} accessibilityRole="link" style={{ marginTop: 8, alignSelf: "flex-start" }}>
+            <Text style={{ fontSize: font.sub, lineHeight: 22, fontFamily: ff("500"), color: th.muted }}>{t("seeRhythm")}</Text>
+          </Tap>
+        )}
+      </View>
+      {alt !== undefined && (
+        <View style={s.also}>
+          <Eyebrow icon="clock" text={t("alsoFits")} />
+          <Tap onPress={() => onMove(alt)} accessibilityLabel={`${t("alsoFits")} ${when(alt, now).split(" ").pop()}`} style={[s.qb, { borderColor: th.line }]}>
+            <Text style={[s.qbT, { color: th.ink }]}>{when(alt, now).split(" ").pop()}</Text>
+          </Tap>
+        </View>
       )}
-    </View>
+    </>
   );
 });
 
@@ -482,37 +496,37 @@ const s = StyleSheet.create({
   o: { width: 48, height: 48, borderRadius: 24, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   acts: { flexDirection: "row", gap: 8 },
   loc: { flex: 1, fontFamily: ff("500"), fontSize: font.meta, lineHeight: 22, minHeight: 48, padding: 0, textAlignVertical: "center" },
-  who: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 14 },
-  sw: { width: 34, height: 34, borderRadius: 17, overflow: "hidden" },
-  sub: { fontFamily: ff(), fontSize: font.md },
-  h: { marginTop: 8, fontSize: 32, lineHeight: 37, minHeight: 48, fontFamily: ff("600"), letterSpacing: -0.75, padding: 0 },
-  hint: { marginTop: 4, fontFamily: ff("600"), fontSize: font.sub },
-  meta: { marginTop: 16, gap: 10 },
-  kd: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 44 },
+  who: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 14, flexWrap: "wrap" }, // .dtop chips row
+  h: { marginTop: 12, fontSize: font.h, lineHeight: 40, minHeight: 40, maxHeight: 120, overflow: "hidden", fontFamily: fd("700"), letterSpacing: -1.05, padding: 0 }, // .dtitle: 30 on 40, at most three lines
+  hint: { marginTop: 4, fontFamily: ff("500"), fontSize: font.sub },
+  meta: { marginTop: 12, gap: 4 }, // .dmeta: 28pt lines, 4 apart
   lms: { marginTop: 12, paddingVertical: 14, paddingHorizontal: 16, borderWidth: 1, borderRadius: 16 },
-  lab: { fontSize: font.label, fontFamily: ff("500") },
-  why: { marginTop: 14 },
-  add: { marginTop: 6, height: 44, borderRadius: 24, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
-  more: { alignSelf: "flex-start", minHeight: 48, justifyContent: "center", paddingHorizontal: 4 }, // magic.html .tbtn: an in-place text button, 48 tall
-  moreT: { fontSize: font.sub, fontFamily: ff("600"), textDecorationLine: "underline" },
-  addRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" },
-  sp: { flex: 1, fontSize: font.sub, fontFamily: ff("500") },
-  quick: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 12 },
-  quickIn: { flex: 1, minWidth: 0, height: 44, borderRadius: 22, paddingHorizontal: 16, fontSize: font.sub },
-  quickMic: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
-  wr: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 6 },
-  wt: { flex: 1, fontFamily: ff("500"), fontSize: font.meta, lineHeight: 21.6 },
-  bar2: { width: 46, height: 4, borderRadius: 4, overflow: "hidden" },
+  lab: { fontSize: 13, lineHeight: 18, fontFamily: ff("300"), letterSpacing: 0.9 }, // .lab: a quiet tracked eyebrow
+  eye: { flexDirection: "row", alignItems: "center", gap: 6 }, // .lab with its glyph
+  sit: { marginTop: 18 }, // .sit: the sittings line under the meta
+  qbs: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }, // .qb pills in a row
+  qb: { height: 42, paddingHorizontal: 16, borderRadius: 99, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }, // .qb: hairline pill
+  qbT: { fontSize: 15, lineHeight: 20, fontFamily: ff("500") },
+  undo: { marginTop: 12, flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, paddingLeft: 16, paddingRight: 8, borderRadius: 20 }, // .undorow
+  undoT: { flex: 1, minWidth: 0, fontSize: 15, lineHeight: 21, fontFamily: ff("500") },
+  whyb: { marginTop: 20, paddingVertical: 16, paddingHorizontal: 18, borderRadius: 24, borderWidth: 1 }, // .whyb: a hairline card
+  also: { marginTop: 14, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 }, // .also: label and times in one row
+  quick: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 14 }, // .qbar
+  quickIn: { flex: 1, minWidth: 0, height: 46, borderRadius: 23, borderWidth: 1, paddingHorizontal: 18, fontSize: font.sub, lineHeight: 22 },
+  quickMic: { width: 46, height: 46, borderRadius: 23, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  wr: { marginTop: 6 },
+  wt: { fontFamily: ff(), fontSize: font.meta, lineHeight: 22.4 }, // one regular sentence
+  bar2: { marginTop: 10, height: 6, borderRadius: 6, overflow: "hidden" }, // .whyb .bar: thin
   pills: { flexDirection: "row", gap: 8, marginTop: 10 },
   warn: { marginTop: 16, padding: 14, paddingHorizontal: 16, borderRadius: 22, borderWidth: 1.5 }, // day.tsx .warn
-  wht: { fontSize: font.meta, fontFamily: ff("700") },
+  wht: { fontSize: font.meta, fontFamily: ff("600") },
   wb: { marginTop: 4, fontFamily: ff(), fontSize: font.sub, lineHeight: 22 },
   pill2: { height: 48, paddingHorizontal: 16, borderRadius: 99, alignItems: "center", justifyContent: "center", flexShrink: 1, minWidth: 0 },
   plt: { fontSize: font.sub, fontFamily: ff("500") },
   pill: { height: 48, paddingHorizontal: 16, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   clr: { marginLeft: "auto", minHeight: 44, justifyContent: "center" },
   dash: { fontSize: font.sub, fontFamily: ff("500") },
-  note: { marginTop: 12, fontFamily: ff(), fontSize: 18, lineHeight: 27, minHeight: 120, textAlignVertical: "top", paddingVertical: 14, paddingHorizontal: 16, borderRadius: 18 },
+  note: { marginTop: 14, fontFamily: ff(), fontSize: font.base, lineHeight: 24, minHeight: 96, textAlignVertical: "top", paddingVertical: 16, paddingHorizontal: 18, borderRadius: 22, borderWidth: 1 }, // .notebox: hairline, not filled
 });
 
 /** The one-line "Sửa nhanh" field under the title: typed, or said (tap the mic to listen, tap again to finish). */
@@ -541,8 +555,8 @@ function QuickBar({ onSay, onMsg }: { onSay(text: string): unknown; onMsg(msg: s
   return (
     <View style={s.quick}>
       <TextInput value={v} onChangeText={setV} onSubmitEditing={submit} returnKeyType="done" placeholder={t("quickPh")} placeholderTextColor={th.muted}
-        accessibilityLabel={t("quickPh")} style={[s.quickIn, { color: th.ink, backgroundColor: th.chip, fontFamily: ff("500") }]} />
-      <Tap onPress={mic} accessibilityRole="button" accessibilityLabel={on ? t("quickMicStop") : t("quickMic")} style={[s.quickMic, { backgroundColor: on ? th.seal : th.chip }]}>
+        accessibilityLabel={t("quickPh")} style={[s.quickIn, { color: th.ink, borderColor: th.line, backgroundColor: th.bg, fontFamily: ff("500") }]} />
+      <Tap onPress={mic} accessibilityRole="button" accessibilityLabel={on ? t("quickMicStop") : t("quickMic")} style={[s.quickMic, { backgroundColor: on ? th.seal : th.bg, borderColor: on ? th.seal : th.line }]}>
         <Icon name="mic" size={20} color={on ? th.bg : th.ink} />
       </Tap>
     </View>

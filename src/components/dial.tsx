@@ -216,7 +216,7 @@ function Month({ value, min, past, parts, onPick }: { value: Date; min?: Date; p
           return (
             <Pressable key={i} disabled={off} onPress={() => onPick(d)} style={s.dc} accessibilityLabel={`${d.getDate()}/${d.getMonth() + 1}`} accessibilityState={{ disabled: off, selected: on }}>
               <View style={[s.dot, on && { backgroundColor: th.seal }]}>
-                <Text style={[s.dn, { color: on ? "#fff" : out || off ? th.muted : ts === today ? th.seal : th.ink }, (out || off) && { opacity: 0.5 }, (on || ts === today) && { fontFamily: ff("600") }]}>{d.getDate()}</Text>
+                <Text style={[s.dn, { color: on ? "#fff" : out || off ? th.muted : ts === today ? th.seal : th.ink }, (out || off) && { opacity: 0.5 }, (on || ts === today) && { fontFamily: ff("500") }]}>{d.getDate()}</Text>
               </View>
             </Pressable>
           );
@@ -243,17 +243,17 @@ const s = StyleSheet.create({
   pad: { paddingHorizontal: PADX, paddingVertical: PADY },
   head: { height: HEAD, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 2 },
   seg: { height: 40, paddingHorizontal: 8, borderRadius: 10, justifyContent: "center" },
-  rd: { fontSize: 32, fontFamily: ff("600"), fontVariant: ["tabular-nums"] },
+  rd: { fontSize: 32, fontFamily: ff("500"), fontVariant: ["tabular-nums"] },
   face: { width: FACE, height: FACE, alignSelf: "center" },
   stop: { position: "absolute", width: 40, height: 40 },
   cal: { paddingTop: 14, paddingHorizontal: 12, paddingBottom: 10 },
   mh: { height: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 4 },
-  mt: { fontSize: 17, fontFamily: ff("600") },
+  mt: { fontSize: 17, fontFamily: ff("500") },
   arrows: { flexDirection: "row", gap: 4 },
-  arrow: { fontSize: 28, lineHeight: 30, fontFamily: ff("600") },
+  arrow: { fontSize: 28, lineHeight: 30, fontFamily: ff("500") },
   arrowB: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   gr: { flexDirection: "row", flexWrap: "wrap" },
-  wd: { width: "14.2857%", height: 22, textAlign: "center", fontSize: 13, fontFamily: ff("600") },
+  wd: { width: "14.2857%", height: 22, textAlign: "center", fontSize: 13, fontFamily: ff("500") },
   dc: { width: "14.2857%", height: CELL, alignItems: "center", justifyContent: "center" },
   dot: { width: CELL, height: CELL, borderRadius: CELL / 2, alignItems: "center", justifyContent: "center" },
   dn: { fontSize: 17, fontFamily: ff("500"), fontVariant: ["tabular-nums"] },
@@ -262,5 +262,5 @@ const s = StyleSheet.create({
   dpill: { width: (TW - 2 * PADX - GAP) / 2, paddingHorizontal: 0 }, // two to a line, the time centred
   cpill: { flex: 1, minWidth: 0, paddingHorizontal: 4 },
   pill: { height: PILL, paddingHorizontal: 10, borderRadius: 99, alignItems: "center", justifyContent: "center" },
-  pt: { fontSize: 16, fontFamily: ff("600"), fontVariant: ["tabular-nums"] },
+  pt: { fontSize: 16, fontFamily: ff("500"), fontVariant: ["tabular-nums"] },
 });

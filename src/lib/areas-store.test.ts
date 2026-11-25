@@ -28,6 +28,27 @@ describe("areas", () => {
     kv.set("areas", JSON.stringify([{ id: 3 }]));
     expect(await loadAreas()).toEqual(DEFAULT_AREAS);
   });
+
+  it("drops only the bad item and keeps the rest", async () => {
+    const good = { id: "custom-1", name: "Side", kinds: [], words: ["app"] };
+    kv.set("areas", JSON.stringify([{ id: 3 }, good, "junk", null]));
+    expect(await loadAreas()).toEqual([good]);
+  });
+
+  it("drops unknown kinds and non-string words, keeping the valid ones", async () => {
+    kv.set("areas", JSON.stringify([{ id: "a", name: "A", kinds: ["work", "bogus", 7], words: ["gym", 5, null, "chạy"] }]));
+    expect(await loadAreas()).toEqual([{ id: "a", name: "A", kinds: ["work"], words: ["gym", "chạy"] }]);
+  });
+
+  it("clamps a stored target into 0..100 and drops a non-number one", async () => {
+    kv.set("areas", JSON.stringify([
+      { id: "a", name: "A", kinds: [], words: [], targetPct: 180 },
+      { id: "b", name: "B", kinds: [], words: [], targetPct: "25" },
+    ]));
+    const [a, b] = await loadAreas();
+    expect(a.targetPct).toBe(100);
+    expect(b.targetPct).toBeUndefined();
+  });
 });
 
 describe("zen modes", () => {

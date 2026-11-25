@@ -10,14 +10,14 @@ const exam = (over: Partial<Task> = {}): Task => ({
 describe("preps", () => {
   it("titles the prep with the course's short name and the format; the whole course stays in course", () => {
     for (const [format, title] of [
-      ["Báo cáo(TL)", "Ôn Toán: viết báo cáo"], ["Báo cáo TTTT,TL", "Ôn Toán: viết báo cáo"], ["Tiểu luận", "Ôn Toán: viết tiểu luận"], ["Thực hành", "Ôn Toán: luyện thực hành"], ["Thi máy", "Ôn Toán: luyện thực hành"],
-      ["Vấn đáp", "Ôn Toán: luyện vấn đáp"], ["Tự luận", "Ôn Toán: luyện đề"], ["Trắc nghiệm", "Ôn Toán: ôn thi"], [undefined, "Ôn Toán: ôn thi"],
+      ["Báo cáo(TL)", "Viết báo cáo Toán"], ["Báo cáo TTTT,TL", "Viết báo cáo Toán"], ["Tiểu luận", "Viết tiểu luận Toán"], ["Thực hành", "Luyện thực hành Toán"], ["Thi máy", "Luyện thực hành Toán"],
+      ["Vấn đáp", "Luyện vấn đáp Toán"], ["Tự luận", "Luyện đề Toán"], ["Trắc nghiệm", "Ôn thi Toán"], [undefined, "Ôn thi Toán"],
     ] as const) {
       expect(preps(exam({ format }))[0]).toMatchObject({ title, course: "Toán", source: "user", forId: "dlu:e", deadline: 1e12, maxSitting: 60 });
     }
   });
   it("names the course from the exam's title past its exam words, and keeps the prep id", () => {
-    expect(preps(exam({ title: "Thi Giải tích 2", format: "Tự luận" }))[0]).toMatchObject({ id: "prep:dlu:e", title: "Ôn Giải tích 2: luyện đề", course: "Thi Giải tích 2" });
+    expect(preps(exam({ title: "Thi Giải tích 2", format: "Tự luận" }))[0]).toMatchObject({ id: "prep:dlu:e", title: "Luyện đề GT2", course: "Thi Giải tích 2" });
   });
   it("with no course name the title is the format's own", () => {
     expect(preps(exam({ title: "", format: "Tự luận" }))[0].title).toBe("Ôn lý thuyết, luyện đề");

@@ -129,7 +129,7 @@ describe("materialize", () => {
     expect(old).toMatchObject({ location: "A1" });
     const r = materialize([{ ...lecture(), location: "B2" }] as Fetched, [old], NOW);
     expect(r.upserts[0].location).toBe("B2");
-    expect(digestNotices(r.digest, NOW).map((n) => ({ ...n, title: plainText(n.title) }))).toEqual([{ title: "Đổi phòng: Môn mẫu", sub: "Sang B2", route: `/task/${old.id}` }]);
+    expect(digestNotices(r.digest, NOW).map((n) => ({ ...n, title: plainText(n.title) }))).toEqual([{ title: "Phòng học đổi: Môn mẫu", sub: "Chuyển sang B2", route: `/task/${old.id}` }]);
     expect(materialize([{ ...lecture(), location: "B2" }] as Fetched, [{ ...old, userEdited: ["location"] }], NOW).upserts).toEqual([]); // the user's room stays
   });
 
@@ -161,8 +161,8 @@ describe("materialize", () => {
     const { digest } = materialize([exam, assign()] as Fetched, [], NOW);
     expect([digest.exams.length, digest.assignments.length]).toEqual([1, 1]);
     const [ne, na] = digestNotices(digest, NOW);
-    expect({ ...ne, title: plainText(ne.title) }).toMatchObject({ title: "Thêm lịch thi: Môn mẫu", route: `/task/${digest.exams[0].id}` });
-    expect({ ...na, title: plainText(na.title) }).toMatchObject({ title: "Bài tập mới: Bài tập", sub: expect.stringMatching(/^Hạn T/) });
+    expect({ ...ne, title: plainText(ne.title) }).toMatchObject({ title: "Có lịch thi: Môn mẫu", route: `/task/${digest.exams[0].id}` });
+    expect({ ...na, title: plainText(na.title) }).toMatchObject({ title: "Có bài tập mới: Bài tập", sub: expect.stringMatching(/^Hạn T/) });
   });
 
   it("groups three or more item changes into one notice", () => {
@@ -175,7 +175,7 @@ describe("materialize", () => {
   it("announces a new timetable with its size and first lecture, and changed marks", () => {
     const ls = [0, 1, 2].map((i) => lecture(`portal:lecture:S1:2026-09-0${i + 3}:1`, NOW + (i + 1) * D));
     const { digest } = materialize(ls as Fetched, [], NOW);
-    expect(digestNotices(digest, NOW)).toEqual([{ title: "Thời khoá biểu học kỳ 1 đã có", sub: "3 tiết, đã xếp vào tuần", route: `day:${NOW + D}` }]);
+    expect(digestNotices(digest, NOW)).toEqual([{ title: "Thời khoá biểu học kỳ 1 đã có", sub: "3 tiết, mình đã xếp vào tuần", route: `day:${NOW + D}` }]);
     const m = (score10: number | null) => ({ marks: [{ scheduleStudyUnitId: "u", curriculumName: "Giải tích", score10 }] }) as never;
     expect(marksNotice(m(null), m(8.6))).toEqual({ title: "Điểm vừa cập nhật", sub: "Giải tích: 8,6", route: "/marks" });
     expect(marksNotice(m(8.6), m(8.6))).toEqual({ title: "Điểm vừa cập nhật", route: "/marks" });
@@ -193,7 +193,7 @@ describe("materialize", () => {
     it("adds one prep with a new exam, sized by the marks multiplier of its course", () => {
       const { upserts } = materialize([exam()] as Fetched, [], NOW, (title) => (title === exam().title ? 1.6 : 1));
       const prep = upserts.find((t) => t.id.startsWith("prep:"))!;
-      expect(prep).toMatchObject({ id: "prep:dlu:portal:exam:9", title: "Ôn Môn mẫu: ôn thi", course: exam().title, effort: 300, maxSitting: 60, deadline: NOW + 5 * D });
+      expect(prep).toMatchObject({ id: "prep:dlu:portal:exam:9", title: "Ôn thi Môn mẫu", course: exam().title, effort: 300, maxSitting: 60, deadline: NOW + 5 * D });
     });
     it("adds the prep for an exam stored before preps existed", () => {
       const { upserts } = materialize([exam()] as Fetched, [stored(exam())], NOW);
@@ -216,7 +216,7 @@ describe("materialize", () => {
     });
     it("adds a writing prep for a report exam", () => {
       const { upserts } = materialize([exam(NOW + 5 * D, { examFormat: "Báo cáo(TL)" })] as Fetched, [], NOW);
-      expect(upserts.filter((t) => t.id.startsWith("prep:"))).toMatchObject([{ title: "Ôn Môn mẫu: viết báo cáo", effort: 270 }]);
+      expect(upserts.filter((t) => t.id.startsWith("prep:"))).toMatchObject([{ title: "Viết báo cáo Môn mẫu", effort: 270 }]);
     });
     it("renames a prep made under the old title and its open sittings, but not one the student renamed", () => {
       const [ex, prep] = withPrep();
@@ -283,7 +283,7 @@ describe("changes that now get a notice", () => {
   it("says an open assignment whose due date changed, and not a done one", () => {
     const old = stored(assign());
     const { digest } = materialize([assign({ scheduledStartTime: new Date(NOW + 4 * D) })] as Fetched, [old], NOW);
-    expect(digestNotices(digest, NOW).map((n) => ({ ...n, title: plainText(n.title) }))).toEqual([{ title: "Hạn đổi: Bài tập", sub: expect.stringMatching(/^Hạn /), route: `/task/${old.id}` }]);
+    expect(digestNotices(digest, NOW).map((n) => ({ ...n, title: plainText(n.title) }))).toEqual([{ title: "Hạn của Bài tập đã đổi", sub: expect.stringMatching(/^Hạn /), route: `/task/${old.id}` }]);
     const done = materialize([assign({ scheduledStartTime: new Date(NOW + 4 * D), submitted: true })] as Fetched, [{ ...old, doneAt: NOW - H }], NOW);
     expect(done.digest.due).toEqual([]);
   });
@@ -300,7 +300,7 @@ describe("changes that now get a notice", () => {
     const gone = stored(lecture());
     const { digest, deletes } = materialize([] as unknown as Fetched, [gone], NOW);
     expect(deletes).toEqual([gone.id]);
-    expect(digestNotices(digest, NOW).map((n) => ({ ...n, title: plainText(n.title) }))).toEqual([{ title: "Đã huỷ: Môn mẫu", sub: expect.any(String) }]);
+    expect(digestNotices(digest, NOW).map((n) => ({ ...n, title: plainText(n.title) }))).toEqual([{ title: "Môn mẫu đã bị huỷ", sub: expect.any(String) }]);
     const past = stored(lecture("portal:lecture:S1:2026-08-01:1", NOW - D));
     expect(materialize([] as unknown as Fetched, [past], NOW).digest.cancelled).toEqual([]);
   });

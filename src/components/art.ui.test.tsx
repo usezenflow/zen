@@ -8,52 +8,46 @@ const of = (type: string) => nodes(screen.toJSON()).filter((n) => n.type === typ
 const paint = (c: string) => ({ type: 0, payload: processColor(c) });
 
 describe("Logo", () => {
-  it("paints the sun vermilion in color and line modes, ink otherwise", async () => {
-    for (const [mode, sun] of [["color", "#d9432b"], ["line", "#d9432b"], ["mono", "#123456"], ["white", "#fff"]] as const) {
+  it("tails take the vermilion accent in color, ink otherwise; body and head stay ink", async () => {
+    for (const [mode, accent] of [["color", "#ff8a5c"], ["mono", "#123456"], ["white", "#fff"]] as const) {
       await render(<Logo mode={mode} color="#123456" />);
-      expect(of("RNSVGCircle")[0].props.fill).toEqual(paint(sun));
+      const [body, , up, lo] = of("RNSVGPath");
+      expect(body.props.fill).toEqual(paint(mode === "white" ? "#fff" : "#123456"));
+      expect(up.props.fill).toEqual(paint(accent));
+      expect(lo.props.fill).toEqual(paint(accent));
     }
   });
-  it("white forces white ink on the leaf; line draws an outline that thickens when small", async () => {
-    await render(<Logo mode="white" color="#123456" />);
-    expect(of("RNSVGPath")[0].props.fill).toEqual(paint("#fff"));
+  it("color and mono carry the dry-brush mask; line is an outline with no mask", async () => {
+    await render(<Logo mode="color" />);
+    expect(of("RNSVGMask")).toHaveLength(1);
     await render(<Logo mode="line" color="#123456" size={20} />);
+    expect(of("RNSVGMask")).toHaveLength(0);
     expect(of("RNSVGPath")[0].props).toMatchObject({ fill: null, strokeWidth: 7 }); // 140 / 20
     await render(<Logo mode="line" size={100} />);
     expect(of("RNSVGPath")[0].props.strokeWidth).toBe(3); // floor
   });
-  it("uses the bigger sun below 24px", async () => {
-    await render(<Logo size={20} />);
-    expect(of("RNSVGCircle")[0].props.r).toBe(13);
-    await render(<Logo size={24} />);
-    expect(of("RNSVGCircle")[0].props.r).toBe(11);
-  });
   it("without a state is a plain svg of its size; load and err get the wider animated canvas", async () => {
     await render(<Logo size={40} />);
     expect(of("RNSVGSvgView")[0].props.width).toBe(40);
-    expect(of("RNSVGGroup")).toHaveLength(1); // the svg's own root group only
     for (const state of ["load", "err"] as const) {
       await render(<Logo size={40} state={state} />);
       expect(of("RNSVGSvgView")[0].props.width).toBe(72);
-      expect(of("RNSVGGroup").length).toBeGreaterThan(1); // leaf and sun each in their own animated group
     }
   });
 });
 
 describe("TypeArt", () => {
-  it("draws rings by default and rake lines with dir v", async () => {
-    await render(<TypeArt type="lecture" w={100} h={100} />);
-    expect(of("RNSVGCircle").length).toBeGreaterThan(2);
-    expect(of("RNSVGPath")).toHaveLength(0);
+  it("paints a ground and two radial fields, each seen through a stripe mask", async () => {
     await render(<TypeArt type="lecture" w={100} h={100} dir="v" />);
-    expect(of("RNSVGPath").length).toBeGreaterThan(2);
-    expect(of("RNSVGCircle")).toHaveLength(1); // just the stone
+    expect(of("RNSVGLinearGradient")).toHaveLength(1);
+    expect(of("RNSVGRadialGradient")).toHaveLength(3);
+    expect(of("RNSVGMask")).toHaveLength(2);
+    expect(of("RNSVGPattern")).toHaveLength(2);
   });
   it("gives each instance its own gradient id", async () => {
     await render(<><TypeArt type="plan" /><TypeArt type="plan" /></>);
     const ids = of("RNSVGLinearGradient").map((g) => g.props.name);
     expect(ids).toHaveLength(2);
     expect(new Set(ids).size).toBe(2);
-    expect(ids.every((id) => /^a\w+$/.test(id))).toBe(true); // useId's colons stripped
   });
 });

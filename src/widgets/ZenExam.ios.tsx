@@ -43,7 +43,7 @@ const ZenExam = (p: WidgetData, env: WidgetEnvironment) => {
           <Text modifiers={[f(13.75, "medium"), foregroundStyle(c.muted)]}>{p.short}</Text>
         </HStack>
         <Spacer />
-        <Text modifiers={[f(20, "semibold"), foregroundStyle(c.ink), lineHeight(25)]}>{"Không có kỳ thi sắp tới"}</Text>
+        <Text modifiers={[f(20, "semibold"), foregroundStyle(c.ink), lineHeight(25)]}>{"Chưa có kỳ thi nào sắp tới"}</Text>
       </VStack>
     );
   }

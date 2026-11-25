@@ -7,7 +7,7 @@ import { Icon } from "@/components/art";
 import { Tap } from "@/components/tap";
 import { t } from "@/lib/i18n";
 import { ask, onQueue, partStates, partTimes, type Part, type PartState } from "@/lib/sync";
-import { useTheme, font, ff } from "@/lib/theme";
+import { useTheme, font, ff, fd } from "@/lib/theme";
 import { when } from "@/lib/when";
 
 /** A part's queue state and last fetch, following the queue; `onLand` runs when its job finishes. */
@@ -57,6 +57,6 @@ export function PartHead({ part, title, onLand }: { part: Part; title: string; o
 
 const s = StyleSheet.create({
   o: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  h: { fontSize: font.h, lineHeight: 36, fontFamily: ff("600"), letterSpacing: -0.75, marginTop: 18 },
+  h: { fontSize: font.h, lineHeight: 40, fontFamily: fd("700"), letterSpacing: -1.05, marginTop: 18 },
   sub: { marginTop: 4, fontSize: 15, fontFamily: ff("400") },
 });

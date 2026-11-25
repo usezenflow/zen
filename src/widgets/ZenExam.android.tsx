@@ -58,7 +58,7 @@ function ZenExam(p0: WidgetData, env: WidgetEnvironment) {
             </Box>
           </Row>
           <Box contentAlignment="bottomStart" modifiers={[fillMaxSize()]}>
-            <Text color={c.ink} maxLines={2} style={{ fontSize: 21, fontWeight: "bold" }}>{"Không có kỳ thi sắp tới"}</Text>
+            <Text color={c.ink} maxLines={2} style={{ fontSize: 21, fontWeight: "bold" }}>{"Chưa có kỳ thi nào sắp tới"}</Text>
           </Box>
         </Box>
       </Button>

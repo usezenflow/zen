@@ -5,20 +5,23 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Zen settings</title>
 <link rel="stylesheet" href="ui.css" />
+<link rel="stylesheet" href="v2.css" />
 <style>@keyframes z{to{transform:rotate(360deg)}}</style>
 </head>
 <body>
 <div class="head">
   <h1>Settings</h1>
-  <p>One screen, Vietnamese only. Theme is pills. Online (timetable, exams, marks, fees) and LMS (assignments) are separate sections: each connects inline, keeps its password on the phone and disconnects quietly below. The card is the account; under it, one quiet row per part. The circle on a row asks the campus again; Điểm and Học phí open their own screen when tapped. Nothing calls the campus directly: every refresh, by hand or on a schedule, becomes a job in a small queue on the phone. One job runs at a time with a short pause between requests, a failed one waits and retries on its own, and asking twice for the same thing is one job. The queue survives closing the app and keeps going in the background. Above it, a small gray Dữ liệu label groups two rows: Sao lưu dữ liệu saves everything (tasks, history, what Zen has learned, settings; never passwords) as one .json file through the share sheet, so it can go to Files or iCloud Drive; Khôi phục từ tệp replaces what is on the phone with such a file, after a confirm; Xoá dữ liệu (vermilion) empties the phone after a confirm and keeps the campus accounts. The last row is the version; when a newer release is on GitHub it says so and opens the update dialog. Zen checks on launch and on return (at most every 15 minutes) and offers each new version once a run. After an update, the first launch shows what is new, once. The installed version's notes ship inside the app (from CHANGELOG.md), so they need no network; only a newer release's notes come from GitHub.</p>
+  <p>One screen, Vietnamese only. Dictation is the phone's own; there is no voice engine to pick. Theme is pills. Online (timetable, exams, marks, fees) and LMS (assignments) are separate sections: each connects inline, keeps its password on the phone and disconnects quietly below. The card is the account; under it, one quiet row per part. The circle on a row asks the campus again; Điểm and Học phí open their own screen when tapped. Nothing calls the campus directly: every refresh, by hand or on a schedule, becomes a job in a small queue on the phone. One job runs at a time with a short pause between requests, a failed one waits and retries on its own, and asking twice for the same thing is one job. The queue survives closing the app and keeps going in the background. Above it, a small gray Dữ liệu label groups two rows: Sao lưu dữ liệu saves everything (tasks, history, what Zen has learned, settings; never passwords) as one .json file through the share sheet, so it can go to Files or iCloud Drive; Khôi phục từ tệp replaces what is on the phone with such a file, after a confirm; Xoá dữ liệu (vermilion) empties the phone after a confirm and keeps the campus accounts. The last row is the version; when a newer release is on GitHub it says so and opens the update dialog. Zen checks on launch and on return (at most every 15 minutes) and offers each new version once a run. After an update, the first launch shows what is new, once. The installed version's notes ship inside the app (from CHANGELOG.md), so they need no network; only a newer release's notes come from GitHub.</p>
   <nav><a href="capture.html">Capture</a><a href="views.html">Views</a><a href="marks.html">Marks</a><a href="fees.html">Fees</a></nav>
 </div>
 <div class="gallery"></div>
 <script src="ui.js"></script>
 <script>
 const close = `<span class="o">${ic(I.x, 20)}</span>`;
-const pills = (xs, on) => `<div class="pills" style="margin-top:10px">${xs.map((x) => `<span class="pl sm ${x === on ? "on" : ""}">${x}</span>`).join("")}</div>`;
-const set = (t, right, st = "") => `<div class="set" style="${st}">${t}${right}</div>`;
+const TI = { "Hệ thống": I.gear, "Sáng": I.sun, "Tối": I.moon };
+const pills = (xs, on) => `<div class="pills" style="margin-top:10px">${xs.map((x) => `<span class="pl sm ${x === on ? "on" : ""}">${TI[x] ? ic(TI[x], 16, 1.8) : ""}${x}</span>`).join("")}</div>`;
+const tile = (d, red) => `<span class="ti${red ? " red" : ""}">${ic(d, 18, 1.8)}</span>`;
+const set = (t, right, st = "", d = "", red = "") => `<div class="set" style="${st}">${d ? tile(d, red) : ""}${t}${right}</div>`;
 const fld = (lab, val, err) => `<div class="field ${err ? "err" : ""}" style="margin-top:8px;height:60px;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;padding:0 22px"><span style="font-size:13px;font-weight:500;color:var(--muted)">${lab}</span><span style="${val ? "" : "color:var(--muted);font-weight:400"}">${val || "Nhập vào"}</span></div>${err ? `<div class="errt">${err}</div>` : ""}`;
 const slowt = (t) => `<div class="errt" style="color:var(--muted);font-weight:500">${t}</div>`;
 const spin = `<span style="display:flex;animation:z 1s linear infinite">${ic(I.sync, 18)}</span>`;
@@ -27,57 +30,77 @@ const spin = `<span style="display:flex;animation:z 1s linear infinite">${ic(I.s
 const NAME = { portal: "Online", lms: "LMS" };
 const LAB = { portal: "Online: lịch học, lịch thi, điểm, học phí", lms: "LMS: bài tập" };
 // The card is the account only: who, and whether the campus still takes the password. It no longer syncs; the part rows do.
-const card = (k, err, sub, id) => `<div class="art" style="margin-top:10px;height:104px;padding:14px 18px">${art(err ? "exam" : k === "portal" ? "lecture" : "assignment", { w: 264, h: 104, seed: k === "portal" ? 5 : 2, cls: "bgart" })}
+const card = (k, err, sub, id) => `<div class="art" style="margin-top:10px;height:104px;padding:14px 18px">${art(err ? "clayC" : k === "portal" ? "mossC" : "duskC", { w: 264, h: 104, seed: k === "portal" ? 5 : 2, cls: "bgart" })}
       <div class="lab" style="color:#fff;opacity:.85">${id}</div>
-      <div style="font-size:${err ? 17 : 20}px;font-weight:600;margin-top:4px;padding-right:50px">${err ? `Mật khẩu ${NAME[k]} đã đổi` : NAME[k]}</div>
+      <div style="font-size:${err ? 17 : 20}px;font-weight:500;margin-top:4px;padding-right:50px">${err ? `Mật khẩu ${NAME[k]} đã đổi` : NAME[k]}</div>
       <div class="small" style="padding-right:50px;font-size:14px;opacity:.9">${err ? "Chạm để nhập lại" : sub}</div>
-      ${err ? `<span class="glass" style="position:absolute;right:14px;bottom:14px;width:44px;height:44px">${ic(I.right, 18)}</span>` : ""}</div>`;
+      ${err ? `<span class="glass" style="position:absolute;right:14px;bottom:14px;width:44px;height:44px">${ic(I.alert, 18, 2)}</span>` : ""}</div>`;
 // A part row: name, its value or when it last came, then a small hairline circle that asks again (enqueues it).
 // Parts with a screen of their own (marks, fees) open it when the row is tapped anywhere but the circle.
 // st: "" idle | run (its job is running: circle turns, a timetable counts weeks) | wait (queued behind another job) | retry (failed, will try again at a time)
 const circ = (st) => `<span class="o" style="width:30px;height:30px;margin-left:-6px">${st === "run" ? spin.replace("18", "14") : ic(I.sync, 14)}</span>`;
 const STV = { run: "Đang cập nhật…", wait: "Đang chờ" };
 const part = (lab, val, st = "", o = {}) => set(lab,
-  `<span class="v" style="${st ? "" : o.ink ? "color:var(--ink);font-weight:600" : o.red ? "color:var(--seal);font-weight:600" : ""}">${st === "retry" ? `Thử lại lúc ${o.at}` : STV[st] ? (o.n ? `${STV[st].replace("…", "")} ${o.n}` : STV[st]) : val}</span>${circ(st)}`,
-  `padding:13px 0;font-size:16px${o.last ? ";border-bottom:none" : ""}`);
+  `<span class="v" style="${st ? "" : o.ink ? "color:var(--ink);font-weight:500" : o.red ? "color:var(--seal);font-weight:500" : ""}">${st === "retry" ? `Thử lại lúc ${o.at}` : STV[st] ? (o.n ? `${STV[st].replace("…", "")} ${o.n}` : STV[st]) : val}</span>${circ(st)}`,
+  `padding:13px 0;font-size:16px${o.last ? ";border-bottom:none" : ""}`, o.ico);
 // st: off | form | on | err. o: { id (ask for it), pw, pwErr, slow, sub, parts: { tt, ex, mk, fe, as } part states, fee (owed), n (timetable progress), at (retry time) }
 const sec = (k, st, o = {}) => {
-  const head = `<div class="lab" style="margin-top:26px">${LAB[k]}</div>`;
+  const head = `<div class="lab" style="margin-top:26px">${ic(k === "portal" ? I.school : I.book, 16, 1.8)}${LAB[k]}</div>`;
   const open = st === "form";
   if (st === "off" || open) {
-    return head + set(o.change ? "Đổi mật khẩu" : `Kết nối ${NAME[k]}`, `<span class="v">${ic(open ? I.down : I.right, 16)}</span>`, open ? "border-bottom:none;padding-bottom:4px" : "")
+    return head + set(o.change ? "Đổi mật khẩu" : `Kết nối ${NAME[k]}`, `<span class="v">${ic(open ? I.down : I.right, 16)}</span>`, open ? "border-bottom:none;padding-bottom:4px" : "", I.link)
       + (open ? (o.id === undefined ? "" : fld("Mã sinh viên", o.id)) + fld(`Mật khẩu ${NAME[k]}`, o.pw, o.pwErr) + (o.slow ? slowt(`${NAME[k]} đang chậm, sẽ tự thử lại`) : "")
         + `<div class="btn sm" style="margin-top:18px">${o.slow || o.pwErr ? "Thử lại" : "Kết nối"}</div>` : "");
   }
   const err = st === "err", p = o.parts ?? {};
   const rows = err ? "" : k === "portal"
-    ? part("Lịch học", "T2 9/11", p.tt, { n: o.n, at: o.at }) + part("Lịch thi", "Hôm qua", p.ex, { at: o.at }) + part("Điểm", "3,42", p.mk, { ink: 1, go: 1 })
-      + part("Học phí", o.fee ? `Còn ${o.fee}` : "Đã đóng đủ", p.fe, { red: !!o.fee, go: 1, last: 1 })
-    : part("Bài tập", "7:09", p.as, { last: 1 });
+    ? part("Lịch học", "T2 9/11", p.tt, { n: o.n, at: o.at, ico: I.calendar }) + part("Lịch thi", "Hôm qua", p.ex, { at: o.at, ico: I.calendarCheck }) + part("Điểm", "3,42", p.mk, { ink: 1, go: 1, ico: I.chart })
+      + part("Học phí", o.fee ? `Còn ${o.fee}` : "Đã đóng đủ", p.fe, { red: !!o.fee, go: 1, last: 1, ico: I.wallet })
+    : part("Bài tập", "7:09", p.as, { last: 1, ico: I.book });
   return head + card(k, err, o.sub || "Đã kết nối", "2112345") + rows
     + `<div style="display:flex;gap:22px;padding:14px 0 17px;font-size:14px;font-weight:500"><span style="color:var(--muted)">Đổi mật khẩu</span><span style="color:var(--seal)">Ngắt ${NAME[k]}</span></div>`;
 };
 // First connect: one row opens the student ID and both passwords together.
-const first = (f = {}) => `<div class="lab" style="margin-top:26px">Trường</div>` + set("Kết nối trường", `<span class="v">${ic(f.open ? I.down : I.right, 16)}</span>`, f.open ? "border-bottom:none;padding-bottom:4px" : "")
-  + (f.open ? fld("Mã sinh viên", f.id) + fld("Mật khẩu Online", f.pw, f.pwErr) + (f.slow ? slowt("Online đang chậm, sẽ tự thử lại") : "") + fld("Mật khẩu LMS", f.lms, f.lmsErr)
+const first = (f = {}) => `<div class="lab" style="margin-top:26px">Trường</div>` + set("Kết nối trường", `<span class="v">${ic(f.open ? I.down : I.right, 16)}</span>`, f.open ? "border-bottom:none;padding-bottom:4px" : "", I.school)
+  + (f.open ? fld("Mã sinh viên", f.id) + fld("Mật khẩu Online", f.pw, f.pwErr) + (f.slow ? slowt("Online đang phản hồi chậm, Zen sẽ tự thử lại") : "") + fld("Mật khẩu LMS", f.lms, f.lmsErr)
     + `<div class="btn sm" style="margin-top:18px">${f.slow || f.pwErr || f.lmsErr ? "Thử lại" : "Kết nối"}</div>` : "");
 // Backup: three rows above the version. Sao lưu opens the share sheet (Save to Files, iCloud Drive); Khôi phục asks, then picks a file.
-const backup = `<div class="lab" style="margin-top:26px">Dữ liệu</div>` + set("Sao lưu dữ liệu", "") + set("Khôi phục từ tệp", "") + set(`<span style="color:var(--seal)">Xoá dữ liệu</span>`, "");
+const backup = `<div class="lab" style="margin-top:26px">Dữ liệu</div>` + set("Sao lưu dữ liệu", "", "", I.upload) + set("Khôi phục từ tệp", "", "", I.download) + set(`<span style="color:var(--seal)">Xoá dữ liệu</span>`, "", "", I.trash, 1);
 // Last row: the installed version and build hash; an available update turns it vermilion.
-const ver = (up, pct) => set("Phiên bản", `<span class="v" style="${up ? "color:var(--seal);font-weight:600" : ""}">${pct !== undefined ? `Đang tải ${pct}%` : up ? `Có bản ${up}` : "26.0.1 · 3bf9b96"}</span>`);
+const ver = (up, pct) => set("Phiên bản", `<span class="v" style="${up ? "color:var(--seal);font-weight:500" : ""}">${pct !== undefined ? `Đang tải ${pct}%` : up ? `Có bản ${up}` : "26.0.1 · 3bf9b96"}</span>`, "", I.info);
 // The APK coming down behind: a top toast, the ring (an arc of the share, from twelve o'clock) left of the words.
-const dlRing = (p, fail) => { const r = 13.5, c = 2 * Math.PI * r; return `<svg class="ring" viewBox="0 0 30 30"><circle cx="15" cy="15" r="${r}" fill="none" stroke="rgba(127,127,127,.35)" stroke-width="3"/><circle cx="15" cy="15" r="${r}" fill="none" stroke="${fail ? "var(--seal)" : "var(--bg)"}" stroke-width="3" stroke-linecap="round" stroke-dasharray="${c} ${c}" stroke-dashoffset="${c * (1 - p / 100)}" transform="rotate(-90 15 15)"/></svg>`; };
+const dlRing = (p, fail) => { const r = 13.5, c = 2 * Math.PI * r; return `<svg class="ring" viewBox="0 0 30 30"><circle cx="15" cy="15" r="${r}" fill="none" stroke="rgba(127,127,127,.35)" stroke-width="3"/><circle cx="15" cy="15" r="${r}" fill="none" stroke="${fail ? "var(--seal)" : "var(--ink)"}" stroke-width="3" stroke-linecap="round" stroke-dasharray="${c} ${c}" stroke-dashoffset="${c * (1 - p / 100)}" transform="rotate(-90 15 15)"/></svg>`; };
 // fail: the ring stops where it broke and turns vermilion; the words say the browser takes over.
-const dlToast = (p, fail) => `<div class="toast"><div class="tl">${dlRing(p, fail)}<div class="tx"><div class="t1">${fail ? "Không tải được" : "Đang tải"} zen 26.0.2</div><span>${fail ? "Đang mở trang tải trong trình duyệt" : `${p}% · xong sẽ mở trình cài`}</span></div></div></div>`;
+const dlToast = (p, fail) => toast(fail ? "Chưa tải được bản 26.0.2" : "Đang tải bản 26.0.2", fail ? "Mình mở trang tải trên trình duyệt cho bạn" : `${p}% · tải xong là cài được ngay`, [], { state: fail ? "err" : "", lead: `<span class="ta">${dlRing(p, fail)}</span>` });
 // The release notes are the GitHub release body (CHANGELOG.md's section), one line per bullet.
 // 26.0.2's real notes, nested bullets flattened as the app reads them; a long list scrolls inside the card, the button stays.
 const NOTES = ["Nói hay gõ gì cũng thành việc", "Câu nào cũng tạo ít nhất một việc, kể cả câu khó hiểu: cả câu thành tên việc, phần còn lại để mặc định", "Không còn \"Mình chưa hiểu câu này\"", "Bỏ lệnh bằng giọng nói: \"xong …\", \"xoá …\", \"dời … sang …\" giờ là tên việc mới; đánh dấu xong, xoá, dời làm ngay trên việc", "Bỏ ghi chú riêng bằng giọng nói; ghi chú trong từng việc vẫn giữ", "Việc mới không còn \"nuốt\" việc cũ: \"dọn phòng vào thứ 7\" khi đã có \"Dọn phòng\" là một việc mới, không dời việc cũ", "Việc lặp không còn bị nhân đôi khi mở lại ứng dụng", "Gần hạn thì không chia nhỏ", "Mỗi ngày còn lại tối đa một buổi; còn dưới một ngày thì làm một lần", "Việc giữ nguyên thời lượng, mỗi buổi dài tối đa 3h"];
-const dlg = (lab, v, btn, ghost, sec) => `<div class="dscrim"></div><div class="dlg"><div class="lab">${lab}</div><div class="h">zen ${v}</div><ul>${NOTES.map((n) => `<li>${n}</li>`).join("")}</ul><div class="btn sm">${btn}</div>${sec ? `<div class="btn sm ol" style="margin-top:10px">${sec}</div>` : ""}${[].concat(ghost || []).map((g) => `<div class="ghost">${g}</div>`).join("")}</div>`;
+const dlg = (lab, v, btn, ghost, sec) => `<div class="dscrim"></div><div class="dlg"><div class="lab">${ic(lab === "Có gì mới" ? I.target : I.download, 16, 2)}${lab}</div><div class="h">zen ${v}</div><ul>${NOTES.map((n) => `<li>${n}</li>`).join("")}</ul><div class="btn sm">${ic(btn === "Đã hiểu" ? I.checkCircle : I.download, 18, 2)}${btn}</div>${sec ? `<div class="btn sm ol" style="margin-top:10px">${sec}</div>` : ""}${[].concat(ghost || []).map((g) => `<div class="ghost">${g}</div>`).join("")}</div>`;
 const main = (p, l, theme = "Hệ thống", extra = "", up = "", pct) => `${close}<div class="h" style="margin-top:18px">Cài đặt</div>
-  <div class="lab" style="margin-top:28px">Giao diện</div>${pills(["Hệ thống", "Sáng", "Tối"], theme)}
+  <div class="lab" style="margin-top:28px">${ic(I.sun, 16, 2)}Giao diện</div>${pills(["Hệ thống", "Sáng", "Tối"], theme)}
   ${p}${l}${extra}${backup}${ver(up, pct)}`;
-const toggles = set("Chia sẻ số liệu ẩn danh", '<span class="tog"></span>');
+const toggles = set("Chia sẻ số liệu ẩn danh", '<span class="tog"></span>', "", I.shield);
+
+// Areas: keywords are chips (type and press Enter), each area has a target share and a live bar of this week against it.
+const AREAS = [["Học tập", "#2433f2", 25, 31, ["bài tập", "ôn thi", "kiểm tra", "lab"], ["Tuần này đã vượt mức mong muốn", "wn"]], ["Công việc", "#7a4dff", 25, 22, ["báo cáo", "họp", "dự án"], ["2 việc tuần này khớp", "ok"]], ["Sức khoẻ", "#0f8f6a", 15, 4, ["gym", "chạy bộ", "bơi"], ["Chưa việc nào khớp tuần này", "info"]]];
+const kw = (ws, extra = "") => `<div class="kw">${ws.map((w) => `<span>${w}${ic(I.x, 14, 2)}</span>`).join("")}${extra}<span class="add">${ic(I.plus, 14, 2)}Thêm từ</span></div>`;
+// Status hints carry an icon and a tint of their own state: green check, blue info, amber alert.
+const hic = (d) => `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const HI = { ok: ic(I.checkCircle, 18, 2), info: ic(I.info, 18, 2), wn: ic(I.alert, 18, 2) };
+const areaCard = ([n, c, tg, sh, ws, [hint, kind]], extra = "", note = "") => `<div class="zc" style="--c:${c}"><div class="top"><i class="dot"></i><span class="nm">${n}</span><span class="step"><b>${ic(I.minus, 16, 2)}</b><span>${tg}%</span><b>${ic(I.plus, 16, 2)}</b></span></div>
+  <div class="share"><div class="tr" style="--p:${sh * 2}%;--t:${tg * 2}%"><i class="${sh > tg ? "over" : ""}"></i><u></u></div><span>${sh}%</span></div>
+  ${kw(ws, extra)}<div class="hint ${note ? "wn" : kind}">${HI[note ? "wn" : kind]}<span>${note || hint}</span></div></div>`;
+const areasPage = (extra, note) => `${close}<div class="h" style="margin-top:18px">Cân bằng việc</div>
+  <div class="exp">Mỗi mảng có vài từ khoá và một mức mong muốn. Việc nào chứa từ khoá sẽ tính vào mảng đó, và Zen ưu tiên xếp thêm cho mảng đang thiếu.</div>
+  ${areaCard(AREAS[0])}${areaCard(AREAS[1], extra, note)}${areaCard(AREAS[2])}`;
+const RULES = [["Nghỉ cuối tuần", "Tránh xếp việc vào thứ 7 và chủ nhật.", 1, I.calendar], ["Xong sớm trước hạn", "Xếp xong trước hạn ít nhất một ngày rưỡi.", 2, I.target], ["Không làm khuya", "Không xếp việc sau 22:00.", 0, I.moon], ["Cân bằng mảng việc", "Dùng mức mong muốn ở trên.", 1, I.leaf]];
+const rulesPage = `${close}<div class="h" style="margin-top:18px">Quy tắc của Zen</div>
+  <div class="exp">Tự động: Zen chỉ giữ quy tắc khi lịch sử của bạn cho thấy bỏ nó thì làm xong ít hơn. Giữ chặt: luôn theo.</div>
+  ${RULES.map(([q, d, on, ico]) => `<div class="rc"><div class="q">${ic(ico, 16, 1.8)}${q}</div><div class="d">${d}</div><div class="sg">${["Tắt", "Tự động", "Giữ chặt"].map((x, i) => `<span class="${i === on ? "on " + ["off", "auto", "strict"][on] : ""}">${ic([I.x, I.target, I.shield][i], 15, 2)}${x}</span>`).join("")}</div></div>`).join("")}`;
 mount([
+  { tag: "Areas", sub: "Keywords are chips, not a comma string. Each area has a target (stepper) and this week's share as a bar with a tick at the target. Blue hint: information. Green: matches found. Amber: over target.", html: chrome(areasPage(), { dock: null }) },
+  { tag: "Areas, a keyword taken", sub: "A word another area already owns turns amber and says which; the longest match wins, so nothing breaks.", html: chrome(areasPage(`<span class="dup">gym${ic(I.x, 14, 2)}</span>`, "“gym” đã thuộc Sức khoẻ; từ dài hơn được ưu tiên"), { dock: null }) },
+  { tag: "Zen rules", sub: "Four rules as cards: one line on what each does, then Tắt (grey), Tự động (blue) or Giữ chặt (amber) as one segmented control.", html: chrome(rulesPage, { dock: null }) },
   { tag: "Not connected", sub: "Nothing connected yet: one row, as before.", html: chrome(main(first(), "", "Hệ thống", toggles), { dock: null }) },
   { tag: "Connect", sub: "One student ID and two password fields, Online and LMS. A blank one is simply not connected.", html: chrome(main(first({ open: 1, id: "2112345", pw: "••••••••", lms: "••••••" }), ""), { dock: null }) },
   { tag: "Wrong Online password", sub: "The field turns red with its own message; LMS is untouched.", html: chrome(main(first({ open: 1, id: "2112345", pw: "••••••••", lms: "••••••", pwErr: "Sai mật khẩu Online" }), ""), { dock: null }) },
@@ -92,10 +115,10 @@ mount([
   { tag: "Change password", sub: "A connected account can have its password updated: Đổi mật khẩu sits beside Ngắt, and opens just that account's field. The ID and the other account are kept.", html: chrome(main(sec("portal", "on"), sec("lms", "form", { pw: "••••••", change: 1 })), { dock: null }) },
   { tag: "Add LMS", sub: "Only the LMS password; the ID and the Online account are kept.", html: chrome(main(sec("portal", "on"), sec("lms", "form", { pw: "••••••" })), { dock: null }) },
   { tag: "LMS only", sub: "The reverse: assignments only, and the Online section offers to connect.", html: chrome(main(sec("portal", "off"), sec("lms", "on")), { dock: null }) },
-  { tag: "Disconnected", sub: "Ngắt LMS removes just that account and its assignments. A short note, no Undo, no confirm.", html: chrome(toast("Đã ngắt LMS", "Mật khẩu đã xoá khỏi máy", []) + main(sec("portal", "on"), sec("lms", "off")), { dock: null }) },
+  { tag: "Disconnected", sub: "Ngắt LMS removes just that account and its assignments. A short note, no Undo, no confirm.", html: chrome(toast("Đã ngắt LMS", "Mật khẩu đã xoá khỏi máy", [], { art: "clayC" }) + main(sec("portal", "on"), sec("lms", "off")), { dock: null }) },
   { tag: "Login changed, Online", sub: "Only that account's card turns exam red and names it; the other stays as it was. Tap to fix.", dark: true, html: chrome(main(sec("portal", "err"), sec("lms", "on"), "Tối"), { dock: null }) },
   { tag: "Login changed, LMS", sub: "Same card when only the LMS password changed.", dark: true, html: chrome(main(sec("portal", "on"), sec("lms", "err"), "Tối"), { dock: null }) },
-  { tag: "Restored", sub: "Khôi phục từ tệp asks first (the data on the phone is replaced by the file), then opens the file picker. Done, a short note counts the tasks; a file that is not a Zen backup says it is not a Zen backup and changes nothing. Passwords are not in the file: after a reinstall, connect the campus again.", html: chrome(toast("Đã khôi phục 42 việc", "", []) + main(sec("portal", "on"), sec("lms", "on")), { dock: null }) },
+  { tag: "Restored", sub: "Khôi phục từ tệp asks first (the data on the phone is replaced by the file), then opens the file picker. Done, a short note counts the tasks; a file that is not a Zen backup says it is not a Zen backup and changes nothing. Passwords are not in the file: after a reinstall, connect the campus again.", html: chrome(toast("Đã khôi phục 42 việc", "Từ tệp đã chọn", [], { art: "mossC" }) + main(sec("portal", "on"), sec("lms", "on")), { dock: null }) },
   { tag: "Reset", sub: "Xoá dữ liệu always asks first, over the screen: what goes, and that the campus accounts are not touched. The vermilion button erases; Sao lưu trước (outlined) saves a backup first; Huỷ or a tap outside changes nothing. On the phone this is the system alert, so it will look plainer than this.", html: chrome(`<div class="dscrim"></div><div class="dlg"><div class="lab">Xác nhận</div><div class="h">Xoá dữ liệu</div><p style="font-size:15px;line-height:1.45;margin:10px 0 0">Toàn bộ việc, lịch sử và cài đặt trên máy này sẽ bị xoá và không thể khôi phục. Tài khoản trường không bị ảnh hưởng.</p><div class="btn sm" style="background:var(--seal);color:#fff">Xoá dữ liệu</div><div class="btn sm ol" style="margin-top:10px">Sao lưu trước</div><div class="ghost">Huỷ</div></div>` + main(sec("portal", "on"), sec("lms", "on")), { dock: null }) },
   { tag: "Version", sub: "The last row: version and build hash, read from the app itself. Tapping it shows that version's notes.", html: chrome(main(sec("portal", "on"), sec("lms", "on")), { dock: null }) },
   { tag: "Update available", sub: "A newer release is on GitHub: the row names it in vermilion and opens the dialog below.", html: chrome(main(sec("portal", "on"), sec("lms", "on"), "Hệ thống", "", "26.0.2"), { dock: null }) },

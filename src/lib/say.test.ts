@@ -19,17 +19,17 @@ describe("compose", () => {
   });
   it("with no learned line, the clash says what it sits on", () => {
     const out = compose(res("Đã dời Toán sang 15:00"), { clash: t("previewClash", { title: "Cơ sở dữ liệu" }) });
-    expect(plain(out.sub!)).toBe("Trùng Cơ sở dữ liệu");
+    expect(plain(out.sub!)).toBe("Trùng với Cơ sở dữ liệu");
   });
   it("priority: stuck over reason over understood over where", () => {
-    const c: Ctx = { stuck: "Chưa có giờ trống", reason: "Hợp buổi học", understood: "Mình hiểu: 1h", where: "T3, buổi chiều" };
+    const c: Ctx = { stuck: "Chưa có giờ trống", reason: "Hợp buổi học", understood: "Mình đoán thêm 1h nhé", where: "T3, buổi chiều" };
     expect(compose(res("Đã thêm Ôn"), c).sub).toBe("Chưa có giờ trống");
     expect(compose(res("Đã thêm Ôn"), { ...c, stuck: undefined }).sub).toBe("Hợp buổi học");
-    expect(compose(res("Đã thêm Ôn"), { understood: "Mình hiểu: 1h", where: "T3, buổi chiều" }).sub).toBe("Mình hiểu: 1h");
+    expect(compose(res("Đã thêm Ôn"), { understood: "Mình đoán thêm 1h nhé", where: "T3, buổi chiều" }).sub).toBe("Mình đoán thêm 1h nhé");
     expect(compose(res("Đã thêm Ôn"), { where: "T3, buổi chiều" }).sub).toBe("T3, buổi chiều");
   });
   it("a line that repeats the title is dropped, the next one is said", () => {
-    expect(compose(res("Đã thêm Gym"), { name: "Gym", understood: "Mình hiểu: Gym", where: "T3, buổi chiều" }).sub).toBe("T3, buổi chiều");
+    expect(compose(res("Đã thêm Gym"), { name: "Gym", understood: "Mình đoán thêm Gym nhé", where: "T3, buổi chiều" }).sub).toBe("T3, buổi chiều");
   });
   it("Xem only when something else moved, and an alt takes its pill", () => {
     const see = vi.fn();

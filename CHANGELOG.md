@@ -1,5 +1,34 @@
 # zen
 
+## 26.1.0-beta.3
+
+### Minor Changes
+
+- Giao diện mới, lấy cảm hứng từ bản thiết kế "zen"
+    - Biểu tượng ứng dụng và logo mới: nét cọ ensō hình cá koi. Biểu tượng là khung tranh đường kẻ xanh có koi trắng; logo trong ứng dụng màu cam koi. Màn hình tải, trống và lỗi dùng cùng logo
+    - Tiêu đề lớn dùng phông Bricolage Grotesque; chữ thường vẫn là Be Vietnam Pro. Chữ nhẹ hơn, chỉ tiêu đề và con số chính mới đậm; nhãn viết hoa dùng nét mảnh
+    - Tranh đường kẻ có sáu bảng màu (xanh biển, tím đêm, xanh rêu, cam, hoàng hôn, đất nung), chọn theo loại việc: học, công việc, thể dục, việc nhà, gặp gỡ, bản thân; tiết học, lịch thi và bài tập có màu riêng. Chữ trắng trên tranh có lớp phủ nhẹ và bóng chữ để dễ đọc, nền vẫn tươi
+    - Màu trạng thái riêng: xanh lá cho xong và đúng tiến độ, xanh dương cho thông tin, vàng cho cảnh báo, đỏ chỉ cho lỗi và hạn thật. Nút chính vẫn màu đen
+    - Thêm biểu tượng bo tròn ở nhãn, hàng, nút và thông báo; hàng trong Cài đặt mỗi mục một biểu tượng riêng (Điểm là biểu đồ, Lịch thi là lịch có dấu tích)
+    - Nhãn nhỏ nằm sát tiêu đề của nó (thẻ "Bây giờ", chi tiết việc, hộp thoại, Cài đặt); nút có biểu tượng không còn xuống dòng
+- Thông báo trong ứng dụng giống thông báo đẩy: thẻ mờ với biểu tượng koi trên tranh (màu theo việc), dòng "zen", nội dung rồi các nút bấm bằng nhau bên dưới. Thông báo tải bản cập nhật vẫn có vòng tiến độ
+- Thẻ "Bây giờ": phần đồng hồ và số liệu nằm trên, hai nút "Để sau" và "Bắt đầu" bằng nhau nằm dưới; nút có biểu tượng lớn hơn, bo tròn
+- Chi tiết việc gọn hơn
+    - Tiêu đề dài dừng ở ba dòng, chữ có dấu không còn bị cắt (giãn dòng)
+    - Giờ làm và môn học sát nhau; "Giờ khác cũng ổn" cùng hàng với các giờ gợi ý
+    - Bỏ gạch chân; "Làm thêm", "Xong buổi này", "Bỏ qua phần ôn" và "Hoàn tác" là nút viền rõ; "Vì sao xếp vào giờ này" và ghi chú là thẻ viền mảnh
+    - "Làm thêm" và "Xong buổi này" không còn tràn chiều ngang: số buổi một dòng, hai nút bằng nhau dòng dưới
+- "Thử 15p": thông báo bắt đầu nói đúng số phút ("Bạn chỉ cần làm 15p đầu thôi"), cùng một con số với nút trên thẻ "Bây giờ"
+- Việc ôn thi: tên việc ngắn lại thành "Viết báo cáo KTPM", "Luyện đề GT2" (chữ đầu của môn); tên môn đầy đủ vẫn ở dòng dưới. Sửa lỗi cắt mất chữ đầu của môn như "Kiểm thử phần mềm" (thành "thử phần mềm") hay "Kỹ thuật lập trình"
+- Tuần: nút "Giãn lịch tuần này" chỉ hiện khi thật sự có việc để dời
+- Điểm: tiêu đề không còn dính mép trên màn hình
+- Cài đặt
+    - "Cân bằng việc": mỗi mảng là một thẻ viền mảnh; từ khoá là các nhãn bấm được (không còn gõ dấu phẩy), có mức mong muốn và thanh so với tuần này, báo từ khoá trùng với mảng khác; dòng gợi ý có biểu tượng và màu nền theo trạng thái (vượt mức, có việc khớp, chưa khớp). Một mảng hỏng không còn làm mất cả danh sách
+    - "Quy tắc của Zen": mỗi quy tắc một thẻ, có lời giải thích và ba nút Tắt, Tự động, Giữ chặt
+    - Bỏ nhận giọng riêng của Zen (PhoWhisper) và mục "Giọng nói"; luôn dùng nhận giọng có sẵn trên máy. Gỡ mô hình và thư viện không còn dùng
+- Xem trước danh sách nhập: vuốt trái để bỏ một việc, giờ bắt đầu và kết thúc hiện như ở trang chủ, bước đánh số có cột số riêng
+- Phút viết gọn thành "p" ("Thêm 15p", "{n}p đầu"); câu chữ tự nhiên hơn ở rất nhiều chỗ (thông báo tải bản mới, nút, lời nhắc, toast, Cài đặt) và chữ thường không còn in đậm ("Mình hiểu: tối nay, 19:00")
+
 ## 26.1.0-beta.2
 
 ### Minor Changes

@@ -1,5 +1,6 @@
 // The one place a toast's words are chosen: a title, at most one sub, at most one alt, the undo, and "Xem" (the story of what moved).
 import type { Result } from "./apply";
+import type { TypeName } from "./theme";
 import { lenW, partAt, plain, t } from "./i18n";
 import { day } from "./when";
 import type { Action } from "./types";
@@ -19,6 +20,7 @@ export interface Ctx {
   far?: string; // a deadline past the 30-day horizon
   alt?: Alt; // the other choice: one pill (another time, shrink, split)
   see?: () => void; // opens the story of what moved; offered only when something did
+  art?: TypeName; // the task's palette for the toast tile (artOf); none for a toast with no task
 }
 export interface Toast { title: string; sub?: string; alt?: Alt; more?: Alt; undo?: () => Promise<void> }
 

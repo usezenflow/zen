@@ -5,7 +5,7 @@ import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
 import Animated, { Easing, Extrapolation, FadeIn, interpolate, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import Svg, { Defs, Pattern, Rect } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
-import { TypeArt } from "@/components/art";
+import { TypeArt, artOf, seedOf } from "@/components/art";
 import { addDays, holLines, keptOn, onDay, short, startOfDay, type Hols } from "@/components/cal";
 import { Tap, glide, settle } from "@/components/tap";
 import { MovesPill } from "@/components/nowcard";
@@ -13,7 +13,6 @@ import type { Box } from "@/components/outside";
 import { t } from "@/lib/i18n";
 import { useTheme, ff, motion } from "@/lib/theme";
 import type { Move, Rule, Task } from "@/lib/types";
-import { typeOf } from "@/planner";
 
 /** Diagonal hairline stripes (.hb / .hol in ui.css): lines every `gap` px, 1.5px thick. */
 export function Stripes({ color, gap = 7 }: { color: string; gap?: number }) {
@@ -107,7 +106,7 @@ export function Week({ tasks, hols, monday, selected, now, onSelect, onStep, rul
   return (
     <View>
     {!!onMoves && <MovesPill moves={brief} now={now} onOpen={onMoves} onDismiss={onDismiss} />}
-    {!!onRebalance && <Tap onPress={onRebalance} accessibilityRole="button" style={{ alignSelf: "flex-end", paddingVertical: 8 }}><Text style={{ color: th.muted, fontSize: 14, fontFamily: ff("600") }}>{t("rebalWeek")}</Text></Tap>}
+    {!!onRebalance && <Tap onPress={onRebalance} accessibilityRole="button" style={{ alignSelf: "flex-end", paddingVertical: 8 }}><Text style={{ color: th.muted, fontSize: 14, fontFamily: ff("500") }}>{t("rebalWeek")}</Text></Tap>}
     <Swipe onStep={onStep} stepKey={monday}>
       <View ref={gridRef} collapsable={false} testID="wkGrid" style={s.wk} onLayout={(e) => setGw(e.nativeEvent.layout.width)}>
         {short.map((d, i) => {
@@ -129,7 +128,7 @@ export function Week({ tasks, hols, monday, selected, now, onSelect, onStep, rul
                 </Animated.View>
               ) : (
                 <Animated.View key={`${x.id}${i}`} layout={glide} entering={FadeIn} style={[s.b, pos]}>
-                  <TypeArt type={typeOf(x)} w={40} h={h} seed={j * 3 + h} />
+                  <TypeArt type={artOf(x)} w={40} h={h} seed={seedOf(x.id)} />
                   {/* the row trail's dot, until the move is seen (.wk .b.mv::after): a seal dot with a 2px ring */}
                   {moves.includes(x.id) && <View style={[s.mvRing, { backgroundColor: th.bg }]}><View style={[s.mvDot, { backgroundColor: th.seal }]} /></View>}
                 </Animated.View>
@@ -163,16 +162,16 @@ const s = StyleSheet.create({
   wk: { flexDirection: "row", gap: GRID, marginTop: 20 }, // views.html wk()
   c: { flex: 1, gap: 4 },
   d: { height: 52, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center", marginBottom: 4 },
-  dl: { fontSize: 13, fontFamily: ff("600") },
-  dn: { fontSize: 15, fontFamily: ff("800") }, // .wk .d i
+  dl: { fontSize: 13, fontFamily: ff("500") },
+  dn: { fontSize: 15, fontFamily: ff("600") }, // .wk .d i
   bs: { height: AREA, gap: GAP },
   ov: { position: "absolute", left: 0, right: 0, top: 60, height: AREA }, // 60 = day pill 52 + its margin 4 + column gap 4
   b: { position: "absolute", borderRadius: 8, overflow: "hidden" },
   more: { position: "absolute", height: MINH, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  mt: { fontSize: 12, fontFamily: ff("700") },
+  mt: { fontSize: 12, fontFamily: ff("600") },
   nil: { height: AREA, borderRadius: 10, borderWidth: 1, borderStyle: "dashed" },
   hb: { height: AREA, borderRadius: 10, borderWidth: 1, overflow: "hidden", alignItems: "center", justifyContent: "center", padding: 2 },
-  hl: { fontSize: 12, fontFamily: ff("700"), textAlign: "center", lineHeight: 15.6 },
+  hl: { fontSize: 12, fontFamily: ff("600"), textAlign: "center", lineHeight: 15.6 },
   mvRing: { position: "absolute", top: 1, right: 1, width: 11, height: 11, borderRadius: 99, alignItems: "center", justifyContent: "center" },
   mvDot: { width: 7, height: 7, borderRadius: 99 },
 });

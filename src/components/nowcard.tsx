@@ -1,3 +1,4 @@
+import { MICRO_MIN } from "../planner/policy";
 import { bolded } from "@/components/bold";
 import { BlurView } from "expo-blur";
 import { useEffect, useRef, useState, type ComponentRef } from "react";
@@ -7,25 +8,24 @@ import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
 import { scheduleOnRN } from "react-native-worklets";
 import { Fill } from "@/components/meter";
 import { fadeIn, settle, Tap, EASE } from "@/components/tap";
-import { Icon, TypeArt } from "@/components/art";
+import { Icon, TypeArt, artOf, seedOf } from "@/components/art";
 import { hhmm } from "@/components/cal";
 import type { HoldState } from "@/components/hold";
 import { t } from "@/lib/i18n";
 import { kvGet, kvSet } from "@/lib/store";
 import { KIND_VI, reasonText, topReason } from "@/lib/reasons";
-import { useTheme, font, ff } from "@/lib/theme";
+import { useTheme, font, ff, fd } from "@/lib/theme";
 import { when } from "@/lib/when";
 import type { Move, Kind, Task } from "@/lib/types";
 import type { Item } from "@/components/menu";
-import { typeOf } from "@/planner";
 
 // gap: magic.html 17, a later task offered for the free time now (its label, e.g. "30p"); the circle takes it now.
 export type Card = { task: Task; start?: number; end?: number; gap?: string };
 
 // Art card with progress meter; the circle marks it done. Swipe is handled by the caller.
-// Thử 10p: a ten-minute ramp on a block of 45 minutes or more, or one put off before; kv "now.micro" keeps it across restarts.
+// Thử 15p: a short ramp on a block of 45 minutes or more, or one put off before; kv "now.micro" keeps it across restarts.
 type Micro = { id: string; startedAt: number; endsAt: number };
-const MICRO_KEY = "now.micro", MICRO_MIN = 10;
+const MICRO_KEY = "now.micro";
 const parseMicro = (v: string | null): Micro | null => { try { return v ? JSON.parse(v) : null; } catch { return null; } };
 
 // views.html "Day, next up": a flexible block not started yet also offers Làm luôn (onStart: that sitting moves to now).
@@ -51,38 +51,40 @@ export function NowCard({ card, onDone, onStart, onLater, onMicroRest, onKind, o
   const left = Math.max(1, Math.ceil(((mic?.endsAt ?? 0) - now) / 60000));
   const moving = !going && !task.fixed && !card.gap && !!onLater;
   const microOk = !going && !task.fixed && !card.gap && (end - start >= 45 * 60000 || (task.misses ?? 0) > 0);
-  const big = mic ? (micDone ? t("microFull") : t("nMin", { n: left })) : going ? t("nMin", { n: mins }) : hhmm(start);
+  const big = mic ? (micDone ? t("microFull", { n: MICRO_MIN }) : t("nMin", { n: left })) : going ? t("nMin", { n: mins }) : hhmm(start);
   const small = mic ? (micDone ? t("microSub") : t("until", { time: hhmm(mic.endsAt) })) : going ? t("until", { time: hhmm(end) }) : t("nMin", { n: mins });
   return (<>
     <View style={[s.art, { backgroundColor: th.chip }]}>
-      <View style={StyleSheet.absoluteFill}><TypeArt type={typeOf(task)} w={264} h={220} seed={4} /></View>
+      <View style={StyleSheet.absoluteFill}><TypeArt type={artOf(task)} w={264} h={220} seed={seedOf(task.id)} text /></View>
       <View style={s.head}>
         <Text numberOfLines={1} style={[s.lab, { color: th.onart, flexShrink: 1 }]}>{over ? t("overLab", { time: hhmm(end) }) : t(going || mic ? "doingNow" : "nextUp")}</Text>
         {onKind && !card.gap && <KindChip task={task} onKind={onKind} />}
       </View>
-      <Text style={[s.t, { color: th.onart }]} numberOfLines={3}>{card.gap ? bolded(t("gapT", { free: card.gap, title: task.title })) : task.title}</Text>
+      <Text style={[s.t, { color: th.onart }]} numberOfLines={2}>{card.gap ? bolded(t("gapT", { free: card.gap, title: task.title })) : task.title}</Text>
       <View style={s.foot}>
         {over ? <View style={s.overActs}>
-          <Tap onPress={onExtend} scale={0.94} accessibilityRole="button" accessibilityLabel={t("overExtend")} style={[s.glass, s.start, s.overBtn, s.soft]}><Glass /><Text style={s.startT} numberOfLines={1}>{t("overExtend")}</Text></Tap>
-          <Tap onPress={onLater} scale={0.94} accessibilityRole="button" accessibilityLabel={t("overMove")} style={[s.glass, s.start, s.overBtn, s.primary]}><Glass /><Text style={[s.startT, s.primaryT]} numberOfLines={1}>{t("overMove")}</Text></Tap>
+          <Tap onPress={onExtend} scale={0.94} accessibilityRole="button" accessibilityLabel={t("overExtend")} style={[s.glass, s.start, s.overBtn, s.soft]}><Glass /><Icon name="plus" size={18} color="#fff" /><Text style={s.startT} numberOfLines={1}>{t("overExtend")}</Text></Tap>
+          <Tap onPress={onLater} scale={0.94} accessibilityRole="button" accessibilityLabel={t("overMove")} style={[s.glass, s.start, s.overBtn, s.primary]}><Glass /><Icon name="calendar" size={22} color={th.bg} /><Text style={[s.startT, s.primaryT, { color: th.bg }]} numberOfLines={1}>{t("overMove")}</Text></Tap>
         </View> : <>
+        <View style={s.row1}>
         <View style={s.meter}>
           <View style={s.cap}><Fill p={p} /></View>
           <View>
             <Rise text={big} style={[s.big, { color: th.onart }]} />
-            <Text style={[s.small, { color: th.onart }]}>{small}</Text>
+            <Text numberOfLines={1} style={[s.small, { color: th.onart }]}>{small}</Text>
           </View>
+        </View>
+        {!moving && !micDone && <Tap onPress={onDone} hitSlop={8} scale={0.88} testID="nowDone" accessibilityRole="button" accessibilityLabel={t("markDone")} style={[s.glass, s.solid]}><Glass /><Icon name="check" size={22} color="#0b0b0c" w={2} /></Tap>}
         </View>
         <View style={s.acts2}>
           {mic && micDone ? <>
-            <Tap onPress={() => { saveMicro(null); onMicroRest?.(MICRO_MIN); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microRest")} style={[s.glass, s.start, s.soft]}><Glass /><Text style={s.startT} numberOfLines={1}>{t("microRest")}</Text></Tap>
-            {onStart && <Tap onPress={() => { saveMicro(null); onStart(); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microGo")} style={[s.glass, s.start, s.primary]}><Glass /><Text style={[s.startT, s.primaryT]} numberOfLines={1}>{t("microGo")}</Text></Tap>}
+            <Tap onPress={() => { saveMicro(null); onMicroRest?.(MICRO_MIN); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microRest")} style={[s.glass, s.start, s.soft]}><Glass /><Icon name="clock" size={22} color="#fff" /><Text style={s.startT} numberOfLines={1}>{t("microRest")}</Text></Tap>
+            {onStart && <Tap onPress={() => { saveMicro(null); onStart(); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microGo")} style={[s.glass, s.start, s.primary, { backgroundColor: th.ink }]}><Glass /><Icon name="play" size={22} color={th.bg} /><Text style={[s.startT, s.primaryT, { color: th.bg }]} numberOfLines={1}>{t("microGo")}</Text></Tap>}
           </> : <>
-            {moving && <Tap onPress={onLater} scale={0.94} accessibilityRole="button" accessibilityLabel={t("laterBtn")} style={[s.glass, s.start, s.soft]}><Glass /><Text style={s.startT} numberOfLines={1}>{t("laterBtn")}</Text></Tap>}
-            {moving && onStart && <Tap onPress={onStart} scale={0.94} accessibilityRole="button" accessibilityLabel={t("startLab")} style={[s.glass, s.start, s.primary]}><Glass /><Text style={[s.startT, s.primaryT]} numberOfLines={1}>{t("startLab")}</Text></Tap>}
-            {microOk && !mic && <Tap onPress={() => { const at0 = Date.now(); saveMicro({ id: task.id, startedAt: at0, endsAt: at0 + MICRO_MIN * 60000 }); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microBtn")} style={[s.glass, s.start, s.primary]}><Glass /><Text style={[s.startT, s.primaryT]} numberOfLines={1}>{t("microBtn")}</Text></Tap>}
+            {moving && <Tap onPress={onLater} scale={0.94} accessibilityRole="button" accessibilityLabel={t("laterBtn")} style={[s.glass, s.start, s.soft]}><Glass /><Icon name="clock" size={22} color="#fff" /><Text style={s.startT} numberOfLines={1}>{t("laterBtn")}</Text></Tap>}
+            {moving && onStart && <Tap onPress={onStart} scale={0.94} accessibilityRole="button" accessibilityLabel={t("startLab")} style={[s.glass, s.start, s.primary, { backgroundColor: th.ink }]}><Glass /><Icon name="play" size={22} color={th.bg} /><Text style={[s.startT, s.primaryT, { color: th.bg }]} numberOfLines={1}>{t("startLab")}</Text></Tap>}
+            {microOk && !mic && <Tap onPress={() => { const at0 = Date.now(); saveMicro({ id: task.id, startedAt: at0, endsAt: at0 + MICRO_MIN * 60000 }); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microBtn", { n: MICRO_MIN })} style={[s.glass, s.start, s.primary, { backgroundColor: th.ink }]}><Glass /><Icon name="play" size={22} color={th.bg} /><Text style={[s.startT, s.primaryT, { color: th.bg }]} numberOfLines={1}>{t("microBtn", { n: MICRO_MIN })}</Text></Tap>}
           </>}
-          {!moving && !micDone && <Tap onPress={onDone} hitSlop={8} scale={0.88} testID="nowDone" accessibilityRole="button" accessibilityLabel={t("markDone")} style={[s.glass, s.solid]}><Glass /><Icon name="check" size={22} color="#0b0b0c" w={2.2} /></Tap>}
         </View>
         </>}
       </View>
@@ -102,9 +104,9 @@ function KindChip({ task, onKind }: { task: Task; onKind: KindPick }) {
   return (
     <View ref={at} style={s.kcWrap}>
       <Tap onPress={() => at.current?.measureInWindow((_x, y, _w, h) => onKind(task, y, y + h))} scale={0.94} hitSlop={7} accessibilityRole="button" accessibilityLabel={t("kindChange")} style={s.kc}>
-        <Icon name={task.kind} size={15} color={th.onart} w={2} />
+        <Icon name={task.kind} size={18} color={th.onart} w={2} />
         <Text numberOfLines={1} style={[s.kcT, { color: th.onart }]}>{kindName(task.kind)}</Text>
-        <Icon name="down" size={13} color={th.onart} w={2} />
+        <Icon name="down" size={18} color={th.onart} w={2} />
       </Tap>
     </View>
   );
@@ -147,7 +149,7 @@ function Viz({ thinking, level }: { thinking: boolean; level?: SharedValue<numbe
   const th = useTheme();
   const clock = useSharedValue(0);
   useFrameCallback((f) => { clock.set(f.timeSinceFirstFrame / 1000); });
-  return <View style={s.viz}>{ENV.map((_, i) => <VizBar key={i} i={i} clock={clock} level={level} thinking={thinking} color={th.seal} />)}</View>;
+  return <View style={s.viz}>{ENV.map((_, i) => <VizBar key={i} i={i} clock={clock} level={level} thinking={thinking} color={th.onart} />)}</View>;
 }
 
 // Each new word fades in rising 4px (views.html "Day, listening").
@@ -245,8 +247,8 @@ export function Story({ moves, now, onClose, onUndo, onKeep, onApply }: { moves:
                 <Text style={[s.mt, { color: th.ink }]}>{m.title}</Text>
                 <View style={s.ft}>
                   <Text style={[s.fr, { color: th.muted, textDecorationLine: "line-through" }]}>{when(m.from, now)}</Text>
-                  <Icon name="right" size={14} color={th.ink} w={2.2} />
-                  <Text style={[s.fr, { color: th.ink, fontFamily: ff("600") }]}>{when(m.to, now)}</Text>
+                  <Icon name="right" size={18} color={th.ink} w={2} />
+                  <Text style={[s.fr, { color: th.ink, fontFamily: ff("500") }]}>{when(m.to, now)}</Text>
                 </View>
                 {r && <Text style={[s.rs, { color: th.muted }]}>{bolded(reasonText(r, true), { color: th.ink })}</Text>}
               </View>
@@ -256,11 +258,11 @@ export function Story({ moves, now, onClose, onUndo, onKeep, onApply }: { moves:
       ))}
       <View style={s.acts}>
         {onApply ? <>
-          <Tap onPress={onKeep} accessibilityRole="button" accessibilityLabel={t("rebalKeep")} style={[s.close, { flex: 1, alignSelf: "auto", backgroundColor: th.chip }]}><Text style={[s.ct, { color: th.ink }]}>{t("rebalKeep")}</Text></Tap>
-          <Tap onPress={onApply} accessibilityRole="button" accessibilityLabel={t("rebalApply")} style={[s.close, { flex: 1, alignSelf: "auto", backgroundColor: th.ink }]}><Text style={[s.ct, { color: th.bg }]}>{t("rebalApply")}</Text></Tap>
+          <Tap onPress={onKeep} accessibilityRole="button" accessibilityLabel={t("rebalKeep")} style={[s.shut, { backgroundColor: th.chip }]}><Icon name="x" size={18} color={th.ink} w={2} /><Text numberOfLines={1} style={[s.ct, { color: th.ink }]}>{t("rebalKeep")}</Text></Tap>
+          <Tap onPress={onApply} accessibilityRole="button" accessibilityLabel={t("rebalApply")} style={[s.shut, { backgroundColor: th.ink }]}><Icon name="check" size={18} color={th.bg} w={2.4} /><Text numberOfLines={1} style={[s.ct, { color: th.bg }]}>{t("rebalApply")}</Text></Tap>
         </> : <>
         <Tap onPress={onClose} accessibilityRole="button" accessibilityLabel={t("briefClose")} style={[s.close, { backgroundColor: th.ink }]}><Text style={[s.ct, { color: th.bg }]}>{t("briefClose")}</Text></Tap></>}
-        {onUndo && <Tap onPress={onUndo} accessibilityRole="button" accessibilityLabel={t("undo")} style={[s.close, { borderColor: th.line, borderWidth: 1 }]}><Text style={[s.ct, { color: th.ink, fontFamily: ff("500") }]}>{t("undo")}</Text></Tap>}
+        {onUndo && <Tap onPress={onUndo} accessibilityRole="button" accessibilityLabel={t("undo")} style={[s.undo, { borderColor: th.line }]}><Icon name="undo" size={16} color={th.ink} w={2} /><Text numberOfLines={1} style={[s.undoT, { color: th.ink }]}>{t("undo")}</Text></Tap>}
       </View>
     </Animated.View>
   );
@@ -271,12 +273,12 @@ export function Weekly({ title, sub, onPress }: { title: string; sub: string; on
   const th = useTheme();
   return (
     <Tap onPress={onPress} scale={0.98} accessibilityRole="button" accessibilityLabel={title} style={[s.art, { backgroundColor: th.chip }]}>
-      <View style={StyleSheet.absoluteFill}><TypeArt type="lecture" w={264} h={220} seed={8} /></View>
+      <View style={StyleSheet.absoluteFill}><TypeArt type="lecture" w={264} h={220} seed={8} text /></View>
       <Text style={[s.lab, { color: th.onart }]}>{t("sundayLab")}</Text>
       <Text style={[s.t, { color: th.onart }]} numberOfLines={3}>{title}</Text>
       <View style={s.foot}>
-        <Text style={[s.small, { color: th.onart, fontFamily: ff("600") }]}>{sub}</Text>
-        <View style={s.glass}><Glass /><Icon name="right" size={22} color="#fff" w={2.2} /></View>
+        <Text style={[s.small, { color: th.onart, fontFamily: ff("500") }]}>{sub}</Text>
+        <View style={s.glass}><Glass /><Icon name="right" size={22} color="#fff" w={2} /></View>
       </View>
     </Tap>
   );
@@ -287,24 +289,21 @@ function Spin() {
   const r = useSharedValue(0);
   useEffect(() => { r.set(withRepeat(withTiming(360, { duration: 800, easing: Easing.linear }), -1)); }, [r]);
   const st = useAnimatedStyle(() => ({ transform: [{ rotate: `${r.get().toFixed(2)}deg` }] }));
-  return <Animated.View style={[s.spin, { borderColor: th.line, borderTopColor: th.seal }, st]} />;
+  return <Animated.View style={[s.spin, { borderColor: th.line, borderTopColor: th.onart }, st]} />;
 }
 
 // magic 4: real solver steps above the dock, newest last; older ones muted with a check.
 // calm.html "Weekly, noticed": the same task done on one weekday three weeks running; yes makes it a weekly repeat.
 export function SeriesAsk({ title, sub, yes, onYes, onNo }: { title: string; sub: string; yes: string; onYes: () => void; onNo: () => void }) {
   const th = useTheme();
+  // calm.html .find: a hairline card, the question, then two pills; the yes is the ink-filled one
   return (
-    <View style={[s.art, { backgroundColor: th.chip }]}>
-      <View style={StyleSheet.absoluteFill}><TypeArt type="lecture" w={264} h={220} seed={8} /></View>
-      <Text style={[s.lab, { color: th.onart }]}>{t("seriesLab")}</Text>
-      <Text style={[s.t, { color: th.onart }]} numberOfLines={3}>{title}</Text>
-      <View style={s.foot}>
-        <Text style={[s.small, { color: th.onart, fontFamily: ff("600"), flexShrink: 1 }]} numberOfLines={2}>{sub}</Text>
-        <View style={s.acts2}>
-          <Tap onPress={onNo} scale={0.94} accessibilityRole="button" accessibilityLabel={t("seriesNo")} style={[s.glass, s.start, s.soft]}><Glass /><Text style={s.startT}>{t("seriesNo")}</Text></Tap>
-          <Tap onPress={onYes} scale={0.94} accessibilityRole="button" accessibilityLabel={yes} style={[s.glass, s.start]}><Glass /><Text style={s.startT}>{yes}</Text></Tap>
-        </View>
+    <View style={[s.find, { borderColor: th.line }]}>
+      <Text style={[s.findC, { color: th.ink }]}>{title}</Text>
+      <Text style={[s.findC2, { color: th.muted }]}>{sub}</Text>
+      <View style={s.findActs}>
+        <Tap onPress={onNo} scale={0.96} accessibilityRole="button" accessibilityLabel={t("seriesNo")} style={[s.findA, { borderColor: th.line }]}><Icon name="x" size={16} color={th.ink} w={2} /><Text style={[s.findAT, { color: th.ink }]} numberOfLines={1}>{t("seriesNo")}</Text></Tap>
+        <Tap onPress={onYes} scale={0.96} accessibilityRole="button" accessibilityLabel={yes} style={[s.findA, { backgroundColor: th.ink, borderColor: th.ink }]}><Icon name="refresh" size={16} color={th.bg} w={2} /><Text style={[s.findAT, { color: th.bg, fontFamily: ff("600") }]} numberOfLines={1}>{yes}</Text></Tap>
       </View>
     </View>
   );
@@ -318,9 +317,9 @@ export function Steps({ lines }: { lines: string[] }) {
         const now = i === lines.length - 1;
         return (
           <Animated.View key={i} entering={FadeInDown.duration(220).easing(EASE)} style={s.st}>
-            {now ? <Spin /> : <Icon name="check" size={16} color={th.muted} w={2.4} />}
+            {now ? <Spin /> : <Icon name="check" size={18} color={th.muted} w={2} />}
             {/* a long title wraps inside the 24 px gutters, as in magic.html: an RN Text in a row does not shrink by itself */}
-            <Text style={{ flexShrink: 1, color: now ? th.ink : th.muted, fontSize: font.md, fontFamily: ff(now ? "600" : "500") }}>{l}</Text>
+            <Text style={{ flexShrink: 1, color: now ? th.ink : th.muted, fontSize: font.md, fontFamily: ff(now ? "500" : "500") }}>{l}</Text>
           </Animated.View>
         );
       })}
@@ -328,25 +327,34 @@ export function Steps({ lines }: { lines: string[] }) {
   );
 }
 
+// White text over art: a soft shadow (reference text-shadow 0 1px 6px .22), never an outline.
+const SHADOW = { textShadowColor: "rgba(0,0,0,.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 } as const;
 const s = StyleSheet.create({
-  art: { marginTop: 16, height: 236, borderRadius: 28, overflow: "hidden", paddingHorizontal: 20, paddingTop: 20 },
-  lab: { fontSize: font.label, fontFamily: ff("500"), opacity: 0.85 },
-  t: { marginTop: 8, fontSize: 24, lineHeight: 32, fontFamily: ff("600"), letterSpacing: -0.48 }, // .art .t: 24/600, line 32 so stacked Vietnamese marks (Ế, Ữ) are not clipped
-  foot: { position: "absolute", left: 20, right: 16, bottom: 16, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" },
+  art: { marginTop: 16, height: 236, borderRadius: 34, overflow: "hidden", paddingHorizontal: 20, paddingTop: 20 }, // calm.html .art: 236 high, 34px radius
+  lab: { fontSize: 13, lineHeight: 18, fontFamily: ff("300"), letterSpacing: 1.1, textTransform: "uppercase", opacity: 0.9, ...SHADOW }, // v2 .lab: 12.5px, light, caps; label and title one group
+  t: { marginTop: 2, fontSize: 32, lineHeight: 35, fontFamily: fd("800"), letterSpacing: -1.1, ...SHADOW }, // v2 .art .t: display 800, 32px, -.035em, 1.1
+  find: { borderRadius: 22, borderWidth: 1, paddingVertical: 16, paddingHorizontal: 18, marginTop: 16 }, // calm.html .find
+  findC: { fontSize: 17, lineHeight: 23, fontFamily: ff("500") },
+  findC2: { marginTop: 6, fontSize: 15, lineHeight: 21, fontFamily: ff("400") },
+  findActs: { flexDirection: "row", gap: 8, marginTop: 14 },
+  findA: { height: 40, paddingHorizontal: 16, borderRadius: 99, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
+  findAT: { fontSize: 15, fontFamily: ff("500") },
+  foot: { position: "absolute", left: 20, right: 20, bottom: 18, gap: 12 }, // two rows: the meter, then the pair of buttons full width
+  row1: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" },
   meter: { flexDirection: "row", alignItems: "center", gap: 12, flexShrink: 0 },
-  cap: { width: 18, height: 54, borderRadius: 10, borderWidth: 2, borderColor: "rgba(255,255,255,0.9)", justifyContent: "flex-end", padding: 2 },
-  rise: { flexDirection: "row", overflow: "hidden", marginVertical: -5 }, // pulls the taller line back to the old 26px footprint
-  big: { fontSize: 26, fontFamily: ff("600"), lineHeight: 36 }, // headroom so the clip keeps vi tone marks (phút)
-  small: { fontSize: font.md, fontFamily: ff("500"), opacity: 0.9, marginTop: 3 },
-  glass: { width: 52, height: 52, borderRadius: 26, overflow: "hidden", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.28)", borderWidth: 1, borderColor: "rgba(255,255,255,0.5)" },
+  cap: { width: 20, height: 64, borderRadius: 12, borderWidth: 2, borderColor: "rgba(255,255,255,0.9)", justifyContent: "flex-end", padding: 2 }, // v2 .art .cap2: 20 x 64 vertical pill
+  rise: { flexDirection: "row", overflow: "hidden", marginVertical: -5 }, // pulls the taller line back to the old footprint
+  big: { fontSize: 30, fontFamily: fd("700"), lineHeight: 34, letterSpacing: -0.9, ...SHADOW }, // v2 .art .big: display 700, 30px
+  small: { fontSize: 17, fontFamily: ff("500"), opacity: 0.94, marginTop: 3, ...SHADOW },
+  glass: { width: 58, height: 58, borderRadius: 29, overflow: "hidden", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.22)", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.5)" }, // reference .glass 58px
   solid: { backgroundColor: "rgba(255,255,255,0.85)" },
   acts2: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1, minWidth: 0 },
-  start: { width: undefined, paddingHorizontal: 16, flexShrink: 1, minWidth: 0 }, // views.html "Day, next up": a glass pill as tall as the check
-  startT: { color: "#fff", fontSize: font.sub, fontFamily: ff("700") },
-  primary: { backgroundColor: "rgba(255,255,255,0.9)", borderColor: "transparent" }, // calm.html .gbtn.solid
-  primaryT: { color: "#0b0b0c" },
+  start: { flex: 1, flexShrink: 1, minWidth: 0, height: 54, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 18 }, // calm.html .gbtn: 54 high, glass pill
+  startT: { color: "#fff", fontSize: 16, lineHeight: 20, fontFamily: ff("600"), flexShrink: 1, minWidth: 0 }, // on the glass: no shadow, the pill is near-solid
+  primary: { borderColor: "transparent" }, // calm.html .gbtn.solid: ink CTA, no shadow (the colour comes from the theme at the call site)
+  primaryT: { textShadowColor: "transparent" },
   soft: { opacity: 0.72 }, // Dời: one tap, Zen picks the day and hour; lighter than Bắt đầu
-  words: { fontSize: 24, lineHeight: LINE, fontFamily: ff("600"), letterSpacing: -0.48 }, // .words: 24/600, 1.3, -.02em
+  words: { fontSize: 24, lineHeight: LINE, fontFamily: ff("500"), letterSpacing: -0.48 }, // .words: 24/600, 1.3, -.02em
   wordsBox: { maxHeight: MAX, overflow: "hidden", justifyContent: "flex-end" },
   wordsRow: { flexDirection: "row", flexWrap: "wrap" },
   wordsFade: { position: "absolute", left: 0, right: 0, top: 0, height: 32 },
@@ -355,28 +363,31 @@ const s = StyleSheet.create({
   mvp: { marginTop: 14, minHeight: 60, paddingVertical: 10, paddingLeft: 16, paddingRight: 10, borderRadius: 22, flexDirection: "row", alignItems: "center", gap: 10 }, // .mvp: two lines
   mvDot: { width: 8, height: 8, borderRadius: 99 },
   mvTx: { flex: 1, minWidth: 0 },
-  mvT: { fontSize: font.md, fontFamily: ff("600") },
+  mvT: { fontSize: font.md, fontFamily: ff("500") },
   mvS: { marginTop: 2, fontSize: font.label, fontFamily: ff("500") },
   mvX: { height: 36, paddingHorizontal: 12, borderRadius: 99, alignItems: "center", justifyContent: "center" },
-  mvXT: { fontSize: font.sub, fontFamily: ff("600") },
-  sl: { fontSize: font.label, fontFamily: ff("500"), marginTop: 16 },
+  mvXT: { fontSize: font.sub, fontFamily: ff("500") },
+  sl: { fontSize: font.label, fontFamily: ff("300"), marginTop: 16 }, // eyebrow: light
   mv: { paddingVertical: 14 },
-  mt: { fontSize: 17, fontFamily: ff("600") },
+  mt: { fontSize: 17, fontFamily: ff("500") },
   ft: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 3 },
   fr: { fontSize: font.md, fontFamily: ff("500"), fontVariant: ["tabular-nums"] },
-  rs: { marginTop: 3, fontSize: font.md, lineHeight: 20.25, fontFamily: ff("500") },
-  acts: { flexDirection: "row", gap: 8, marginTop: 14 },
+  rs: { marginTop: 3, fontSize: 15, lineHeight: 21, fontFamily: ff("400") }, // calm.html .chg .t2: 15px regular, muted
+  acts: { flexDirection: "row", gap: 8, marginTop: 20 },
   close: { alignSelf: "flex-start", height: 40, paddingHorizontal: 16, borderRadius: 99, alignItems: "center", justifyContent: "center" },
-  ct: { fontSize: font.sub, fontFamily: ff("700") },
+  ct: { fontSize: font.sub, fontFamily: ff("600") },
+  shut: { flex: 1, height: 52, borderRadius: 99, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }, // calm.html .gbtn in the rebalance pair
+  undo: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, height: 36, paddingHorizontal: 14, borderRadius: 99, borderWidth: 1, marginTop: 8 }, // calm.html .undo: 36 high, 14px
+  undoT: { fontSize: 14, fontFamily: ff("500") },
   steps: { position: "absolute", left: 24, right: 24, bottom: 150, gap: 10, zIndex: 7 },
   st: { flexDirection: "row", alignItems: "center", gap: 10 },
   spin: { width: 16, height: 16, borderRadius: 8, borderWidth: 2 },
   rest: { alignItems: "center", gap: 16, paddingVertical: 36 },
   head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   kcWrap: { flexShrink: 0 },
-  kc: { flexDirection: "row", alignItems: "center", gap: 6, height: 30, paddingHorizontal: 12, borderRadius: 99, backgroundColor: "rgba(255,255,255,0.22)" }, // calm.html .kc
-  kcT: { maxWidth: 150, fontSize: 14, fontFamily: ff("600") },
-  overActs: { flex: 1, flexDirection: "row", gap: 8 },
+  kc: { flexDirection: "row", alignItems: "center", gap: 6, height: 32, paddingHorizontal: 13, borderRadius: 99, backgroundColor: "rgba(255,255,255,0.22)", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.4)" }, // v2 .kc: 32 high, 14px, hairline glass
+  kcT: { maxWidth: 150, fontSize: 14, lineHeight: 20, fontFamily: ff("500"), ...SHADOW },
+  overActs: { flexDirection: "row", gap: 8 },
   overBtn: { flex: 1 },
-  note: { marginTop: 12, fontSize: font.md, lineHeight: 20, fontFamily: ff("500") }, // calm.html: the caption under the card
+  note: { marginTop: 12, fontSize: font.md, lineHeight: 23, fontFamily: ff("500") }, // calm.html: the caption under the card
 });

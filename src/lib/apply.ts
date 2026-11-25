@@ -1067,6 +1067,18 @@ export async function proposalFor(tasks: Task[]): Promise<Move[] | undefined> {
 export async function proposeRebalance(now = Date.now(), force = false): Promise<Move[] | undefined> {
   const tasks = await store.allTasks(), sig = taskSig(tasks);
   if (!force && (await store.kvGet(REB.off)) === sig) return undefined;
+  const moves = await planRebalance(now, tasks);
+  if (!moves) { await store.kvSet(REB.prop, ""); return undefined; }
+  await store.kvSet(REB.prop, JSON.stringify({ sig, moves }));
+  return moves;
+}
+
+/** The dry plan's moves when they help, else undefined. Writes nothing: the week's link asks this to show only when there is something to move. */
+export async function canRebalance(now = Date.now()): Promise<boolean> {
+  return !!(await planRebalance(now, await store.allTasks()));
+}
+
+async function planRebalance(now: number, tasks: Task[]): Promise<Move[] | undefined> {
   const box: { w?: Work } = {};
   const r = await transact(now, (w) => { box.w = w; }, { dry: true, cause: "deadline", fill: false });
   const moves = r.moves ?? [];
@@ -1074,9 +1086,7 @@ export async function proposeRebalance(now = Date.now(), force = false): Promise
   const after = new Set(atRisk(r.warn ?? [], now).map((w) => w.id));
   const saved = atRisk((await loadWarn()).filter(open), now).some((w) => !after.has(w.id));
   const helps = overDays(tasks, now).size > overDays([...box.w!.tasks.values()], now).size || saved;
-  if (!moves.length || !helps) { await store.kvSet(REB.prop, ""); return undefined; }
-  await store.kvSet(REB.prop, JSON.stringify({ sig, moves }));
-  return moves;
+  return moves.length && helps ? moves : undefined;
 }
 
 /** Applies the proposal exactly: each move's task starts at its proposed time, its length kept, nothing replanned. One undo. */

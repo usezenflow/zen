@@ -249,12 +249,25 @@ export function remember(list: string[], q: string): string[] {
 /** views.html "Search, first time": what the field understands, before there is anything to find. */
 export const SAMPLES = ["thi tuần sau", "hạn T6 chưa xong", "tối mai", "csdl"];
 
-// Words before a course name on an exam row ("Thi Mẫu thiết kế", "Kiểm tra giữa kỳ Triết"). Not "học": "Học máy" is a course.
-const EXAM_LEAD = new Set(["thi", "kiem", "tra", "giua", "cuoi", "ky", "on"]);
+// Phrases before a course name on an exam row ("Thi Mẫu thiết kế", "Kiểm tra giữa kỳ Triết", "Kỳ thi Toán"). Whole phrases, not single words:
+// "Kiểm thử phần mềm" and "Kỹ thuật lập trình" are courses ("kiem", "ky" alone are not exam words). Not "học": "Học máy" is a course.
+const EXAM_LEAD: string[][] = [["kiem", "tra"], ["giua", "ky"], ["cuoi", "ky"], ["ky", "thi"], ["thi"], ["on"]];
 /** A course's whole name, as the timetable writes it, past exam words. Never cut: Vietnamese words span syllables ("thiết kế"). */
 export function courseName(title: string): string {
-  const ws = words(title), from = ws.findIndex((w) => !EXAM_LEAD.has(w.w));
-  return from < 0 ? title.trim() : title.slice(ws[from].a, ws[ws.length - 1].b);
+  const ws = words(title);
+  let from = 0;
+  for (let hit = true; hit && from < ws.length;) {
+    const p = EXAM_LEAD.find((ph) => ph.every((w, k) => ws[from + k]?.w === w));
+    hit = !!p;
+    if (p) from += p.length;
+  }
+  return from >= ws.length ? title.trim() : title.slice(ws[from].a, ws[ws.length - 1].b);
+}
+/** A long course name by its initials, the way students write it ("Kiểm thử phần mềm" is "KTPM", "Giải tích 2" is "GT2"); one or two words stay whole. */
+export function courseAbbr(name: string): string {
+  const ws = words(name);
+  if (ws.length <= 2) return name.trim();
+  return ws.map((w) => (/^\d+$/.test(w.w) ? w.w : name.slice(w.a, w.a + 1).toUpperCase())).join("");
 }
 
 export type Suggestion = { q: string; name?: string }; // name: the course a short query stands for, for the line under it

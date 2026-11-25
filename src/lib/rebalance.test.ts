@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { applyProposal, dismissProposal, maybeRebalance, proposalFor, proposeRebalance } from "./apply";
+import { applyProposal, canRebalance, dismissProposal, maybeRebalance, proposalFor, proposeRebalance } from "./apply";
 import { newModel } from "../planner";
 import type { Task } from "./types";
 
@@ -49,6 +49,13 @@ describe("rebalance proposal", () => {
     for (const m of moves!) expect(m.from).not.toBe(m.to);
     expect(starts()).toEqual(before); // dry run: the calendar is untouched
     expect(await proposalFor([...db.tasks.values()])).toEqual(moves);
+  });
+
+  it("canRebalance mirrors the proposal and stores nothing", async () => {
+    expect(await canRebalance(NOW)).toBe(false);
+    overloaded();
+    expect(await canRebalance(NOW)).toBe(true);
+    expect(db.kv.get("rebalance.proposal")).toBeUndefined(); // dry: no proposal written
   });
 
   it("applyProposal moves exactly the proposed tasks, undoably", async () => {

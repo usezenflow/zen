@@ -8,6 +8,36 @@ const DAY = 24 * 60 * 60_000;
 
 export interface Area { id: string; name: string; kinds: Kind[]; words: string[]; targetPct?: number }
 
+export const KINDS: Kind[] = ["study", "exercise", "chores", "social", "other", "work", "errand", "finance", "self"];
+export const WORD_MIN = 2, WORDS_MAX = 20;
+
+/** The comparison form of a keyword: lowercase, diacritics folded, spaces collapsed. "Ôn  Thi" and "on thi" are one word. */
+export const foldWord = (w: string) => fold(w).text.replace(/\s+/g, " ").trim();
+
+/** Adds a typed keyword to an area's list. Refused (null) when it is too short, the list is full, or it is already there (by folded form). */
+export function addWord(words: string[], raw: string): string[] | null {
+  const w = raw.replace(/\s+/g, " ").trim();
+  const k = foldWord(w);
+  if ([...k].length < WORD_MIN || words.length >= WORDS_MAX || words.some((x) => foldWord(x) === k)) return null;
+  return [...words, w];
+}
+
+/** The other area that already holds this keyword, if any. The longest match wins in areaOf, so the owner keeps its word and the chip is only flagged. */
+export function ownerOf(word: string, areas: Area[], selfId: string): Area | undefined {
+  const k = foldWord(word);
+  return areas.find((a) => a.id !== selfId && a.words.some((w) => foldWord(w) === k));
+}
+
+/** Tasks worked in the last 7 days (doneAt in the window) per area: the "N việc tuần này khớp" count. */
+export function weekCount(tasks: Task[], areas: Area[], now: number): Record<string, number> {
+  const first = startOfDay(now - 7 * DAY), n: Record<string, number> = {};
+  for (const t of tasks) {
+    const a = t.doneAt !== undefined && t.doneAt >= first && t.doneAt <= now ? areaOf(t, areas) : undefined;
+    if (a) n[a.id] = (n[a.id] ?? 0) + 1;
+  }
+  return n;
+}
+
 // The six core domains. Kinds map each Task kind to one area: finance joins work, errand joins home, other joins self.
 export const DEFAULT_AREAS: Area[] = [
   { id: "study", name: "Học tập", kinds: ["study"], words: ["bài tập", "ôn thi", "kiểm tra", "essay", "lab"], targetPct: 25 },

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { startOfDay } from "../components/cal";
-import { courseName, found, hits, parse, remember, suggest } from "./find";
+import { courseAbbr, courseName, found, hits, parse, remember, suggest } from "./find";
 import type { Task } from "./types";
 
 // Mon 16 Nov 2026, 14:20 local.
@@ -165,5 +165,23 @@ describe("scopes: lists, ranges, open ends, exceptions, clocks", () => {
     expect(days("gym T4 sau 5h chiều")).toEqual(["g18"]);
     expect(days("gym T4 trước 9h")).toEqual(["am18"]);
     expect(days("gym T4 từ 6h đến 8h")).toEqual(["am18"]);
+  });
+});
+
+describe("courseName keeps courses that start like an exam word", () => {
+  it("only strips whole exam phrases", () => {
+    expect(courseName("Kiểm thử phần mềm")).toBe("Kiểm thử phần mềm");
+    expect(courseName("Kỹ thuật lập trình")).toBe("Kỹ thuật lập trình");
+    expect(courseName("Kiểm tra giữa kỳ Triết")).toBe("Triết");
+    expect(courseName("Thi Mẫu thiết kế")).toBe("Mẫu thiết kế");
+    expect(courseName("Kỳ thi Toán")).toBe("Toán");
+  });
+});
+
+describe("courseAbbr", () => {
+  it("abbreviates long names by initials and keeps numbers whole", () => {
+    expect(courseAbbr("Kiểm thử phần mềm")).toBe("KTPM");
+    expect(courseAbbr("Giải tích 2")).toBe("GT2");
+    expect(courseAbbr("Triết học")).toBe("Triết học");
   });
 });

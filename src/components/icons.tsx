@@ -46,6 +46,25 @@ const I = {
   type: '<path d="M5 6.5h14M12 6.5V19M9 19h6"/>',
   send: '<path d="M12 19V5M6 11l6-6 6 6"/>',
   pdf: '<path d="M8 2.75h5.6c.53 0 1.04.21 1.41.59l3.65 3.65c.38.37.59.88.59 1.41V18.25a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V5.75a3 3 0 0 1 3-3z"/><path d="M13.75 3v3a1.75 1.75 0 0 0 1.75 1.75h3.25M9 12.75h6M9 16.25h4"/>',
+  // settings, task detail, toasts and empty states (added: same 24 grid, 1.8 stroke, round caps)
+  play: '<path d="M8 5.8c0-.8.9-1.3 1.6-.9l8.6 5.2c.7.4.7 1.4 0 1.8l-8.6 5.2c-.7.4-1.6-.1-1.6-.9Z"/>',
+  skip: '<path d="M6 6l8 6-8 6Z"/><path d="M18 6v12"/>',
+  upload: '<path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M4 14v4.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V14"/>',
+  download: '<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M4 14v4.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V14"/>',
+  bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15Z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
+  refresh: '<path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v4.5h-4.5"/>',
+  school: '<path d="M2 9.5 12 5l10 4.5-10 4.5Z"/><path d="M6 11.5V16c2 1.8 10 1.8 12 0v-4.5"/><path d="M22 9.5V14"/>',
+  book: '<path d="M2 5.5h7a3 3 0 0 1 3 3V20a2.5 2.5 0 0 0-2.5-2.5H2Z"/><path d="M22 5.5h-7a3 3 0 0 0-3 3V20a2.5 2.5 0 0 1 2.5-2.5H22Z"/>',
+  alert: '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.2v.1"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8v.1"/>',
+  checkCircle: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 9.5"/>',
+  xCircle: '<circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/>',
+  calendar: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+  target: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.8"/>',
+  examCheck: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M9 15.5l2 2 4-4"/>',
+  shield: '<path d="M12 3 4.5 6v5.5c0 4.5 3.2 8 7.5 9.5 4.3-1.5 7.5-5 7.5-9.5V6Z"/><path d="M9 12l2 2 4-4"/>',
+  flame: '<path d="M12 21a6.5 6.5 0 0 0 6.5-6.5c0-3.5-2.5-5.5-4-8-.5 2-1.5 3-3 3.5C11.5 7 12 4.5 10 2.5 9.5 6 5.5 8.5 5.5 14.5A6.5 6.5 0 0 0 12 21Z"/>',
+  leaf: '<path d="M5 19c0-8 4-13 14-14 0 10-5 14-13 14"/><path d="M5 19 13 11"/>',
 };
 export type IconName = keyof typeof I;
 
@@ -60,7 +79,7 @@ function parse(src: string, color: string) {
   });
 }
 
-export function Icon({ name, size = 20, color = "#000", w = 1.8 }: { name: IconName; size?: number; color?: string; w?: number }) {
+export function Icon({ name, size = 20, color = "#000", w = 2 }: { name: IconName; size?: number; color?: string; w?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={w} strokeLinecap="round" strokeLinejoin="round">
       {parse(I[name], color)}

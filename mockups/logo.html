@@ -5,69 +5,82 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Zen logo</title>
 <link rel="stylesheet" href="ui.css" />
+<link rel="stylesheet" href="v2.css" />
 <style>
-.concept { max-width: 1240px; margin: 0 auto 44px; }
-.concept h2 { font-size: 19px; font-weight: 600; letter-spacing: -.01em; }
-.concept > p { margin: 6px 0 16px; max-width: 760px; color: #6d7378; line-height: 1.5; font-size: 14px; }
-.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; }
-.tile { height: 230px; border-radius: 30px; display: grid; place-items: center; position: relative; }
-.tile small { position: absolute; left: 20px; bottom: 16px; font-size: 10.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; opacity: .55; }
-.word { display: flex; align-items: center; gap: 10px; font-size: 40px; font-weight: 600; letter-spacing: -.03em; }
-.icon { width: 112px; height: 112px; border-radius: 26px; display: grid; place-items: center; box-shadow: 0 24px 40px -20px rgba(0,0,0,.45); }
-.state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 6px; padding-bottom: 90px; }
-.state .h { font-size: 24px; margin-top: 22px; }
-.state .sub { max-width: 220px; line-height: 1.45; }
-.state .btn { margin-top: 22px; width: 100%; }
-.state .ghost { margin-top: 10px; font-size: 15px; font-weight: 600; color: var(--muted); }
+.head h1 { font-family: var(--display); font-size: 44px; font-weight: 800; letter-spacing: -.035em; line-height: 1.05; }
+.head p { max-width: 720px; }
+h2.sec { font-family: var(--display); font-size: 22px; font-weight: 600; letter-spacing: -.02em; margin: 40px 0 6px; color: var(--ink); }
+.sec-p { max-width: 760px; color: #4a4d53; line-height: 1.5; font-size: 14.5px; margin-bottom: 18px; }
+.logos { max-width: 1240px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr)); gap: 20px; }
+.lg { background: #fff; border-radius: 34px; padding: 26px; box-shadow: 0 0 0 1px var(--line); }
+.lg h3 { font-family: var(--display); margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -.02em; }
+.lg p { margin: 6px 0 0; font-size: 14.5px; line-height: 1.5; color: #4a4d53; }
+.lg .marks { display: flex; gap: 14px; align-items: center; margin-top: 18px; flex-wrap: wrap; }
+.tile { position: relative; overflow: hidden; width: 124px; height: 124px; border-radius: 34px; display: grid; place-items: center; }
+.tile.sm { width: 64px; height: 64px; border-radius: 18px; }
+.tile.wide { width: 170px; }
+.tile { isolation: isolate; }
+.tile > .zl { position: relative; z-index: 1; }
+.tile small { position: absolute; left: 12px; bottom: 10px; font-size: 10px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; opacity: .6; }
+.word { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-size: 64px; font-weight: 800; letter-spacing: -.045em; line-height: 1; }
+.word .zl { margin-top: 2px; }
 
-/* Leaf motion: it floats like a leaf on still water, rocking from its lower tip. */
-.lf .a { transform-box: view-box; transform-origin: 12px 88px; transition: transform .6s cubic-bezier(.3,.7,.2,1); }
-.lf .sun { transform-box: fill-box; transform-origin: center; transition: transform .6s cubic-bezier(.3,.7,.2,1); }
-.lf.load .a { animation: rock 4.2s ease-in-out infinite; }
-.lf.load .sun { animation: sun 4.2s ease-in-out infinite; }
-.lf.err .a { transform: rotate(-24deg); }
-.lf.err .sun { transform: translate(-30px, 12px); }
-@keyframes rock { 50% { transform: rotate(-5deg); } }
-@keyframes sun { 50% { transform: scale(.82); } }
-@media (prefers-reduced-motion: reduce) { .lf.load * { animation: none !important; } }
+/* States: the same mark in three moods, each state the app's Logo component will use */
+.state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 6px; padding-bottom: 90px; }
+.state .h { font-size: 26px; margin-top: 26px; line-height: 1.1; }
+.state .sub { max-width: 230px; line-height: 1.45; }
+.state .btn { margin-top: 22px; width: 100%; }
+.state .ghost { margin-top: 10px; font-size: 15px; font-weight: 500; color: var(--muted); }
+.device.dark .lg { background: #17181b; }
 </style>
 </head>
 <body>
 <div class="head">
-  <h1>Logo · Lá trà</h1>
-  <p>A tea leaf, a square with two opposite corners turned round, and a vermilion sun resting in its open corner. A pause, a cup of tea. The shape stays plain and the motion carries the mood: it rocks like a leaf on water while loading, is only a line when empty, and tips over on an error.</p>
-  <nav><a href="capture.html">Capture</a><a href="views.html">Views</a></nav>
+  <h1>zen<br><span style="font-weight:500">Ensō koi</span></h1>
+  <p>A brush ring drawn in one stroke. The blunt start is the koi's head with its eye knocked out; the stroke thins as it turns, then flicks into a split tail just short of the head, so the circle never closes and the day stays open. Dry-brush texture inside the stroke is the same fine line language as the art.</p>
+  <nav><a href="capture.html">Capture</a><a href="views.html">Views</a><a href="calm.html">Calm</a><a href="settings.html">Settings</a></nav>
 </div>
-<div id="t"></div>
+
+<h2 class="sec" style="max-width:1240px;margin-left:auto;margin-right:auto">1. Mark</h2>
+<p class="sec-p" style="margin-left:auto;margin-right:auto;max-width:1240px">Large mark, tiles on ink, paper and line-art, the small mark for icons, and the wordmark in Bricolage Grotesque 800.</p>
+<div class="logos" id="logos"></div>
+
+<h2 class="sec" style="max-width:1240px;margin-left:auto;margin-right:auto">2. States</h2>
+<p class="sec-p" style="margin-left:auto;margin-right:auto;max-width:1240px">The same mark, three moods. Loading: the ring turns once every six seconds and the brush breathes (still under reduced motion). Empty: the outline only, nothing to fill it today. Error: the mark tips back and the tail splits wider, so it reads as off without a warning icon.</p>
+<div class="gallery" style="max-width:1240px;margin:0 auto;display:flex;flex-wrap:wrap;gap:36px"></div>
+
 <script src="ui.js"></script>
 <script>
-const SEAL = "#d9432b";
-const inkOf = (m) => m === "white" ? "#fff" : "currentColor";
+const board = (title, text, mk, lineMk) => `<div class="lg">
+  <h3>${title}</h3><p>${text}</p>
+  <div class="marks"><div style="display:grid;place-items:center;width:100%;height:190px;color:#0d0d0f">${LOGO(170, "color")}</div></div>
+  <div class="marks">
+    <div class="tile" style="background:#0d0d0f;color:#fff">${LOGO(70, "hot")}<small>ink</small></div>
+    <div class="tile" style="background:#ffffff;box-shadow:inset 0 0 0 1px #e3e5e8;color:#0d0d0f">${LOGO(70, "color")}<small>paper</small></div>
+    <div class="tile" data-art="3,lagoonC,h" style="color:#fff">${LOGO(70, "white")}<small>art</small></div>
+    <div class="tile" style="background:#fff;color:#0d0d0f;box-shadow:inset 0 0 0 1.5px #e3e5e8">${LOGO(70, "line")}<small>line</small></div>
+    <div class="tile sm" style="background:#0d0d0f;color:#fff">${LOGO(30, "hot")}</div>
+    <div class="tile sm" style="background:#ffffff;box-shadow:inset 0 0 0 1px #e3e5e8;color:#0d0d0f">${LOGO(30, "color")}</div>
+  </div>
+  <div class="marks"><div class="word">${LOGO(40, "color")}zen</div></div>
+</div>`;
+const appIcon = `<div class="lg"><h3>App icon</h3><p>The white koi on the line field: the app icon and the toast tile. Light uses the lagoon field, dark the night field. The mark is white, centred and carries a soft drop shadow.</p>
+  <div class="marks" style="align-items:flex-end">
+    <div class="tile xl app-tile" data-art="3,lagoonC,h">${LOGO(72, "white")}</div>
+    <div class="tile app-tile" data-art="4,lagoonC,d" style="width:60px;height:60px;border-radius:17px">${LOGO(36, "white")}</div>
+    <div class="tile xl app-tile" data-art="5,night,d">${LOGO(72, "white")}</div>
+    <div class="tile app-tile" data-art="6,night,v" style="width:60px;height:60px;border-radius:17px">${LOGO(36, "white")}</div>
+    <div class="tile sm app-tile" data-art="7,lagoonC,h">${LOGO(30, "white")}</div>
+  </div></div>`;
+document.getElementById("logos").innerHTML =
+  appIcon + board("Ensō koi", "One brush stroke round a circle. Blunt head with the eye knocked out, the stroke thins into a split tail just short of the head. The circle never closes.", null, null);
 
-// Leaf: a square with two opposite corners turned round. The sun rests in the open corner.
-const LEAF_D = "M12 50A38 38 0 0 1 50 12H74V50A38 38 0 0 1 36 88H12Z";
-function LEAF(s = 40, m = "color", state = "") {
-  const ink = inkOf(m), seal = m === "color" || m === "line" ? SEAL : ink;
-  const paint = m === "line" ? `fill="none" stroke="currentColor" stroke-width="${Math.max(3, 140 / s)}" stroke-linejoin="round"` : `fill="${ink}"`;
-  return `<svg class="lf ${state}" width="${s}" height="${s}" viewBox="0 0 100 100" overflow="visible"><path class="a" d="${LEAF_D}" ${paint}/><circle class="sun" cx="84" cy="84" r="${s < 24 ? 13 : 11}" fill="${seal}"/></svg>`;
-}
-
-document.getElementById("t").innerHTML = `<section class="concept"><h2>Mark</h2><div class="tiles">${[
-  ["#fbfaf7", "#16181b", LEAF(130), "Mark"],
-  ["#16181b", "#ecebe6", LEAF(130), "Mark, dark"],
-  ["#fbfaf7", "#16181b", `<div class="word">${LEAF(44)}zen</div>`, "Wordmark"],
-  ["#ecebe7", "#16181b", `<div style="display:flex;gap:16px"><div class="icon" style="background:#16181b;color:#ecebe6">${LEAF(70)}</div><div class="icon" style="background:${SEAL};color:#fff">${LEAF(70, "white")}</div></div>`, "App icon"],
-  ["#fbfaf7", "#16181b", `<div style="display:flex;gap:24px;align-items:center">${LEAF(48, "mono")}${LEAF(28, "mono")}${LEAF(16, "mono")}</div>`, "Mono, small sizes"],
-  ["#1f2b6e", "#fff", LEAF(110, "white"), "On colour"],
-].map(([bg, fg, x, l]) => `<div class="tile" style="background:${bg};color:${fg}">${x}<small>${l}</small></div>`).join("")}</div></section>
-<section class="concept"><h2>States</h2><p>The same leaf, three moods. Loading: the leaf rocks a few degrees from its lower tip on a slow 4-second cycle, like a leaf on water, while the sun breathes. Empty: only the outline, nothing to fill it today. Error: the leaf tips over and the sun rolls out from under it, so it reads as off without any warning icon.</p><div class="gallery"></div></section>`;
-
-const state = (leaf, h, sub, extra = "") => `<div class="state">${leaf}<div class="h">${h}</div><div class="sub">${sub}</div>${extra}</div>`;
+const state = (mark, h, sub, extra = "", chip = "") => `<div class="state">${mark}${chip}<div class="h">${h}</div><div class="sub">${sub}</div>${extra}</div>`;
 mount([
-  { tag: "Loading", sub: "First sync from the school portal. The leaf rocks on water.", html: chrome(state(LEAF(96, "color", "load"), "Đang lấy lịch", "Chỉ lần đầu thôi."), { dock: "" }) },
-  { tag: "Empty", sub: "Nothing planned today. Outline only, hold button stays ready.", html: chrome(state(LEAF(96, "line"), "Ngày trống", "Không có lịch học hay việc nào.")) },
-  { tag: "Error", sub: "Couldn't reach the school. The leaf tips and the sun rolls away.", html: chrome(state(LEAF(96, "color", "err"), "Chưa kết nối được trường", "Lịch cũ vẫn còn nguyên. Thử lại khi có mạng.", `<div class="btn">Thử lại</div><div class="ghost">Để sau</div>`), { dock: "" }) },
-  { tag: "Error, dark", sub: "Same state at night.", dark: true, html: chrome(state(LEAF(96, "color", "err"), "Chưa kết nối được trường", "Lịch cũ vẫn còn nguyên. Thử lại khi có mạng.", `<div class="btn">Thử lại</div><div class="ghost">Để sau</div>`), { dock: "" }) },
+  { tag: "Loading", sub: "First sync from the school portal. The ring turns slowly.", html: chrome(state(LOGO(96, "color", "load"), "Đang lấy lịch", "Chỉ lần đầu thôi.", "", `<span class="st info">${ic(I.refresh, 14, 2)}Đang đồng bộ</span>`), { dock: "" }) },
+  { tag: "Empty", sub: "Nothing planned today. Outline only, the hold button stays ready.", html: chrome(state(LOGO(96, "color", "line"), "Ngày trống", "Không có lịch học hay việc nào.", "", `<span class="st" style="background:var(--chip);color:var(--muted)">${ic(I.calendar, 14, 2)}Trống</span>`)) },
+  { tag: "Error", sub: "Couldn't reach the school. The mark tips and the tail splits.", html: chrome(state(LOGO(96, "color", "err"), "Chưa kết nối được trường", "Lịch cũ vẫn còn nguyên. Thử lại khi có mạng.", `<div class="btn">${ic(I.refresh, 18, 2)}Thử lại</div><div class="ghost">Để sau</div>`, `<span class="st err">${ic(I.xCircle, 14, 2)}Mất kết nối</span>`), { dock: "" }) },
+  { tag: "Error, dark", sub: "Same state at night.", dark: true, html: chrome(state(LOGO(96, "color", "err"), "Chưa kết nối được trường", "Lịch cũ vẫn còn nguyên. Thử lại khi có mạng.", `<div class="btn">${ic(I.refresh, 18, 2)}Thử lại</div><div class="ghost">Để sau</div>`, `<span class="st err">${ic(I.xCircle, 14, 2)}Mất kết nối</span>`), { dock: "" }) },
 ]);
 </script>
 </body>

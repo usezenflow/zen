@@ -77,11 +77,11 @@ describe("night-before note", () => {
   it("fires at the next 21:30 and names the day after it: count, total effort, and the near deadlines", () => {
     const tmr = at(1, 10);
     const d = dealOf([plan("a", tmr), plan("b", at(1, 15), { effort: 90, deadline: at(1, 20) }), plan("c", at(2, 9))], at(0, 20));
-    expect(d).toEqual({ at: at(0, 21, 30), title: "Mai: 2 việc, 2h30", body: "1 việc gần hạn. Chạm để xem hoặc xếp nhẹ lại." });
+    expect(d).toEqual({ at: at(0, 21, 30), title: "Mai có 2 việc, 2h30", body: "Có 1 việc gần hạn. Chạm để xem hoặc xếp nhẹ lại." });
   });
   it("after 21:30 the note is for the next evening, about the day after tomorrow", () => {
     const d = dealOf([plan("a", at(2, 10))], at(0, 22));
-    expect(d).toEqual({ at: at(1, 21, 30), title: "Mai: 1 việc, 1h", body: undefined });
+    expect(d).toEqual({ at: at(1, 21, 30), title: "Mai có 1 việc, 1h", body: undefined });
   });
   it("omits the body when no task is due within 48 h, and skips an empty tomorrow", () => {
     expect(dealOf([plan("a", at(1, 10), { deadline: at(4, 10) })], at(0, 20))?.body).toBeUndefined();
@@ -95,6 +95,6 @@ describe("night-before note", () => {
   it("counts only open, placed, non-deleted work, and a busy block only when the user made it", () => {
     const tmr = at(1, 10);
     const d = dealOf([plan("done", tmr, { doneAt: 1 }), plan("gone", tmr, { deletedAt: 1 }), plan("dlu", tmr, { fixed: "busy", source: "dlu" }), plan("mine", tmr, { fixed: "busy", effort: 30 })], at(0, 20));
-    expect(d?.title).toBe("Mai: 1 việc, 30p");
+    expect(d?.title).toBe("Mai có 1 việc, 30p");
   });
 });

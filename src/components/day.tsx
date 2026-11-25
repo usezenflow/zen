@@ -7,7 +7,7 @@ import Animated, { clamp, Easing, FadeInDown, FadeInUp, interpolate, Extrapolati
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
-import { Icon, Logo } from "@/components/art";
+import { Icon, Logo, TypeArt, seedOf } from "@/components/art";
 import { addDays, carried, hhmm, keptOn, keptSpan, live, mondayOf, onDay, parents, shown, startOfDay, type Hols } from "@/components/cal";
 import type { Item } from "@/components/menu";
 import { type Drag, Row, subOf } from "@/components/row";
@@ -19,7 +19,7 @@ import { Stripes } from "@/components/week";
 import { t } from "@/lib/i18n";
 import { capOf, worked } from "@/lib/rest";
 import type { Overlap } from "@/lib/overlap";
-import { useTheme, font, space, ff, motion } from "@/lib/theme";
+import { useTheme, font, space, ff, motion, type TypeName } from "@/lib/theme";
 import type { Move, Rule, Task, Warn } from "@/lib/types";
 import { dayLabel, day as dayName, when } from "@/lib/when";
 import { typeOf } from "@/planner";
@@ -56,7 +56,7 @@ function Peek({ label, side, pull, live, at, style }: { label: string; side: 1 |
   const ring = useAnimatedProps(() => ({ strokeDasharray: `${(RING_C * clamp(Math.abs(pull.get()) / at, 0, 1)).toFixed(2)} ${RING_C}` }));
   return (
     <Animated.View pointerEvents="none" style={[s.peek, style, box, { backgroundColor: th.ink }]}>
-      <Animated.View style={[StyleSheet.absoluteFill, { borderRadius: 99, backgroundColor: th.art.lecture[1] }, wash]} />
+      <Animated.View style={[StyleSheet.absoluteFill, { borderRadius: 99, backgroundColor: th.art.lecture.b }, wash]} />
       <View style={s.pr}>
         <Animated.View style={ringStyle}>
           <Svg width={18} height={18} viewBox="0 0 18 18">
@@ -64,7 +64,7 @@ function Peek({ label, side, pull, live, at, style }: { label: string; side: 1 |
             <AnimatedCircle cx={9} cy={9} r={7} fill="none" stroke={th.bg} strokeWidth={2} strokeLinecap="round" transform="rotate(-90 9 9)" animatedProps={ring} />
           </Svg>
         </Animated.View>
-        <Animated.View style={[StyleSheet.absoluteFill, s.mid, tick]}><Icon name="check" size={18} color="#fff" w={2.4} /></Animated.View>
+        <Animated.View style={[StyleSheet.absoluteFill, s.mid, tick]}><Icon name="check" size={18} color="#fff" w={2} /></Animated.View>
       </View>
       <Animated.Text style={[s.peekT, labelStyle]}>{label}</Animated.Text>
     </Animated.View>
@@ -190,14 +190,18 @@ const soonSub = (x: Task, now: number, all: Task[]) => {
 };
 
 /** .rest in views.html: takes the art card's slot so the layout never collapses. */
-export function RestCard({ lab, title, sub, leaf = "line", h = 220 }: { lab?: string; title: string; sub: string; leaf?: "line" | "color"; h?: number }) {
+// art: the card is a line-field art card with white text (calm.html "Day, enough"); its palette is the caller's, the field seed follows the title.
+// icon: a leaf set inline before the title (calm.html "Day, enough"), in place of the corner logo.
+export function RestCard({ lab, title, sub, leaf = "line", h = 220, art, icon }: { lab?: string; title: string; sub: string; leaf?: "line" | "color"; h?: number; art?: TypeName; icon?: "leaf" }) {
   const th = useTheme();
+  const tone = art ? th.onart : th.ink, muted = art ? th.onart : th.muted;
   return (
-    <View style={[s.rest, { minHeight: h, backgroundColor: th.chip }]}>
-      {!!lab && <Text style={[s.lab, { color: th.muted }]}>{lab}</Text>}
-      <View style={s.restLf}><Logo size={52} mode={leaf} color={th.ink} /></View>
-      <Text style={[s.restT, { color: th.ink }]}>{title}</Text>
-      <Text style={[s.restS, { color: th.muted }]}>{bolded(sub, { color: th.ink })}</Text>
+    <View style={[s.rest, art ? s.restArt : { backgroundColor: th.chip }, { minHeight: h }]}>
+      {art && <View style={StyleSheet.absoluteFill}><TypeArt type={art} w={264} h={h} seed={seedOf(title)} text /></View>}
+      {!!lab && <Text style={[s.lab, { color: muted }]}>{lab}</Text>}
+      {icon ? null : <View style={s.restLf}><Logo size={52} mode={leaf} color={tone} /></View>}
+      <Text style={[s.restT, { color: tone }]}>{icon && <Icon name={icon} size={24} color={tone} w={1.8} />}{icon && " "}{title}</Text>
+      <Text style={[s.restS, { color: muted }]}>{bolded(sub, { color: tone })}</Text>
     </View>
   );
 }
@@ -227,13 +231,13 @@ export function First({ onSchool }: { onSchool: () => void }) {
         {(["try1", "try2", "try3"] as const).map((k) => (
           <View key={k} style={[s.say, { borderColor: th.line }]}>
             <Icon name="mic" size={18} color={th.ink} w={2} />
-            <Text style={[s.sayT, { color: th.muted }]}>“<Text style={{ color: th.ink, fontFamily: ff("600") }}>{t(k)}</Text>”</Text>
+            <Text style={[s.sayT, { color: th.muted }]}>“<Text style={{ color: th.ink, fontFamily: ff("500") }}>{t(k)}</Text>”</Text>
           </View>
         ))}
       </View>
       <Tap onPress={onSchool} style={[s.lab2, { marginTop: 22 }]} scale={0.98} accessibilityRole="link">
         <Text style={[s.lab, { color: th.muted }]}>{t("fromSchool")}</Text>
-        <Icon name="right" size={14} color={th.muted} />
+        <Icon name="right" size={18} color={th.muted} />
       </Tap>
     </Animated.View>
   );
@@ -358,7 +362,7 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
                 <Text style={[s.wt, { color: th.seal }]}>{t("clash")}</Text>
                 <Text style={[s.wb, { color: th.muted }]}>{t("clashBody", { a: o.fixed.title, b: o.mine.title })}</Text>
                 <View style={s.pills}>
-                  <Tap onPress={() => onMove(o)} style={[s.pl, { backgroundColor: th.ink }]}><Text numberOfLines={1} style={[s.plt, { color: th.bg, fontFamily: ff("700") }]}>{t("overlapMine")}</Text></Tap>
+                  <Tap onPress={() => onMove(o)} style={[s.pl, { backgroundColor: th.ink }]}><Text numberOfLines={1} style={[s.plt, { color: th.bg, fontFamily: ff("600") }]}>{t("overlapMine")}</Text></Tap>
                   <Tap onPress={() => onKeep(o)} style={[s.pl, { borderColor: th.line, borderWidth: 1 }]}><Text numberOfLines={1} style={[s.plt, { color: th.ink }]}>{t("overlapKeep")}</Text></Tap>
                 </View>
               </Animated.View>
@@ -367,7 +371,7 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
   );
   return (
     <View>
-      {enoughDay && <RestCard lab={t("today")} title={t("enoughT")} sub={t("enoughSub", { n: done.length })} leaf="color" h={176} />}
+      {enoughDay && <RestCard lab={t("today")} title={t("enoughT")} sub={t("enoughSub", { n: done.length })} leaf="color" h={176} art="plan" icon="leaf" />}
       {warns.map((w, k) => {
         const late = w.deadline <= now, own = tasks.find((x) => x.id === w.id), vars = { title: w.title, need: mins(w.need), when: when(w.deadline, now), free: mins(w.free) };
         // Past due: pushing others can't help, so the one tap is "done" (often it was handed in already).
@@ -384,8 +388,8 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
               <View style={[s.pills, s.blk]}>
                 {pills.map((p, i) => (
                   <Tap key={p.key} onPress={p.go} accessibilityLabel={[p.label, p.day].filter(Boolean).join(" ")} style={[s.pl, s.plBlk, i === 0 ? { backgroundColor: th.ink } : { borderColor: th.line, borderWidth: 1 }]}>
-                    <Text numberOfLines={1} style={[s.plt, s.nm, i === 0 ? { color: th.bg, fontFamily: ff("700") } : { color: th.ink }]}>{bolded(p.label, i === 0 ? { fontFamily: ff("800") } : undefined)}</Text>
-                    {!!p.day && <Text style={[s.plt, { opacity: 0.7, fontVariant: ["tabular-nums"] }, i === 0 ? { color: th.bg, fontFamily: ff("700") } : { color: th.ink }]}>{p.day}</Text>}
+                    <Text numberOfLines={1} style={[s.plt, s.nm, i === 0 ? { color: th.bg, fontFamily: ff("600") } : { color: th.ink }]}>{bolded(p.label, i === 0 ? { fontFamily: ff("600") } : undefined)}</Text>
+                    {!!p.day && <Text style={[s.plt, { opacity: 0.7, fontVariant: ["tabular-nums"] }, i === 0 ? { color: th.bg, fontFamily: ff("600") } : { color: th.ink }]}>{p.day}</Text>}
                   </Tap>
                 ))}
               </View>
@@ -439,7 +443,7 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
       )}
       {isEmpty && (
         <Animated.View entering={fadeIn} exiting={fadeOut} layout={glide}>
-          {empty === "rest" && !noCard && <RestCard lab={label} title={t(done.length ? (tomorrow ? "nightDoneT" : "allDoneT") : "freeDay")} sub={done.length ? (tomorrow ? t("nextMai", { time: hhmm(tomorrow.start!), title: tomorrow.title }) : t("allDoneSub", { n: doneCount(done) })) : t("freeSub")} leaf={done.length ? "color" : "line"} />}
+          {empty === "rest" && !noCard && <RestCard art="lecture" lab={label} title={t(done.length ? (tomorrow ? "nightDoneT" : "allDoneT") : "freeDay")} sub={done.length ? (tomorrow ? t("nextMai", { time: hhmm(tomorrow.start!), title: tomorrow.title }) : t("allDoneSub", { n: doneCount(done) })) : t("freeSub")} leaf={done.length ? "color" : "line"} />}
           {empty === "week" && <Inl title={t("weekFree")} sub={t("weekFreeSub")} />}
           {empty === "inl" && <Inl title={t("noTasks")} sub={near ? t("nearest", { when: when(near.start!, now), title: near.title }) : undefined} />}
           {next && next.xs.length > 0 && (
@@ -477,16 +481,16 @@ const s = StyleSheet.create({
   peek: { position: "absolute", alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 8, minHeight: 36, paddingLeft: 10, paddingRight: 16, borderRadius: 99, overflow: "hidden", zIndex: 15 },
   pr: { width: 18, height: 18 },
   mid: { alignItems: "center", justifyContent: "center" },
-  peekT: { fontSize: font.sub, fontFamily: ff("700") },
+  peekT: { fontSize: font.sub, fontFamily: ff("600") },
   lab: { fontSize: font.label, fontFamily: ff("500") },
   fold: { flexDirection: "row", alignItems: "center", height: 48, paddingHorizontal: 16, borderRadius: 16, borderWidth: 1 },
   foldT: { fontSize: font.sub, fontFamily: ff("500") },
   lab2: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 20, marginBottom: 6 },
   warn: { marginTop: 20, padding: 14, paddingHorizontal: 16, borderRadius: 22, borderWidth: 1.5 },
   kept: { marginTop: 8, minHeight: 56, borderRadius: 16, borderWidth: 1, overflow: "hidden", paddingVertical: 10, paddingHorizontal: 14, justifyContent: "center", alignItems: "flex-start", gap: 2 },
-  kt: { fontSize: font.md, fontFamily: ff("600"), paddingHorizontal: 4, borderRadius: 4, overflow: "hidden" },
+  kt: { fontSize: font.md, fontFamily: ff("500"), paddingHorizontal: 4, borderRadius: 4, overflow: "hidden" },
   ks: { fontSize: 14, fontFamily: ff("500"), paddingHorizontal: 4, borderRadius: 4, overflow: "hidden" },
-  wt: { fontSize: font.meta, fontFamily: ff("700") },
+  wt: { fontSize: font.meta, fontFamily: ff("600") },
   wb: { marginTop: 4, fontFamily: ff(), fontSize: font.sub, lineHeight: 21 },
   pills: { flexDirection: "row", gap: 8, marginTop: 12 }, // one row: a long label shrinks its pill to an ellipsis
   blk: { flexDirection: "column" }, // heads up (magic.html 9): pills name tasks, so each is a full-width block
@@ -495,13 +499,14 @@ const s = StyleSheet.create({
   pl: { height: 40, paddingHorizontal: 16, borderRadius: 99, alignItems: "center", justifyContent: "center", flexShrink: 1, minWidth: 0 },
   plt: { fontSize: font.sub, fontFamily: ff("500") },
   rest: { marginTop: 18, borderRadius: 28, padding: 20 },
+  restArt: { borderRadius: 34, overflow: "hidden" }, // calm.html .art: 34px radius
   restLf: { position: "absolute", top: 18, right: 18 },
-  restT: { marginTop: "auto", paddingRight: 58, fontSize: 24, lineHeight: 32, fontFamily: ff("600"), letterSpacing: -0.48 },
-  restS: { marginTop: 6, fontSize: 15, lineHeight: 20, fontFamily: ff("500") },
+  restT: { marginTop: "auto", paddingRight: 58, fontSize: 24, lineHeight: 32, fontFamily: ff("500"), letterSpacing: -0.48 },
+  restS: { marginTop: 6, fontSize: 17, lineHeight: 22, fontFamily: ff("500") }, // calm.html .small: 17px
   inl: { marginTop: 10, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 22, flexDirection: "row", alignItems: "center", gap: 12 },
-  inlB: { fontSize: 16, fontFamily: ff("600") },
+  inlB: { fontSize: 16, fontFamily: ff("500") },
   inlS: { marginTop: 2, fontSize: 14, fontFamily: ff("500") },
-  got: { marginTop: 10, paddingLeft: 16, fontSize: 14, fontFamily: ff("600") }, // views.html .got
+  got: { marginTop: 10, paddingLeft: 16, fontSize: 14, fontFamily: ff("500") }, // views.html .got
   say: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 13, paddingHorizontal: 16, borderRadius: 99, borderWidth: 1, borderStyle: "dashed" },
   sayT: { flex: 1, fontSize: 15, fontFamily: ff("500") },
 });

@@ -9,7 +9,7 @@ function Inline({ nodes, color, link }: { nodes: Node[]; color: string; link: st
   return nodes.map((n, i) => {
     if (typeof n === "string") return n;
     const st: TextStyle | undefined =
-      n.tag === "strong" || n.tag === "b" ? { fontFamily: ff("700") } :
+      n.tag === "strong" || n.tag === "b" ? { fontFamily: ff("600") } :
       n.tag === "em" || n.tag === "i" ? { fontStyle: "italic" } :
       n.tag === "u" ? { textDecorationLine: "underline" } :
       n.tag === "s" || n.tag === "del" ? { textDecorationLine: "line-through" } :

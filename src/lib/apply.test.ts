@@ -67,8 +67,8 @@ it("one line becomes several placed tasks, one undo removes all", async () => {
   expect(tasks.filter((x) => x.title === "Gym")).toHaveLength(3);
   expect(tasks.filter((x) => x.parentId).length).toBeGreaterThan(1); // essay split into sittings
   expect(tasks.filter((x) => !x.parentId && x.title === "Gym").every((x) => x.start !== undefined)).toBe(true);
-  expect(r.toast).toMatch(/^Xếp xong \d+ việc$/); // counts tasks, not sittings
-  expect(plain(r.sub!)).toMatch(/^Essay chia \d+ buổi$/); // the most-split task names its sittings
+  expect(r.toast).toMatch(/^Mình đã xếp xong \d+ việc$/); // counts tasks, not sittings
+  expect(plain(r.sub!)).toMatch(/^Mình chia Essay thành \d+ buổi$/); // the most-split task names its sittings
   await r.undo();
   expect(db.tasks.size).toBe(0);
   expect(db.events.size).toBe(0);
@@ -770,13 +770,13 @@ describe("adding and dropping a sitting", () => {
     const n = open().length, len = open()[n - 1].effort;
     const dropped = await dropSitting(pid, NOW + 1000);
     expect(open()).toHaveLength(n - 1);
-    expect(plain(dropped.toast)).toBe("Bớt buổi Essay");
+    expect(plain(dropped.toast)).toBe("Đã bớt một buổi Essay");
     const added = await addSitting(pid, NOW + 2000);
     expect(open()).toHaveLength(n);
     const last = open()[n - 1];
     expect(last.id).toBe(`${pid}#${n + 1}`);
     expect(last.effort).toBe(len);
-    expect(plain(added.toast)).toBe("Thêm buổi Essay");
+    expect(plain(added.toast)).toBe("Đã thêm một buổi Essay");
     expect(added.sub).toBeDefined();
   });
   it("dropping a chosen sitting or adding one spreads the open ones again: one a day, never two bunched", async () => {
@@ -790,7 +790,7 @@ describe("adding and dropping a sitting", () => {
     expect(db.tasks.get(mid.id).deletedAt).toBeDefined(); // the tapped one goes, not the last
     const days = (xs: Task[]) => new Set(xs.map((x) => new Date(x.start!).toDateString())).size;
     expect(days(open())).toBe(open().length);
-    expect(plain(r.sub ?? "")).toMatch(/^Chia lại \d+ buổi cho đều$/);
+    expect(plain(r.sub ?? "")).toMatch(/^Mình chia lại \d+ buổi cho đều$/);
     await addSitting(pid, NOW + 2000);
     expect(days(open())).toBe(open().length);
   });
@@ -842,7 +842,7 @@ describe("Còn nữa on a guessed split task's last sitting", () => {
     const added = kids().find((x: Task) => x.id === "p#2")!;
     expect(added.effort).toBe(60);
     expect(added.doneAt).toBeUndefined();
-    expect(plain(r.toast)).toBe("Thêm buổi Code x");
+    expect(plain(r.toast)).toBe("Đã thêm một buổi Code x");
     expect((await loadClassMult()).code).toBeGreaterThan(1);
     await r.undo();
     expect(kids()).toHaveLength(1);
@@ -859,7 +859,7 @@ describe("Còn nữa on a guessed split task's last sitting", () => {
     expect(kids().find((x: Task) => x.id === "w#1")!.doneAt).toBe(NOW - 2 * H);
     expect(kids().find((x: Task) => x.id === "w#2")!).toMatchObject({ effort: 60, doneAt: undefined });
     expect(db.tasks.get("w").doneAt).toBeUndefined(); // the parent is the container now
-    expect(plain(r.toast)).toBe("Thêm buổi Viết báo cáo");
+    expect(plain(r.toast)).toBe("Đã thêm một buổi Viết báo cáo");
     expect((await loadClassMult()).write).toBeGreaterThan(1);
     await r.undo();
     expect(kids()).toHaveLength(0);
@@ -1039,7 +1039,7 @@ describe("move toast chip, quick say and the prep skip", () => {
     const open = () => live().filter((x: Task) => x.parentId === pid && !x.doneAt);
     const r = await splitInto(pid, 3, NOW + 1000);
     expect(open()).toHaveLength(3);
-    expect(plain(r.toast)).toBe("Essay chia 3 buổi");
+    expect(plain(r.toast)).toBe("Mình chia Essay thành 3 buổi");
     await splitInto(pid, 3, NOW + 2000);
     expect(open()).toHaveLength(3);
     await splitInto(pid, 2, NOW + 3000);

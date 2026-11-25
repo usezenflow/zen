@@ -70,7 +70,7 @@ export function TypeBar({ onSend, onClose }: { onSend: (text: string) => void; o
         />
         <Pressable onPress={send} disabled={!ok} accessibilityRole="button" accessibilityLabel={t("send")}
           style={[s.go, ok ? { backgroundColor: th.ink } : { backgroundColor: th.chip, borderWidth: 1, borderColor: th.line }]}>
-          <Icon name="send" size={22} w={2.2} color={ok ? th.bg : th.muted} />
+          <Icon name="send" size={22} w={2} color={ok ? th.bg : th.muted} />
         </Pressable>
       </Animated.View>
       </GestureDetector>
@@ -158,6 +158,6 @@ const s = StyleSheet.create({
   page: { backgroundColor: "#fff", transform: [], paddingHorizontal: 20, paddingVertical: 22 },
   pdfText: { color: "#2b2a27", fontSize: 15, lineHeight: 25.5, fontFamily: ff("500") }, // capture.html .shot: 15px, line-height 1.7
   fade: { position: "absolute", left: -1, right: -1 },
-  pgs: { marginTop: 12, textAlign: "center", fontSize: 13, fontFamily: ff("600") },
+  pgs: { marginTop: 12, textAlign: "center", fontSize: 13, fontFamily: ff("500") },
   scan: { position: "absolute", left: 0, right: 0, height: 2, boxShadow: "0 0 18px 6px rgba(217,67,43,0.35)" },
 });

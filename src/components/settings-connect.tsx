@@ -31,7 +31,7 @@ function Field({ label, note, bad, ...p }: { label: string; note?: string; bad?:
         <Text style={[s.lab, { color: th.muted }]}>{label}</Text>
         <TextInput {...p} accessibilityLabel={label} style={[s.input, { color: th.ink }]} placeholder={t("fieldPh")} placeholderTextColor={th.muted} selectionColor={th.seal} cursorColor={th.seal} autoCapitalize="none" autoCorrect={false} />
       </Animated.View>
-      {note ? <Animated.Text key={note} entering={fadeIn} exiting={fadeOut} layout={glide} style={[s.note, { color: bad ? RED : th.muted, fontFamily: ff(bad ? "600" : "500") }]}>{note}</Animated.Text> : null}
+      {note ? <Animated.Text key={note} entering={fadeIn} exiting={fadeOut} layout={glide} style={[s.note, { color: bad ? RED : th.muted, fontFamily: ff(bad ? "500" : "500") }]}>{note}</Animated.Text> : null}
     </>
   );
 }
@@ -80,7 +80,7 @@ export function ConnectForm({ initialId, focus, hideId, only, onResult, onFirst 
         <Tap onPress={() => void go().catch(() => {})} disabled={busy} style={[s.btn, { backgroundColor: th.ink }]}>
           {busy
             ? <Animated.View key="busy" entering={fadeIn}><ActivityIndicator color={th.bg} /></Animated.View>
-            : <Animated.Text key={retry ? "retry" : "go"} entering={fadeIn} style={{ fontSize: 16, fontFamily: ff("700"), color: th.bg }}>{retry ? t("retry") : t("connect")}</Animated.Text>}
+            : <Animated.Text key={retry ? "retry" : "go"} entering={fadeIn} style={{ fontSize: 16, fontFamily: ff("600"), color: th.bg }}>{retry ? t("retry") : t("connect")}</Animated.Text>}
         </Tap>
       </Animated.View>
     </View>
@@ -91,6 +91,6 @@ const s = StyleSheet.create({
   field: { height: 60, marginTop: 8, paddingHorizontal: 22, borderRadius: 99, borderWidth: 1, justifyContent: "center", gap: 1 },
   lab: { fontSize: 13, fontFamily: ff("500") },
   input: { fontSize: font.base, lineHeight: Math.round(font.base * 1.3), height: Math.round(font.base * 1.3), fontFamily: ff("500"), padding: 0 },
-  note: { marginTop: 8, marginLeft: 22, fontFamily: ff(), fontSize: font.md },
+  note: { marginTop: 8, marginLeft: 22, fontFamily: ff("500"), fontSize: 17 }, // ui.css .errt: 17px, weight 500
   btn: { marginTop: 18, height: 50, borderRadius: 99, alignItems: "center", justifyContent: "center" },
 });

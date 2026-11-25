@@ -7,7 +7,7 @@ import { Meter } from "@/components/meter";
 import { SwipeDelete } from "@/components/row";
 import { fadeIn } from "@/components/tap";
 import { t } from "@/lib/i18n";
-import { useTheme, font, ff } from "@/lib/theme";
+import { useTheme, font, ff, fd } from "@/lib/theme";
 import type { Rule } from "@/lib/types";
 import type { Insights } from "@/planner";
 import type { Model } from "@/planner/model";
@@ -90,15 +90,14 @@ export function Rhythm({ i, rules, m, hour, onForget, onForgetWhen }: { i: Insig
     <Animated.View entering={fadeIn}>
       {found.length > 0 && <Text style={[s.lab, s.labTop, { color: th.muted }]}>{t("insSection")}</Text>}
       {found.map((f, k) => (
-        <View key={k} style={[s.set, { borderColor: th.line }]}>
-          <View style={[s.sw, { backgroundColor: th.chip }]}><Icon name={f.armP === 3 ? "moon" : f.type === "length" ? "clock" : "sun"} size={18} color={th.ink} w={2} /></View>
-          <Text style={[s.b, s.tx, { color: th.ink }]} numberOfLines={2}>{clause(f)}</Text>
+        <View key={k} style={[s.find, { borderColor: th.line }]}>
+          <Text style={[s.findT, { color: th.ink }]} numberOfLines={3}>{clause(f)}</Text>
           {f.sure !== undefined && <Meter v={f.sure} width={44} />}
         </View>
       ))}
       {/* before anything is seen the same card holds the grid dim: a guess, not a claim, with the logo in its corner */}
       <View style={s.art}>
-        <View style={StyleSheet.absoluteFill}><TypeArt type="plan" w={264} h={170} seed={5} /></View>
+        <View style={StyleSheet.absoluteFill}><TypeArt type="plan" w={264} h={170} seed={5} text /></View>
         {!seen && <View style={s.leaf}><Logo size={34} mode="line" color="#fff" /></View>}
         <Text style={s.artLab}>{t("thisWeek")}</Text>
         {seen && i.when ? <Text style={s.artT}>{whenLine(i.when)}</Text> : !seen && <Text style={s.artT}>{t("learnedLearning")}</Text>}
@@ -115,23 +114,25 @@ export function Rhythm({ i, rules, m, hour, onForget, onForgetWhen }: { i: Insig
 }
 
 const s = StyleSheet.create({
-  lab: { fontSize: font.label, fontFamily: ff("500"), marginTop: 22 },
+  lab: { fontSize: font.label, fontFamily: ff("300"), marginTop: 22 }, // eyebrow: light
   labTop: { marginTop: 0, marginBottom: 6 },
-  calm: { marginTop: 22, fontSize: 16, fontFamily: ff("500"), lineHeight: 22 },
+  calm: { marginTop: 22, fontSize: 16, fontFamily: ff("400"), lineHeight: 23 },
   set: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8, borderBottomWidth: 1 },
-  b: { fontSize: 16, fontFamily: ff("600"), lineHeight: 21, letterSpacing: -0.16 },
+  b: { fontSize: 16, fontFamily: ff("500"), lineHeight: 21, letterSpacing: -0.16 },
   tx: { flex: 1, minWidth: 0 },
-  sub: { fontSize: font.sub, fontFamily: ff("500"), marginTop: 2 },
+  sub: { fontSize: font.sub, fontFamily: ff("400"), marginTop: 2 },
   sw: { width: 34, height: 34, borderRadius: 17, overflow: "hidden", alignItems: "center", justifyContent: "center" },
   art: { marginTop: 16, borderRadius: 28, overflow: "hidden", paddingVertical: 18, paddingHorizontal: 20 },
   leaf: { position: "absolute", top: 16, right: 18 },
-  artLab: { color: "#fff", opacity: 0.85, fontSize: font.label, fontFamily: ff("500") },
-  artT: { color: "#fff", fontSize: 24, fontFamily: ff("600"), marginTop: 6, letterSpacing: -0.4 },
+  find: { marginTop: 12, borderWidth: 1, borderRadius: 22, paddingVertical: 16, paddingHorizontal: 18, gap: 10 }, // calm.html .find: a bordered card per finding
+  findT: { fontSize: 17, lineHeight: 23, fontFamily: ff("500") },
+  artLab: { color: "#fff", opacity: 0.92, fontSize: 13, lineHeight: 18, fontFamily: ff("300"), letterSpacing: 1.1, textTransform: "uppercase", textShadowColor: "rgba(0,0,0,.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 },
+  artT: { color: "#fff", fontSize: 32, lineHeight: 35, fontFamily: fd("800"), marginTop: 4, letterSpacing: -1.1, textShadowColor: "rgba(0,0,0,.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 },
   mx: { marginTop: 14, gap: 3 },
   mxRow: { flexDirection: "row", alignItems: "center", gap: 3 },
   mxLab: { width: 42 },
-  mxDay: { flex: 1, color: "#fff", opacity: 0.8, fontSize: 12, fontFamily: ff("600"), textAlign: "center" },
+  mxDay: { flex: 1, color: "#fff", opacity: 0.8, fontSize: 12, fontFamily: ff("500"), textAlign: "center" },
   cell: { flex: 1, height: 22, borderRadius: 5, backgroundColor: "#fff" },
   bo: { minWidth: 44, minHeight: 44, paddingHorizontal: 14, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  boT: { fontSize: 15, fontFamily: ff("600") },
+  boT: { fontSize: 15, fontFamily: ff("500") },
 });

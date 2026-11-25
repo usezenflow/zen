@@ -3,7 +3,7 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { plain, t } from "./i18n";
-import { GRACE } from "../planner/policy";
+import { GRACE, MICRO_MIN } from "../planner/policy";
 import { dueOf } from "../planner/features";
 import { soundOf, upcoming } from "./reminders";
 import { allTasks, kvGet } from "./store";
@@ -69,7 +69,7 @@ export async function pushNudges(now = Date.now()) {
       identifier: `${PREFIX}${n.kind}:${n.id}`,
       content: over
         ? { title: plain(t("overrunSub", { title: n.title })), body: t("overrunQ"), sound: soundOf("reminder"), categoryIdentifier: OVER_CAT, data: { id: n.id } }
-        : { title: plain(n.title), body: t("startFirst"), sound: soundOf("reminder"), categoryIdentifier: START_CAT, data: { id: n.id } },
+        : { title: plain(n.title), body: t("startFirst", { n: MICRO_MIN }), sound: soundOf("reminder"), categoryIdentifier: START_CAT, data: { id: n.id } },
       trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: n.at, ...(Platform.OS === "android" ? { channelId: "zen-reminder" } : {}) },
     });
   }

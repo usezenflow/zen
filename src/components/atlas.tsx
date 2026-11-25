@@ -9,7 +9,7 @@ import { Tap } from "@/components/tap";
 import { t } from "@/lib/i18n";
 import { addRule } from "@/lib/apply";
 import { KIND_SHORT, KIND_VI } from "@/lib/reasons";
-import { useTheme, ff, font } from "@/lib/theme";
+import { useTheme, ff, fd, font } from "@/lib/theme";
 import type { Kind } from "@/lib/types";
 import { hourView, lasoGrid, type Cell } from "@/planner/atlas";
 import { KINDS } from "@/planner/linucb";
@@ -32,8 +32,8 @@ function Seg({ items, on, onPick }: { items: string[]; on: number; onPick: (i: n
     <View style={s.seg} accessibilityRole="tablist">
       {items.map((x, i) => (
         <Tap key={x} onPress={() => onPick(i)} hitSlop={8} accessibilityRole="tab" accessibilityState={{ selected: i === on }} style={s.segI}>
-          <Text numberOfLines={1} style={[s.segT, { color: i === on ? th.ink : th.muted, fontFamily: ff(i === on ? "600" : "500") }]}>{x}</Text>
-          {i === on && <View style={[s.segDot, { backgroundColor: th.seal }]} />}
+          <Text numberOfLines={1} style={[s.segT, { color: i === on ? th.ink : th.muted, fontFamily: ff(i === on ? "500" : "500") }]}>{x}</Text>
+          {i === on && <View style={[s.segDot, { backgroundColor: th.ink }]} />}
         </Tap>
       ))}
     </View>
@@ -159,11 +159,11 @@ const s = StyleSheet.create({
   thumb: { position: "absolute", width: 26, height: 26, marginLeft: -13, borderRadius: 13, top: 9 },
   ticks: { flexDirection: "row", justifyContent: "space-between" },
   tick: { fontSize: 12, fontFamily: ff("500") },
-  hr: { fontSize: 40, fontFamily: ff("600"), letterSpacing: -0.8, marginTop: 10 },
+  hr: { fontSize: 40, lineHeight: 46, fontFamily: fd("700"), letterSpacing: -0.8, marginTop: 16 }, // calm.html .hr: display 700, 40px
   ends: { flexDirection: "row", justifyContent: "space-between", marginTop: 6 },
-  end: { fontSize: 13, fontFamily: ff("500") },
+  end: { fontSize: 13, fontFamily: ff("400") },
   kb: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 12 },
-  kbL: { width: 84, fontSize: 14, fontFamily: ff("600") },
+  kbL: { width: 84, fontSize: 14, fontFamily: ff("500") },
   ax: { flex: 1, height: 18 },
   mid: { position: "absolute", left: "50%", top: -4, bottom: -4, width: 1 },
   bar: { position: "absolute", top: 3, height: 12, borderRadius: 6 },
@@ -171,15 +171,15 @@ const s = StyleSheet.create({
   wh: { position: "absolute", top: 8, height: 2, opacity: 0.6 },
   row: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },
   rk: { width: 64 },
-  rkT: { fontSize: 13, fontFamily: ff("600") },
-  hd: { flex: 1, textAlign: "center", fontSize: 13, fontFamily: ff("600") },
+  rkT: { fontSize: 13, fontFamily: ff("500") },
+  hd: { flex: 1, textAlign: "center", fontSize: 13, fontFamily: ff("500") },
   cellW: { flex: 1, aspectRatio: 1 },
   cell: { flex: 1, aspectRatio: 1, borderRadius: 12 },
   un: { borderWidth: 1.5, borderStyle: "dashed" },
   dot: { position: "absolute", top: 6, right: 6, width: 7, height: 7, borderRadius: 4 },
   calm: { marginTop: 18, fontSize: 16, fontFamily: ff("500"), lineHeight: 22 },
   card: { marginTop: 16, borderWidth: 1, borderRadius: 22, padding: 16 },
-  cardT: { fontSize: 17, fontFamily: ff("600"), lineHeight: 23 },
+  cardT: { fontSize: 17, fontFamily: ff("500"), lineHeight: 23 },
   bo: { alignSelf: "flex-start", minHeight: 44, marginTop: 12, paddingHorizontal: 14, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  boT: { fontSize: 15, fontFamily: ff("600") },
+  boT: { fontSize: 15, fontFamily: ff("500") },
 });

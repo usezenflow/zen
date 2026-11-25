@@ -24,7 +24,7 @@ describe("Day: a repeat past the 30-day plan", () => {
     await draw(day40, [occurrence(day40)]);
     expect(screen.getByText("Chưa xếp giờ")).toBeTruthy();
     expect(screen.getByText("Mỗi ngày")).toBeTruthy();
-    expect(screen.getByText("Có giờ khi vào 7 ngày tới")).toBeTruthy();
+    expect(screen.getByText("Sẽ có giờ trong 7 ngày tới")).toBeTruthy();
   });
 
   it("inside the 7-day plan an occurrence with no slot shows as 'Chưa có giờ trống', with no 7-day note", async () => {
@@ -32,7 +32,7 @@ describe("Day: a repeat past the 30-day plan", () => {
     await draw(day5, [occurrence(day5)]);
     expect(screen.queryByText("Chưa xếp giờ")).toBeNull();
     expect(screen.getByText("Chưa có giờ trống")).toBeTruthy();
-    expect(screen.queryByText("Có giờ khi vào 7 ngày tới")).toBeNull();
+    expect(screen.queryByText("Sẽ có giờ trong 7 ngày tới")).toBeNull();
   });
 
   it("a task with no slot is never hidden: a past window shows today, a gone repeat day does not", async () => {
@@ -79,16 +79,16 @@ describe("Day: today's cap reached (views.html \"Day, enough\")", () => {
   it("done time plus the placed work fills the cap: one card, done rows kept, the rest folded", async () => {
     const planned = task({ title: "Đọc chương 4", start: at(11), end: at(16) }); // 5 h, with 1 h done = the 6 h base
     await draw(TODAY, [done(), planned], at(12), "rest");
-    expect(screen.getByText("Đủ rồi")).toBeTruthy();
-    expect(screen.getByText("Xong 1 việc. Phần còn lại để mai.")).toBeTruthy();
+    expect(screen.getByText("Xong buổi này")).toBeTruthy();
+    expect(screen.getByText("Bạn xong 1 việc rồi. Phần còn lại để mai.")).toBeTruthy();
     expect(screen.getByText("Để tuần sau · 1 việc")).toBeTruthy();
     expect(screen.queryByText("Đọc chương 4")).toBeNull();
     expect(screen.getByText(t("doneN", { n: 1 }))).toBeTruthy();
   });
-  it("under the cap the usual rows show and no 'Đủ rồi' card", async () => {
+  it("under the cap the usual rows show and no 'Xong buổi này' card", async () => {
     const planned = task({ title: "Đọc chương 4", start: at(11), end: at(13) }); // 2 h + 1 h done < 6 h
     await draw(TODAY, [done(), planned], at(12), "rest");
-    expect(screen.queryByText("Đủ rồi")).toBeNull();
+    expect(screen.queryByText("Xong buổi này")).toBeNull();
     expect(screen.queryByText("Để tuần sau · 1 việc")).toBeNull();
     expect(screen.getByText("Đọc chương 4")).toBeTruthy();
   });

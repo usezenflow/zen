@@ -1,0 +1,147 @@
+/* v2: a richer layer on ui.css, loaded only by calm.html and settings.html.
+   Mood: big bold display type, tiny tracked labels, filled pills, deep gradient cards with grain, floating round actions.
+   Own palette and layout; the structure stays the app's. */
+
+body { background: var(--page); }
+.device { box-shadow: 0 0 0 8px #f6f7f8, 0 0 0 9px #dfe3e6, 0 40px 70px -30px rgba(20, 30, 40, .35); }
+.device.dark { box-shadow: 0 0 0 8px #17181b, 0 0 0 9px #2a2c30, 0 40px 70px -30px rgba(0, 0, 0, .7); }
+
+/* Type: Bricolage display headers (ui.css), quiet tracked labels */
+.h { font-size: 34px; line-height: 1.1; font-weight: 800; letter-spacing: -.035em; }
+.sub { font-size: 17px; margin-top: 8px; }
+.hello { font-size: 15px; font-weight: 500; color: var(--muted); }
+.lab { font-size: 12.5px; font-weight: 300; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+.art .lab { color: #fff; opacity: .9; }
+
+/* Filled pills; the selected one is solid ink */
+.pl.on { border-color: var(--ink); }
+.o { background: var(--bg); }
+.btn { height: 56px; font-size: 17px; letter-spacing: -.01em; box-shadow: none; }
+.btn.ol { background: none; border: 1.5px solid var(--line); box-shadow: none; }
+
+/* Art cards: the line field carries the colour; no shadow, no grain */
+.art { border-radius: 34px; box-shadow: none; }
+.art .t { font-size: 32px; line-height: 1.1; font-weight: 800; letter-spacing: -.035em; }
+.art .cap2 { width: 20px; height: 64px; border-width: 2px; border-radius: 12px; }
+.art .cap2 i { border-radius: 9px; }
+.art .big { font-size: 30px; font-weight: 700; letter-spacing: -.03em; }
+.glass { width: 56px; height: 56px; }
+.gbtn { height: 54px; padding: 0 20px; font-size: 16px; background: rgba(255, 255, 255, .22); border: 1.5px solid rgba(255, 255, 255, .45); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.gbtn.solid { border: none; background: var(--accent); color: var(--on-accent); }
+.kc { height: 32px; padding: 0 13px; font-size: 14px; background: rgba(255, 255, 255, .22); border: 1.5px solid rgba(255, 255, 255, .4); }
+.kc.ink { background: var(--chip); border-color: transparent; }
+
+/* Rows: soft cards instead of hairlines */
+
+/* Cards and prompts */
+.find, .strip { background: none; border: 1px solid var(--line); border-radius: 26px; }
+.find .acts span.on { border-color: var(--ink); }
+
+/* Settings rows become soft floating cards */
+
+
+/* Detail screen pieces (calm.html) */
+.dtitle { margin-top: 14px; font-size: 30px; line-height: 1.1; font-weight: 600; letter-spacing: -.035em; max-height: calc(30px * 1.1 * 3); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.qbar { margin-top: 14px; display: flex; gap: 8px; }
+.qbar .in { flex: 1; min-width: 0; height: 46px; border-radius: 23px; border: 1px solid var(--line); padding: 0 18px; display: flex; align-items: center; font-size: 16px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dmeta { margin-top: 12px; display: flex; flex-direction: column; gap: 2px; }
+.dmeta div { display: flex; align-items: center; gap: 10px; min-height: 30px; font-size: 16px; font-weight: 500; color: var(--muted); }
+.dmeta div.k { color: var(--ink); font-weight: 500; }
+.dmeta svg { flex: none; opacity: .8; }
+.sit { margin-top: 18px; display: flex; align-items: center; gap: 8px; }
+.sit .n { flex: 1; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.sit .n i { font-style: normal; font-weight: 500; color: var(--muted); }
+.qb { height: 42px; padding: 0 16px; border-radius: 99px; border: 1px solid var(--line); display: inline-flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 500; white-space: nowrap; }
+.qb.pri { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.qb.acc { background: var(--info-t); color: var(--info); border-color: transparent; }
+.undorow { margin-top: 12px; display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 16px; border-radius: 20px; font-size: 15px; }
+.undorow span { flex: 1; min-width: 0; line-height: 1.35; }
+.whyb { margin-top: 20px; padding: 16px 18px; border-radius: 24px; border: 1px solid var(--line); }
+.whyb p { margin-top: 8px; font-size: 16px; line-height: 1.4; }
+.whyb .bar { margin-top: 12px; height: 8px; border-radius: 8px; background: var(--line); overflow: hidden; }
+.whyb .bar i { display: block; height: 100%; width: var(--p); border-radius: 8px; background: var(--ink); }
+.also { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.also .lab { margin-right: 2px; }
+.notebox { margin-top: 14px; min-height: 96px; border-radius: 22px; border: 1px solid var(--line); padding: 16px 18px; font-size: 17px; color: var(--muted); }
+
+/* Areas and rules (settings.html) */
+.exp { margin-top: 10px; font-size: 15px; line-height: 1.45; color: var(--muted); }
+.zc { margin-top: 10px; padding: 16px 16px 14px; border-radius: 26px; border: 1px solid var(--line); }
+.zc .top { display: flex; align-items: center; gap: 10px; }
+.zc .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--c); flex: none; }
+.zc .nm { flex: 1; min-width: 0; font-size: 18px; font-weight: 600; letter-spacing: -.02em; }
+.step { display: inline-flex; align-items: center; height: 38px; border-radius: 99px; border: 1px solid var(--line); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.step b { width: 34px; text-align: center; font-size: 18px; font-weight: 500; color: var(--muted); }
+.step span { min-width: 38px; text-align: center; }
+.share { margin-top: 12px; display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
+.share .tr { position: relative; flex: 1; height: 8px; border-radius: 8px; background: var(--line); }
+.share .tr i { position: absolute; left: 0; top: 0; bottom: 0; width: var(--p); border-radius: 8px; background: var(--c); }
+.share .tr u { position: absolute; top: -3px; bottom: -3px; left: var(--t); width: 2px; border-radius: 2px; background: var(--ink); }
+.kw { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+.kw span { height: 34px; padding: 0 8px 0 13px; border-radius: 99px; border: 1px solid var(--line); display: inline-flex; align-items: center; gap: 4px; font-size: 15px; font-weight: 500; }
+.kw span.add { padding: 0 14px; color: var(--muted); font-weight: 500; border-style: dashed; }
+.kw span.dup { background: rgba(217, 67, 43, .12); color: var(--seal); }
+.kw span svg { opacity: .55; }
+.hint { margin-top: 10px; font-size: 14px; line-height: 1.4; color: var(--muted); }
+.hint.bad { color: var(--seal); font-weight: 500; }
+.rc { margin-top: 8px; padding: 14px 16px 14px; border-radius: 24px; border: 1px solid var(--line); }
+.rc .q { font-size: 16.5px; font-weight: 600; letter-spacing: -.01em; }
+.rc .d { margin-top: 3px; font-size: 14px; line-height: 1.4; color: var(--muted); }
+.rc .sg { margin-top: 12px; display: flex; gap: 6px; }
+.rc .sg span { flex: 1; height: 38px; border-radius: 99px; border: 1px solid var(--line); display: grid; place-items: center; font-size: 14px; font-weight: 500; color: var(--muted); }
+.rc .sg span.on { background: var(--ink); color: var(--bg); box-shadow: 0 6px 14px -8px rgba(0, 0, 0, .6); }
+
+/* States: each has its own hue, a tint for fills and a deep tone for text. Red is only for errors and destructive things. */
+/* Informational blue (lagoon), ok moss, warn citrus amber (fills) with a deep ink for text, err clay red. The "-ink" tones are the text colours on tints. */
+:root { --ok: #0f8f6a; --ok-ink: #0a6b4f; --ok-t: rgba(15, 143, 106, .13); --info: #0d0d0f; --info-ink: #1b28c4; --info-t: rgba(36, 51, 242, .10); --warn: #ff8a00; --warn-ink: #8a4b00; --warn-t: rgba(255, 138, 0, .17); --err: #d2492f; --err-ink: #b93a24; --err-t: rgba(210, 73, 47, .12); }
+.device.dark { --ok: #3fe0b0; --ok-ink: #3fe0b0; --ok-t: rgba(63, 224, 176, .14); --info: #8a97ff; --info-ink: #8a97ff; --info-t: rgba(138, 151, 255, .16); --warn: #ffb04a; --warn-ink: #ffc46e; --warn-t: rgba(255, 176, 74, .16); --err: #ff7a62; --err-ink: #ff8f78; --err-t: rgba(255, 122, 98, .16); }
+.st { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: 99px; font-size: 13.5px; font-weight: 500; white-space: nowrap; }
+.st i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.st.ok { background: var(--ok-t); color: var(--ok-ink); } .st.info { background: var(--info-t); color: var(--info-ink); }
+.st.wn { background: var(--warn-t); color: var(--warn-ink); } .st.err { background: var(--err-t); color: var(--err-ink); }
+.qb.acc { background: var(--info-t); color: var(--info); }
+.kw span.dup { background: var(--warn-t); color: var(--warn-ink); }
+.hint.bad { color: var(--warn-ink); } .hint.ok { color: var(--ok-ink); font-weight: 500; } .hint.info { color: var(--info-ink); font-weight: 500; }
+.share .tr i.over { background: var(--warn); }
+.whyb .bar i { background: var(--ink); }
+.rc .sg span.on.strict, .rc .sg span.on.auto { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.rc .sg span.on.off { background: none; color: var(--ink); border-color: var(--ink); }
+.undorow { background: var(--ok-t); } .undorow .qb.acc { background: var(--bg); color: var(--ok); border-color: transparent; }
+.errt { color: var(--err-ink); }
+.field.err { border-color: var(--err); }
+.find .c2 b { color: var(--warn-ink); }
+.laso .c.mk::after { background: var(--info); }
+
+/* Gallery polish: captions share one height so the phones line up; page header gets air */
+.cap { min-height: 92px; }
+.head h1 { font-size: 34px; font-weight: 600; letter-spacing: -.035em; }
+.head nav a { background: rgba(255, 255, 255, .55); border-color: transparent; }
+.sit .n { white-space: nowrap; flex: 1 1 auto; font-size: 15px; }
+.sit .n i { display: none; }
+.sit .qb { flex: none; padding: 0 14px; }
+
+/* Generated art painted by paint() sits behind its box's content, never in the flow */
+[data-art] { isolation: isolate; }
+[data-art] > svg.art { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; }
+
+/* Hints are status pills: tinted ground, icon, text in the state's deep tone */
+.hint { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border-radius: 14px; font-size: 14px; line-height: 1.4; font-weight: 500; }
+.hint svg { flex: none; margin-top: 1px; }
+.hint.wn { background: var(--warn-t); color: var(--warn-ink); }
+.hint.ok { background: var(--ok-t); color: var(--ok-ink); }
+.hint.info { background: var(--info-t); color: var(--info-ink); }
+
+/* Text on art: the scrim is painted inside the art; white text gets a soft shadow (inherited); the small line is firmer. */
+.art { text-shadow: 0 1px 8px rgba(0, 0, 0, .35); }
+.art .kc.ink, .art .kc.ink * { text-shadow: none; }
+.art .small { opacity: .94; font-weight: 500; }
+.rc .sg span { display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+.rc .q svg { vertical-align: -3px; margin-right: 6px; color: var(--accent); }
+.art .gbtn.solid, .art .glass.solid { text-shadow: none; }
+
+/* Detail session row: count on its own line; the two actions share a line as equal pills; the skip pill sits below */
+.sit { margin-top: 16px; }
+.sit .n { flex: none; white-space: nowrap; font-size: 16px; }
+.sit .n i { display: inline; font-style: normal; font-weight: 500; color: var(--muted); }
+.sit2 { margin-top: 10px; display: flex; gap: 8px; }
+.sit2 .qb.eq { flex: 1 1 0; min-width: 0; height: 42px; padding: 0 12px; justify-content: center; white-space: nowrap; }

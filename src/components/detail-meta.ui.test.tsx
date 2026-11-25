@@ -36,7 +36,7 @@ describe("Meta", () => {
   });
 
   const TH = jest.requireActual("@/lib/theme").useTheme as () => { seal: string; ink: string; muted: string };
-  it.each([["red", "seal", "600"], ["link", "ink", "600"], [undefined, "muted", "500"]] as const)("tone %s: %s color, weight %s", async (tone, key, weight) => {
+  it.each([["red", "seal", "500"], ["link", "ink", "500"], [undefined, "muted", "500"]] as const)("tone %s: %s color, weight %s", async (tone, key, weight) => {
     let th = {} as ReturnType<typeof TH>;
     function Probe() { th = TH(); return null; }
     await render(<><Probe /><Meta icon="clock" text="x" tone={tone} /></>);

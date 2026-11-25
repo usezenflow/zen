@@ -1,33 +1,45 @@
 import { bolded } from "@/components/bold";
-import type { ReactNode } from "react";
+import { Logo, TypeArt } from "@/components/art";
+import type { TypeName } from "@/lib/theme";
+import { useEffect, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
-import Animated, { Keyframe, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import Animated, { Easing, FadeInDown, Keyframe, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { EASE, settle, Tap } from "@/components/tap";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { t } from "@/lib/i18n";
-import { useTheme, font, ff } from "@/lib/theme";
+import { useTheme, ff } from "@/lib/theme";
 
-// A short drop-in and lift-out: 8px and a touch of scale, no bounce.
-const toastIn = new Keyframe({ 0: { opacity: 0, transform: [{ translateY: -8 }, { scale: 0.98 }] }, 100: { opacity: 1, transform: [{ translateY: 0 }, { scale: 1 }], easing: EASE } }).duration(200);
+// Lift-out stays a short fade and drift; the drop-in is a light spring.
 const toastOut = new Keyframe({ 0: { opacity: 1, transform: [{ translateY: 0 }, { scale: 1 }] }, 100: { opacity: 0, transform: [{ translateY: -6 }, { scale: 0.98 }], easing: EASE } }).duration(150);
 
+// The leading tile is the koi on the art field of what the toast is about: the task's own palette (artOf) when a caller passes
+// `art`; a toast with no task (backup, disconnect, error) rotates through the palettes by a stable hash of its text, errors use clay.
+const ROTATE: TypeName[] = ["plan", "night", "lecture", "exam", "assignment", "clay"];
+const hashText = (s: string) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+export function artFor(text: string, error?: boolean, art?: TypeName): TypeName {
+  return art ?? (error ? "clay" : ROTATE[hashText(text) % ROTATE.length]);
+}
+
 /**
- * ui.js toast(): title and sub wrap (two lines each); actions sit in a bottom row, right-aligned.
- * The alternative slot is an outline pill left of Undo ("hoặc T7 09:00"); `altPlain`: an action of its own ("Xem"), no "hoặc".
- * Swipe it up or sideways to put it away (`onDismiss`).
- * `error`: vermilion with white text, for failures (model not ready, mic, download).
- * `lead`: drawn left of the text (the update download's ring).
+ * The iOS banner of the reference (.nt): a frosted card with the situational tile at left, the sender "zen" over the message, and a row of
+ * equal pill actions below. The 36px tile (radius 9) is the white koi on an art field (`artFor`; `art` overrides it with the task's palette).
+ * The alternative slot is a pill left of the action ("hoặc T7 09:00"); `altPlain`: an action of its own ("Xem"), no "hoặc".
+ * Swipe it up or sideways to put it away (`onDismiss`); `ms` runs a hairline countdown over the auto-dismiss time.
+ * `error`: a small red dot on the sender line only. `lead`: drawn left of the text instead of the tile (the update download's ring).
  */
-export function Toast({ text, sub, onAction, actionLabel, onAlt, altLabel, altPlain, error, onDismiss, lead }: {
+export function Toast({ text, sub, onAction, actionLabel, onAlt, altLabel, altPlain, error, onDismiss, lead, art, ms }: {
   text: string; sub?: string; onAction?: () => void; actionLabel?: string; onAlt?: () => void; altLabel?: string; altPlain?: boolean; error?: boolean; onDismiss?: () => void; lead?: ReactNode;
+  art?: TypeName; ms?: number;
 }) {
   const th = useTheme();
+  const tileArt = artFor(text, error, art);
   const top = useSafeAreaInsets().top - 8; // .toast top 46 against the mockup's 54 content top
   const alt = onAlt && altLabel;
-  const bg = error ? th.seal : th.ink, fg = error ? "#fff" : th.bg;
-  const x = useSharedValue(0), y = useSharedValue(0);
+  const x = useSharedValue(0), y = useSharedValue(0), left = useSharedValue(1);
+  useEffect(() => { if (ms) left.set(withTiming(0, { duration: ms, easing: Easing.linear })); }, [ms, left]);
+  const bar = useAnimatedStyle(() => ({ width: `${left.get() * 100}%` }));
   const pan = usePanGesture({
     testID: "toast", // tests drive the dismiss swipe by this id; RNGH drops it from release builds
     enabled: !!onDismiss,
@@ -42,27 +54,37 @@ export function Toast({ text, sub, onAction, actionLabel, onAlt, altLabel, altPl
     },
   });
   const drag = useAnimatedStyle(() => ({ transform: [{ translateX: x.get() }, { translateY: y.get() }] }));
+  const card = th.dark ? "rgba(38,40,44,0.96)" : "rgba(244,245,246,0.96)";
+  const pill = th.dark ? "#3a3d43" : "#ffffff";
   return (
     <GestureDetector gesture={pan}>
     <Animated.View style={[s.drag, { top }, drag]}>
-    <Animated.View entering={toastIn} exiting={toastOut} style={[s.toast, { backgroundColor: bg }]}>
+    <Animated.View entering={FadeInDown.springify().damping(18).stiffness(200)} exiting={toastOut} style={[s.toast, { backgroundColor: card }]}>
       <View style={s.tl}>
-        {lead}
+        {lead ?? <View style={s.tile}>
+          <View style={StyleSheet.absoluteFill}><TypeArt type={tileArt} w={36} h={36} seed={4} /></View>
+          <Logo size={22} mode="white" />
+        </View>}
         <View style={s.tx} accessibilityRole={error ? "alert" : undefined}>
-          <Text numberOfLines={2} style={[s.t1, { color: fg }]}>{bolded(text, { fontFamily: ff("800") })}</Text>
-          {!!sub && <Text numberOfLines={2} style={[s.sub, error && { color: "rgba(255,255,255,0.85)" }]}>{bolded(sub, { color: fg })}</Text>}
+          <View style={s.senderRow}>
+            {!!error && <View style={s.errDot} />}
+            <Text style={[s.sender, { color: error ? "#d2492f" : th.ink }]}>zen</Text>
+          </View>
+          <Text numberOfLines={2} style={[s.msg, { color: th.ink }]}>{bolded(text, { fontFamily: ff("500") })}</Text>
+          {!!sub && <Text numberOfLines={2} style={[s.sub, { color: th.muted }]}>{bolded(sub, { color: th.ink, fontFamily: ff("500") })}</Text>}
         </View>
       </View>
       {(!!alt || !!onAction) && (
         <View style={s.row}>
-          {alt && <Tap onPress={onAlt} hitSlop={8} style={[s.a, { borderWidth: 1, borderColor: "rgba(127,127,127,0.5)" }]}><Text numberOfLines={1} style={[s.at, { color: fg }]}>{altPlain ? altLabel : t("orWhen", { when: altLabel })}</Text></Tap>}
+          {alt && <Tap onPress={onAlt} hitSlop={8} style={[s.a, { backgroundColor: pill }]}><Text numberOfLines={1} style={[s.at, { color: th.ink }]}>{altPlain ? altLabel : t("orWhen", { when: altLabel })}</Text></Tap>}
           {onAction && (
-            <Tap onPress={onAction} hitSlop={8} style={[s.a, { backgroundColor: error ? "#fff" : th.bg }]}>
-              <Text numberOfLines={1} style={[s.at, { color: bg }]}>{actionLabel ?? t("undo")}</Text>
+            <Tap onPress={onAction} hitSlop={8} style={[s.a, { backgroundColor: pill }]} accessibilityRole="button">
+              <Text numberOfLines={1} style={[s.at, { color: th.ink }]}>{actionLabel ?? t("undo")}</Text>
             </Tap>
           )}
         </View>
       )}
+      {!!ms && <View style={s.track} pointerEvents="none"><Animated.View style={[s.fill, { backgroundColor: th.dark ? "rgba(242,243,245,0.2)" : "rgba(13,13,15,0.2)" }, bar]} /></View>}
     </Animated.View>
     </Animated.View>
     </GestureDetector>
@@ -70,14 +92,20 @@ export function Toast({ text, sub, onAction, actionLabel, onAlt, altLabel, altPl
 }
 
 const s = StyleSheet.create({
-  // ui.css .toast
+  // ui.css .nt: a frosted card, radius 24, soft shadow, padding 12-14
   drag: { position: "absolute", left: 12, right: 12, zIndex: 30 },
-  toast: { flexDirection: "column", gap: 10, paddingVertical: 12, paddingLeft: 18, paddingRight: 12, borderRadius: 24, boxShadow: "0 20px 40px -18px rgba(0,0,0,0.5)" },
-  tl: { flexDirection: "row", alignItems: "center", gap: 12 }, // ui.css .toast .tl
-  tx: { minWidth: 0, flexShrink: 1 },
-  row: { flexDirection: "row", justifyContent: "flex-end", gap: 8 },
-  t1: { fontSize: font.md, fontFamily: ff("600"), lineHeight: 22 }, // the title in it 800 (bolded) // 15px, line-height 1.3
-  sub: { marginTop: 1, fontSize: font.label, fontFamily: ff("500"), lineHeight: 22, color: "rgb(127,127,127)" },
-  a: { height: 44, flexShrink: 1, minWidth: 0, paddingHorizontal: 13, borderRadius: 99, alignItems: "center", justifyContent: "center" },
-  at: { fontSize: font.sub, fontFamily: ff("700") },
+  toast: { flexDirection: "column", gap: 12, paddingTop: 12, paddingBottom: 12, paddingLeft: 12, paddingRight: 12, borderRadius: 24, overflow: "hidden", boxShadow: "0 20px 40px -18px rgba(0,0,0,0.45)" },
+  tl: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+  tile: { width: 36, height: 36, borderRadius: 9, overflow: "hidden", alignItems: "center", justifyContent: "center" }, // the art field with the koi
+  tx: { flex: 1, minWidth: 0, paddingTop: 1 },
+  senderRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  errDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#d2492f" },
+  sender: { fontSize: 14, lineHeight: 18, fontFamily: ff("500") },
+  msg: { marginTop: 2, fontSize: 14.5, lineHeight: 20, fontFamily: ff("500") },
+  sub: { marginTop: 2, fontSize: 14, lineHeight: 19, fontFamily: ff("400") },
+  row: { flexDirection: "row", gap: 8 },
+  a: { flex: 1, minWidth: 0, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  at: { fontSize: 15, lineHeight: 20, fontFamily: ff("600") },
+  track: { position: "absolute", left: 0, right: 0, bottom: 0, height: 2 },
+  fill: { height: 2 },
 });

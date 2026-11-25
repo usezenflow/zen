@@ -112,7 +112,7 @@ export function Search({ origin, tasks, now, acts, initial, onClose }: { origin:
                 <View key={g.lab}>
                   <View style={s.labRow}>
                     <Text style={[s.lab, { color: th.muted }]}>{g.lab}</Text>
-                    {g.clear && <Tap onPress={() => { setRecent([]); void store.kvSet("searches", "[]"); }} hitSlop={10} accessibilityRole="button"><Text style={[s.lab, { color: th.ink, fontFamily: ff("600") }]}>{t("searchClear")}</Text></Tap>}
+                    {g.clear && <Tap onPress={() => { setRecent([]); void store.kvSet("searches", "[]"); }} hitSlop={10} accessibilityRole="button"><Text style={[s.lab, { color: th.ink, fontFamily: ff("500") }]}>{t("searchClear")}</Text></Tap>}
                   </View>
                   {g.xs.map((v, i) => (
                     <Animated.View key={v} entering={FadeInDown.delay(30 * k++).duration(220).easing(EASE)}>
@@ -157,12 +157,12 @@ const s = StyleSheet.create({
   // Left padding puts the magnifier where it sat in the circle, so the pill grows around it.
   fld: { position: "absolute", height: C, borderRadius: C / 2, borderWidth: 1, paddingLeft: (C - 20) / 2 - 1, paddingRight: 14, flexDirection: "row", alignItems: "center", gap: 10, overflow: "hidden" },
   row: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
-  fldT: { flex: 1, fontSize: 17, lineHeight: 22, height: 22, fontFamily: ff("500"), padding: 0 }, // as settings-connect .input: equal lineHeight and height keep the cursor level with the placeholder
+  fldT: { flex: 1, fontSize: 17, lineHeight: 24, height: 24, fontFamily: ff("500"), padding: 0 }, // as settings-connect .input: equal lineHeight and height keep the cursor level with the placeholder
   bar: { borderRadius: 6 },
   labRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 28 },
   lab: { fontSize: font.label, fontFamily: ff("500") },
   sg: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 2 },
   st: { flex: 1, paddingVertical: 13, justifyContent: "center" },
-  sgB: { fontSize: font.base, fontFamily: ff("600") },
+  sgB: { fontSize: font.base, fontFamily: ff("500") },
   sgS: { marginTop: 2, fontSize: 14, fontFamily: ff("500") },
 });
