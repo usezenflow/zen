@@ -1,14 +1,15 @@
 // Inside Nhịp (mockups/calm.html "Day slider", "Lá số"): what the outcomes show, never a habit claim.
 // Bars and cells come from planner/atlas.ts; marks and clauses from planner/mine.ts, so a dot is only where a finding passes its gate.
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
 import { useSharedValue } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { Tap } from "@/components/tap";
 import { t } from "@/lib/i18n";
-import { KIND_SHORT } from "@/lib/reasons";
-import { useTheme, ff } from "@/lib/theme";
+import { addRule } from "@/lib/apply";
+import { KIND_SHORT, KIND_VI } from "@/lib/reasons";
+import { useTheme, ff, font } from "@/lib/theme";
 import type { Kind } from "@/lib/types";
 import { hourView, lasoGrid, type Cell } from "@/planner/atlas";
 import { KINDS } from "@/planner/linucb";
@@ -16,6 +17,8 @@ import { clause, mine as mineFindings, type Finding } from "@/planner/mine";
 import type { Model } from "@/planner/model";
 
 const PARTS = ["Sáng", "Trưa", "Chiều", "Tối"];
+const PART_LOW = ["sáng", "trưa", "chiều", "tối"];
+const WIN: [number, number][] = [[300, 720], [690, 810], [720, 1080], [1080, 1440]]; // minutes after midnight, as lib/rules.ts reads each part
 const SCALE = 0.5; // a reward change of 0.5 fills half the axis
 const clamp = (v: number, lo = -1, hi = 1) => Math.max(lo, Math.min(hi, v));
 
@@ -24,12 +27,13 @@ const favours = (fs: Finding[], k: Kind, part: number) => fs.find((f) => f.type 
 
 function Seg({ items, on, onPick }: { items: string[]; on: number; onPick: (i: number) => void }) {
   const th = useTheme();
+  // the same text tabs as Ngày / Tuần / Tháng (ui.css .tabs): the open one is ink with the seal dot under it
   return (
-    <View style={s.seg}>
+    <View style={s.seg} accessibilityRole="tablist">
       {items.map((x, i) => (
-        <Tap key={x} onPress={() => onPick(i)} accessibilityRole="tab" accessibilityState={{ selected: i === on }}
-          style={[s.segI, i === on ? { backgroundColor: th.ink, borderColor: th.ink } : { borderColor: th.line }]}>
-          <Text style={[s.segT, { color: i === on ? th.bg : th.ink }]}>{x}</Text>
+        <Tap key={x} onPress={() => onPick(i)} hitSlop={8} accessibilityRole="tab" accessibilityState={{ selected: i === on }} style={s.segI}>
+          <Text numberOfLines={1} style={[s.segT, { color: i === on ? th.ink : th.muted, fontFamily: ff(i === on ? "600" : "500") }]}>{x}</Text>
+          {i === on && <View style={[s.segDot, { backgroundColor: th.seal }]} />}
         </Tap>
       ))}
     </View>
@@ -114,9 +118,13 @@ function ChartTab({ m, fs }: { m: Model; fs: Finding[] }) {
         </View>
       ))}
       <View style={s.ends}><Text style={[s.end, { color: th.muted }]}>{t("atlasWell")}</Text><Text style={[s.end, { color: th.muted }]}>{t("atlasThin")}</Text></View>
-      {cur && (
+      {cur && sel && (
         <View style={[s.card, { borderColor: th.line }]}>
           <Text style={[s.cardT, { color: th.ink }]}>{f ? clause(f) : cur.enough ? t("atlasFlat") : t("atlasThin")}</Text>
+          {/* one tap writes a standing rule: this kind keeps out of this part of the day (lib/rules.ts windows) */}
+          <Tap onPress={() => void addRule({ text: t("avoidRule", { k: KIND_VI[sel.kind], p: PART_LOW[sel.part] }), days: [], from: WIN[sel.part][0], to: WIN[sel.part][1], kinds: [sel.kind] })} accessibilityRole="button" style={[s.bo, { borderColor: th.line }]}>
+            <Text style={[s.boT, { color: th.ink }]}>{t("avoidThis")}</Text>
+          </Tap>
         </View>
       )}
     </View>
@@ -124,25 +132,27 @@ function ChartTab({ m, fs }: { m: Model; fs: Finding[] }) {
 }
 
 /** The two views, mined once per model. `hour` opens the day view at that hour (from "Vì sao giờ này"). */
-export function Atlas({ m, hour: h0 }: { m: Model; hour?: number }) {
-  const [tab, setTab] = useState(0);
+export function Atlas({ m, hour: h0, lead = [] }: { m: Model; hour?: number; lead?: { label: string; node: ReactNode }[] }) {
+  // `lead`: panels that come before the charts (what you said, what Zen follows); the last tab is the charts, the day view above the kind-by-part grid.
+  const [tab, setTab] = useState(h0 !== undefined ? lead.length : 0); // an hour from "Vì sao giờ này" opens the charts
   const [hour, setHour] = useState(h0 ?? new Date().getHours());
   const [now] = useState(() => Date.now()); // mined as of opening
   const fs = useMemo(() => mineFindings(m, now), [m, now]);
   return (
     <View style={{ marginTop: 18 }}>
-      <Seg items={[t("atlasDay"), t("atlasChart")]} on={tab} onPick={setTab} />
+      <Seg items={[...lead.map((x) => x.label), t("atlasChart")]} on={Math.min(tab, lead.length)} onPick={setTab} />
       <View style={{ marginTop: 14 }}>
-        {tab === 0 ? <DayTab m={m} hour={hour} onHour={setHour} /> : <ChartTab m={m} fs={fs} />}
+        {tab < lead.length ? lead[tab].node : <><DayTab m={m} hour={hour} onHour={setHour} /><View style={{ marginTop: 22 }}><ChartTab m={m} fs={fs} /></View></>}
       </View>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  seg: { flexDirection: "row", gap: 6 },
-  segI: { flex: 1, height: 40, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  segT: { fontSize: 15, fontFamily: ff("600") },
+  seg: { flexDirection: "row", gap: 20 },
+  segI: { flexShrink: 1, paddingBottom: 10 },
+  segT: { fontSize: font.md },
+  segDot: { position: "absolute", bottom: 0, left: "50%", width: 5, height: 5, marginLeft: -2.5, borderRadius: 3 },
   sl: { marginTop: 6 },
   hit: { height: 44, justifyContent: "center" },
   track: { height: 6, borderRadius: 6, marginHorizontal: 4 },
@@ -170,4 +180,6 @@ const s = StyleSheet.create({
   calm: { marginTop: 18, fontSize: 16, fontFamily: ff("500"), lineHeight: 22 },
   card: { marginTop: 16, borderWidth: 1, borderRadius: 22, padding: 16 },
   cardT: { fontSize: 17, fontFamily: ff("600"), lineHeight: 23 },
+  bo: { alignSelf: "flex-start", minHeight: 44, marginTop: 12, paddingHorizontal: 14, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  boT: { fontSize: 15, fontFamily: ff("600") },
 });

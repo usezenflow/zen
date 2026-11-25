@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Animated from "react-native-reanimated";
 import { Icon, Logo, TypeArt } from "@/components/art";
@@ -10,6 +11,7 @@ import { useTheme, font, ff } from "@/lib/theme";
 import type { Rule } from "@/lib/types";
 import type { Insights } from "@/planner";
 import type { Model } from "@/planner/model";
+import { candidates, clause } from "@/planner/mine";
 import { Atlas } from "@/components/atlas";
 
 /** The Nhịp head's count: how many rules Zen follows. Empty when none, the calm line below says the rest. */
@@ -53,20 +55,10 @@ export function Rhythm({ i, rules, m, hour, onForget, onForgetWhen }: { i: Insig
     ...i.learned.map((x) => ({ id: x.text, text: x.text, kind: x.kind, v: x.v, guess: x.guess, icon: (x.kind && x.icon !== "undo" ? x.kind : x.icon ?? "clock") as IconName, forget: x.part !== undefined ? () => onForgetWhen({ part: x.part! }) : x.hour !== undefined ? () => onForgetWhen({ hour: x.hour! }) : undefined })),
   ];
   const seen = i.grid.some((r) => r.some((v) => v > 0));
-  return (
-    <Animated.View entering={fadeIn}>
-      {/* before anything is seen the same card holds the grid dim: a guess, not a claim, with the logo in its corner */}
-      <View style={s.art}>
-        <View style={StyleSheet.absoluteFill}><TypeArt type="plan" w={264} h={170} seed={5} /></View>
-        {!seen && <View style={s.leaf}><Logo size={34} mode="line" color="#fff" /></View>}
-        <Text style={s.artLab}>{t("thisWeek")}</Text>
-        {seen && i.when ? <Text style={s.artT}>{whenLine(i.when)}</Text> : !seen && <Text style={s.artT}>{t("learnedLearning")}</Text>}
-        <Grid i={seen ? i : { ...i, grid: Array.from({ length: 7 }, () => [0.1, 0.1, 0.1, 0.1]), when: undefined }} />
-      </View>
-      {m && <Atlas key={hour ?? -1} m={m} hour={hour} />}
-      {!rows.length && !rules.length && <Text style={[s.calm, { color: th.ink }]}>{t("learnedCold")}</Text>}
-      {/* what you said yourself: always first, exact, nothing to be sure about */}
-      {rules.length > 0 && <Text style={[s.lab, { color: th.muted }]}>{t("learnedSaid")}</Text>}
+  // What the outcomes show now, up to five: the same rows as the rules below, each sure as far as its gate says.
+  const found = useMemo(() => (m ? candidates(m).slice(0, 5) : []), [m]);
+  const saidList = (
+    <>
       {rules.map((r) => (
         <SwipeDelete key={r.id} onDelete={() => onForget(r)}>
           <View style={[s.set, { borderColor: th.line }]}>
@@ -78,7 +70,10 @@ export function Rhythm({ i, rules, m, hour, onForget, onForgetWhen }: { i: Insig
           </View>
         </SwipeDelete>
       ))}
-      {rows.length > 0 && <Text style={[s.lab, { color: th.muted }]}>{t("learnedLab")}</Text>}
+    </>
+  );
+  const followList = (
+    <>
       {rows.map((x) => (
         // every row sits in the same frame, so a plain one lines up with a swipeable one; the bar is how sure (dashed: still a guess)
         <SwipeDelete key={x.id} enabled={!!x.forget} onDelete={x.forget ?? (() => {})}>
@@ -89,12 +84,39 @@ export function Rhythm({ i, rules, m, hour, onForget, onForgetWhen }: { i: Insig
           </View>
         </SwipeDelete>
       ))}
+    </>
+  );
+  return (
+    <Animated.View entering={fadeIn}>
+      {found.length > 0 && <Text style={[s.lab, s.labTop, { color: th.muted }]}>{t("insSection")}</Text>}
+      {found.map((f, k) => (
+        <View key={k} style={[s.set, { borderColor: th.line }]}>
+          <View style={[s.sw, { backgroundColor: th.chip }]}><Icon name={f.armP === 3 ? "moon" : f.type === "length" ? "clock" : "sun"} size={18} color={th.ink} w={2} /></View>
+          <Text style={[s.b, s.tx, { color: th.ink }]} numberOfLines={2}>{clause(f)}</Text>
+          {f.sure !== undefined && <Meter v={f.sure} width={44} />}
+        </View>
+      ))}
+      {/* before anything is seen the same card holds the grid dim: a guess, not a claim, with the logo in its corner */}
+      <View style={s.art}>
+        <View style={StyleSheet.absoluteFill}><TypeArt type="plan" w={264} h={170} seed={5} /></View>
+        {!seen && <View style={s.leaf}><Logo size={34} mode="line" color="#fff" /></View>}
+        <Text style={s.artLab}>{t("thisWeek")}</Text>
+        {seen && i.when ? <Text style={s.artT}>{whenLine(i.when)}</Text> : !seen && <Text style={s.artT}>{t("learnedLearning")}</Text>}
+        <Grid i={seen ? i : { ...i, grid: Array.from({ length: 7 }, () => [0.1, 0.1, 0.1, 0.1]), when: undefined }} />
+      </View>
+      {!rows.length && !rules.length && <Text style={[s.calm, { color: th.ink }]}>{t("learnedCold")}</Text>}
+      {/* what you said, what Zen picked up, and the charts: three tabs under the week card (no model yet: the lists alone) */}
+      {m ? <Atlas key={hour ?? -1} m={m} hour={hour} lead={[
+        ...(rules.length ? [{ label: t("learnedSaid"), node: saidList }] : []),
+        ...(rows.length ? [{ label: t("learnedFollow"), node: followList }] : []),
+      ]} /> : <>{saidList}{followList}</>}
     </Animated.View>
   );
 }
 
 const s = StyleSheet.create({
   lab: { fontSize: font.label, fontFamily: ff("500"), marginTop: 22 },
+  labTop: { marginTop: 0, marginBottom: 6 },
   calm: { marginTop: 22, fontSize: 16, fontFamily: ff("500"), lineHeight: 22 },
   set: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8, borderBottomWidth: 1 },
   b: { fontSize: 16, fontFamily: ff("600"), lineHeight: 21, letterSpacing: -0.16 },
