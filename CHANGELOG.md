@@ -1,5 +1,11 @@
 # zen
 
+## 26.1.1
+
+### Patch Changes
+
+- Việc chia nhiều buổi biết co giãn theo hạn: hạn gần thì ít buổi hơn, mỗi buổi dài hơn (tối đa 3 giờ) và báo nếu không đủ giờ; hạn xa thì giữ số buổi quen thuộc, không chia nhỏ thêm. Có thêm một khoảng đệm 10–30% (tối đa 30 phút mỗi buổi, nhiều hơn với loại việc hay trễ, hết đệm vào ngày cuối). Buổi đã xong, đã ghim hoặc đang chạy được giữ nguyên
+
 ## 26.1.0
 
 ### Minor Changes

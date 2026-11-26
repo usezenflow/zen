@@ -4,7 +4,8 @@ import { holding } from "../planner/policy";
 import { dayGone } from "../planner/place";
 import { partIdx } from "../planner/features";
 import { skipPrep } from "../planner/prep";
-import { cosine, effort, forgetWhen as forgetLearned, settleHyp as settleLearned } from "../planner/habits";
+import { cosine, effort, forgetWhen as forgetLearned, settleHyp as settleLearned, slipOf } from "../planner/habits";
+import { minSitting, resize } from "../planner/split";
 import { addClassLog, classLogsOf, classMults } from "./nlu/context";
 import { fill, partAt, t } from "./i18n";
 import { day, hm, when as at12 } from "./when";
@@ -912,6 +913,31 @@ export function dropSitting(parentId: string, now = Date.now(), id?: string): Pr
     const n = respread(w, parentId, now);
     if (n > 1) w.sub = t("respread", { n });
   }, { cause: "user-task", text: (_, w) => w.toast });
+}
+
+/** The due moved: the open sittings are made again for the days now left (more or fewer, longer or shorter, with a buffer) and spread.
+ *  Done, pinned, hand-set and running sittings stay. Call it after a deadline edit on a split task. */
+export function refit(parentId: string, now = Date.now()): Promise<Result> {
+  return transact(now, async (w) => {
+    const p = w.tasks.get(parentId);
+    if (!p || p.deletedAt || p.doneAt || p.deadline === undefined || p.deadline <= now) return;
+    const all = sitsOf(w, parentId), open = openSits(w, parentId);
+    const keep = (c: Task) => c.pinned || c.userEdited?.includes("start") || (c.start !== undefined && c.end !== undefined && c.start <= now && now < c.end);
+    const fixed = open.filter(keep), free: number[] = [], rest = [...w.tasks.values()].filter((x) => x.parentId !== parentId);
+    // shortcut: a day's free time is its cap minus the timed work already on it; the planner's finer view (rest of today, class days) is not repeated
+    for (let d = dayStart(now); d < p.deadline; d = addDays(d, 1)) {
+      const e = addDays(d, 1), load = rest.reduce((s, x) => (!x.doneAt && !x.deletedAt && x.start !== undefined && x.end !== undefined && x.start < e && x.end > d ? s + Math.min(x.end, e) - Math.max(x.start, d) : s), 0);
+      free.push(Math.max(0, capOf(rest, d, now).ms - load) / 3600_000);
+    }
+    const left = p.effort - all.filter((c) => c.doneAt).reduce((a, c) => a + c.effort, 0) - fixed.reduce((a, c) => a + c.effort, 0);
+    if (left <= 0 || !open.length) return;
+    const { sizes, short } = resize({ left, cap: p.maxSitting, floor: minSitting(p), free, slip: slipOf(w.model, p.kind), misses: p.misses });
+    const free_ = open.filter((c) => !keep(c));
+    while (free_.length < sizes.length) { const id = addOne(w, parentId); if (!id) break; free_.push(w.tasks.get(id)!); }
+    while (free_.length > sizes.length) await act(w, { op: "delete", target: free_.pop()!.id });
+    free_.forEach((c, i) => w.tasks.set(c.id, { ...w.tasks.get(c.id)!, effort: sizes[i], start: undefined, end: undefined }));
+    w.toast = t(short ? "refitShort" : "refit", { title: p.title, k: sizes.length + fixed.length });
+  }, { cause: "deadline", text: (_, w) => w.toast });
 }
 
 /** "chia n buổi": the task ends with n open sittings in one change: split or re-split, copies added or the last open ones dropped, then spread. */

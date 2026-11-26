@@ -6,6 +6,8 @@ export const WEEKDAY_VI = ["Chủ nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Th�
 
 const S = {
   planned: "Mình đã xếp xong {n} việc",
+  refit: "Hạn đổi: {title} còn {k} buổi",
+  refitShort: "Hạn đổi: {title} còn {k} buổi, nhưng không đủ giờ",
   plannedSplit: "Mình chia {title} thành {k} buổi",
   plannedSub: "Trong {d} ngày tới",
   dropNote: "bỏ “{quote}” ({why})",
