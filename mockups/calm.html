@@ -96,6 +96,8 @@
 .seg { display: flex; gap: 6px; margin-top: 14px; }
 .seg span { flex: 1; height: 36px; border-radius: 99px; border: 1px solid var(--line); display: grid; place-items: center; font-size: 14px; font-weight: 500; }
 .seg span.on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+/* a toast that lists every sitting: one per line, up to six */
+.toast .tx span.ls { -webkit-line-clamp: 6; }
 .pills.blk .pl { height: 44px; min-height: 0; padding: 0 16px; border-radius: 14px; line-height: 44px; font-size: 15px; }
 .pills.blk .pl .dy { font-size: 13px; opacity: .6; }
 </style>
@@ -271,7 +273,11 @@ const orderToast = chrome(toast("Đã thêm 2 việc", "Học lý thuyết Giả
 
 // Anchors: "ôn trước kỳ thi Toán" with two Toán exams ahead.
 const anchorPick = chrome(`${DAY}${pick("Kỳ thi Toán nào?", [["Thi Giải tích", "T5 26/11 7:30"], ["Thi Đại số tuyến tính", "T3 1/12 9:30"]])}`, { dock: null });
-const anchorOk = chrome(toast("Ôn Cơ sở dữ liệu", "Mình đoán thêm 3h nhé, xong trước Thi Cơ sở dữ liệu T5 7:30", [["Hoàn tác"]], { art: "duskC" }) + DAY, { dock: "think" });
+const anchorOk = chrome(toast("Đã thêm Đọc code outline", "Trước buổi thi 1/12", [["Hoàn tác"]], { art: "duskC" }) + DAY, { dock: "think" });
+// Every instance, not the first: sittings each on a line (the first four, then +n); a repeat says its pattern.
+const sittingsToast = chrome(toast("Đã thêm Viết báo cáo", `<span class="ls">T5 9:30<br>T6 14:00<br>T2 20:00</span>`, [["Hoàn tác"]], { art: "lagoonC" }) + DAY, { dock: "think" });
+const repeatToast = chrome(toast("Đã thêm Gym", "Mỗi tuần vào T2, T4, 19:00 · đến 31/12", [["Hoàn tác"]], { art: "mossC" }) + DAY, { dock: "think" });
+const resizedToast = chrome(toast("Đã dời Viết báo cáo", "", [["Hoàn tác"]], { art: "lagoonC" }) + DAY, { dock: "think" });
 
 // Import with order: numbered groups show their steps; plain bullets stay unnumbered.
 const importOrd = importPrev
@@ -348,7 +354,10 @@ mount([
   { tag: "In order, added", sub: '"Học lý thuyết Giải tích rồi làm bài tập": two tasks, the second always after the first ends.', html: orderToast },
   { tag: "In order, detail", sub: "The task says what it waits for, as a chip. The reason is the literal fact of when the first one ends.", html: chrome(orderDetail, { dock: null }) },
   { tag: "Anchor, which exam", sub: '"Ôn trước kỳ thi Toán" with two Toán exams ahead: pick one. Until then the task is added without a due.', html: anchorPick },
-  { tag: "Anchor, found", sub: '"Ôn CSDL trước kỳ thi" (one exam matches): due before it, and linked to it.', html: anchorOk },
+  { tag: "Anchor, found", sub: '"Đọc code outline trước ngày thi ktpm" (one exam matches): due before it, and linked to it. The course may be an abbreviation, partly said, mistyped, without accents or self-corrected ("à nhầm …").', html: anchorOk },
+  { tag: "Added, every sitting", sub: '"Viết báo cáo trước 1/12, 3 buổi": the toast lists each sitting with its day and time (the first four, then "+n"), not only the first. The sittings stay at least a day and a half before the due when there is room.', html: sittingsToast },
+  { tag: "Added, a repeat", sub: 'A repeating task says its pattern: the weekdays, the time and the end date.', html: repeatToast },
+  { tag: "Resized", sub: 'Changing a duration says "Đã dời", with Hoàn tác.', html: resizedToast },
   { tag: "Import, in order", sub: "Numbered steps keep their order: each leaf waits for the one before. Plain bullets stay free.", html: chrome(importOrd, { dock: null }) },
   { tag: "Weekly, noticed", sub: "Done on the same weekday three weeks running: one card offers a weekly repeat. No offers without that history.", html: chrome(seriesCard, { dock: "idle" }) },
   { tag: "Now, running, dark", sub: "Same in dark.", dark: true, html: chrome(running, { dock: "idle", time: "14:22" }) },
