@@ -33,8 +33,9 @@ function sub(
   };
   for (const m of ms) {
     const i = m.index ?? 0;
-    keep(i);
     const r = rep(m);
+    if (r === m[0]) continue; // unchanged: its chars keep their own map entries
+    keep(i);
     text += r;
     for (let k = 0; k < r.length; k++) map.push(src.map[i]);
     last = i + m[0].length;
@@ -752,12 +753,12 @@ function repairTypos(src: Repaired): Repaired {
 
 /** Teencode and southern day words, read on the raw text: "chìu", "nhứt", "bữa mai", and "hp" before a clock or day. */
 function repairTeencode(src: Repaired): Repaired {
-  if (!/chìu|Chìu|nhứt|Nhứt|bữa|hp|Hp/.test(src.text)) return src;
+  if (!/chìu|Chìu|nhứt|Nhứt|b[ữửứừựũ]a|hp|Hp/i.test(src.text)) return src;
   let r = sub(src, /(?<!\p{L})chìu(?!\p{L})/gu, () => "chiều");
   r = sub(r, /(?<!\p{L})Chìu(?!\p{L})/gu, () => "Chiều");
   r = sub(r, /nhứt(?!\p{L})/gu, () => "nhất");
   r = sub(r, /Nhứt(?!\p{L})/gu, () => "Nhất");
-  r = sub(r, /(?<!\p{L})bữa(?=\s+(?:nay|mai|mốt|kia|kìa)(?!\p{L}))/giu, (m) =>
+  r = sub(r, /(?<!\p{L})b[ữửứừựũ]a(?=\s+(?:nay|mai|mốt|kia|kìa)(?!\p{L}))/giu, (m) =>
     m[0] === "Bữa" ? "Ngày" : "ngày",
   );
   r = sub(
@@ -765,6 +766,46 @@ function repairTeencode(src: Repaired): Repaired {
     /(?<!\p{L})(hp|Hp)(?=\s+(?:[\p{L}]+\s+){0,3}?(?:\d|mai|nay|sáng|chiều|trưa|tối|đêm|thứ|t[2-7]\b))/gu,
     (m) => (m[1] === "Hp" ? "Họp" : "họp"),
   );
+  return r;
+}
+
+/** Gen Z and chat spellings of day, part-of-day and weekday words, by folded token → the full word the date patterns read.
+ * Left out on purpose, as they mean something else: "hn" (Hà Nội), "mn" (mọi người), "tnay" (tối or tuần nay), "mt", "ng". Months ("th11") clash with weekdays ("th7"). */
+const SLANG_DAY = new Map<string, string>([
+  ...["hnay", "hmnay", "homnay", "humnay", "hnai", "homnai", "hnayy"].map((k): [string, string] => [k, "hôm nay"]),
+  ...["hqua", "homqua"].map((k): [string, string] => [k, "hôm qua"]),
+  ["hkia", "hôm kia"], ["homkia", "hôm kia"],
+  ...["ngmai", "ngaymai", "tmr", "tmrw", "tmrrw", "tmrow", "tomorow", "2moro", "2morrow"].map((k): [string, string] => [k, "ngày mai"]),
+  ["ngaymot", "ngày mốt"], ["ngaykia", "ngày kia"],
+  ["snay", "sáng nay"], ["cnay", "chiều nay"], ["toinay", "tối nay"], ["sangnay", "sáng nay"], ["chieunay", "chiều nay"], ["truanay", "trưa nay"],
+  ["smai", "sáng mai"], ["cmai", "chiều mai"], ["tmai", "tối mai"], ["toimai", "tối mai"], ["sangmai", "sáng mai"], ["chieumai", "chiều mai"], ["truamai", "trưa mai"],
+  ["tsau", "tuần sau"], ["tuansau", "tuần sau"], ["tuantoi", "tuần tới"], ["tuannay", "tuần này"], ["thangsau", "tháng sau"], ["thangnay", "tháng này"], ["thangtoi", "tháng tới"],
+  ["cuoituan", "cuối tuần"], ["wknd", "cuối tuần"], ["wkend", "cuối tuần"],
+  ["hangngay", "hàng ngày"], ["moingay", "mỗi ngày"], ["everyday", "mỗi ngày"], ["hangtuan", "hàng tuần"], ["moituan", "mỗi tuần"], ["hangthang", "hàng tháng"], ["moithang", "mỗi tháng"],
+  ["cnhat", "chủ nhật"], ["chunhat", "chủ nhật"],
+  ["trc", "trước"], ["trk", "trước"], ["bjo", "bây giờ"], ["bgio", "bây giờ"], ["bjg", "bây giờ"],
+]);
+const DAY_NOUN = new Set(["sang", "trua", "chieu", "toi", "dem", "hom", "bua", "ngay", "tuan", "thang", "nam"]);
+/** "hnay" is "hôm nay", "th2" is "thứ 2", "tối ni" is "tối nay": the slang is spelled out so every date pattern after it applies. */
+function repairSlangDays(src: Repaired): Repaired {
+  let r = sub(src, /(?<![\p{L}\d])[\p{L}\d]{2,10}(?![\p{L}\d])/gu, (m) => {
+    const f = fold(m[0]).text;
+    const w = SLANG_DAY.get(f);
+    if (w) return w;
+    return /^mơi$/iu.test(m[0]) ? "mai" : m[0]; // central "mai"; "mới", "mời" and unaccented "moi" are other words
+  });
+  // "th2".."th7": weekdays, in one word or spaced ("th 3"); a lone "t" is never read
+  r = sub(r, /(?<![\p{L}\d])th\s?([2-7])(?![\p{L}\d])/giu, (m) => `thứ ${m[1]}`);
+  // central "ni"/"ny" for "này" after a day word: "tối ni", "hôm ny", "tuần ni". Both words are matched folded, so any tone mark (bữa, bửa, bứa) works.
+  r = sub(r, /(?<![\p{L}\d])(\p{L}{3,5})\s+(\p{L}{2})(?![\p{L}\d])/gu, (m) => {
+    const d = fold(m[1]).text;
+    if (!DAY_NOUN.has(d) || !["ni", "ny", "ne"].includes(fold(m[2]).text)) return m[0];
+    return `${d === "bua" ? "hôm" : m[1]} này`; // "bữa" is the southern "hôm"
+  });
+  // "bây h", "bay g"
+  r = sub(r, /(?<![\p{L}\d])b[âa]y\s+[hg](?![\p{L}\d])/giu, () => "bây giờ");
+  // "9h sg", "2h ch": a part of the day right after a clock
+  r = sub(r, /(?<=\d\s*(?:h|g|:\d\d|giờ)\s*\d{0,2}\s*)(sg|ch)(?![\p{L}\d])/giu, (m) => (m[1].toLowerCase() === "sg" ? "sáng" : "chiều"));
   return r;
 }
 
@@ -1816,6 +1857,7 @@ export function repair(raw: string, source: ReaderSource): Repaired {
   r = repairSwaps(r);
   // 6.6 teencode on raw tokens
   r = repairTeencode(r);
+  r = repairSlangDays(r);
   r = sub(r, /(?<!\p{L})(ngừoi|nhưg|ko|đc|dc|vs)(?!\p{L})/giu, (m) => {
     const w = WHOLE_TYPO.get(m[0].toLowerCase())!;
     return /^\p{Lu}/u.test(m[0]) ? w[0].toUpperCase() + w.slice(1) : w;

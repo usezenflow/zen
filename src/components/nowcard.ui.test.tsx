@@ -59,6 +59,10 @@ describe("NowCard", () => {
     await render(<NowCard card={{ task: task({ fixed: "lecture" }), start: at(14), end: at(15) }} onDone={jest.fn()} onStart={jest.fn()} />);
     expect(screen.queryByLabelText(t("startLab"))).toBeNull();
   });
+  it.each(["lecture", "exam", "busy"] as const)("a %s has no Xong check", async (fixed) => {
+    await render(<NowCard card={{ task: task({ fixed }), start: at(14), end: at(15) }} onDone={jest.fn()} />);
+    expect(screen.queryByLabelText(t("markDone"))).toBeNull();
+  });
   it("ticks every 3 s and stops ticking once unmounted", async () => {
     const r = await render(<NowCard card={{ task: task(), start: at(9, 30), end: at(10, 30) }} onDone={jest.fn()} />);
     await act(async () => { jest.advanceTimersByTime(60_000); });

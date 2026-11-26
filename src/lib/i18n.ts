@@ -92,7 +92,7 @@ const S = {
   micFail: "Mình chưa ghi âm được",
   heardNothing: "Chưa nghe thấy gì",
   heardNothingSub: "Giữ nút rồi hãy nói",
-  quickPh: "Sửa nhanh: mai 3h chiều, hạn thứ 6…",
+  quickPh: "Sửa nhanh: mai 3h chiều…",
   quickNone: "Mình chưa hiểu, thử nói ngày và giờ",
   quickLater: "Mình chưa sửa được kiểu này ở đây",
   quickNotRepeat: "Việc này không lặp lại, nên không đổi được lịch lặp",

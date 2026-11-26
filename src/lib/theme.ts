@@ -21,6 +21,7 @@ const fixed = {
     assignment: { a: "#e9b04f", b: "#c21f86", c: "#a38ff0", d: "#ff4a5e" }, // dusk
     night: { a: "#1e2a8a", b: "#7a4dff", c: "#35e0ff", d: "#ff5ac8" }, // work, finance (artOf)
     clay: { a: "#ebc8a4", b: "#cf4a2c", c: "#5f80dc", d: "#f08a5d" }, // self, other, some assignments
+    void: { a: "#f1eff6", b: "#bdb9d3", c: "#fbfafd", d: "#d6d2e6" }, // an unscheduled task: a pale mist that is not yet anywhere
     busy: { a: "#c9c8c2", b: "#8d8f8c", c: "#e6e4de", d: "#a4a6a2" },
   },
   radius: { art: 28, toast: 24, pill: 99, card: 28, sm: 10 },

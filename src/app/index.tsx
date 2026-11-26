@@ -887,6 +887,8 @@ export default function Home() {
     await shuffle(r);
   };
   const cx = useSharedValue(0);
+  const noDone = useSharedValue(false); // a fixed lecture, exam or busy block is never ticked, so a right swipe springs back
+  useEffect(() => { noDone.set(!!shown?.task.fixed && !shown.gap); }, [shown, noDone]);
   const committing = useRef(false);
   // The card comes back even when the save fails, and a second tap mid-save does nothing.
   const finish = async (dir: "done" | "later") => {
@@ -900,7 +902,7 @@ export default function Home() {
     onUpdate: (e) => { "worklet"; cx.set(e.translationX); },
     onDeactivate: (e) => {
       "worklet";
-      if (Math.abs(e.translationX) <= 110) { cx.set(settle(0)); return; }
+      if (Math.abs(e.translationX) <= 110 || (e.translationX > 0 && noDone.get())) { cx.set(settle(0)); return; }
       const dir = e.translationX > 0 ? "done" : "later";
       cx.set(withTiming(e.translationX > 0 ? 500 : -500, { duration: 180 }, (ok) => { if (ok) scheduleOnRN(finish, dir); }));
     },
@@ -964,14 +966,15 @@ export default function Home() {
   useEffect(() => {
     if (view !== "week") return;
     let live = true;
-    void canRebalance(Date.now()).then((ok) => { if (live) setWeekReb(ok); }, () => { if (live) setWeekReb(false); });
-    return () => { live = false; };
+    // the dry plan is heavy: after the switch has painted, so the tap itself stays instant
+    const h = setTimeout(() => { void canRebalance(Date.now()).then((ok) => { if (live) setWeekReb(ok); }, () => { if (live) setWeekReb(false); }); }, 250);
+    return () => { live = false; clearTimeout(h); };
   }, [view, tasks]);
   const closeStory = async () => { setStory(false); await seeMoves(fresh.map((m) => m.id)); await briefMoves(fresh.map((m) => m.id)); refresh(); };
   const busy = state !== "idle";
   const listing = busy && !shufOn && !!words; // the day stays under the veil until words are heard; while the plan plays out the list stays, the dock keeps thinking
   const firstRun = !tasks.length && view === "day" && !busy; // views.html "Day, first launch"
-  const folded = foldRepeats(tasks, now); // a folded repeat's day is not empty: its row sits there
+  const folded = useMemo(() => foldRepeats(tasks, now), [tasks, now]); // a folded repeat's day is not empty: its row sits there
   const selEmpty = !hols.has(sel) && !onDay(tasks, sel).some((x) => !folded.hidden.has(x.id)) && !folded.folds.some((f) => f.first === sel);
   // The first-launch card also teaches on any empty day with nothing ahead of it: no rows, nothing ticked, nothing coming.
   const nothingAhead = view === "day" && !busy && selEmpty && !(isToday && card)

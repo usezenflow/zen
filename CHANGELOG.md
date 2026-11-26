@@ -5,6 +5,13 @@
 ### Patch Changes
 
 - Việc chia nhiều buổi biết co giãn theo hạn: hạn gần thì ít buổi hơn, mỗi buổi dài hơn (tối đa 3 giờ) và báo nếu không đủ giờ; hạn xa thì giữ số buổi quen thuộc, không chia nhỏ thêm. Có thêm một khoảng đệm 10–30% (tối đa 30 phút mỗi buổi, nhiều hơn với loại việc hay trễ, hết đệm vào ngày cuối). Buổi đã xong, đã ghim hoặc đang chạy được giữ nguyên
+- Chuyển Ngày, Tuần, Tháng nhanh hơn: nút chuyển hiện ngay, việc tính lại lịch chạy sau khi màn đã hiện, và lịch tuần, tháng tra việc theo ngày thay vì quét lại cả danh sách mỗi lần
+- Hiểu thêm cách viết tắt và tiếng lóng chỉ ngày: "hnay", "hmnay", "ngmai", "tmr", "snay", "cnay", "toinay", "tsau", "th2" đến "th7", "bữa ni", "tối ni"; "trong hnay" cũng được hiểu là hôm nay. Các chữ dễ nhầm như "hn" (Hà Nội), "mn" (mọi người) vẫn giữ nguyên
+- Tiết học, lịch thi và khối bận không còn nút "Xong" trên thẻ "Bây giờ", và vuốt sang phải cũng không tick được
+- Việc chưa có giờ hiện mờ, với tranh "chưa xếp" thay cho vòng tròn tick
+- Buổi chuẩn bị ôn thi hiện loại việc (ví dụ "học") ngay dưới tên trong màn chi tiết
+- Ô ghi chú trong chi tiết việc đổi sang nền xám thay cho viền; ô "Sửa nhanh" bỏ gợi ý "hạn thứ 6" và chữ đậm hơn khi có nội dung
+- "bữa nay", "bữa mai" vẫn được hiểu đúng dù gõ dấu thanh khác (bửa, bứa, bựa)
 
 ## 26.1.0
 

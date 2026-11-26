@@ -376,7 +376,7 @@ export default function Detail() {
               <DropMenu chevron label={t("youKind", { k: kindLabel(task.kind) })} color={th.info} size={font.sub} icon={<State tone="info" text={t("youKind", { k: kindLabel(task.kind) })} after={<Icon name="down" size={18} color={th.info} />} />}
                 items={KINDS.map((k) => ({ label: kindLabel(k), icon: k, onPress: () => { setTask((x) => x && { ...x, kind: k }); void apply([{ op: "edit", target: task.id, kind: k }]).then(load).catch(() => void load()); } }))} />
             ) : (
-              <State tone="info" text={task.source === "dlu" && !task.forId ? (task.fixed ? t("fromCampus") : t("fromLms")) : mine && task.fixed === "busy" ? t("youKind", { k: t("fixedTime") }) : t("fromYou")} />
+              <State tone="info" text={task.source === "dlu" && !task.forId ? (task.fixed ? t("fromCampus") : t("fromLms")) : mine && task.fixed === "busy" ? t("youKind", { k: t("fixedTime") }) : task.source !== "dlu" && task.forId ? t("youKind", { k: kindLabel(task.kind) }) : t("fromYou")} /* a prep: its kind shows, fixed to its exam */ />
             )}
           </View>
           <Field value={title} rev={rev} editable={editable} onText={typeTitle} selectionColor={th.seal} cursorColor={th.seal} onEndEditing={submitTitle} returnKeyType="done" submitBehavior="blurAndSubmit" multiline style={[s.h, { color: th.ink }]} />
@@ -426,7 +426,7 @@ export default function Detail() {
           {!!task.content?.trim() && <Lms html={task.content} />}
           {(!!why?.length || notes.length > 0) && <WhyBlock items={why ?? []} notes={notes} alt={alt} start={task.start} now={now} onMove={moveTo} />}
           <Field value={note} rev={rev} editable={editable} onText={typing} selectionColor={th.seal} cursorColor={th.seal} onBlur={() => void saveNote()} multiline scrollEnabled={false} placeholder={t("addNote")} placeholderTextColor={th.muted}
-            style={[s.note, { color: th.ink, borderColor: th.line }]} />
+            style={[s.note, { color: th.ink, backgroundColor: th.chip }]} />
         </Animated.View>
       </ScrollView>
       </KeyboardAvoidingView>
@@ -528,7 +528,7 @@ const s = StyleSheet.create({
   pill: { height: 48, paddingHorizontal: 16, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   clr: { marginLeft: "auto", minHeight: 44, justifyContent: "center" },
   dash: { fontSize: font.sub, fontFamily: ff("500") },
-  note: { marginTop: 14, fontFamily: ff(), fontSize: font.base, lineHeight: 24, minHeight: 96, textAlignVertical: "top", paddingVertical: 16, paddingHorizontal: 18, borderRadius: 22, borderWidth: 1 }, // .notebox: hairline, not filled
+  note: { marginTop: 14, fontFamily: ff(), fontSize: font.base, lineHeight: 24, minHeight: 96, textAlignVertical: "top", paddingVertical: 16, paddingHorizontal: 18, borderRadius: 22 }, // .notebox: a gray fill, no border
 });
 
 /** The one-line "Sửa nhanh" field under the title: typed, or said (tap the mic to listen, tap again to finish). */
@@ -557,7 +557,7 @@ function QuickBar({ onSay, onMsg }: { onSay(text: string): unknown; onMsg(msg: s
   return (
     <View style={s.quick}>
       <TextInput value={v} onChangeText={setV} onSubmitEditing={submit} returnKeyType="done" placeholder={t("quickPh")} placeholderTextColor={th.muted}
-        accessibilityLabel={t("quickPh")} style={[s.quickIn, { color: th.ink, borderColor: th.line, backgroundColor: th.bg, fontFamily: ff("500") }]} />
+        accessibilityLabel={t("quickPh")} style={[s.quickIn, { color: th.ink, borderColor: th.line, backgroundColor: th.bg, fontFamily: ff(v ? "500" : "400") }]} />
       <Tap onPress={mic} accessibilityRole="button" accessibilityLabel={on ? t("quickMicStop") : t("quickMic")} style={[s.quickMic, { backgroundColor: on ? th.seal : th.bg, borderColor: on ? th.seal : th.line }]}>
         <Icon name="mic" size={20} color={on ? th.bg : th.ink} />
       </Tap>

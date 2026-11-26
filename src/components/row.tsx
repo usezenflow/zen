@@ -123,7 +123,9 @@ export function Row({ task, now, first, done, allDay, sub: subOver, lead, trail,
   const type = typeOf(task), pal = artOf(task);
   // as the detail screen: campus lectures and exams keep their times (sync would reset the end), done and ghost rows too
   const canTime = task.start !== undefined && !allDay && !tm && !done && !ghost && (task.fixed ? task.fixed === "busy" && task.source !== "dlu" && !task.forId : true);
-  const check = type === "plan" || type === "assignment";
+  // No time yet: nothing to tick. A faded row with the pale "void" art in place of the circle.
+  const unset = task.start === undefined && !task.fixed && !allDay && !ghost && !done;
+  const check = (type === "plan" || type === "assignment") && !unset;
   // Missed: a checkable task whose block has ended without a tick; vermilion circle and time (views.html "Day, missed").
   // Red only for a real deadline or a said clock (fixed lecture/exam, pinned): a flexible block Zen placed never turns red by the clock alone.
   const late = check && !done && !allDay && ((task.deadline !== undefined && task.deadline <= now) || (!!task.pinned && (task.end ?? Infinity) <= now) || (!!task.fixed && (task.end ?? task.start ?? Infinity) <= now));
@@ -201,7 +203,7 @@ export function Row({ task, now, first, done, allDay, sub: subOver, lead, trail,
     </View>
   );
   const body = (
-    <Tap variant="row" onPress={picking ? undefined : onOpen} onLongPress={longPress} delayLongPress={350} style={[s.r, ghost && { opacity: 0.45 }]}>
+    <Tap variant="row" onPress={picking ? undefined : onOpen} onLongPress={longPress} delayLongPress={350} style={[s.r, (ghost || unset) && { opacity: unset ? 0.55 : 0.45 }]}>
       {ghost ? (
         <View style={[s.ck, { borderColor: th.line, borderStyle: "dashed" }]} />
       ) : check ? (
@@ -215,7 +217,7 @@ export function Row({ task, now, first, done, allDay, sub: subOver, lead, trail,
         </Hit>
       ) : (
         <View style={[s.ck, s.art, { opacity: type === "busy" ? 0.55 : 1 }, ring && { borderWidth: 2.5, borderColor: th.art[pal].b, shadowColor: th.art[pal].b, shadowOpacity: 0.6, shadowRadius: 8, shadowOffset: { width: 0, height: 0 }, overflow: "visible" }]}>
-          <View style={s.clip}><TypeArt type={pal} w={34} h={34} seed={seedOf(task.id)} /></View>
+          <View style={s.clip}><TypeArt type={unset ? "void" : pal} w={34} h={34} seed={seedOf(task.id)} /></View>
         </View>
       )}
       {lead !== undefined && <Text style={[s.lead, { color: th.muted }]}>{lead}</Text>}

@@ -76,7 +76,7 @@ export function NowCard({ card, onDone, onStart, onLater, onMicroRest, onKind, o
             <Text numberOfLines={1} style={[s.small, { color: th.onart }]}>{small}</Text>
           </View>
         </View>
-        {!moving && !micDone && <Tap onPress={onDone} hitSlop={8} scale={0.88} testID="nowDone" accessibilityRole="button" accessibilityLabel={t("markDone")} style={[s.glass, s.solid]}><Icon name="check" size={22} color="#0b0b0c" w={2} /></Tap>}
+        {!moving && !micDone && (!task.fixed || !!card.gap) && <Tap onPress={onDone} hitSlop={8} scale={0.88} testID="nowDone" accessibilityRole="button" accessibilityLabel={t("markDone")} style={[s.glass, s.solid]}><Icon name="check" size={22} color="#0b0b0c" w={2} /></Tap>}
         </View>
         <View style={s.acts2}>
           {mic && micDone ? <>

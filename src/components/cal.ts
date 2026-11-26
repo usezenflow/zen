@@ -23,7 +23,16 @@ export const shown = (all: Task[]) => {
 /** Ids of split parents: built once so callers test membership in O(1), not a scan per task. */
 export const parents = (all: Task[]) => new Set(all.map((x) => x.parentId));
 /** Everything on that day: what starts on it, and a block running over it from an earlier day (a trip, 23:00 to 01:00). */
-export const onDay = (all: Task[], day: number) => { const e = addDays(day, 1); return shown(all).filter((x) => x.start! < e && x.end! > day).sort((a, b) => a.start! - b.start!); };
+// Per task array and day, so Week (7 days), Month (42 cells) and the counts scan the tasks once per day, not once per call. Callers never mutate the result.
+const dayMemo = new WeakMap<Task[], Map<number, Task[]>>();
+export const onDay = (all: Task[], day: number) => {
+  const sh = shown(all);
+  let m = dayMemo.get(sh);
+  if (!m) dayMemo.set(sh, (m = new Map()));
+  let r = m.get(day);
+  if (!r) { const e = addDays(day, 1); m.set(day, (r = sh.filter((x) => x.start! < e && x.end! > day).sort((a, b) => a.start! - b.start!))); }
+  return r;
+};
 /** The time a row shows on a day its block began earlier: "đến 12:00" on the last day, `allDay` (Cả ngày) in between; undefined on its first day. */
 /** A task begun on an earlier day: its last day shows its own times (the start with -1), a whole day between them "Cả ngày". */
 export const carried = (x: Task, day: number, allDay: string) =>
