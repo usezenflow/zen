@@ -1,6 +1,7 @@
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import { useEffect, useRef, useState, type ComponentRef } from "react";
+import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import Animated, { FadeOut, ZoomIn } from "react-native-reanimated";
 import { useDrop } from "@/components/outside";
@@ -97,6 +98,21 @@ function Wheel({ n, sel, label, dis, a11y, onPick }: { n: number; sel: number; l
   );
 }
 
+/** The fade of an iOS drum: the rows thin out toward the top and the bottom, drawn over them in the card's colour so it holds while they roll. */
+function Fade({ bg }: { bg: string }) {
+  return (
+    <Svg pointerEvents="none" style={StyleSheet.absoluteFill} width="100%" height={WH}>
+      <Defs>
+        <LinearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor={`rgb(${bg})`} stopOpacity={0.95} /><Stop offset="0.4" stopColor={`rgb(${bg})`} stopOpacity={0} />
+          <Stop offset="0.6" stopColor={`rgb(${bg})`} stopOpacity={0} /><Stop offset="1" stopColor={`rgb(${bg})`} stopOpacity={0.95} />
+        </LinearGradient>
+      </Defs>
+      <Rect width="100%" height={WH} fill="url(#fade)" />
+    </Svg>
+  );
+}
+
 /** The dial itself: two drums, hours and minutes, as iOS has them. Rolling changes the time in place; `onChange` fires once, when the dial closes (a tap outside), and only if the time moved. */
 function Clock({ anchor, height, side, value, due, min, past, presets, onChange, onClose }: { anchor: Anchor; height: number; side: "left" | "right"; value: Date; due?: boolean; min?: Date; past?: boolean; presets?: Preset[]; onChange: (d: Date) => void; onClose: () => void }) {
   const th = useTheme();
@@ -131,6 +147,7 @@ function Clock({ anchor, height, side, value, due, min, past, presets, onChange,
           <Wheel n={24} sel={h} a11y="hour" label={pad} dis={hourOff} onPick={(i) => setSt((p) => (hourOff(i) ? p : { h: i, m: fit(i, p.m), touched: true }))} />
           <Text style={[s.rd, { color: th.ink }]}>:</Text>
           <Wheel n={mins.length} sel={mi} a11y="minute" label={(i) => pad(mins[i])} dis={(i) => off(h, mins[i])} onPick={(i) => setSt((p) => (off(p.h, mins[i]) ? p : { ...p, m: mins[i], touched: true }))} />
+          <Fade bg={th.dark ? "44,44,46" : "250,250,248"} />
         </View>
         <Presets style={s.dpre} pill={s.dpill} items={presets ? presets.map((x) => ({ label: x.label, on: x.on, onPress: () => { onChange(x.at); onClose(); } })) : [
           ...relative(value, now, past, min, (d) => { onChange(d); onClose(); }),
