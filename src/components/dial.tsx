@@ -20,7 +20,7 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const pad = (n: number) => String(n).padStart(2, "0");
 let lastTick = 0; // shortcut: one clock for every drum, so a fast spin buzzes at most every 40 ms
 const tick = () => { const n = Date.now(); if (n - lastTick < 40) return; lastTick = n; Haptics.selectionAsync().catch(() => {}); };
-const REL = 4; // the relative presets: +15p, +30p, tonight, tomorrow morning
+const REL = 2; // the relative presets: −15p, +15p
 const MINS = Array.from({ length: 12 }, (_, i) => i * 5);
 
 export type Anchor = { x: number; y: number; w: number; h: number };
@@ -133,7 +133,7 @@ function Clock({ anchor, height, side, value, due, min, past, presets, onChange,
           <Wheel n={mins.length} sel={mi} a11y="minute" label={(i) => pad(mins[i])} dis={(i) => off(h, mins[i])} onPick={(i) => setSt((p) => (off(p.h, mins[i]) ? p : { ...p, m: mins[i], touched: true }))} />
         </View>
         <Presets style={s.dpre} pill={s.dpill} items={presets ? presets.map((x) => ({ label: x.label, on: x.on, onPress: () => { onChange(x.at); onClose(); } })) : [
-          ...relative(value, now, past, (d) => { onChange(d); onClose(); }),
+          ...relative(value, now, past, min, (d) => { onChange(d); onClose(); }),
           ...(due ? DPRE : TPRE).map(([hh, mm]) => ({ label: `${hh}:${pad(mm)}`, off: off(hh, mm), onPress: () => { const d = new Date(value); d.setHours(hh, mm, 0, 0); onChange(d); onClose(); } })),
         ]} />
       </View>
@@ -141,13 +141,11 @@ function Clock({ anchor, height, side, value, due, min, past, presets, onChange,
   );
 }
 
-/** The relative chips: 15 and 30 minutes on from the value, tonight at 20:00, tomorrow at 08:00; a time already gone is off. */
-function relative(value: Date, now: Date, past: boolean | undefined, pick: (d: Date) => void): { label: string; off: boolean; onPress: () => void }[] {
-  const tonight = new Date(now); tonight.setHours(20, 0, 0, 0);
-  const morning = new Date(now); morning.setDate(morning.getDate() + 1); morning.setHours(8, 0, 0, 0);
+/** The relative chips: 15 minutes before and after the value; a time already gone, or before `min`, is off. */
+function relative(value: Date, now: Date, past: boolean | undefined, min: Date | undefined, pick: (d: Date) => void): { label: string; off: boolean; onPress: () => void }[] {
   const later = (k: number) => new Date(value.getTime() + k * 60_000);
-  const chip = (label: string, d: Date) => ({ label, off: !past && d.getTime() < now.getTime(), onPress: () => pick(d) });
-  return [chip(t("dialPlus15"), later(15)), chip(t("dialPlus30"), later(30)), chip(t("dialTonight"), tonight), chip(t("dialMorning"), morning)];
+  const chip = (label: string, d: Date) => ({ label, off: (!past && d.getTime() < now.getTime()) || (!!min && d.getTime() < min.getTime()), onPress: () => pick(d) });
+  return [chip(t("dialMinus15"), later(-15)), chip(t("dialPlus15"), later(15))];
 }
 
 export type Preset = { label: string; at: Date; on?: boolean };

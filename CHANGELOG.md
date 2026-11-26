@@ -6,7 +6,7 @@
 
 - Diện mạo mới cho zen: logo cá koi nét cọ, tranh đường kẻ nhiều màu theo từng loại việc, chữ nhẹ và dễ đọc hơn, nút và biểu tượng bo tròn gọn gàng
 - Các thẻ lớn như "Bây giờ" có tranh chuyển động nhẹ, màu trôi chậm qua các đường kẻ; tự dừng khi bạn cuộn, gõ phím hoặc bật "Giảm chuyển động"
-- Chọn giờ như đồng hồ quay trên iPhone: lăn giờ và phút, 45 lăn tiếp sang 00; vẫn có sẵn "+15p", "+30p", "Tối nay", "Mai sáng"
+- Chọn giờ như đồng hồ quay trên iPhone: lăn giờ và phút, 45 lăn tiếp sang 00; vẫn có sẵn "−15p", "+15p" và vài giờ gợi ý
 - Thông báo rõ và nhanh hơn: thẻ đặc dễ đọc, hiện và tắt gọn. Thêm việc nhiều buổi thì thông báo cho biết từng buổi vào ngày giờ nào; việc lặp lại thì nói rõ lặp thế nào. Đổi độ dài một việc báo "Đã dời"
 - Nói "đọc code outline trước ngày thi ktpm" là zen tự gắn việc vào đúng kỳ thi, buổi học hay việc đó. Viết tắt tên môn, gõ sai, không dấu, nói thiếu hoặc tự sửa giữa câu ("à nhầm…") đều hiểu; có nhiều kết quả thì hỏi bạn chọn cái nào
 - Sửa hoặc xoá việc bằng giọng nói cũng hiểu theo cách đó: nói một phần tên, viết tắt hoặc gõ sai vẫn tìm đúng việc

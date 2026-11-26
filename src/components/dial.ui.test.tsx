@@ -175,28 +175,22 @@ it("an odd minute sits on its nearest 5p: 17:57 selects 55", async () => {
   expect(M("00")).not.toBeSelected();
 });
 
-// The relative chips sit beside the usual times: 15 and 30 minutes on from the value, tonight at 20:00, tomorrow morning at 08:00. Earlier renders stay mounted, so take the last.
-it("relative presets: +15p and +30p from the value, tonight 20:00, tomorrow morning 08:00", async () => {
+// The relative chips sit beside the usual times: 15 minutes before and after the value from the value. Earlier renders stay mounted, so take the last.
+it("relative presets: −15p and +15p from the value", async () => {
   const onChange = jest.fn();
   const press = (label: string) => fireEvent.press(screen.getAllByLabelText(label).at(-1)!);
   await draw(at(9, 0), false, onChange);
   await press("+15p");
   expect(onChange).toHaveBeenLastCalledWith(new Date(2026, 10, 20, 9, 15));
   await draw(at(9, 0), false, onChange);
-  await press("+30p");
-  expect(onChange).toHaveBeenLastCalledWith(new Date(2026, 10, 20, 9, 30));
-  await draw(at(9, 0), false, onChange);
-  await press("Tối nay");
-  expect(onChange).toHaveBeenLastCalledWith(new Date(2026, 10, 15, 20, 0));
-  await draw(at(9, 0), false, onChange);
-  await press("Mai sáng");
-  expect(onChange).toHaveBeenLastCalledWith(new Date(2026, 10, 16, 8, 0));
+  await press("−15p");
+  expect(onChange).toHaveBeenLastCalledWith(new Date(2026, 10, 20, 8, 45));
 });
 
 it("a relative chip for a time already gone is off", async () => {
   jest.spyOn(Date, "now").mockReturnValue(at(21, 0).getTime());
   const onChange = jest.fn();
-  await draw(new Date(2026, 10, 15, 9, 0), false, onChange);
-  await fireEvent.press(screen.getAllByLabelText("Tối nay").at(-1)!);
+  await draw(new Date(2026, 10, 15, 9, 0), false, onChange); // 09:15 is before now
+  await fireEvent.press(screen.getAllByLabelText("+15p").at(-1)!);
   expect(onChange).not.toHaveBeenCalled();
 });
