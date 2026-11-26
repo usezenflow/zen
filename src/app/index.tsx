@@ -1137,7 +1137,7 @@ const s = StyleSheet.create({
   h: { fontSize: font.h, lineHeight: 40, fontFamily: fd("700"), letterSpacing: -1.05, marginTop: 2 },
   go: { position: "absolute", right: 0, bottom: 0, height: 36, paddingHorizontal: 12, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   sub: { marginTop: 6, fontFamily: ff(), fontSize: font.md },
-  o: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, alignItems: "center", justifyContent: "center", marginTop: 2 },
+  o: { width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, alignItems: "center", justifyContent: "center", marginTop: 2 },
   tabs: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 18 }, // magic.html .tabs: text and the Nhịp pill share a centre line
   tabL: { flexDirection: "row", gap: 20, flexShrink: 1 },
   mind: { flexDirection: "row", alignItems: "center", gap: 6, height: 30, paddingHorizontal: 11, borderRadius: 99, borderWidth: 1 }, // magic.html .mind: 30 high, the touch reach is the hitSlop (7)

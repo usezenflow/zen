@@ -1,6 +1,7 @@
-import { useEffect, useId, useMemo } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
+import { View } from "react-native";
 import Animated, { Easing, useAnimatedProps, useReducedMotion, useSharedValue, withRepeat, withSequence, withTiming } from "react-native-reanimated";
-import Svg, { Circle, Defs, G, LinearGradient, Mask, Path, Pattern, RadialGradient, Rect, Stop } from "react-native-svg";
+import Svg, { Circle, Defs, G, LinearGradient, Mask, Path, RadialGradient, Rect, Stop } from "react-native-svg";
 import { enso } from "@/components/enso";
 import { useTheme, type TypeName } from "@/lib/theme";
 import type { Kind, Task } from "@/lib/types";
@@ -9,7 +10,7 @@ import { typeOf } from "@/planner";
 export { Icon, type IconName } from "./icons";
 
 // Ensō koi mark (enso.tsx geometry): one brush stroke round a circle, eye knocked out by a mask, dry-brush rings as the mask.
-// "color" puts the vermilion accent on the split tail, "line" is the empty-state outline. States: "load" turns the ring one
+// "color" is the whole mark in koi orange (ui.js LOGO), "line" is the empty-state outline. States: "load" turns the ring one
 // revolution per 6s and breathes the stroke (2.1s in/out); "err" tips the ring -24° and fans the tail wider. Reduce Motion holds both.
 const EN = enso();
 const AG = Animated.createAnimatedComponent(G);
@@ -17,7 +18,7 @@ const TIP = Easing.bezier(0.3, 0.7, 0.2, 1), BREATHE = 2100, TURN = 6000;
 export function Logo({ size = 40, mode = "color", color = "#000", state }: { size?: number; mode?: "color" | "white" | "mono" | "line"; color?: string; state?: "load" | "err" }) {
   const id = useId().replace(/\W/g, "");
   const reduce = useReducedMotion();
-  const ink = mode === "white" ? "#fff" : color;
+  const ink = mode === "white" ? "#fff" : mode === "color" ? "#ff8a5c" : color; // logo.html LOGO: "color" is the whole koi in brand orange
   const accent = mode === "color" ? "#ff8a5c" : ink; // koi orange, the brand accent
   const line = mode === "line";
   const paint = line ? { fill: "none", stroke: ink, strokeWidth: Math.max(3, 140 / size), strokeLinejoin: "round" as const } : { fill: ink };
@@ -72,14 +73,15 @@ export function Logo({ size = 40, mode = "color", color = "#000", state }: { siz
 // masks (thin lines over the whole field, thick lines at the core). Seeded maths and stripe sizes match the reference.
 // shortcut: the reference's direction h/v/d is chosen per seed when no dir is given; stripes use fixed user units.
 const GAP = 4.2, THIN = 1.5, THICK = 3.1, ROT = { h: 0, v: 90, d: 62 } as const;
-const xf = (x: number, y: number, ang: number, sx: number, sy: number) => `translate(${x} ${y}) rotate(${ang}) scale(${sx} ${sy}) translate(${-x} ${-y})`;
+// A reference radial field (centre x,y and radius r as fractions of the box, rotated a degrees and squashed sx,sy in box units) as a
+// pixel-unit gradient: native react-native-svg draws nothing for objectBoundingBox radials. The box-unit rotation becomes a matrix in pixels.
+const field = (x: number, y: number, ang: number, sx: number, sy: number, r: number, w: number, h: number) => {
+  const q = (ang * Math.PI) / 180, co = Math.cos(q), si = Math.sin(q), cx = x * w, cy = y * h;
+  const m = [co * sx, si * (h / w) * sx, -si * (w / h) * sy, co * sy];
+  return { cx, cy, rx: r * w, ry: r * h, tf: `matrix(${m[0]} ${m[1]} ${m[2]} ${m[3]} ${cx - (m[0] * cx + m[2] * cy)} ${cy - (m[1] * cx + m[3] * cy)})` };
+};
 // The reference's seeded generator; a module-level closure so the render body never reassigns a variable.
 const rng = (seed: number) => { let s = (seed * 9301 + 49297) % 233280 || 1; return () => (s = (s * 16807) % 2147483647) / 2147483647; };
-// Hex mix: t of the way from x to y. Pulls the light ground stops toward the field colour under white text.
-const mixHex = (x: string, y: string, t: number) => "#" + [1, 3, 5].map((i) => {
-  const p = parseInt(x.slice(i, i + 2), 16), q = parseInt(y.slice(i, i + 2), 16);
-  return Math.round(p + (q - p) * t).toString(16).padStart(2, "0");
-}).join("");
 // Palette per task, so a normal day shows several arts: timetable rows keep their own look, prep follows its exam, a due task picks clay or dusk by course, the rest by kind.
 // shortcut: the course hash is a plain string hash (no stable course code upstream), so a course's colour may shift if its name changes.
 const hash = (s: string) => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
@@ -94,52 +96,47 @@ export function artOf(t: Task): TypeName {
   return KIND_ART[t.kind];
 }
 
-// text: the card carries white text. Ground stops move only 15% toward the field so the colour stays bright; the local scrim carries the contrast.
-export function TypeArt({ type, w = 300, h = 300, seed = 3, dir, text }: { type: TypeName; w?: number; h?: number; seed?: number; dir?: "h" | "v" | "d"; text?: boolean }) {
+// No scrim, as in the mockup: white text gets its contrast from a text shadow. w/h seed the box until onLayout reports the real size.
+export function TypeArt({ type, w: w0 = 300, h: h0 = 300, seed = 3, dir }: { type: TypeName; w?: number; h?: number; seed?: number; dir?: "h" | "v" | "d" }) {
   const { art } = useTheme();
   const id = useId().replace(/\W/g, "");
-  const { a: a0, b, c: c0, d } = art[type];
-  const a = text ? mixHex(a0, b, 0.15) : a0, c = text ? mixHex(c0, b, 0.15) : c0;
+  const { a, b, c, d } = art[type];
+  const [box, setBox] = useState({ w: w0, h: h0 }), { w, h } = box;
   const g = useMemo(() => {
     const r = rng(seed);
     const x1 = 0.25 + r() * 0.5, y1 = 0.3 + r() * 0.4, a1 = r() * 180, x2 = 0.1 + r() * 0.8, y2 = 0.1 + r() * 0.8, a2 = r() * 180;
     const rot = ROT[dir ?? (["h", "v", "d"] as const)[Math.abs(seed) % 3]];
-    return { x1, y1, x2, y2, f: xf(x1, y1, a1, 1.15, 0.62), k: xf(x1, y1, a1, 1.2, 0.55), e: xf(x2, y2, a2, 1.3, 0.5), rot };
+    return { f: field(x1, y1, a1, 1.15, 0.62, 0.55, w, h), k: field(x1, y1, a1, 1.2, 0.55, 0.3, w, h), e: field(x2, y2, a2, 1.3, 0.5, 0.42, w, h), rot };
   }, [type, w, h, seed, dir]);
-  const stripe = (sid: string, t: number) => (
-    <Pattern id={sid} x={0} y={0} width={GAP} height={GAP} patternUnits="userSpaceOnUse" patternTransform={`rotate(${g.rot})`}>
-      <Rect width={GAP} height={t} fill="#fff" />
-    </Pattern>
-  );
+  // Explicit stripe rects in the mask, not a Pattern: native react-native-svg drops a Pattern fill inside a Mask, which leaves the colour fields unmasked (smooth blobs, no lines).
+  const stripes = (t: number) => {
+    const D = Math.hypot(w, h), n = Math.ceil(D / GAP);
+    return <G transform={`translate(${w / 2} ${h / 2}) rotate(${g.rot})`}>{Array.from({ length: n + 1 }, (_, k) => <Rect key={k} x={-D / 2} y={-D / 2 + k * GAP} width={D} height={t} fill="#fff" />)}</G>;
+  };
   return (
+    <View style={{ flex: 1 }} onLayout={(e) => { const { width, height } = e.nativeEvent.layout; if (width > 0 && height > 0) setBox((b) => (Math.abs(b.w - width) < 1 && Math.abs(b.h - height) < 1 ? b : { w: width, h: height })); }}>
     <Svg width="100%" height="100%" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
       <Defs>
         <LinearGradient id={`${id}g`} x1="0" y1="0" x2="1" y2="1">
           <Stop offset="0" stopColor={a} /><Stop offset="1" stopColor={c} />
         </LinearGradient>
-        <RadialGradient id={`${id}f`} cx={g.x1} cy={g.y1} r={0.55} gradientTransform={g.f}>
+        <RadialGradient id={`${id}f`} gradientUnits="userSpaceOnUse" cx={g.f.cx} cy={g.f.cy} rx={g.f.rx} ry={g.f.ry} gradientTransform={g.f.tf}>
           <Stop offset="0" stopColor={b} /><Stop offset="0.6" stopColor={b} stopOpacity={0.9} /><Stop offset="1" stopColor={b} stopOpacity={0} />
         </RadialGradient>
-        <RadialGradient id={`${id}c`} cx={g.x1} cy={g.y1} r={0.3} gradientTransform={g.k}>
+        <RadialGradient id={`${id}c`} gradientUnits="userSpaceOnUse" cx={g.k.cx} cy={g.k.cy} rx={g.k.rx} ry={g.k.ry} gradientTransform={g.k.tf}>
           <Stop offset="0" stopColor={b} /><Stop offset="0.7" stopColor={b} stopOpacity={0.8} /><Stop offset="1" stopColor={b} stopOpacity={0} />
         </RadialGradient>
-        <RadialGradient id={`${id}e`} cx={g.x2} cy={g.y2} r={0.42} gradientTransform={g.e}>
+        <RadialGradient id={`${id}e`} gradientUnits="userSpaceOnUse" cx={g.e.cx} cy={g.e.cy} rx={g.e.rx} ry={g.e.ry} gradientTransform={g.e.tf}>
           <Stop offset="0" stopColor={d} /><Stop offset="1" stopColor={d} stopOpacity={0} />
         </RadialGradient>
-        {stripe(`${id}p`, THIN)}{stripe(`${id}q`, THICK)}
-        <Mask id={`${id}m`}><Rect width={w} height={h} fill={`url(#${id}p)`} /></Mask>
-        <Mask id={`${id}n`}><Rect width={w} height={h} fill={`url(#${id}q)`} /></Mask>
-        {/* the scrim: a vertical shade under white text (top .30, bottom .42 with text); without text a light touch */}
-        <LinearGradient id={`${id}s`} x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#000" stopOpacity={text ? 0.24 : 0.12} /><Stop offset="0.3" stopColor="#000" stopOpacity={0} />
-          <Stop offset="0.6" stopColor="#000" stopOpacity={0} /><Stop offset="1" stopColor="#000" stopOpacity={text ? 0.26 : 0.28} />
-        </LinearGradient>
+        <Mask id={`${id}m`} maskUnits="userSpaceOnUse" x={0} y={0} width={w} height={h}>{stripes(THIN)}</Mask>
+        <Mask id={`${id}n`} maskUnits="userSpaceOnUse" x={0} y={0} width={w} height={h}>{stripes(THICK)}</Mask>
       </Defs>
       <Rect width={w} height={h} fill={`url(#${id}g)`} />
       <Rect width={w} height={h} fill={`url(#${id}e)`} mask={`url(#${id}m)`} />
       <Rect width={w} height={h} fill={`url(#${id}f)`} mask={`url(#${id}m)`} />
       <Rect width={w} height={h} fill={`url(#${id}c)`} mask={`url(#${id}n)`} />
-      <Rect width={w} height={h} fill={`url(#${id}s)`} />
     </Svg>
+    </View>
   );
 }

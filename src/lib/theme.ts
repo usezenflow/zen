@@ -2,8 +2,8 @@ import { useColorScheme } from "react-native";
 
 // Tokens mirror mockups/ui.css (:root and .device.dark).
 // States (v2.css :root / .device.dark): ok = done and on track, info = information and what Zen changed, warn = look at this, err = error only.
-const light = { bg: "#ffffff", ink: "#0d0d0f", muted: "#737a87", line: "#e1e5ec", chip: "#f1f3f7", soft: "#f5f7fa", accent: "#0d0d0f", onAccent: "#ffffff", brand: "#ff8a5c", ok: "#0f8f6a", okT: "rgba(15, 143, 106, .14)", info: "#2433f2", infoT: "rgba(36, 51, 242, .12)", warn: "#ff8a00", warnT: "rgba(255, 138, 0, .18)", warnInk: "#8a4b00", err: "#d2492f", errT: "rgba(210, 73, 47, .12)" };
-const dark = { bg: "#0d0d0f", ink: "#f2f3f5", muted: "#8a8d94", line: "#2a2c31", chip: "#1a1b1f", soft: "#15161a", accent: "#f2f3f5", onAccent: "#0d0d0f", brand: "#ff8a5c", ok: "#3fe0b0", okT: "rgba(63, 224, 176, .16)", info: "#8a97ff", infoT: "rgba(138, 151, 255, .16)", warn: "#ffb04a", warnT: "rgba(255, 176, 74, .16)", warnInk: "#ffc772", err: "#ff7a62", errT: "rgba(255, 122, 98, .16)" };
+const light = { bg: "#ffffff", ink: "#0d0d0f", muted: "#737a87", line: "#e1e5ec", chip: "#f1f3f7", soft: "#f5f7fa", accent: "#0d0d0f", onAccent: "#ffffff", brand: "#ff8a5c", ok: "#0f8f6a", okT: "rgba(15, 143, 106, .14)", info: "#737a87", infoT: "rgba(115, 122, 135, .12)", warn: "#e8743b", warnT: "rgba(255, 138, 92, .18)", warnInk: "#8a3a1a", err: "#d2492f", errT: "rgba(210, 73, 47, .12)" };
+const dark = { bg: "#0d0d0f", ink: "#f2f3f5", muted: "#8a8d94", line: "#2a2c31", chip: "#1a1b1f", soft: "#15161a", accent: "#f2f3f5", onAccent: "#0d0d0f", brand: "#ff8a5c", ok: "#3fe0b0", okT: "rgba(63, 224, 176, .16)", info: "#a9adb5", infoT: "rgba(169, 173, 181, .14)", warn: "#ff9a73", warnT: "rgba(255, 138, 92, .16)", warnInk: "#ffb899", err: "#ff7a62", errT: "rgba(255, 122, 98, .16)" };
 
 // Same in both modes: art stays colourful on a paper ui.
 // Readability scale, grown for touch and small phones (320dp): label/sub 16, md (chips, buttons) 17, meta 16, body 17, title 30.
@@ -23,8 +23,6 @@ const fixed = {
     clay: { a: "#ebc8a4", b: "#cf4a2c", c: "#5f80dc", d: "#f08a5d" }, // self, other, some assignments
     busy: { a: "#c9c8c2", b: "#8d8f8c", c: "#e6e4de", d: "#a4a6a2" },
   },
-  // type -> small dot colour: the field colour of its art
-  dot: { plan: "#2433f2", lecture: "#0f8f6a", exam: "#ff4f2a", assignment: "#c21f86", night: "#7a4dff", clay: "#cf4a2c", busy: "#bdbcb6" },
   radius: { art: 28, toast: 24, pill: 99, card: 28, sm: 10 },
   font,
   space,

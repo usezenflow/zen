@@ -40,7 +40,7 @@ function Grid({ i }: { i: Insights }) {
       <View style={s.mxRow}><View style={s.mxLab} />{ORDER.map((d) => <Text key={d} style={s.mxDay}>{WD[d]}</Text>)}</View>
       {PART.map((lab, p) => (
         <View key={lab} style={s.mxRow}>
-          <Text style={[s.mxLab, s.mxDay]}>{lab}</Text>
+          <Text style={[s.mxLab, s.mxDay, { textAlign: "left" }]}>{lab}</Text>
           {ORDER.map((d) => <View key={d} style={[s.cell, { opacity: w && p === w.part && w.wds.includes(d) ? 1 : 0.2 + 0.8 * (i.grid[d]?.[p] ?? 0) }]} />)}
         </View>
       ))}
@@ -97,7 +97,7 @@ export function Rhythm({ i, rules, m, hour, onForget, onForgetWhen }: { i: Insig
       ))}
       {/* before anything is seen the same card holds the grid dim: a guess, not a claim, with the logo in its corner */}
       <View style={s.art}>
-        <View style={StyleSheet.absoluteFill}><TypeArt type="plan" w={264} h={170} seed={5} text /></View>
+        <View style={StyleSheet.absoluteFill}><TypeArt type="plan" w={264} h={170} seed={5} /></View>
         {!seen && <View style={s.leaf}><Logo size={34} mode="line" color="#fff" /></View>}
         <Text style={s.artLab}>{t("thisWeek")}</Text>
         {seen && i.when ? <Text style={s.artT}>{whenLine(i.when)}</Text> : !seen && <Text style={s.artT}>{t("learnedLearning")}</Text>}

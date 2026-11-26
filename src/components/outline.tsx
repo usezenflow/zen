@@ -86,7 +86,7 @@ export function OutlinePreview({ groups, from, onSave, onClose }: { groups: Grou
 
   return (
     <View style={[StyleSheet.absoluteFill, { backgroundColor: th.bg, zIndex: 10, paddingTop: insets.top + 12 }]}>
-      <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Đóng" hitSlop={12} style={s.back}>
+      <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Đóng" hitSlop={12} style={[s.back, { borderColor: th.line }]}>
         <Icon name="back" size={20} color={th.ink} />
       </Pressable>
       <Text style={[s.h, { color: th.ink }]} numberOfLines={1}>{heading}</Text>
@@ -108,7 +108,7 @@ export function OutlinePreview({ groups, from, onSave, onClose }: { groups: Grou
 }
 
 const s = StyleSheet.create({
-  back: { marginLeft: 24, width: 36, height: 36, justifyContent: "center" },
+  back: { marginLeft: 24, width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   h: { fontFamily: fd("500"), fontSize: 30, marginTop: 18, marginHorizontal: 24 }, // ui.css .h: display 500, 30px
   sub: { fontFamily: ff("400"), fontSize: 17, marginTop: 6, marginHorizontal: 24, marginBottom: 8 },
   grp: { marginTop: 20 },

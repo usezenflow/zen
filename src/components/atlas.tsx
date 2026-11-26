@@ -8,7 +8,7 @@ import { scheduleOnRN } from "react-native-worklets";
 import { Tap } from "@/components/tap";
 import { t } from "@/lib/i18n";
 import { addRule } from "@/lib/apply";
-import { KIND_SHORT, KIND_VI } from "@/lib/reasons";
+import { KIND_LIST, KIND_SHORT, KIND_VI } from "@/lib/reasons";
 import { useTheme, ff, fd, font } from "@/lib/theme";
 import type { Kind } from "@/lib/types";
 import { hourView, lasoGrid, type Cell } from "@/planner/atlas";
@@ -96,7 +96,7 @@ function ChartTab({ m, fs }: { m: Model; fs: Finding[] }) {
   const grid = useMemo(() => lasoGrid(m), [m]);
   const [sel, setSel] = useState<{ kind: Kind; part: number }>();
   // rows: kinds with any evidence, so an empty kind does not fill the chart with blanks
-  const kinds = KINDS.filter((k) => grid.some((c) => c.kind === k && c.n > 0));
+  const kinds = KIND_LIST.filter((k) => grid.some((c) => c.kind === k && c.n > 0));
   const at = (k: Kind, p: number) => grid.find((c) => c.kind === k && c.part === p)!;
   const cur = sel && at(sel.kind, sel.part), f = sel && favours(fs, sel.kind, sel.part);
   if (!kinds.length) return <Text style={[s.calm, { color: th.ink }]}>{t("atlasEmpty")}</Text>;
@@ -111,7 +111,7 @@ function ChartTab({ m, fs }: { m: Model; fs: Finding[] }) {
             return (
               <Tap key={p} onPress={() => setSel(on ? undefined : { kind: k, part: p })} style={s.cellW} accessibilityLabel={`${KIND_SHORT[k]} ${PARTS[p]}`}>
                 <View style={[s.cell, c.enough ? { backgroundColor: th.ink, opacity: 0.12 + 0.88 * clamp(0.5 + c.mu / (2 * SCALE), 0, 1) } : [s.un, { borderColor: th.muted }], on && { borderWidth: 2, borderColor: th.seal, borderStyle: "solid" }]} />
-                {favours(fs, k, p) && <View style={[s.dot, { backgroundColor: th.seal }]} />}
+                {favours(fs, k, p) && <View style={[s.dot, { backgroundColor: th.ink }]} />}
               </Tap>
             );
           })}
@@ -153,7 +153,7 @@ const s = StyleSheet.create({
   segI: { flexShrink: 1, paddingBottom: 10 },
   segT: { fontSize: font.md },
   segDot: { position: "absolute", bottom: 0, left: "50%", width: 5, height: 5, marginLeft: -2.5, borderRadius: 3 },
-  sl: { marginTop: 6 },
+  sl: { marginTop: 20 },
   hit: { height: 44, justifyContent: "center" },
   track: { height: 6, borderRadius: 6, marginHorizontal: 4 },
   thumb: { position: "absolute", width: 26, height: 26, marginLeft: -13, borderRadius: 13, top: 9 },
@@ -170,7 +170,7 @@ const s = StyleSheet.create({
   thin: { borderWidth: 1.5, borderStyle: "dashed" },
   wh: { position: "absolute", top: 8, height: 2, opacity: 0.6 },
   row: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },
-  rk: { width: 64 },
+  rk: { width: 54 },
   rkT: { fontSize: 13, fontFamily: ff("500") },
   hd: { flex: 1, textAlign: "center", fontSize: 13, fontFamily: ff("500") },
   cellW: { flex: 1, aspectRatio: 1 },

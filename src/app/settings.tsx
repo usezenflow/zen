@@ -109,19 +109,21 @@ function Keywords({ area, areas, onChange }: { area: Area; areas: Area[]; onChan
       {area.words.map((w, i) => {
         const owner = ownerOf(w, areas, area.id);
         return (
-          <View key={`${i}-${w}`} style={[s.chip, { borderColor: owner ? th.warn : th.line, backgroundColor: owner ? th.warnT : "transparent" }]}>
-            <Text style={{ fontSize: font.sub, lineHeight: 22, fontFamily: ff("500"), color: th.ink }}>{w}</Text>
+          <View key={`${i}-${w}`} style={[s.chip, { borderColor: th.line, backgroundColor: owner ? th.warnT : "transparent" }]}>
+            <Text style={{ fontSize: font.sub, lineHeight: 22, fontFamily: ff("500"), color: owner ? th.warnInk : th.ink }}>{w}</Text>
             <Tap onPress={() => onChange(area.words.filter((_, j) => j !== i))} hitSlop={8} accessibilityRole="button" accessibilityLabel={t("areaRemoveWord", { w })}>
-              <View style={{ opacity: 0.55 }}><Icon name="x" size={18} color={th.ink} /></View>
+              <View style={{ opacity: 0.55 }}><Icon name="x" size={14} color={th.ink} w={2} /></View>
             </Tap>
           </View>
         );
       })}
       {area.words.length < WORDS_MAX && (
         <View style={[s.chip, s.chipAdd, { borderColor: th.line }]}>
+          <Icon name="plus" size={14} color={th.muted} w={2} />
+          <Text style={[s.chipIn, { opacity: 0 }]} numberOfLines={1} importantForAccessibility="no-hide-descendants">{draft || t("areaAddWord")}</Text>
           <TextInput value={draft} onChangeText={onText} onSubmitEditing={() => commit(draft)} onBlur={() => commit(draft)} blurOnSubmit={false}
             placeholder={t("areaAddWord")} placeholderTextColor={th.muted} accessibilityLabel={t("areaAddWord")} returnKeyType="done"
-            style={[s.chipIn, { color: th.ink }]} />
+            style={[s.chipIn, StyleSheet.absoluteFill, { color: th.ink, left: 14, right: 14 }]} />
         </View>
       )}
     </View>
@@ -178,7 +180,7 @@ function Areas({ areas, tasks, now, onSave }: { areas: Area[]; tasks: Task[]; no
             </View>
             <Keywords area={a} areas={areas} onChange={(words) => put(a.id, { words })} />
             <View style={[s.hint, { backgroundColor: tint }]} accessibilityRole="text">
-              <Icon name={icon} size={18} color={ink} w={2} />
+              <View style={{ marginTop: 2 }}><Icon name={icon} size={18} color={ink} w={2} /></View>
               <Text style={{ flexShrink: 1, fontSize: font.sub, lineHeight: 22, color: ink, fontFamily: ff(owner || over ? "500" : "500") }}>{hint}</Text>
             </View>
             {!isCore(a.id) && <Tap onPress={() => remove(a)} hitSlop={8} accessibilityRole="button" style={s.del}><Text style={{ fontSize: font.sub, lineHeight: 22, fontFamily: ff("500"), color: th.seal }}>{t("areaDelete")}</Text></Tap>}
@@ -376,11 +378,11 @@ export default function Settings() {
                   {/* Online is the green lecture art, LMS the purple assignment art; a changed password turns only that card red. */}
                   {/* The card is the account only; the rows under it refresh. */}
                   <Tap onPress={err ? () => setOpen(k) : undefined} disabled={!err} scale={0.98} style={s.art}>
-                    <View style={StyleSheet.absoluteFill}><TypeArt type={err ? "exam" : k === "portal" ? "lecture" : "assignment"} seed={k === "portal" ? 5 : 2} text w={264} h={104} /></View>
+                    <View style={StyleSheet.absoluteFill}><TypeArt type={err ? "exam" : k === "portal" ? "lecture" : "assignment"} seed={k === "portal" ? 5 : 2} w={264} h={104} /></View>
                     <Text style={[s.lab, s.artLab]}>{id}</Text>
                     <Text style={[s.artId, err ? { fontSize: 17 } : null]} numberOfLines={2}>{err ? t(k === "portal" ? "changedPortal" : "changedLms") : t(k === "portal" ? "srcPortal" : "srcLms")}</Text>
                     <Text style={s.artSub}>{err ? t("tapRetype") : t("connected")}</Text>
-                    {err && <View style={s.glass}><Icon name="right" size={18} color="#fff" /></View>}
+                    {err && <View style={s.glass}><Icon name="alert" size={18} color="#fff" /></View>}
                   </Tap>
                   {!err && k === "lms" && part("lms", t("partLms"), { line: false, icon: "book" })}
                   {!err && k === "portal" && <>
@@ -436,21 +438,21 @@ const s = StyleSheet.create({
   knob: { width: 22, height: 22, borderRadius: 11 },
   root: { flex: 1 },
   body: { padding: space.gutter, paddingBottom: 40 },
-  o: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  o: { width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   h: { fontSize: font.h, lineHeight: 40, fontFamily: fd("700"), letterSpacing: -1.05, marginTop: 18 },
   // ui.css/v2.css .lab: an eyebrow, 12.5px light capitals with a little tracking
   lab: { fontSize: 12.5, lineHeight: 16, fontFamily: ff("300"), letterSpacing: 1.1, textTransform: "uppercase" },
   labRow: { flexDirection: "row", alignItems: "center", gap: 7 },
   pills: { flexDirection: "row", gap: 8, marginTop: 10 },
-  pill: { height: 40, paddingHorizontal: 16, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  pill: { height: 40, paddingHorizontal: 16, borderRadius: 99, borderWidth: 1, flexDirection: "row", gap: 6, alignItems: "center", justifyContent: "center" }, // ui.css .pill: icon beside the label
   row: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 17, paddingHorizontal: 14, marginHorizontal: -14, borderRadius: 14 },
   hair: { position: "absolute", left: 14, right: 14, bottom: 0, height: 1 },
   right: { marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 8 },
   art: { marginTop: 10, height: 104, borderRadius: 34, overflow: "hidden", padding: 14, paddingHorizontal: 18 },
-  artLab: { color: "#fff", opacity: 0.92, fontFamily: ff("500"), textShadowColor: "rgba(0,0,0,.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 },
+  artLab: { color: "#fff", opacity: 0.85, fontFamily: ff("500"), textShadowColor: "rgba(0,0,0,.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 },
   artId: { color: "#fff", fontSize: 20, fontFamily: ff("500"), marginTop: 4, paddingRight: 50, textShadowColor: "rgba(0,0,0,.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 },
   artSub: { color: "#fff", opacity: 0.92, fontFamily: ff("500"), fontSize: 14, marginTop: 3, paddingRight: 50, textShadowColor: "rgba(0,0,0,.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 },
-  chevO: { width: 30, height: 30, borderRadius: 20, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  chevO: { width: 30, height: 30, borderRadius: 20, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   off: { paddingTop: 14, paddingBottom: 17, flexDirection: "row", gap: 22 },
   exp: { marginTop: 10, fontSize: 15, lineHeight: 22, fontFamily: ff("400") },
   area: { marginTop: 10, padding: 16, paddingBottom: 14, borderRadius: 26, borderWidth: 1 }, // one hairline card per area or rule set
@@ -459,7 +461,7 @@ const s = StyleSheet.create({
   name: { flex: 1, minWidth: 0, fontSize: 18, lineHeight: 24, fontFamily: ff("600"), paddingVertical: 0 },
   step: { flexDirection: "row", alignItems: "center", height: 38, borderRadius: 99, borderWidth: 1 },
   stepB: { width: 34, height: 38, alignItems: "center", justifyContent: "center" },
-  stepV: { minWidth: 40, textAlign: "center", fontSize: 15, lineHeight: 20, fontFamily: ff("600") },
+  stepV: { minWidth: 38, textAlign: "center", fontSize: 15, lineHeight: 20, fontFamily: ff("600") },
   share: { marginTop: 12, flexDirection: "row", alignItems: "center", gap: 10 },
   track: { flex: 1, height: 8, borderRadius: 8 },
   fill: { position: "absolute", left: 0, top: 0, bottom: 0, borderRadius: 8 },
@@ -468,8 +470,8 @@ const s = StyleSheet.create({
   kw: { marginTop: 12, flexDirection: "row", flexWrap: "wrap", gap: 6 },
   chip: { height: 34, paddingLeft: 13, paddingRight: 8, borderRadius: 99, borderWidth: 1, flexDirection: "row", alignItems: "center", gap: 4 },
   chipAdd: { paddingHorizontal: 14, borderStyle: "dashed" },
-  chipIn: { minWidth: 120, fontSize: 15, lineHeight: 22, fontFamily: ff("500"), paddingVertical: 0 },
-  hint: { marginTop: 10, alignSelf: "flex-start", maxWidth: "100%", flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 7, paddingLeft: 10, paddingRight: 14, borderRadius: 99 },
+  chipIn: { fontSize: 15, lineHeight: 22, fontFamily: ff("500"), paddingVertical: 0 },
+  hint: { marginTop: 10, alignSelf: "flex-start", maxWidth: "100%", flexDirection: "row", alignItems: "flex-start", gap: 8, paddingVertical: 8, paddingLeft: 10, paddingRight: 14, borderRadius: 18 },
   tile: { width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center" }, // ui.css .ti
   field: { height: 42, borderRadius: 99, borderWidth: 1, paddingHorizontal: 14, fontSize: font.sub, lineHeight: 22, fontFamily: ff("500") },
   del: { alignSelf: "flex-start", marginTop: 8, minHeight: 36, justifyContent: "center" },

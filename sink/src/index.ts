@@ -24,7 +24,9 @@ export default {
       const len = Number(req.headers.get("content-length") ?? 0);
       if (len > 1_000_000) return json({ error: "size" }, 413);
       let body: unknown;
-      try { body = await req.json(); } catch { return json({ error: "json" }, 400); }
+      const raw = await req.text(); // content-length can be missing or false (chunked), so the cap is checked on the bytes read
+      if (raw.length > 1_000_000) return json({ error: "size" }, 413);
+      try { body = JSON.parse(raw); } catch { return json({ error: "json" }, 400); }
       const v = validateBatch(body);
       if (!v.ok) return json({ error: v.error }, 400);
       const st = env.DB.prepare(
@@ -33,8 +35,15 @@ export default {
         st.bind(r.install, r.at, r.policy, r.arm, JSON.stringify(r.x), r.theta ? JSON.stringify(r.theta) : null, r.reward, r.kind, r.zeroEdit ? 1 : 0)));
       return json({ ok: true, n: v.rows.length });
     }
-    if (req.method === "GET" && pathname === "/stats")
-      return json(aggregate(await load(env), Math.floor(Date.now() / 1000)));
+    if (req.method === "GET" && pathname === "/stats") {
+      // the bootstrap over up to 200k rows is the costly part: compute once per 5 minutes per edge
+      const key = new Request(req.url), hit = await caches.default.match(key);
+      if (hit) return hit;
+      const res = json(aggregate(await load(env), Math.floor(Date.now() / 1000)));
+      res.headers.set("cache-control", "public, max-age=300");
+      await caches.default.put(key, res.clone());
+      return res;
+    }
     if (req.method === "GET" && pathname === "/")
       return new Response(page(), { headers: { "content-type": "text/html; charset=utf-8" } });
     return json({ error: "not found" }, 404);

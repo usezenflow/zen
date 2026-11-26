@@ -197,7 +197,7 @@ export function RestCard({ lab, title, sub, leaf = "line", h = 220, art, icon }:
   const tone = art ? th.onart : th.ink, muted = art ? th.onart : th.muted;
   return (
     <View style={[s.rest, art ? s.restArt : { backgroundColor: th.chip }, { minHeight: h }]}>
-      {art && <View style={StyleSheet.absoluteFill}><TypeArt type={art} w={264} h={h} seed={seedOf(title)} text /></View>}
+      {art && <View style={StyleSheet.absoluteFill}><TypeArt type={art} w={264} h={h} seed={seedOf(title)} /></View>}
       {!!lab && <Text style={[s.lab, { color: muted }]}>{lab}</Text>}
       {icon ? null : <View style={s.restLf}><Logo size={52} mode={leaf} color={tone} /></View>}
       <Text style={[s.restT, { color: tone }]}>{icon && <Icon name={icon} size={24} color={tone} w={1.8} />}{icon && " "}{title}</Text>
@@ -485,7 +485,7 @@ const s = StyleSheet.create({
   lab: { fontSize: font.label, fontFamily: ff("500") },
   fold: { flexDirection: "row", alignItems: "center", height: 48, paddingHorizontal: 16, borderRadius: 16, borderWidth: 1 },
   foldT: { fontSize: font.sub, fontFamily: ff("500") },
-  lab2: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 20, marginBottom: 6 },
+  lab2: { flexDirection: "row", alignItems: "center", justifyContent: "flex-start", gap: 7, marginTop: 20, marginBottom: 6 },
   warn: { marginTop: 20, padding: 14, paddingHorizontal: 16, borderRadius: 22, borderWidth: 1.5 },
   kept: { marginTop: 8, minHeight: 56, borderRadius: 16, borderWidth: 1, overflow: "hidden", paddingVertical: 10, paddingHorizontal: 14, justifyContent: "center", alignItems: "flex-start", gap: 2 },
   kt: { fontSize: font.md, fontFamily: ff("500"), paddingHorizontal: 4, borderRadius: 4, overflow: "hidden" },

@@ -13,6 +13,7 @@ import { proposeRebalance } from "@/lib/apply";
 import { setupBackground } from "@/lib/sync";
 import { feedTaps } from "@/components/outside";
 import { UpdatePrompt } from "@/components/update";
+import { Boot } from "@/components/logostate";
 
 setupBackground();
 // Show reminders and campus notices while the app is open too.
@@ -28,10 +29,14 @@ let lastTap: string | undefined; // the notification tap already acted on (survi
 
 export default function Layout() {
   const [ready, setReady] = useState(false);
+  const [held, setHeld] = useState(true); // the koi turns for a moment even when the app is ready at once
   const dark = useColorScheme() === "dark"; // follows the in-app theme override too
   useEffect(() => {
-    kvGet("theme").then((m) => { if (m === "light" || m === "dark") Appearance.setColorScheme(m); }).finally(() => { setReady(true); SplashScreen.hide(); });
+    kvGet("theme").then((m) => { if (m === "light" || m === "dark") Appearance.setColorScheme(m); }).finally(() => setReady(true));
+    SplashScreen.hide(); // Boot is already drawn on the same background
     askReminders().then(pushReminders).catch(() => {});
+    const hold = setTimeout(() => setHeld(false), 1400);
+    return () => clearTimeout(hold);
   }, []);
   // A tapped notice opens what it names: a web page (fees: the pay page) or a screen.
   const tapped = Notifications.useLastNotificationResponse();
@@ -62,6 +67,7 @@ export default function Layout() {
         </Stack>
       ) : null}
       {ready && <UpdatePrompt />}
+      {(!ready || held) && <Boot />}
     </GestureHandlerRootView>
   );
 }

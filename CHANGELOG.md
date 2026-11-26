@@ -1,5 +1,17 @@
 # zen
 
+## 26.1.0-beta.4
+
+### Minor Changes
+
+- Tranh đường kẻ hiện đúng như bản thiết kế: các vệt màu và đường kẻ mảnh trở lại (trước đây trên máy chỉ còn nền chuyển màu mịn). Bỏ lớp tối phủ lên tranh; chữ trắng giữ độ tương phản nhờ bóng chữ nhẹ như trong bản thiết kế
+- Màn hình mở ứng dụng giống màn "Đang tải" của logo: koi cam cả con, xoay chậm, kèm nhãn "Đang mở", tiêu đề và dòng phụ. Bỏ ảnh khởi động tĩnh trước đó (nền khởi động chỉ còn một màu). Màn tải, lỗi dùng chung nhãn trạng thái ("Đang đồng bộ", "Mất kết nối")
+- Biểu tượng ứng dụng: koi chiếm khoảng 70% khung, sáng và tối. Ảnh khởi động cũ (hình vuông) đã bỏ
+- Chấm trên lịch tháng dùng màu chuyển của tranh từng loại việc; bỏ bảng màu chấm riêng. Màu thông tin là xám dịu, màu cảnh báo là cam koi (không còn chàm và vàng)
+- Sửa nút chủ đề trong Cài đặt (biểu tượng nằm trên chữ), nút trên thẻ "Bây giờ" không còn bị cắt thành "Đ…", "B…"; chữ viết tắt môn học bỏ hết dấu ("Ứng dụng đa phương tiện" thành "UDDPT"); "Khác" luôn nằm cuối mọi danh sách loại việc; ô "Thêm từ" vừa khít chữ; dòng trạng thái trong Cân bằng việc xuống dòng gọn trong khung bo tròn
+- Nhiều chỗ chỉnh theo bản thiết kế: viền 1,5px, thanh nghe và vòng xoay màu đỏ koi, nhãn mục, màn Học phí và Điểm không còn tranh khi trống, cỡ chữ và độ đậm của tiêu đề, nút tròn và nhãn loại việc nhỏ hơn
+- Bộ thống kê (sink): lưu tạm kết quả /stats năm phút và giới hạn kích thước gửi lên theo số byte đọc được
+
 ## 26.1.0-beta.3
 
 ### Minor Changes

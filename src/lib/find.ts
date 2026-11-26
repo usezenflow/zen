@@ -267,7 +267,7 @@ export function courseName(title: string): string {
 export function courseAbbr(name: string): string {
   const ws = words(name);
   if (ws.length <= 2) return name.trim();
-  return ws.map((w) => (/^\d+$/.test(w.w) ? w.w : name.slice(w.a, w.a + 1).toUpperCase())).join("");
+  return ws.map((w) => (/^\d+$/.test(w.w) ? w.w : fold(name.slice(w.a, w.a + 1)).text.toUpperCase())).join("");
 }
 
 export type Suggestion = { q: string; name?: string }; // name: the course a short query stands for, for the line under it

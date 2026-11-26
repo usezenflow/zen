@@ -5,6 +5,8 @@ import type { Kind, Reason, ReasonKey, Step } from "./types";
 export const KIND_VI: Record<Kind, string> = { study: "học", exercise: "tập thể dục", chores: "việc nhà", social: "gặp gỡ", other: "việc khác", work: "công việc", errand: "việc vặt", finance: "tài chính", self: "bản thân" };
 
 /** A kind as a short label for grids and bars. */
+/** Every kind list in this order: "other" is last. */
+export const KIND_LIST = (Object.keys(KIND_VI) as Kind[]).sort((a, b) => +(a === "other") - +(b === "other"));
 export const KIND_SHORT: Record<Kind, string> = { study: "Học", exercise: "Thể dục", chores: "Việc nhà", social: "Gặp gỡ", other: "Khác", work: "Công việc", errand: "Việc vặt", finance: "Tài chính", self: "Bản thân" };
 
 /** A kind as "việc …" ("việc học", "công việc", "việc nhà"), capitalised on ask: one wording for reasons and rhythm. */

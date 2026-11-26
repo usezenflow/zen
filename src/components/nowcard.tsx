@@ -13,7 +13,7 @@ import { hhmm } from "@/components/cal";
 import type { HoldState } from "@/components/hold";
 import { t } from "@/lib/i18n";
 import { kvGet, kvSet } from "@/lib/store";
-import { KIND_VI, reasonText, topReason } from "@/lib/reasons";
+import { KIND_LIST, KIND_VI, reasonText, topReason } from "@/lib/reasons";
 import { useTheme, font, ff, fd } from "@/lib/theme";
 import { when } from "@/lib/when";
 import type { Move, Kind, Task } from "@/lib/types";
@@ -51,11 +51,13 @@ export function NowCard({ card, onDone, onStart, onLater, onMicroRest, onKind, o
   const left = Math.max(1, Math.ceil(((mic?.endsAt ?? 0) - now) / 60000));
   const moving = !going && !task.fixed && !card.gap && !!onLater;
   const microOk = !going && !task.fixed && !card.gap && (end - start >= 45 * 60000 || (task.misses ?? 0) > 0);
+  // Three pills do not fit a phone with labels: the Dời one goes icon-only, as a 54px round glass.
+  const trio = moving && microOk && !mic && !!onStart;
   const big = mic ? (micDone ? t("microFull", { n: MICRO_MIN }) : t("nMin", { n: left })) : going ? t("nMin", { n: mins }) : hhmm(start);
   const small = mic ? (micDone ? t("microSub") : t("until", { time: hhmm(mic.endsAt) })) : going ? t("until", { time: hhmm(end) }) : t("nMin", { n: mins });
   return (<>
     <View style={[s.art, { backgroundColor: th.chip }]}>
-      <View style={StyleSheet.absoluteFill}><TypeArt type={artOf(task)} w={264} h={220} seed={seedOf(task.id)} text /></View>
+      <View style={StyleSheet.absoluteFill}><TypeArt type={artOf(task)} w={264} h={220} seed={seedOf(task.id)} /></View>
       <View style={s.head}>
         <Text numberOfLines={1} style={[s.lab, { color: th.onart, flexShrink: 1 }]}>{over ? t("overLab", { time: hhmm(end) }) : t(going || mic ? "doingNow" : "nextUp")}</Text>
         {onKind && !card.gap && <KindChip task={task} onKind={onKind} />}
@@ -64,7 +66,7 @@ export function NowCard({ card, onDone, onStart, onLater, onMicroRest, onKind, o
       <View style={s.foot}>
         {over ? <View style={s.overActs}>
           <Tap onPress={onExtend} scale={0.94} accessibilityRole="button" accessibilityLabel={t("overExtend")} style={[s.glass, s.start, s.overBtn, s.soft]}><Glass /><Icon name="plus" size={18} color="#fff" /><Text style={s.startT} numberOfLines={1}>{t("overExtend")}</Text></Tap>
-          <Tap onPress={onLater} scale={0.94} accessibilityRole="button" accessibilityLabel={t("overMove")} style={[s.glass, s.start, s.overBtn, s.primary]}><Glass /><Icon name="calendar" size={22} color={th.bg} /><Text style={[s.startT, s.primaryT, { color: th.bg }]} numberOfLines={1}>{t("overMove")}</Text></Tap>
+          <Tap onPress={onLater} scale={0.94} accessibilityRole="button" accessibilityLabel={t("overMove")} style={[s.glass, s.start, s.overBtn, s.primary]}><Glass /><Icon name="right" size={22} color={th.bg} /><Text style={[s.startT, s.primaryT, { color: th.bg }]} numberOfLines={1}>{t("overMove")}</Text></Tap>
         </View> : <>
         <View style={s.row1}>
         <View style={s.meter}>
@@ -81,7 +83,7 @@ export function NowCard({ card, onDone, onStart, onLater, onMicroRest, onKind, o
             <Tap onPress={() => { saveMicro(null); onMicroRest?.(MICRO_MIN); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microRest")} style={[s.glass, s.start, s.soft]}><Glass /><Icon name="clock" size={22} color="#fff" /><Text style={s.startT} numberOfLines={1}>{t("microRest")}</Text></Tap>
             {onStart && <Tap onPress={() => { saveMicro(null); onStart(); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microGo")} style={[s.glass, s.start, s.primary, { backgroundColor: th.ink }]}><Glass /><Icon name="play" size={22} color={th.bg} /><Text style={[s.startT, s.primaryT, { color: th.bg }]} numberOfLines={1}>{t("microGo")}</Text></Tap>}
           </> : <>
-            {moving && <Tap onPress={onLater} scale={0.94} accessibilityRole="button" accessibilityLabel={t("laterBtn")} style={[s.glass, s.start, s.soft]}><Glass /><Icon name="clock" size={22} color="#fff" /><Text style={s.startT} numberOfLines={1}>{t("laterBtn")}</Text></Tap>}
+            {moving && <Tap onPress={onLater} scale={0.94} accessibilityRole="button" accessibilityLabel={t("laterBtn")} style={[s.glass, s.start, s.soft, trio && s.iconOnly]}><Glass /><Icon name="clock" size={22} color="#fff" />{!trio && <Text style={s.startT} numberOfLines={1}>{t("laterBtn")}</Text>}</Tap>}
             {moving && onStart && <Tap onPress={onStart} scale={0.94} accessibilityRole="button" accessibilityLabel={t("startLab")} style={[s.glass, s.start, s.primary, { backgroundColor: th.ink }]}><Glass /><Icon name="play" size={22} color={th.bg} /><Text style={[s.startT, s.primaryT, { color: th.bg }]} numberOfLines={1}>{t("startLab")}</Text></Tap>}
             {microOk && !mic && <Tap onPress={() => { const at0 = Date.now(); saveMicro({ id: task.id, startedAt: at0, endsAt: at0 + MICRO_MIN * 60000 }); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microBtn", { n: MICRO_MIN })} style={[s.glass, s.start, s.primary, { backgroundColor: th.ink }]}><Glass /><Icon name="play" size={22} color={th.bg} /><Text style={[s.startT, s.primaryT, { color: th.bg }]} numberOfLines={1}>{t("microBtn", { n: MICRO_MIN })}</Text></Tap>}
           </>}
@@ -97,16 +99,16 @@ export function NowCard({ card, onDone, onStart, onLater, onMicroRest, onKind, o
 const cap1 = (x: string) => x[0].toUpperCase() + x.slice(1);
 export const kindName = (k: Kind) => (k === "other" ? t("kindOther") : cap1(KIND_VI[k]));
 // The kind menu the detail screen shows (same names, same order); pick gets the chosen kind.
-export const kindItems = (pick: (k: Kind) => void): Item[] => (Object.keys(KIND_VI) as Kind[]).map((k) => ({ label: kindName(k), icon: k, onPress: () => pick(k) }));
+export const kindItems = (pick: (k: Kind) => void): Item[] => KIND_LIST.map((k) => ({ label: kindName(k), icon: k, onPress: () => pick(k) }));
 function KindChip({ task, onKind }: { task: Task; onKind: KindPick }) {
   const th = useTheme();
   const at = useRef<ComponentRef<typeof View>>(null);
   return (
     <View ref={at} style={s.kcWrap}>
       <Tap onPress={() => at.current?.measureInWindow((_x, y, _w, h) => onKind(task, y, y + h))} scale={0.94} hitSlop={7} accessibilityRole="button" accessibilityLabel={t("kindChange")} style={s.kc}>
-        <Icon name={task.kind} size={18} color={th.onart} w={2} />
+        <Icon name={task.kind} size={15} color={th.onart} w={2} />
         <Text numberOfLines={1} style={[s.kcT, { color: th.onart }]}>{kindName(task.kind)}</Text>
-        <Icon name="down" size={18} color={th.onart} w={2} />
+        <Icon name="down" size={13} color={th.onart} w={2} />
       </Tap>
     </View>
   );
@@ -149,7 +151,7 @@ function Viz({ thinking, level }: { thinking: boolean; level?: SharedValue<numbe
   const th = useTheme();
   const clock = useSharedValue(0);
   useFrameCallback((f) => { clock.set(f.timeSinceFirstFrame / 1000); });
-  return <View style={s.viz}>{ENV.map((_, i) => <VizBar key={i} i={i} clock={clock} level={level} thinking={thinking} color={th.onart} />)}</View>;
+  return <View style={s.viz}>{ENV.map((_, i) => <VizBar key={i} i={i} clock={clock} level={level} thinking={thinking} color={th.seal} />)}</View>;
 }
 
 // Each new word fades in rising 4px (views.html "Day, listening").
@@ -273,7 +275,7 @@ export function Weekly({ title, sub, onPress }: { title: string; sub: string; on
   const th = useTheme();
   return (
     <Tap onPress={onPress} scale={0.98} accessibilityRole="button" accessibilityLabel={title} style={[s.art, { backgroundColor: th.chip }]}>
-      <View style={StyleSheet.absoluteFill}><TypeArt type="lecture" w={264} h={220} seed={8} text /></View>
+      <View style={StyleSheet.absoluteFill}><TypeArt type="lecture" w={264} h={220} seed={8} /></View>
       <Text style={[s.lab, { color: th.onart }]}>{t("sundayLab")}</Text>
       <Text style={[s.t, { color: th.onart }]} numberOfLines={3}>{title}</Text>
       <View style={s.foot}>
@@ -289,7 +291,7 @@ function Spin() {
   const r = useSharedValue(0);
   useEffect(() => { r.set(withRepeat(withTiming(360, { duration: 800, easing: Easing.linear }), -1)); }, [r]);
   const st = useAnimatedStyle(() => ({ transform: [{ rotate: `${r.get().toFixed(2)}deg` }] }));
-  return <Animated.View style={[s.spin, { borderColor: th.line, borderTopColor: th.onart }, st]} />;
+  return <Animated.View style={[s.spin, { borderColor: th.line, borderTopColor: th.seal }, st]} />;
 }
 
 // magic 4: real solver steps above the dock, newest last; older ones muted with a check.
@@ -328,7 +330,7 @@ export function Steps({ lines }: { lines: string[] }) {
 }
 
 // White text over art: a soft shadow (reference text-shadow 0 1px 6px .22), never an outline.
-const SHADOW = { textShadowColor: "rgba(0,0,0,.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 } as const;
+const SHADOW = { textShadowColor: "rgba(0,0,0,.22)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 } as const;
 const s = StyleSheet.create({
   art: { marginTop: 16, height: 236, borderRadius: 34, overflow: "hidden", paddingHorizontal: 20, paddingTop: 20 }, // calm.html .art: 236 high, 34px radius
   lab: { fontSize: 13, lineHeight: 18, fontFamily: ff("300"), letterSpacing: 1.1, textTransform: "uppercase", opacity: 0.9, ...SHADOW }, // v2 .lab: 12.5px, light, caps; label and title one group
@@ -346,11 +348,12 @@ const s = StyleSheet.create({
   rise: { flexDirection: "row", overflow: "hidden", marginVertical: -5 }, // pulls the taller line back to the old footprint
   big: { fontSize: 30, fontFamily: fd("700"), lineHeight: 34, letterSpacing: -0.9, ...SHADOW }, // v2 .art .big: display 700, 30px
   small: { fontSize: 17, fontFamily: ff("500"), opacity: 0.94, marginTop: 3, ...SHADOW },
-  glass: { width: 58, height: 58, borderRadius: 29, overflow: "hidden", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.22)", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.5)" }, // reference .glass 58px
+  glass: { width: 56, height: 56, borderRadius: 28, overflow: "hidden", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.22)", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.45)" }, // v2.css .glass 56px
   solid: { backgroundColor: "rgba(255,255,255,0.85)" },
   acts2: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1, minWidth: 0 },
-  start: { flex: 1, flexShrink: 1, minWidth: 0, height: 54, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 18 }, // calm.html .gbtn: 54 high, glass pill
-  startT: { color: "#fff", fontSize: 16, lineHeight: 20, fontFamily: ff("600"), flexShrink: 1, minWidth: 0 }, // on the glass: no shadow, the pill is near-solid
+  start: { flex: 1, flexShrink: 1, minWidth: 0, height: 54, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 14 }, // ui.css .nowbtns .gbtn: 54 high, 14px side padding, 15px label
+  iconOnly: { flex: 0, flexGrow: 0, width: 54, paddingHorizontal: 0 }, // trio: only the clock
+  startT: { color: "#fff", fontSize: 15, lineHeight: 20, fontFamily: ff("600"), flexShrink: 1, minWidth: 0 }, // on the glass: no shadow, the pill is near-solid
   primary: { borderColor: "transparent" }, // calm.html .gbtn.solid: ink CTA, no shadow (the colour comes from the theme at the call site)
   primaryT: { textShadowColor: "transparent" },
   soft: { opacity: 0.72 }, // Dời: one tap, Zen picks the day and hour; lighter than Bắt đầu
@@ -385,7 +388,7 @@ const s = StyleSheet.create({
   rest: { alignItems: "center", gap: 16, paddingVertical: 36 },
   head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   kcWrap: { flexShrink: 0 },
-  kc: { flexDirection: "row", alignItems: "center", gap: 6, height: 32, paddingHorizontal: 13, borderRadius: 99, backgroundColor: "rgba(255,255,255,0.22)", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.4)" }, // v2 .kc: 32 high, 14px, hairline glass
+  kc: { flexDirection: "row", alignItems: "center", gap: 6, height: 30, paddingHorizontal: 12, borderRadius: 99, backgroundColor: "rgba(255,255,255,0.22)", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.4)" }, // v2 .kc: 32 high, 14px, hairline glass
   kcT: { maxWidth: 150, fontSize: 14, lineHeight: 20, fontFamily: ff("500"), ...SHADOW },
   overActs: { flexDirection: "row", gap: 8 },
   overBtn: { flex: 1 },

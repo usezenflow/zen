@@ -23,7 +23,7 @@ import { keepBoth } from "@/lib/overlap";
 import { t } from "@/lib/i18n";
 import { leftSaved, openedOnDay, setFlash } from "@/lib/flash";
 import { allTasks, loadModel } from "@/lib/store";
-import { KIND_VI, reasonText, sayable } from "@/lib/reasons";
+import { KIND_LIST, KIND_VI, reasonText, sayable } from "@/lib/reasons";
 import { useTheme, font, space, ff, fd } from "@/lib/theme";
 import { grounded } from "@/planner";
 import type { Placed } from "@/planner/model";
@@ -32,7 +32,7 @@ import type { Kind, Rule, Task } from "@/lib/types";
 import { dayLabel, endAt, startDay, when } from "@/lib/when";
 
 type Scope = "this" | "following" | "all";
-const KINDS = Object.keys(KIND_VI) as Kind[];
+const KINDS = KIND_LIST;
 const cap = (x: string) => x[0].toUpperCase() + x.slice(1);
 const kindLabel = (k: Kind) => (k === "other" ? t("kindOther") : cap(KIND_VI[k])); // "Việc của bạn · Khác", not "· Việc khác"
 const host = (u: string) => u.replace(/^https?:\/\/(www\.)?/i, "").split(/[/?#]/)[0];
@@ -493,7 +493,7 @@ const WhyBlock = memo(function WhyBlock({ items, notes, alt, start, now, onMove 
 
 const s = StyleSheet.create({
   bar: { flexDirection: "row", justifyContent: "space-between" },
-  o: { width: 48, height: 48, borderRadius: 24, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  o: { width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   acts: { flexDirection: "row", gap: 8 },
   loc: { flex: 1, fontFamily: ff("500"), fontSize: font.meta, lineHeight: 22, minHeight: 48, padding: 0, textAlignVertical: "center" },
   who: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 14, flexWrap: "wrap" }, // .dtop chips row

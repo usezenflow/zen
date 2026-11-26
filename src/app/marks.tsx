@@ -25,11 +25,11 @@ export default function Marks() {
       <ScrollView contentContainerStyle={{ padding: space.gutter, paddingTop: space.gutter, paddingBottom: 60 }}>
         <PartHead part="marks" title={t("marks")} onLand={load} />
         {!m?.marks.length ? (
-          m !== undefined && <Animated.View entering={fadeIn}><RestCard lab={t("cumulative")} title={t("noMarksT")} sub={t("noMarks")} h={150} art="assignment" /></Animated.View>
+          m !== undefined && <Animated.View entering={fadeIn}><RestCard lab={t("cumulative")} title={t("noMarksT")} sub={t("noMarks")} h={150} /></Animated.View>
         ) : (
           <>
             <Animated.View entering={fadeIn} style={s.art}>
-              <View style={StyleSheet.absoluteFill}><TypeArt type="assignment" w={264} h={150} seed={2} text /></View>
+              <View style={StyleSheet.absoluteFill}><TypeArt type="assignment" w={264} h={150} seed={2} /></View>
               <Text style={s.lab}>{t("cumulative")}</Text>
               <View style={s.meter}>
                 <View style={s.cap}><Fill p={Math.min(1, (m.gpa4 ?? 0) / 4)} /></View>
@@ -65,11 +65,11 @@ export default function Marks() {
 }
 
 const s = StyleSheet.create({
-  art: { marginTop: 18, height: 150, borderRadius: 28, overflow: "hidden", paddingVertical: 18, paddingHorizontal: 20 },
+  art: { marginTop: 18, height: 150, borderRadius: 34, overflow: "hidden", paddingVertical: 18, paddingHorizontal: 20 },
   lab: { color: "#fff", opacity: 0.92, fontSize: font.label, fontFamily: ff("500"), textShadowColor: "rgba(0,0,0,.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 },
   meter: { position: "absolute", left: 20, bottom: 18, flexDirection: "row", alignItems: "center", gap: 12 },
   cap: { width: 18, height: 54, borderRadius: 10, borderWidth: 2, borderColor: "rgba(255,255,255,.9)", justifyContent: "flex-end", padding: 2 },
-  big: { color: "#fff", fontSize: 40, fontFamily: fd("800"), lineHeight: 40, textShadowColor: "rgba(0,0,0,.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 },
+  big: { color: "#fff", fontSize: 40, fontFamily: fd("500"), lineHeight: 40, textShadowColor: "rgba(0,0,0,.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 },
   small: { color: "#fff", opacity: 0.92, fontSize: font.md, fontFamily: ff("500"), marginTop: 3, textShadowColor: "rgba(0,0,0,.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 },
   labRow: { marginTop: 28, flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
   labT: { fontSize: font.label, fontFamily: ff("500") },
@@ -77,7 +77,7 @@ const s = StyleSheet.create({
   tx: { flex: 1, minWidth: 0, alignSelf: "stretch", justifyContent: "center", gap: 2, paddingVertical: space.row + 2, marginVertical: -space.row },
   b: { fontSize: font.base, lineHeight: 24, fontFamily: ff("500") },
   small2: { fontFamily: ff("500"), fontSize: font.sub, lineHeight: 21 },
-  score: { fontSize: font.base, fontFamily: ff("500"), fontVariant: ["tabular-nums"] },
-  pl: { width: 44, height: 40, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  score: { fontSize: font.base, fontFamily: fd("500"), fontVariant: ["tabular-nums"] },
+  pl: { width: 44, height: 40, borderRadius: 99, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   plT: { fontSize: font.sub, fontFamily: ff("500") },
 });

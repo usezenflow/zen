@@ -92,9 +92,9 @@ body { background: var(--page); }
 .rc .sg span.on { background: var(--ink); color: var(--bg); box-shadow: 0 6px 14px -8px rgba(0, 0, 0, .6); }
 
 /* States: each has its own hue, a tint for fills and a deep tone for text. Red is only for errors and destructive things. */
-/* Informational blue (lagoon), ok moss, warn citrus amber (fills) with a deep ink for text, err clay red. The "-ink" tones are the text colours on tints. */
-:root { --ok: #0f8f6a; --ok-ink: #0a6b4f; --ok-t: rgba(15, 143, 106, .13); --info: #0d0d0f; --info-ink: #1b28c4; --info-t: rgba(36, 51, 242, .10); --warn: #ff8a00; --warn-ink: #8a4b00; --warn-t: rgba(255, 138, 0, .17); --err: #d2492f; --err-ink: #b93a24; --err-t: rgba(210, 73, 47, .12); }
-.device.dark { --ok: #3fe0b0; --ok-ink: #3fe0b0; --ok-t: rgba(63, 224, 176, .14); --info: #8a97ff; --info-ink: #8a97ff; --info-t: rgba(138, 151, 255, .16); --warn: #ffb04a; --warn-ink: #ffc46e; --warn-t: rgba(255, 176, 74, .16); --err: #ff7a62; --err-ink: #ff8f78; --err-t: rgba(255, 122, 98, .16); }
+/* Informational grey, ok moss, warn koi orange (fills) with a deep ink for text, err clay red. The "-ink" tones are the text colours on tints. */
+:root { --ok: #0f8f6a; --ok-ink: #0a6b4f; --ok-t: rgba(15, 143, 106, .13); --info: #737a87; --info-ink: #737a87; --info-t: rgba(115, 122, 135, .12); --warn: #e8743b; --warn-ink: #8a3a1a; --warn-t: rgba(255, 138, 92, .18); --err: #d2492f; --err-ink: #b93a24; --err-t: rgba(210, 73, 47, .12); }
+.device.dark { --ok: #3fe0b0; --ok-ink: #3fe0b0; --ok-t: rgba(63, 224, 176, .14); --info: #a9adb5; --info-ink: #a9adb5; --info-t: rgba(169, 173, 181, .14); --warn: #ff9a73; --warn-ink: #ffb899; --warn-t: rgba(255, 138, 92, .16); --err: #ff7a62; --err-ink: #ff8f78; --err-t: rgba(255, 122, 98, .16); }
 .st { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: 99px; font-size: 13.5px; font-weight: 500; white-space: nowrap; }
 .st i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .st.ok { background: var(--ok-t); color: var(--ok-ink); } .st.info { background: var(--info-t); color: var(--info-ink); }

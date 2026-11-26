@@ -8,11 +8,11 @@ const of = (type: string) => nodes(screen.toJSON()).filter((n) => n.type === typ
 const paint = (c: string) => ({ type: 0, payload: processColor(c) });
 
 describe("Logo", () => {
-  it("tails take the vermilion accent in color, ink otherwise; body and head stay ink", async () => {
+  it("color is the whole mark in koi orange (ui.js LOGO); mono and white use their own ink for body and tails", async () => {
     for (const [mode, accent] of [["color", "#ff8a5c"], ["mono", "#123456"], ["white", "#fff"]] as const) {
       await render(<Logo mode={mode} color="#123456" />);
       const [body, , up, lo] = of("RNSVGPath");
-      expect(body.props.fill).toEqual(paint(mode === "white" ? "#fff" : "#123456"));
+      expect(body.props.fill).toEqual(paint(mode === "white" ? "#fff" : mode === "color" ? "#ff8a5c" : "#123456"));
       expect(up.props.fill).toEqual(paint(accent));
       expect(lo.props.fill).toEqual(paint(accent));
     }
@@ -42,7 +42,7 @@ describe("TypeArt", () => {
     expect(of("RNSVGLinearGradient")).toHaveLength(1);
     expect(of("RNSVGRadialGradient")).toHaveLength(3);
     expect(of("RNSVGMask")).toHaveLength(2);
-    expect(of("RNSVGPattern")).toHaveLength(2);
+    expect(of("RNSVGPattern")).toHaveLength(0);
   });
   it("gives each instance its own gradient id", async () => {
     await render(<><TypeArt type="plan" /><TypeArt type="plan" /></>);

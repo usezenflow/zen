@@ -1,22 +1,27 @@
 import { StyleSheet, Text, View } from "react-native";
 import Animated from "react-native-reanimated";
-import { Logo } from "@/components/art";
+import { Icon, Logo } from "@/components/art";
 import { fadeIn, fadeOut, Tap } from "@/components/tap";
 import { t } from "@/lib/i18n";
-import { useTheme, ff } from "@/lib/theme";
+import { useTheme, ff, fd } from "@/lib/theme";
 
 /** logo.html States: the first school sync (leaf rocking) or a failed one (leaf tipped, sun rolled away), full screen, no dock. */
-export function LogoState({ state, onRetry, onLater }: { state: "load" | "err"; onRetry?: () => void; onLater?: () => void }) {
+export function LogoState({ state, onRetry, onLater, chip, title, sub }: { state: "load" | "err"; onRetry?: () => void; onLater?: () => void; chip?: string; title?: string; sub?: string }) {
   const th = useTheme();
   const err = state === "err";
   return (
     <Animated.View entering={fadeIn} exiting={fadeOut} style={[StyleSheet.absoluteFill, s.wrap, { backgroundColor: th.bg }]} accessibilityLiveRegion="polite">
       <View style={s.state}>
-        <Logo size={96} mode="color" color={th.ink} state={state} />
-        <Text style={[s.h, { color: th.ink }]}>{t(err ? "syncErrT" : "syncLoadT")}</Text>
-        <Text style={[s.sub, { color: th.muted }]}>{t(err ? "syncErrSub" : "syncLoadSub")}</Text>
+        <Logo size={96} mode="color" state={state} />
+        {/* v2.css .st: the status chip between the mark and the heading, 28 high, tinted */}
+        <View style={[s.st, { backgroundColor: err ? th.errT : th.infoT, marginTop: 6 }]}>
+          <Icon name={err ? "xCircle" : "refresh"} size={14} color={err ? th.err : th.info} w={2} />
+          <Text style={[s.stT, { color: err ? th.err : th.info }]}>{chip ?? t(err ? "syncChipErr" : "syncChipLoad")}</Text>
+        </View>
+        <Text style={[s.h, { color: th.ink }]}>{title ?? t(err ? "syncErrT" : "syncLoadT")}</Text>
+        <Text style={[s.sub, { color: th.muted }]}>{sub ?? t(err ? "syncErrSub" : "syncLoadSub")}</Text>
         {err && <>
-          <Tap onPress={onRetry} style={[s.btn, { backgroundColor: th.ink }]} accessibilityRole="button"><Text style={[s.bt, { color: th.bg }]}>{t("retry")}</Text></Tap>
+          <Tap onPress={onRetry} style={[s.btn, { backgroundColor: th.ink }]} accessibilityRole="button"><Icon name="refresh" size={18} color={th.bg} w={2} /><Text style={[s.bt, { color: th.bg }]}>{t("retry")}</Text></Tap>
           <Tap onPress={onLater} hitSlop={8} accessibilityRole="button"><Text style={[s.ghost, { color: th.muted }]}>{t("notNow")}</Text></Tap>
         </>}
       </View>
@@ -28,9 +33,14 @@ const s = StyleSheet.create({
   wrap: { zIndex: 40, paddingHorizontal: 24 },
   // .state: centred column, gap 6, 90px clear at the bottom
   state: { flex: 1, alignItems: "center", justifyContent: "center", gap: 6, paddingBottom: 90 },
-  h: { marginTop: 26, fontSize: 26, lineHeight: 28.6, fontFamily: ff("500"), letterSpacing: -0.6, textAlign: "center" }, // logo.html .state .h: 26px, line 1.1
-  sub: { marginTop: 6, maxWidth: 230, fontSize: 15, lineHeight: 21.75, fontFamily: ff("400"), textAlign: "center" }, // .sub, line-height 1.45
-  btn: { marginTop: 22, alignSelf: "stretch", height: 56, borderRadius: 99, alignItems: "center", justifyContent: "center" },
+  h: { marginTop: 26, fontSize: 26, lineHeight: 28.6, fontFamily: fd("800"), letterSpacing: -0.91, textAlign: "center" }, // logo.html .state .h: 26px, line 1.1
+  sub: { marginTop: 6, maxWidth: 230, fontSize: 17, lineHeight: 24.65, fontFamily: ff("400"), textAlign: "center" }, // .sub, line-height 1.45
+  st: { flexDirection: "row", alignItems: "center", gap: 6, height: 28, paddingHorizontal: 11, borderRadius: 99 },
+  stT: { fontSize: 13.5, fontFamily: ff("500") },
+  btn: { marginTop: 22, alignSelf: "stretch", height: 56, borderRadius: 99, flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center" },
   bt: { fontSize: 17, fontFamily: ff("600") },
   ghost: { marginTop: 10, fontSize: 15, fontFamily: ff("500") },
 });
+
+/** The app's first screen: logo.html "Loading" with start-up words. The native splash is a plain background, this takes over at once. */
+export const Boot = () => <LogoState state="load" chip={t("bootChip")} title={t("bootT")} sub={t("bootSub")} />;

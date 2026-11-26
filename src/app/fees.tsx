@@ -10,7 +10,7 @@ import { loadCreds, owed, payUrl, type PortalFeeRow } from "@/lib/dlu";
 import { nextFeeMonth } from "@/lib/dlu/season";
 import { t } from "@/lib/i18n";
 import { ask, getFeeRows, vnd } from "@/lib/sync";
-import { useTheme, font, space, ff } from "@/lib/theme";
+import { useTheme, font, space, ff, fd } from "@/lib/theme";
 
 const left = (r: PortalFeeRow) => Math.max(0, r.ConNo ?? 0, r.PaidLeft ?? 0);
 // "Mẫu thiết kế [3.0 tc] " → the name, and 3 credits for the small line
@@ -40,10 +40,10 @@ export default function Fees() {
       <ScrollView contentContainerStyle={{ padding: space.gutter, paddingTop: top ? 0 : space.gutter, paddingBottom: 60 }}>
         <PartHead part="fees" title={t("fees")} onLand={load} />
         {rows === undefined ? null : !rows ? (
-          <Animated.View entering={fadeIn}><RestCard lab={t("fees")} title={t("noFeesT")} sub={t("noFees")} h={150} art="exam" /></Animated.View>
+          <Animated.View entering={fadeIn}><RestCard lab={t("fees")} title={t("noFeesT")} sub={t("noFees")} h={150} /></Animated.View>
         ) : total > 0 ? (
           <Animated.View entering={fadeIn} style={s.art}>
-            <View style={StyleSheet.absoluteFill}><TypeArt type="exam" w={264} h={150} seed={3} text /></View>
+            <View style={StyleSheet.absoluteFill}><TypeArt type="exam" w={264} h={150} seed={3} /></View>
             <Text style={s.lab}>{t("owedT")}</Text>
             <View style={s.bottom}>
               <View style={{ flex: 1 }}>
@@ -56,7 +56,7 @@ export default function Fees() {
             </View>
           </Animated.View>
         ) : (
-          <Animated.View entering={fadeIn}><RestCard lab={t("fees")} title={t("paidAll")} sub={t("paidSub", { m: nextMonth })} leaf="color" h={150} art="lecture" /></Animated.View>
+          <Animated.View entering={fadeIn}><RestCard lab={t("fees")} title={t("paidAll")} sub={t("paidSub", { m: nextMonth })} leaf="color" h={150} /></Animated.View>
         )}
         {terms.map((k, ti) => {
           const mine = (rows ?? []).filter((r) => `${r.YearStudy}|${r.TermID}` === k);
@@ -89,18 +89,18 @@ export default function Fees() {
 }
 
 const s = StyleSheet.create({
-  art: { marginTop: 18, height: 150, borderRadius: 28, overflow: "hidden", paddingVertical: 18, paddingHorizontal: 20 },
+  art: { marginTop: 18, height: 150, borderRadius: 34, overflow: "hidden", paddingVertical: 18, paddingHorizontal: 20 },
   lab: { color: "#fff", opacity: 0.92, fontSize: font.label, fontFamily: ff("500"), textShadowColor: "rgba(0,0,0,.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 },
   bottom: { position: "absolute", left: 20, right: 16, bottom: 18, flexDirection: "row", alignItems: "flex-end", gap: 12 },
-  big: { color: "#fff", fontSize: 34, fontFamily: ff("500"), lineHeight: 38, textShadowColor: "rgba(0,0,0,.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 },
+  big: { color: "#fff", fontSize: 34, fontFamily: fd("500"), lineHeight: 34, textShadowColor: "rgba(0,0,0,.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 },
   small: { color: "#fff", opacity: 0.92, fontSize: font.md, fontFamily: ff("500"), marginTop: 3, textShadowColor: "rgba(0,0,0,.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 },
   pay: { height: 40, paddingHorizontal: 16, borderRadius: 99, backgroundColor: "rgba(255,255,255,0.9)", alignItems: "center", justifyContent: "center" },
-  payT: { color: "#0b0b0c", fontSize: font.sub, fontFamily: ff("600") },
+  payT: { color: "#0b0b0c", fontSize: font.sub, fontFamily: ff("700") },
   labRow: { marginTop: 28, flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
   labT: { fontSize: font.label, fontFamily: ff("500") },
   r: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: space.row },
   tx: { flex: 1, minWidth: 0, alignSelf: "stretch", justifyContent: "center", gap: 2, paddingVertical: space.row + 2, marginVertical: -space.row },
   b: { fontSize: font.base, lineHeight: 24, fontFamily: ff("500") },
   small2: { fontFamily: ff("500"), fontSize: font.sub, lineHeight: 21 },
-  amt: { fontSize: font.meta, fontFamily: ff("500"), fontVariant: ["tabular-nums"] }, // fees.html .tm: 16px
+  amt: { fontSize: font.meta, fontFamily: fd("500"), fontVariant: ["tabular-nums"] }, // fees.html .tm: 16px
 });

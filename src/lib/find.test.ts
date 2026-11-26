@@ -184,4 +184,7 @@ describe("courseAbbr", () => {
     expect(courseAbbr("Giải tích 2")).toBe("GT2");
     expect(courseAbbr("Triết học")).toBe("Triết học");
   });
+  it("strips every accent from the initials", () => {
+    expect(courseAbbr("Ứng dụng đa phương tiện")).toBe("UDDPT");
+  });
 });

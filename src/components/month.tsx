@@ -35,7 +35,7 @@ export function Month({ tasks, hols, selected, anchor = selected, now, onSelect,
                 <Text style={{ fontSize: font.md, fontFamily: ff(isToday || on ? "600" : "500"), color: isToday || on ? th.bg : out ? th.muted : th.ink, opacity: out && !on ? 0.45 : 1 }}>{new Date(day).getDate()}</Text>
               </View>
               {hol ? <Text numberOfLines={1} style={[s.hl, { color: th.muted }]}>{holLines(hol)[0]}</Text> : (
-                <View style={s.ds}>{types.map((ty) => <View key={ty} style={[s.dot, { backgroundColor: th.dot[ty] }]} />)}</View>
+                <View style={s.ds}>{types.map((ty) => <View key={ty} style={[s.dot, { backgroundImage: `linear-gradient(135deg, ${th.art[ty].b}, ${th.art[ty].d})` }]} />)}</View>
               )}
             </Tap>
           );

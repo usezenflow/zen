@@ -106,7 +106,7 @@ const s = StyleSheet.create({
   note: { fontSize: 15, lineHeight: 21.75, fontFamily: ff("400") },
   btn: { marginTop: 22, height: 50, borderRadius: 99, flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center" }, // .dlg .btn.sm
   bt: { fontSize: 16, fontFamily: ff("600") },
-  sec: { marginTop: 10, height: 50, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" }, // ui.css .btn.sm.ol: not the ghost's plain text
+  sec: { marginTop: 10, height: 50, borderRadius: 99, borderWidth: 1.5, alignItems: "center", justifyContent: "center" }, // ui.css .btn.sm.ol: not the ghost's plain text
   st: { fontSize: 16, fontFamily: ff("600") },
   ghost: { marginTop: 12, textAlign: "center", fontSize: 15, fontFamily: ff("500") },
 });
