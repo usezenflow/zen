@@ -12,6 +12,7 @@
 - Buổi chuẩn bị ôn thi hiện loại việc (ví dụ "học") ngay dưới tên trong màn chi tiết
 - Ô ghi chú trong chi tiết việc đổi sang nền xám thay cho viền; ô "Sửa nhanh" bỏ gợi ý "hạn thứ 6" và chữ đậm hơn khi có nội dung
 - "bữa nay", "bữa mai" vẫn được hiểu đúng dù gõ dấu thanh khác (bửa, bứa, bựa)
+- Mỗi lần xếp lại lịch, màn hình mờ đi kèm dòng "Đang sắp xếp" cho đến khi xếp xong, ở mọi màn
 
 ## 26.1.0
 

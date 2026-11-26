@@ -465,7 +465,18 @@ function transact(now: number, mutate: (w: Work) => Promise<void> | void, o: TxO
   return serial(() => transactNow(now, mutate, o));
 }
 
+// Replans running now: the Thinking veil shows while any is (a plan blocks the JS thread, so it is shown before the plan starts).
+let thinkN = 0;
+const thinkSubs = new Set<() => void>();
+const thinkBy = (d: number) => { thinkN += d; thinkSubs.forEach((f) => f()); };
+export const thinking = { get: () => thinkN > 0, sub: (f: () => void) => { thinkSubs.add(f); return () => void thinkSubs.delete(f); } };
+
 async function transactNow(now: number, mutate: (w: Work) => Promise<void> | void, o: TxOpts = {}): Promise<Result> {
+  const mark = { on: false };
+  try { return await transactRun(now, mutate, o, mark); } finally { if (mark.on) thinkBy(-1); }
+}
+
+async function transactRun(now: number, mutate: (w: Work) => Promise<void> | void, o: TxOpts, mark: { on: boolean }): Promise<Result> {
   const model0 = await store.loadModel(now);
   const before = new Map((await store.allTasks()).map((x) => [x.id, x]));
   const w: Work = {
@@ -524,6 +535,10 @@ async function transactNow(now: number, mutate: (w: Work) => Promise<void> | voi
     // The slots the user just set tasks off: a flexible task is not knocked back into one (soft, see value.ts moveCost).
     const avoid = w.events.filter((e) => e.type === "drag" && e.data?.fromStart !== undefined && e.data?.fromEnd !== undefined).map((e) => ({ from: Number(e.data!.fromStart), to: Number(e.data!.fromEnd) }));
     const only = w.only ?? (waits ? waitIds : undefined);
+    if (!o.dry) { // let the veil draw before the plan holds the thread (no frame loop under tests)
+      mark.on = true; thinkBy(1);
+      if (typeof requestAnimationFrame === "function") await new Promise<void>((go) => requestAnimationFrame(() => setTimeout(go, 0)));
+    }
     const extras = await planExtras([...w.tasks.values()], w.events, now); // the balance areas and the evidence-based rules: neutral until configured or proven
     const r = plan([...w.tasks.values()], [], w.model, now, { ...extras, ...o.plan, avoid, ...(hasPull ? { pull: pullGaps } : {}), ...(only ? { only } : {}), ...(fillOnly ? { fill: true } : {}) });
     diff = r.diff;

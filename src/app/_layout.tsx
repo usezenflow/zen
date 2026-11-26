@@ -1,3 +1,4 @@
+import { Thinking } from "@/components/thinking";
 import "@/lib/matchall"; // first: Hermes matchAll loses named groups, fixed before any reader code runs
 import { router, Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -67,6 +68,7 @@ export default function Layout() {
         </Stack>
       ) : null}
       {ready && <UpdatePrompt />}
+      {ready && <Thinking />}
       {(!ready || held) && <Boot />}
     </GestureHandlerRootView>
   );
