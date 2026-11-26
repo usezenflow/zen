@@ -82,6 +82,16 @@ const field = (x: number, y: number, ang: number, sx: number, sy: number, r: num
 };
 // The reference's seeded generator; a module-level closure so the render body never reassigns a variable.
 const rng = (seed: number) => { let s = (seed * 9301 + 49297) % 233280 || 1; return () => (s = (s * 16807) % 2147483647) / 2147483647; };
+// A free-form field: a seeded closed outline (six loose points, smooth Catmull-Rom curves), R the rough radius in box units. Its colour shows through the stripes.
+const blob = (r: () => number, cx: number, cy: number, R: number) => {
+  const n = 6, p = Array.from({ length: n }, (_, i) => { const a = (i / n) * Math.PI * 2 + r() * 0.7, k = R * (0.5 + r() * 0.5); return [cx + Math.cos(a) * k, cy + Math.sin(a) * k * (0.55 + r() * 0.5)]; });
+  let d = `M${p[0][0]} ${p[0][1]}`;
+  for (let i = 0; i < n; i++) {
+    const p0 = p[(i - 1 + n) % n], p1 = p[i], p2 = p[(i + 1) % n], p3 = p[(i + 2) % n];
+    d += ` C${p1[0] + (p2[0] - p0[0]) / 6} ${p1[1] + (p2[1] - p0[1]) / 6} ${p2[0] - (p3[0] - p1[0]) / 6} ${p2[1] - (p3[1] - p1[1]) / 6} ${p2[0]} ${p2[1]}`;
+  }
+  return `${d} Z`;
+};
 // Palette per task, so a normal day shows several arts: timetable rows keep their own look, prep follows its exam, a due task picks clay or dusk by course, the rest by kind.
 // shortcut: the course hash is a plain string hash (no stable course code upstream), so a course's colour may shift if its name changes.
 const hash = (s: string) => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
@@ -131,7 +141,9 @@ function TypeArtImpl({ type, w: w0 = 300, h: h0 = 300, seed = 3, dir, drift }: {
     // the colour sits right of centre
     const x1 = 0.62 + r() * 0.2, y1 = 0.4 + r() * 0.2, a1 = r() * 180, x2 = 0.5 + r() * 0.4, y2 = 0.3 + r() * 0.4, a2 = r() * 180;
     const rot = ROT[dir ?? (["h", "v", "d"] as const)[Math.abs(seed) % 3]];
-    return { f: field(x1, y1, a1, 1.15, 0.62, 0.55, w, h), k: field(x1, y1, a1, 1.2, 0.55, 0.3, w, h), e: field(x2, y2, a2, 1.3, 0.5, 0.42, w, h), rot };
+    // the free-form fields: three big loose outlines across the box, so the stripes read as larger, freer shapes
+    const m = Math.max(w, h), bl = [blob(r, x1, y1, m * 0.75), blob(r, x2, y2, m * 0.6), blob(r, 1 - x1, 1 - y2, m * 0.7)];
+    return { f: field(x1, y1, a1, 1.15, 0.62, 0.55, w, h), k: field(x1, y1, a1, 1.2, 0.55, 0.3, w, h), e: field(x2, y2, a2, 1.3, 0.5, 0.42, w, h), rot, bl };
   }, [type, w, h, seed, dir]);
   // Arrays, not SVG strings: Reanimated parses string transforms as CSS (see Logo).
   const fMove = useAnimatedProps(() => mv((ta.get() - 0.5) * 2 * 0.2 * w, (tb.get() - 0.5) * 2 * 0.14 * h));
@@ -143,10 +155,6 @@ function TypeArtImpl({ type, w: w0 = 300, h: h0 = 300, seed = 3, dir, drift }: {
     const D = Math.hypot(w, h), n = Math.ceil(D / GAP);
     return <G transform={`translate(${w / 2} ${h / 2}) rotate(${g.rot})`}><AG animatedProps={crawl}>{Array.from({ length: n + 2 }, (_, k) => <Rect key={k} x={-D / 2} y={-D / 2 + (k - 1) * GAP} width={D} height={t} fill="#fff" />)}</AG></G>;
   };
-  const px = w * 0.3, py = h * 0.3; // the moving field rect is oversized so its edge never shows
-  const layer = (gid: string, mid: string, move: ReturnType<typeof useAnimatedProps>) => (
-    <G mask={`url(#${id}${mid})`}><AG animatedProps={move}><Rect x={-px} y={-py} width={w + 2 * px} height={h + 2 * py} fill={`url(#${id}${gid})`} /></AG></G>
-  );
   // A small tile (a row's, a week block's, a toast's): the ground and one colour field, no stripe masks, which are the costly part of a scrolling list.
   if (Math.min(w0, h0) <= 48) return (
     <View style={{ flex: 1 }} onLayout={(e) => { const { width, height } = e.nativeEvent.layout; if (width > 0 && height > 0) setBox((b) => (Math.abs(b.w - width) < 1 && Math.abs(b.h - height) < 1 ? b : { w: width, h: height })); }}>
@@ -182,9 +190,9 @@ function TypeArtImpl({ type, w: w0 = 300, h: h0 = 300, seed = 3, dir, drift }: {
         <Mask id={`${id}n`} maskUnits="userSpaceOnUse" x={0} y={0} width={w} height={h}>{stripes(THICK)}</Mask>
       </Defs>
       <Rect width={w} height={h} fill={`url(#${id}g)`} />
-      {layer("e", "m", eMove)}
-      {layer("f", "m", fMove)}
-      {layer("c", "n", kMove)}
+      {g.bl.map((p, i) => (
+        <G key={i} mask={`url(#${id}${i === 1 ? "n" : "m"})`}><AG animatedProps={[fMove, eMove, kMove][i]}><Path d={p} fill={[b, d, b][i]} /></AG></G>
+      ))}
     </Svg>
     </View>
   );

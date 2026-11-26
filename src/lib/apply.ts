@@ -1,6 +1,6 @@
 import { embed } from "./nlu/embed";
 import { learn, missedReplan, outcome, plan, type Model, type Opts } from "../planner";
-import { holding } from "../planner/policy";
+import { GRACE, holding } from "../planner/policy";
 import { dayGone } from "../planner/place";
 import { partIdx } from "../planner/features";
 import { skipPrep } from "../planner/prep";
@@ -470,6 +470,12 @@ let thinkN = 0;
 const thinkSubs = new Set<() => void>();
 const thinkBy = (d: number) => { thinkN += d; thinkSubs.forEach((f) => f()); };
 export const thinking = { get: () => thinkN > 0, sub: (f: () => void) => { thinkSubs.add(f); return () => void thinkSubs.delete(f); } };
+/** Hold the veil from a plan to its last step line (counted, so holds nest). */
+export const thinkHold = (on: boolean) => thinkBy(on ? 1 : -1);
+// The narrated step lines Thinking draws over the veil; empty: just "Đang sắp xếp".
+let narrated: string[] = [];
+const narrSubs = new Set<() => void>();
+export const narration = { get: () => narrated, set: (l: string[]) => { narrated = l; narrSubs.forEach((f) => f()); }, sub: (f: () => void) => { narrSubs.add(f); return () => void narrSubs.delete(f); } };
 
 async function transactNow(now: number, mutate: (w: Work) => Promise<void> | void, o: TxOpts = {}): Promise<Result> {
   const mark = { on: false };
@@ -540,7 +546,9 @@ async function transactRun(now: number, mutate: (w: Work) => Promise<void> | voi
       if (typeof requestAnimationFrame === "function") await new Promise<void>((go) => requestAnimationFrame(() => setTimeout(go, 0)));
     }
     const extras = await planExtras([...w.tasks.values()], w.events, now); // the balance areas and the evidence-based rules: neutral until configured or proven
-    const r = plan([...w.tasks.values()], [], w.model, now, { ...extras, ...o.plan, avoid, ...(hasPull ? { pull: pullGaps } : {}), ...(only ? { only } : {}), ...(fillOnly ? { fill: true } : {}) });
+    // An elapsed task that is not done keeps its time: the planner never moves it by itself (day.tsx shows it under "Quá giờ").
+    const elapsed = (x: Task) => x.start !== undefined && x.end !== undefined && x.end + GRACE <= now && !x.doneAt && !x.deletedAt && !x.fixed;
+    const r = plan([...w.tasks.values()].filter((x) => !elapsed(x)), [], w.model, now,{ ...extras, ...o.plan, avoid, ...(hasPull ? { pull: pullGaps } : {}), ...(only ? { only } : {}), ...(fillOnly ? { fill: true } : {}) });
     diff = r.diff;
     w.model = r.model;
     // What changed under the plan this time: new or moved fixed/pinned items, and new rules. A move's cause is the one over its old slot.

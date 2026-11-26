@@ -23,6 +23,7 @@ import { useTheme, font, space, ff, motion, type TypeName } from "@/lib/theme";
 import type { Move, Rule, Task, Warn } from "@/lib/types";
 import { dayLabel, day as dayName, when } from "@/lib/when";
 import { typeOf } from "@/planner";
+import { GRACE } from "@/planner/policy";
 
 // COMMIT is far enough that the ring visibly fills before the check (~170px of finger travel).
 const PULL_MAX = 140, COMMIT = 56, RING_C = 2 * Math.PI * 7;
@@ -168,6 +169,7 @@ export function Chevron({ open, color, size = 14, down }: { open: boolean; color
 }
 
 export type RowActions = {
+  onStartNow?: (x: Task) => void; // "Làm luôn" on an elapsed row: the block starts now
   onToggle: (x: Task) => void; onTitle: (x: Task, title: string) => void; onTime: (x: Task, at: Date) => void; onEnd?: (x: Task, at: Date) => void; onOpen: (x: Task) => void; itemsFor: (x: Task) => Item[]; onHold: (x: Task, bottom: number, top: number) => void; lifted?: string; onSwipeDelete: (x: Task, bottom?: number, top?: number) => void;
   drag?: Drag; // week and month: hold a row and move it onto another day
 };
@@ -198,13 +200,15 @@ const soonSub = (x: Task, now: number, all: Task[]) => {
 export function RestCard({ lab, title, sub, leaf = "line", h = 220, art, icon }: { lab?: string; title: string; sub: string; leaf?: "line" | "color"; h?: number; art?: TypeName; icon?: "leaf" }) {
   const th = useTheme();
   const tone = art ? th.onart : th.ink, muted = art ? th.onart : th.muted;
+  // Light text on a bright art field: a soft shadow keeps it readable (the field is a gradient, not a flat colour).
+  const shadow = art ? { textShadowColor: "rgba(0,0,0,0.3)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 } : undefined;
   return (
     <View style={[s.rest, art ? s.restArt : { backgroundColor: th.chip }, { minHeight: h }]}>
       {art && <View style={StyleSheet.absoluteFill}><TypeArt type={art} w={264} h={h} seed={seedOf(title)} drift /></View>}
-      {!!lab && <Text style={[s.lab, { color: muted }]}>{lab}</Text>}
+      {!!lab && <Text style={[s.lab, { color: muted }, shadow]}>{lab}</Text>}
       {icon ? null : <View style={s.restLf}><Logo size={52} mode={leaf} color={tone} /></View>}
-      <Text style={[s.restT, { color: tone }]}>{icon && <Icon name={icon} size={24} color={tone} w={1.8} />}{icon && " "}{title}</Text>
-      <Text style={[s.restS, { color: muted }]}>{bolded(sub, { color: tone })}</Text>
+      <Text style={[s.restT, { color: tone }, shadow]}>{icon && <Icon name={icon} size={24} color={tone} w={1.8} />}{icon && " "}{title}</Text>
+      <Text style={[s.restS, { color: muted }, shadow]}>{bolded(sub, { color: tone })}</Text>
     </View>
   );
 }
@@ -312,11 +316,15 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
   const enoughDay = empty === "rest" && !noCard && day === startOfDay(now)
     && worked(tasks, day, now) + flex.reduce((n, x) => n + (x.end !== undefined ? x.end - x.start! : x.effort * 60_000), 0) >= capOf(tasks, day, now).ms;
   const overflow = new Set((enoughDay ? flex : []).map((x) => x.id));
-  const real = [...live_.filter((x) => !overflow.has(x.id)), ...tasks.filter((x) => pop.has(x.id) && x.start! >= day && x.start! < end && !live_.includes(x))];
+  const real0 = [...live_.filter((x) => !overflow.has(x.id)), ...tasks.filter((x) => pop.has(x.id) && x.start! >= day && x.start! < end && !live_.includes(x))];
+  // Elapsed and not done: its own section, never moved by itself (the planner holds it); "Làm luôn" starts it now.
+  const elapsed = day === startOfDay(now) ? real0.filter((x) => x.start !== undefined && x.end !== undefined && x.end + GRACE <= now && !x.doneAt && !x.fixed) : [];
+  const real = real0.filter((x) => !elapsed.includes(x));
   // Ghost: moved off this day, left at its old time saying where it went.
   const ghosts = moves.filter((m) => m.from >= day && m.from < end && (m.to < day || m.to >= end) && !real.some((x) => x.id === m.id)).flatMap((m) => {
     const x = tasks.find((a) => a.id === m.id);
-    return x && !x.deletedAt && !x.doneAt ? [{ x: { ...x, start: m.from }, g: m }] : [];
+    // The ghost keeps the task's length: its end moves back with its start, not to the new day.
+    return x && !x.deletedAt && !x.doneAt ? [{ x: { ...x, start: m.from, end: x.end !== undefined && x.start !== undefined ? m.from + x.end - x.start : x.end }, g: m }] : [];
   });
   const rows = [...real.map((x) => ({ x, g: undefined as Move | undefined })), ...ghosts].sort((a, b) => a.x.start! - b.x.start!);
   // A spoken "để trống" window, striped in time order among the rows (magic.html 9: the kept evening shows as stripes).
@@ -338,7 +346,8 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
   // The day is over from 20:00 and past its last block: only then may tomorrow show (views.html "Day, all done, night").
   // Today only: a past day is done, not "Hôm nay xong rồi", and its "tomorrow" is not what comes next.
   const over = day === startOfDay(now) && now >= Math.max(day + 20 * 3600_000, ...[...real, ...done].map((x) => x.end ?? x.start! + x.effort * 60_000));
-  const next = !isEmpty || empty === "inl" ? undefined : (() => {
+  // "Sắp tới" is about what comes after today: a past day never lists it (today and past days read the same way).
+  const next = !isEmpty || empty === "inl" || day < startOfDay(now) ? undefined : (() => {
     if (empty === "rest" && done.length) { if (!over) return undefined; const xs = onDay(tasks, end).slice(0, 3); if (xs.length) return { lab: t("tomorrow"), xs, dated: false }; }
     if (empty === "week") {
       const cur = addDays(mondayOf(now), 7); // a later week: what's left of this one first
@@ -425,6 +434,17 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
           </Animated.View>
         );
       })}
+      {!!elapsed.length && (
+        <View style={{ marginTop: 28 }}>
+          <Text style={[s.lab, { color: th.muted }]}>{t("elapsedLab")}</Text>
+          <View style={{ marginTop: 6 }}>{elapsed.map((x) => (
+            <View key={`e${x.id}`} style={{ flexDirection: "row", alignItems: "center" }}>
+              <View style={{ flex: 1 }}><Row task={x} now={now} onToggle={() => act.onToggle(x)} onTitle={(v) => act.onTitle(x, v)} onTime={(a) => act.onTime(x, a)} onEnd={act.onEnd && ((a) => act.onEnd!(x, a))} onOpen={() => act.onOpen(x)} onDelete={() => act.onSwipeDelete(x)} /></View>
+              {act.onStartNow && <Tap onPress={() => act.onStartNow!(x)} scale={0.94} accessibilityRole="button" accessibilityLabel={t("startNow")} style={[s.pl, { backgroundColor: th.ink }]}><Text style={[s.plt, { color: th.bg }]}>{t("startNow")}</Text></Tap>}
+            </View>
+          ))}</View>
+        </View>
+      )}
       {!!unplaced.length && (
         <View style={{ marginTop: 28 }}>
           <Text style={[s.lab, { color: th.muted }]}>{t(far ? "unplaced" : "noRoom")}</Text>
@@ -446,7 +466,7 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
       )}
       {isEmpty && (
         <Animated.View entering={fadeIn} exiting={fadeOut} layout={glide}>
-          {empty === "rest" && !noCard && <RestCard art="lecture" lab={label} title={t(done.length ? (tomorrow ? "nightDoneT" : "allDoneT") : "freeDay")} sub={done.length ? (tomorrow ? t("nextMai", { time: hhmm(tomorrow.start!), title: tomorrow.title }) : t("allDoneSub", { n: doneCount(done) })) : t("freeSub")} leaf={done.length ? "color" : "line"} />}
+          {empty === "rest" && !noCard && <RestCard art="lecture" lab={label} title={t(done.length ? (tomorrow ? "nightDoneT" : "allDoneT") : "freeDay")} sub={done.length ? (tomorrow ? t("nextMai", { time: hhmm(tomorrow.start!), title: tomorrow.title }) : t("allDoneSub", { n: doneCount(done) })) : t("freeSub")} leaf="line" />}
           {empty === "week" && <Inl title={t("weekFree")} sub={t("weekFreeSub")} />}
           {empty === "inl" && <Inl title={t("noTasks")} sub={near ? t("nearest", { when: when(near.start!, now), title: near.title }) : undefined} />}
           {next && next.xs.length > 0 && (

@@ -260,6 +260,7 @@ export default function Settings() {
   const [toast, setToast] = useState<{ text: string; sub: string }>();
   const [now, setNow] = useState(0);
   const [up, setUp] = useState<Update | null>(null); // a newer release on GitHub
+  const [autoOn, setAutoOn] = useState(true); // the check at launch; off: no background look, the Version row still checks on tap
   const d = useDownload(), dl = d?.failed ? null : d; // its APK coming down in the background; failed, the row offers it again
   const [dlg, setDlg] = useState<Dlg | null>(null);
   const refresh = useCallback(async () => {
@@ -279,7 +280,7 @@ export default function Settings() {
     void Promise.resolve().then(refresh);
     stats.isOptedOut(kvStorage).then((o) => setShare(!o));
     kvGet("theme").then((m) => { if (m === "light" || m === "dark") setMode(m); });
-    checkUpdate().then(setUp).catch(() => {});
+    kvGet("update.auto").then((v) => { const on = v !== "off"; setAutoOn(on); if (on) checkUpdate().then(setUp).catch(() => {}); });
   }, [refresh]);
   useEffect(() => { if (!toast) return; const h = setTimeout(() => setToast(undefined), 4000); return () => clearTimeout(h); }, [toast]);
 
@@ -407,7 +408,7 @@ export default function Settings() {
         })}
         {!on && !open && (
           <Animated.View entering={fadeIn} exiting={fadeOut} layout={glide}>
-            <Row icon="shield" label={t("stats")} right={<Tap onPress={() => { setShare(!share); stats.setOptOut(kvStorage, share); }} accessibilityRole="switch" accessibilityState={{ checked: share }} accessibilityLabel={t("stats")} style={[s.tog, { backgroundColor: share ? th.accent : th.line, alignItems: share ? "flex-end" : "flex-start" }]}><View style={[s.knob, { backgroundColor: share ? th.bg : th.muted }]} /></Tap>} />
+            <Row icon="chart" label={t("stats")} right={<Tap onPress={() => { setShare(!share); stats.setOptOut(kvStorage, share); }} accessibilityRole="switch" accessibilityState={{ checked: share }} accessibilityLabel={t("stats")} style={[s.tog, { backgroundColor: share ? th.accent : th.line, alignItems: share ? "flex-end" : "flex-start" }]}><View style={[s.knob, { backgroundColor: share ? th.bg : th.muted }]} /></Tap>} />
           </Animated.View>
         )}
         <Row flat={openAreas} icon="target" label={t("areasSec")} right={<Chevron open={openAreas} size={16} color={th.muted} />} onPress={() => setOpenAreas((v) => !v)} />
@@ -418,10 +419,12 @@ export default function Settings() {
         <Row icon="upload" label={t("exportData")} onPress={doExport} />
         <Row icon="download" label={t("importData")} onPress={doImport} />
         <Row icon="trash" danger label={t("resetData")} color={th.seal} onPress={doReset} />
-        {/* settings.html Version: the last row; a newer release turns it vermilion and opens the update dialog. */}
+        {/* settings.html Version: a newer release turns it vermilion and opens the update dialog; the switch only controls the look at launch. */}
+        <Text style={[s.lab, { color: th.muted, marginTop: 26 }]}>{t("appSec")}</Text>
         <Row icon="info" label={t("version")}
           right={<Text style={{ fontSize: font.sub, fontFamily: ff(up ? "500" : "500"), color: up ? th.seal : th.muted }}>{dl ? t("downloadingPct", { n: dl.pct }) : up ? t("hasVersion", { version: up.version }) : `${installed} · ${buildHash}`}</Text>}
-          onPress={() => (dl ? undefined : up ? setDlg({ kind: "update", update: up }) : setDlg({ kind: "new", version: installed, notes }))} />
+          onPress={() => (dl || !autoOn ? undefined : up ? setDlg({ kind: "update", update: up }) : setDlg({ kind: "new", version: installed, notes }))} />
+        <Row icon="download" label={t("autoUpdate")} right={<Tap onPress={() => { const n = !autoOn; setAutoOn(n); if (!n) setUp(null); void kvSet("update.auto", n ? "on" : "off"); }} accessibilityRole="switch" accessibilityState={{ checked: autoOn }} accessibilityLabel={t("autoUpdate")} style={[s.tog, { backgroundColor: autoOn ? th.accent : th.line, alignItems: autoOn ? "flex-end" : "flex-start" }]}><View style={[s.knob, { backgroundColor: autoOn ? th.bg : th.muted }]} /></Tap>} />
       </ScrollView>
       </KeyboardAvoidingView>
       {toast ? <Toast key={toast.text + toast.sub} text={toast.text} sub={toast.sub} ms={4000} onDismiss={() => setToast(undefined)} /> : null}

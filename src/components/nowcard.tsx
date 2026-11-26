@@ -54,7 +54,7 @@ export function NowCard({ card, onDone, onStart, onLater, onMicroRest, onKind, o
   // Three pills do not fit a phone with labels: the Dời one goes icon-only, as a 54px round glass.
   const trio = moving && microOk && !mic && !!onStart;
   const big = mic ? (micDone ? t("microFull", { n: MICRO_MIN }) : t("nMin", { n: left })) : going ? t("nMin", { n: mins }) : hhmm(start);
-  const small = mic ? (micDone ? t("microSub") : t("until", { time: hhmm(mic.endsAt) })) : going ? t("until", { time: hhmm(end) }) : t("nMin", { n: mins });
+  const small = mic ? (micDone ? t("microSub") : t("until", { time: hhmm(mic.endsAt) })) : going ? t("until", { time: hhmm(end) }) : card.gap ? t("gapFree", { free: card.gap }) : t("nMin", { n: mins });
   return (<>
     <View style={[s.art, { backgroundColor: th.chip }]}>
       <View style={StyleSheet.absoluteFill}><TypeArt type={artOf(task)} w={264} h={220} seed={seedOf(task.id)} drift={!still} /></View>
@@ -62,7 +62,7 @@ export function NowCard({ card, onDone, onStart, onLater, onMicroRest, onKind, o
         <Text numberOfLines={1} style={[s.lab, { color: th.onart, flexShrink: 1 }]}>{over ? t("overLab", { time: hhmm(end) }) : t(going || mic ? "doingNow" : "nextUp")}</Text>
         {onKind && !card.gap && <KindChip task={task} onKind={onKind} />}
       </View>
-      <Text style={[s.t, { color: th.onart }]} numberOfLines={2}>{card.gap ? bolded(t("gapT", { free: card.gap, title: task.title })) : task.title}</Text>
+      <Text style={[s.t, { color: th.onart }]} numberOfLines={2}>{task.title}</Text>
       <View style={s.foot}>
         {over ? <View style={s.overActs}>
           <Tap onPress={onExtend} scale={0.94} accessibilityRole="button" accessibilityLabel={t("overExtend")} style={[s.glass, s.start, s.overBtn, s.soft]}><Glass /><Icon name="plus" size={18} color="#fff" /><Text style={s.startT} numberOfLines={1}>{t("overExtend")}</Text></Tap>
@@ -76,7 +76,9 @@ export function NowCard({ card, onDone, onStart, onLater, onMicroRest, onKind, o
             <Text numberOfLines={1} style={[s.small, { color: th.onart }]}>{small}</Text>
           </View>
         </View>
-        {!moving && !micDone && (!task.fixed || !!card.gap) && <Tap onPress={onDone} hitSlop={8} scale={0.88} testID="nowDone" accessibilityRole="button" accessibilityLabel={t("markDone")} style={[s.glass, s.solid]}><Icon name="check" size={22} color="#0b0b0c" w={2} /></Tap>}
+        {!moving && !micDone && (!task.fixed || !!card.gap) && (card.gap && onStart
+          ? <Tap onPress={onStart} hitSlop={8} scale={0.88} testID="nowStartEarly" accessibilityRole="button" accessibilityLabel={t("startNow")} style={[s.glass, s.solid]}><Icon name="play" size={20} color="#0b0b0c" /></Tap>
+          : <Tap onPress={onDone} hitSlop={8} scale={0.88} testID="nowDone" accessibilityRole="button" accessibilityLabel={t("markDone")} style={[s.glass, s.solid]}><Icon name="check" size={22} color="#0b0b0c" w={2} /></Tap>)}
         </View>
         <View style={s.acts2}>
           {mic && micDone ? <>

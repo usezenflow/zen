@@ -1,6 +1,7 @@
 import { memo, useState } from "react";
 import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Icon } from "@/components/art";
+import { Chevron } from "@/components/day";
 import { hhmm } from "@/components/cal";
 import { foldSittings } from "@/components/fold";
 import { DateChip, TimeChip } from "@/components/pick";
@@ -41,16 +42,12 @@ export const SittingList = memo(function SittingList({ sits, me, canDrop, canAdd
       <View style={s.sum}>
         <Tap onPress={() => setOpen((o) => !o)} accessibilityRole="button" accessibilityLabel={t("sitSum", { done, total: sits.length, left })} accessibilityState={{ expanded: open }} style={s.sumT}>
           <Text style={[s.sumTxt, { color: th.ink }]} numberOfLines={1}>{t("sitSum", { done, total: sits.length, left })}</Text>
+          <Chevron open={open} size={16} color={th.muted} />
         </Tap>
-        {(canAdd || (canDrop && lastOpen)) && (
-          <View style={s.pair}>
-            {canAdd && <Tap onPress={onAdd} accessibilityRole="button" accessibilityLabel={t("sitMore")} style={[s.pl, s.half, pill]}>{!narrow && <Icon name="plus" size={18} color={th.ink} />}<Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[s.plT, { color: th.ink }]}>{t("sitMore")}</Text></Tap>}
-            {canDrop && lastOpen && <Tap onPress={() => onDrop(lastOpen.id)} accessibilityRole="button" accessibilityLabel={t("enoughT")} style={[s.pl, s.half, { backgroundColor: th.ink, borderWidth: 0 }]}>{!narrow && <Icon name="check" size={18} color={th.bg} />}<Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[s.plT, { color: th.bg }]}>{t("enoughT")}</Text></Tap>}
-          </View>
-        )}
       </View>
+      {/* the instances sit right under the header; the two buttons come after them, always shown */}
       {open && (
-        <View>
+        <View style={{ marginTop: 10 }}>
           {(more ? [...shown, ...folded] : shown).map((k) => (
             <SittingRow key={k.id} k={k} canDrop={canDrop} onTime={onTime} onDrop={onDrop} onSettle={onSettle} />
           ))}
@@ -59,7 +56,12 @@ export const SittingList = memo(function SittingList({ sits, me, canDrop, canAdd
               <Text style={[s.addT, { color: th.muted }]}>{t("sitFold", { n: folded.length })}</Text>
             </Tap>
           )}
-          {add}
+        </View>
+      )}
+      {(canAdd || (canDrop && lastOpen)) && (
+        <View style={[s.pair, { marginTop: 12, marginBottom: 12 }]}>
+          {canAdd && <Tap onPress={onAdd} accessibilityRole="button" accessibilityLabel={t("sitMore")} style={[s.pl, s.half, pill]}>{!narrow && <Icon name="plus" size={18} color={th.ink} />}<Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[s.plT, { color: th.ink }]}>{t("sitMore")}</Text></Tap>}
+          {canDrop && lastOpen && <Tap onPress={() => onDrop(lastOpen.id)} accessibilityRole="button" accessibilityLabel={t("enoughT")} style={[s.pl, s.half, { backgroundColor: th.ink, borderWidth: 0 }]}>{!narrow && <Icon name="check" size={18} color={th.bg} />}<Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[s.plT, { color: th.bg }]}>{t("enoughT")}</Text></Tap>}
         </View>
       )}
     </View>
@@ -122,7 +124,7 @@ function Drop({ id, onDrop }: { id: string; onDrop: (id: string) => void }) {
 
 const s = StyleSheet.create({
   sum: { gap: 8 },
-  sumT: { minHeight: 28, justifyContent: "center" },
+  sumT: { minHeight: 28, flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: 6 },
   pair: { flexDirection: "row", gap: 8 },
   half: { flex: 1, minWidth: 0, paddingHorizontal: 10, gap: 4 },
   sumTxt: { fontSize: font.sub, lineHeight: 22, fontFamily: ff("500"), fontVariant: ["tabular-nums"] }, // .sit .n: regular

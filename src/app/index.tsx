@@ -28,7 +28,7 @@ import { pageText } from "@/components/webtext";
 import { actionsOf, outline, type Group } from "@/lib/nlu/reader/outline";
 import type { Item } from "@/components/menu";
 import { Month } from "@/components/month";
-import { kindItems, Live, MovesPill, NowCard, SeriesAsk, Steps, Story, Weekly, type Card } from "@/components/nowcard";
+import { kindItems, Live, MovesPill, NowCard, SeriesAsk, Story, Weekly, type Card } from "@/components/nowcard";
 import { RowMenu, menuTop, sittingItems } from "@/components/rowmenu";
 import { fadeIn, fadeOut, glide, popIn, settle, Tap, EASE } from "@/components/tap";
 import { Sweep, useSweep } from "@/components/sweep";
@@ -36,7 +36,8 @@ import { Toast } from "@/components/toast";
 import { Swipe, Week } from "@/components/week";
 import { SERIES_NO, acceptSeries, addWorked, apply, markRolled, reshapeSeries, declineSeries, retime, forgetWhen, makeRoom, moveMine, moveToDay, pickNow, addRule, addSitting, dropSitting, loadClassMult, needMore, pin, putBack, removeRule, removeScope, scopeIds, swipeDone, swipeLater, take, type Result, applyProposal, canRebalance, dismissProposal, maybeRebalance, proposalFor, proposeRebalance } from "@/lib/apply";
 import { briefMoves, loadMoves, loadWarn, seeMoves } from "@/lib/moves";
-import { reasonText, topReason } from "@/lib/reasons";
+import { reasonText, stepText, topReason } from "@/lib/reasons";
+import { narration, thinkHold } from "@/lib/apply";
 import { holidays } from "@/lib/holidays";
 import { askMic, listenLive, micReset, type Heard } from "@/lib/ears";
 import { WEEKDAY_VI, t } from "@/lib/i18n";
@@ -134,7 +135,6 @@ export default function Home() {
   const [shufOn] = useState(false);
   const tasksRef = useRef<Task[]>([]);
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
-  const [lines] = useState<string[]>([]); // narrated solver steps while thinking
   const [mind, setMind] = useState<{ i: Insights; rules: Rule[]; m: Model }>();
   // capture.html: the thumb on a satellite, the type field, the photo dropdown, the photo or PDF being read.
   const [aside, setAside] = useState<Aside>("");
@@ -237,13 +237,30 @@ export default function Home() {
     const id = (st: Step) => st.id;
     const steps = (r?.steps ?? []).slice(0, 4);
     if (!old.length || !steps.some(id)) return refresh();
-    const fresh = new Map((await store.allTasks()).map((x) => [x.id, x]));
-    // A step names the task; when it was split into sittings, its rows are the sittings (the parent only loses its time).
-    const one = (tid?: string) => { const x = tid ? fresh.get(tid) : undefined; return x ? [x, ...[...fresh.values()].filter((c) => c.parentId === tid && !c.deletedAt)] : []; };
-    const rows = (st?: Step) => (st?.ids ?? [st?.id]).flatMap(one); // a series line lands every occurrence at once
-    const firstAt = Math.min(...rows(steps.find((st) => id(st) && !old.some((o) => o.id === id(st)))).flatMap((x) => x.start ?? []));
-    if (jump && Number.isFinite(firstAt)) setSel(startOfDay(firstAt));
-    await refresh(); // no step-by-step lock: the list glides to its new times in one frame
+    thinkHold(true); // the veil holds from the plan to the last step line: no gap, no second veil
+    try {
+      const fresh = new Map((await store.allTasks()).map((x) => [x.id, x]));
+      // A step names the task; when it was split into sittings, its rows are the sittings (the parent only loses its time).
+      const one = (tid?: string) => { const x = tid ? fresh.get(tid) : undefined; return x ? [x, ...[...fresh.values()].filter((c) => c.parentId === tid && !c.deletedAt)] : []; };
+      const rows = (st?: Step) => (st?.ids ?? [st?.id]).flatMap(one); // a series line lands every occurrence at once
+      const firstAt = Math.min(...rows(steps.find((st) => id(st) && !old.some((o) => o.id === id(st)))).flatMap((x) => x.start ?? []));
+      if (jump && Number.isFinite(firstAt)) setSel(startOfDay(firstAt));
+      // Thinking out loud (magic 4, 29): the old list stays, then one task at a time moves under a step line.
+      setTasks(old);
+      for (let i = 0; i < steps.length; i++) {
+        await new Promise((ok) => setTimeout(ok, 350));
+        narration.set(steps.slice(0, i + 1).map(stepText));
+        const xs = rows(steps[i]);
+        if (!xs.length) continue;
+        setTasks((p) => [...p.filter((a) => !xs.some((x) => x.id === a.id)), ...xs]);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      }
+      await new Promise((ok) => setTimeout(ok, 350));
+      await refresh();
+    } finally {
+      narration.set([]);
+      thinkHold(false);
+    }
   }, [refresh]);
   // A sync result: every notice gets its own toast with "Xem"; otherwise the plain result.
   const landed = useCallback((r?: Result & { notices?: Notice[] }) => {
@@ -837,16 +854,21 @@ export default function Home() {
   };
 
   // "Làm luôn" on the next block: that very sitting moves to the next 5-minute mark (its old slot goes to whatever waits for a time).
-  const startNow = async () => {
-    const c = cardRef.current;
-    if (!c || c.start === undefined || c.end === undefined) return;
+  const startBlock = async (task: Task, start: number, end: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     // Early means the next 5-minute mark (11:23 gives 11:25), a moment to settle rather than a start this second; never past the block's own start.
-    const now = Date.now(), next5 = Math.ceil(now / 300_000) * 300_000, at = c.start > now ? Math.min(next5, c.start) : now < c.end ? c.start : Math.ceil(now / 60_000) * 60_000; // a block already begun (the tap landed late) keeps its own start
-    const r = await take(c.task.id, at, at + (c.end - c.start));
+    const now = Date.now(), next5 = Math.ceil(now / 300_000) * 300_000, at = start > now ? Math.min(next5, start) : now < end ? start : Math.ceil(now / 60_000) * 60_000; // a block already begun (the tap landed late) keeps its own start
+    const r = await take(task.id, at, at + (end - start));
     say(r.toast, r);
     await shuffle(r);
   };
+  const startNow = async () => {
+    const c = cardRef.current;
+    if (!c || c.start === undefined || c.end === undefined) return;
+    await startBlock(c.task, c.start, c.end);
+  };
+  // "Làm luôn" on an elapsed row: its block starts now, from any day's list, as often as needed.
+  const startTask = (x: Task) => { if (x.start !== undefined && x.end !== undefined) void startBlock(x, x.start, x.end); };
   // "Có" makes the weekly repeat through the series path; "Không" is remembered and the card goes back to the day.
   const answerSeries = async (yes: boolean) => {
     const o = ask;
@@ -945,7 +967,7 @@ export default function Home() {
   const stepWeek = (d: -1 | 1) => setSel(addDays(sel, 7 * d));
   const stepMonth = (d: -1 | 1) => setSel(new Date(sd.getFullYear(), sd.getMonth() + d, 1).getTime());
   const stepDay = (d: -1 | 1) => setSel(addDays(sel, d));
-  const share = { tasks, hols, now, pop, rules: mind?.rules ?? [], overlaps: over, onMove: async (o: Overlap) => { const r = await moveMine(o.mine.id); say(r.toast, r); refresh(); }, onKeep: async (o: Overlap) => { await keepBoth(o); refresh(); }, trail: maps.trail, moves, onFix: async (w: Warn, f: Warn["fixes"][number]) => { const r = await makeRoom(f.id, w.deadline); say(r.toast, r); refresh(); }, ...rowActs, drag: dd.drag };
+  const share = { tasks, hols, now, pop, rules: mind?.rules ?? [], overlaps: over, onMove: async (o: Overlap) => { const r = await moveMine(o.mine.id); say(r.toast, r); refresh(); }, onKeep: async (o: Overlap) => { await keepBoth(o); refresh(); }, trail: maps.trail, moves, onFix: async (w: Warn, f: Warn["fixes"][number]) => { const r = await makeRoom(f.id, w.deadline); say(r.toast, r); refresh(); }, ...rowActs, onStartNow: startTask, drag: dd.drag };
   const isToday = sel === today0;
   const running = !!card && card.start! <= now && now < card.end!;
   const quiet = isToday && view === "day" && !running;
@@ -1115,12 +1137,11 @@ export default function Home() {
         <Rect width="100%" height={120} fill="url(#fd)" />
       </Svg>
       {/* The finger on the mic owns the touch, so the veil only hears a tap once a press is stuck: that tap lets go. Steps sit on it too. */}
-      {(pressing || aside || picking || lines.length > 0) && <Veil onPress={picking ? () => setPicking(false) : pressing || aside ? cancel : undefined} />}
+      {(pressing || aside || picking) && <Veil onPress={picking ? () => setPicking(false) : pressing || aside ? cancel : undefined} />}
       {/* Over a photo or PDF too: thinking while it is read (capture.html 9, 12), then pressing it puts it away and listens, no close button. */}
       {!showStory && !finding && <View style={[s.dock, { bottom: navLift }]} pointerEvents="box-none"><Hold state={state} pinned={picking ? "photo" : ""} onAside={onAside} onStart={() => { setPressing(true); setPhoto(undefined); setPdf(undefined); if (!latched.current) void start(); }} onEnd={onEnd} idle={view === "rhythm" ? "holdRule" : "hold"} /></View>}
       {picking && <PhotoMenu onPick={readPhoto} />}
       {typing && <><Veil z={9} onPress={() => setTyping(false)} /><TypeBar onClose={() => setTyping(false)} onSend={(text) => { setTyping(false); void run(text, "type"); }} /></>}
-      {lines.length > 0 && <Steps lines={lines} />}
       {lined && <OutlinePreview groups={lined.groups} from={lined.from} onSave={saveLined} onClose={() => setLined(undefined)} />}
       {finding && <Search origin={finding} tasks={tasks} now={now} acts={rowActs} initial={findQ} onClose={() => { setFinding(undefined); setFindQ(undefined); }} />}
       {dd.ghost}

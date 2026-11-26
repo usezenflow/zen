@@ -1,5 +1,20 @@
 # zen
 
+## Unreleased
+
+### Patch Changes
+
+- Lúc zen xếp lại lịch, "Đang sắp xếp" hiện liền mạch đến khi xếp xong, và từng bước hiện dòng một, mỗi việc bay vào chỗ mới cùng dòng bước
+- Việc đã qua giờ mà chưa đánh dấu xong nằm riêng trong mục "Quá giờ", không còn tự dời sang ngày khác; nút "Làm luôn" bắt đầu ngay việc đó
+- Thẻ "Bây giờ" khi là khoảng trống có nút ▶ "Làm luôn" thay cho dấu tick, để không nhầm với "Xong"
+- Việc đã dời hiện dấu chấm đỏ và "→ T7 11:00" thay cho "Sang T7 11:00"; dòng cũ giữ đúng giờ kết thúc thay vì nhảy sang ngày mới
+- Ngày đã qua không còn hiện mục "Sắp tới"
+- Thẻ "Xong hết rồi" không còn lặp chữ "việc" (ví dụ "Xong 1 việc việc")
+- Thẻ "Xong hết rồi" và "Nhịp của bạn" dễ đọc hơn trên nền xanh lá nhờ bóng chữ nhẹ; logo cá trong thẻ "Xong hết rồi" đổi sang trắng
+- Mục chi tiết việc: các buổi hiện ngay dưới "0/2 buổi" (bấm để mở, không còn ", còn N"); "Làm thêm" và "Xong buổi này" nằm dưới danh sách; bỏ "Thêm buổi" vì đã có "Làm thêm"; ô ghi chú cao hơn
+- Cài đặt: phiên bản nằm trong mục "Ứng dụng"; công tắc "Tự kiểm tra cập nhật" tắt thì không kiểm tra khi mở app và không mở hộp thoại cập nhật; mục thống kê dùng biểu tượng biểu đồ
+- Nền tranh của việc dùng các mảng màu sâu hơn, tương phản tốt hơn với chữ trắng; các mảng màu có hình dạng tự do và lớn hơn
+
 ## 26.1.2
 
 ### Patch Changes

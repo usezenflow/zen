@@ -199,7 +199,7 @@ export function Row({ task, now, first, done, allDay, sub: subOver, lead, trail,
   const subEl = !!(trail || sub) && (
     <View style={s.sl}>
       {!!trail && <View style={[s.dot, { backgroundColor: th.seal }]} />}
-      <Text numberOfLines={1} style={[s.small, s.slt, { color: th.muted }]}>{trail ?? sub}</Text>
+      <Text numberOfLines={1} style={[s.small, s.slt, { color: th.muted }]}>{ghost && <Text style={{ color: th.seal }}>● </Text>}{trail ?? sub}</Text>
     </View>
   );
   const body = (
