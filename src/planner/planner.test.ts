@@ -5,7 +5,7 @@ import { coldArms, prepare, primeBatch, ucb, ucbAt, update } from "./linucb";
 import { reasonText, stepText } from "../lib/reasons";
 import { plain } from "../lib/i18n";
 import { learn, newModel, outcome, plan, typeOf } from "./index";
-import { awake, solve } from "./place";
+import { SOLVE, awake, solve } from "./place";
 import { split } from "./split";
 import { type Piece, moveCost } from "./value";
 import { simulate } from "./sim";
@@ -620,6 +620,8 @@ describe("drag teaches both ends", () => {
     expect(ucb(p1, 19, pl.x, 0)).toBeGreaterThan(ucb(p0, 19, pl.x, 0));
   });
 });
+
+SOLVE.capMs = Infinity; // a loaded CI box must not cut a solve short: these tests compare whole plans
 
 describe("scheduler behaviour", () => {
   const place = (ts: Task[], diff: { placed: { id: string; start: number; end: number }[] }) =>

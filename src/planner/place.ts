@@ -28,7 +28,8 @@ const HALO = 60 * MIN;
 const TAIL = 6 * HOUR; // a block this far past a day's end can still halo an item that spills over midnight
 const W_GAP = 0.05; // per SLOT: the same weight per hour as 0.1 per 30 min
 const SPREAD = 1;
-const T0 = 0.5, T1 = 0.005, CAP_MS = 400, LOG_CAP = 40; // CAP_MS: a safety net only, the iteration budget is what bounds a solve
+const T0 = 0.5, T1 = 0.005, LOG_CAP = 40;
+export const SOLVE = { capMs: 400 }; // a safety net only, the iteration budget is what bounds a solve; a holder so a test under CPU load can lift it and stay deterministic
 const MISS = -1e6; // an unplaced piece: worse than any late placement, so a piece is left out only when no cell is free
 export const EJECT_CAP = 12;
 // Day load per hour: W_SOFT above cap-2, W_HARD above the cap (dayCost; policy.ts mirrors it). Both 0.3 and 1.0 before the sweep.
@@ -260,7 +261,7 @@ export function solve(pieces: Piece[], env: Env, seed = 1): Solved {
   const iters = Math.min(1000, 40 * nf);
   let bestS = S, bestScore = cur;
   for (let it = 0; it < iters; it++) {
-    if (Date.now() - t0 > CAP_MS) break; // a stalled device only: the greedy pass is already clash-free, search only polishes it
+    if (Date.now() - t0 > SOLVE.capMs) break; // a stalled device only: the greedy pass is already clash-free, search only polishes it
     const T = T0 * (T1 / T0) ** (it / iters), r = rand(), i = free[Math.floor(rand() * nf)];
     let mv: Mv = [], kind: LogEntry["kind"] = "reinsert", day: number | undefined;
     if (r < 0.3) {
