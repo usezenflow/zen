@@ -1,5 +1,11 @@
 # zen
 
+## 26.1.2
+
+### Patch Changes
+
+- Dòng "Đang sắp xếp" hiện đúng phía trên lớp mờ khi zen xếp lại lịch, không còn bị lớp mờ che mất
+
 ## 26.1.1
 
 ### Patch Changes
