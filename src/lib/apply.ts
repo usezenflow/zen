@@ -1,6 +1,6 @@
 import { embed } from "./nlu/embed";
 import { learn, missedReplan, outcome, plan, type Model, type Opts } from "../planner";
-import { GRACE, holding } from "../planner/policy";
+import { holding } from "../planner/policy";
 import { dayGone } from "../planner/place";
 import { partIdx } from "../planner/features";
 import { skipPrep } from "../planner/prep";
@@ -10,6 +10,7 @@ import { fill, partAt, t } from "./i18n";
 import { day, hm, when as at12 } from "./when";
 import { holidays } from "./holidays";
 import { capOf } from "./rest";
+import { kindW } from "./reasons";
 import * as stats from "./stats";
 import * as store from "./store";
 import { loadAreas, loadZenModes } from "./areas-store";
@@ -394,7 +395,7 @@ async function act(w: Work, a: Action, refs = new Map<string, string>()) {
       if (a.effortMinutes) { next.effort = a.effortMinutes; edited.add("effort"); next.effortGuessed = undefined; if (!a.title) w.toast = t("resized", { title: tk.title }); } // said now, no longer a guess
       // A length said alone ("90 phút") stretches the block it already has from its start; with a new time the `when` branch below sets the end.
       if (a.effortMinutes && a.when === undefined && next.start !== undefined && next.end !== undefined && !next.fixed) next.end = next.start + a.effortMinutes * 60_000;
-      if (a.kind) { next.kind = a.kind as Kind; edited.add("kind"); }
+      if (a.kind) { next.kind = a.kind as Kind; edited.add("kind"); if (!a.title && !a.effortMinutes) { w.toast = t("kindSet", { k: kindW(a.kind as Kind) }); w.only = [...(w.only ?? []), tk.id]; } } // a type alone re-places this task, not the calendar
       if (a.location !== undefined) { next.location = a.location || undefined; edited.add("location"); } // "" clears it
       if (a.deadline === "") { next.deadline = undefined; edited.add("deadline"); }
       if (a.note !== undefined) { next.note = a.note; edited.add("note"); }
@@ -714,7 +715,10 @@ export const swipeLater = (id: string, now = Date.now()) =>
 
 /** Starts the suggested gap task now. */
 export const take = (id: string, start: number, end: number, now = Date.now()) =>
-  transact(now, (w) => { const tk = w.tasks.get(id); if (tk) w.tasks.set(id, { ...tk, start, end, notBefore: start, notAfter: undefined, userDay: undefined, userEdited: [...(tk.userEdited ?? []), "start"] }); w.toast = t("moved", { title: tk?.title ?? "", time: at12(start, now) }); }, { cause: "user-task" });
+  transact(now, (w) => { const tk = w.tasks.get(id); if (tk) w.tasks.set(id, { ...tk, start, end, notBefore: start, notAfter: undefined, userDay: undefined, userEdited: [...(tk.userEdited ?? []), "start"] }); w.toast = t("moved", { title: tk?.title ?? "", time: at12(start, now) });
+    // A scoped solve: only what the new slot displaces (and what waits for a time, for the old slot) is re-placed, not the whole calendar.
+    w.only = [...w.tasks.values()].filter((x) => x.id !== id && !x.fixed && !x.doneAt && !x.deletedAt && x.start !== undefined && x.end !== undefined && x.start < end && start < x.end).map((x) => x.id).concat(waiting([...w.tasks.values()], now).map((x) => x.id));
+  }, { cause: "user-task" });
 
 /** "Lặp lại … hằng tuần" said yes: the repeat is created through the usual series path (Action.repeat). */
 export const acceptSeries = (o: SeriesOffer, now = Date.now()) => apply([{ op: "create", title: o.title, kind: o.kind, effortMinutes: o.effort, repeat: o.rrule }], now);
@@ -1005,23 +1009,6 @@ export const moveToDay = (id: string, dayMs: number, now = Date.now(), part?: [n
 
 /** A change the clock or a sync made, not the user: its result shows no Undo. */
 const quiet = (r: Result): Result => ({ ...r, undoable: false });
-
-/** 21:30: what was left undone today (its block has ended) is placed tomorrow from 9h. Silent: no toast, no count, no Undo. Running, later and hand-set work stay. */
-export function sweepUndone(now = Date.now()): Promise<Result | undefined> {
-  const tomorrow = addDays(dayStart(now), 1), from = tomorrow + 9 * HOUR_MS;
-  const pick = (x: Task) => !x.doneAt && !x.deletedAt && !x.fixed && !x.pinned && !x.rrule && !holding(x, now) && !x.userEdited?.includes("start")
-    && x.start !== undefined && x.end !== undefined && dayStart(x.start) === dayStart(now) && x.end + GRACE <= now
-    && (x.deadline ?? Infinity) > from && (x.notAfter ?? Infinity) > from;
-  return serial(async () => {
-    if (!(await store.allTasks()).some(pick)) return undefined;
-    const r = await transactNow(now, (w) => { // transactNow, not transact: this already holds the write queue (transact would wait on itself)
-      const moved = [...w.tasks.values()].filter(pick);
-      for (const x of moved) w.tasks.set(x.id, { ...x, notBefore: Math.max(x.notBefore ?? 0, from) }); // start and end stay: the replan sees the lost block and counts the miss
-      w.only = moved.map((x) => x.id);
-    }, { cause: "user-task", text: () => undefined });
-    return { ...r, silent: true };
-  });
-}
 
 /** Future upstream tasks (lectures, exams, assignments, preps) to drop when the campus is disconnected; past ones stay. */
 export const futureDlu = (tasks: Task[], now: number) =>

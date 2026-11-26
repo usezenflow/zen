@@ -374,7 +374,7 @@ export default function Detail() {
           <View style={s.who}>
             {mine && !task.fixed ? (
               <DropMenu chevron label={t("youKind", { k: kindLabel(task.kind) })} color={th.info} size={font.sub} icon={<State tone="info" text={t("youKind", { k: kindLabel(task.kind) })} after={<Icon name="down" size={18} color={th.info} />} />}
-                items={KINDS.map((k) => ({ label: kindLabel(k), icon: k, onPress: () => void apply([{ op: "edit", target: task.id, kind: k }]).then(load).catch(() => {}) }))} />
+                items={KINDS.map((k) => ({ label: kindLabel(k), icon: k, onPress: () => { setTask((x) => x && { ...x, kind: k }); void apply([{ op: "edit", target: task.id, kind: k }]).then(load).catch(() => void load()); } }))} />
             ) : (
               <State tone="info" text={task.source === "dlu" && !task.forId ? (task.fixed ? t("fromCampus") : t("fromLms")) : mine && task.fixed === "busy" ? t("youKind", { k: t("fixedTime") }) : t("fromYou")} />
             )}

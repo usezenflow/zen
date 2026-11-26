@@ -3,7 +3,7 @@ import type { Kind, Task } from "../../lib/types";
 import { DAY, HOUR, MIN, dayStart, hourOf } from "../features";
 import { capOf } from "../../lib/rest";
 import { learn, missedReplan, newModel, plan, type Opts } from "../index";
-import { GRACE, holding } from "../policy";
+import { holding } from "../policy";
 import type { Model } from "../model";
 import type { MixItem, Persona } from "./personas";
 import { gauss, rng } from "./rng";
@@ -243,19 +243,6 @@ export function run(p: Persona, { days = p.days ?? 30, seed = 1 } = {}): Log {
     return t;
   };
 
-  /** apply.ts sweepUndone, mirrored (the original reads the store): at 21:30 what was left undone today moves to tomorrow from 9h, silently.
-   *  Only those tasks are re-placed, as a user-caused pass (not a fill pass), so it is not a silent move. */
-  const sweep = (now: number) => {
-    const from = dayStart(now) + DAY + 9 * HOUR;
-    const pick = (x: Task) => !x.fixed && !x.doneAt && !x.deletedAt && !x.pinned && !holding(x, now) && !x.userEdited?.includes("start")
-      && x.start !== undefined && x.end !== undefined && dayStart(x.start) === dayStart(now) && x.end + GRACE <= now
-      && (x.deadline ?? Infinity) > from && (x.notAfter ?? Infinity) > from;
-    const moved = tasks.filter(pick);
-    if (!moved.length) return;
-    for (const x of moved) x.notBefore = Math.max(x.notBefore ?? 0, from); // start and end stay: the replan sees the lost block and counts the miss
-    replan(now, { only: moved.map((x) => x.id) });
-  };
-
   /** Days (the next 7, from today) whose booked time is over the day's cap: apply.ts overDays, mirrored (it is not exported). */
   const overDays = (list: Task[], now: number) => {
     const out = new Set<number>();
@@ -304,12 +291,10 @@ export function run(p: Persona, { days = p.days ?? 30, seed = 1 } = {}): Log {
     });
     for (const prep of prepsOn.get(day) ?? []) { const g = gaps[0]; prep.createdAt = Math.round(g[0]); add({ ...prep, id: `${prep.id}-${day}` }); truth.set(`${prep.id}-${day}`, 150); }
 
-    // The app's day: the opens (new tasks arrive in the gaps, and a fill pass places them), and the 21:30 sweep between them.
-    const sweepAt = d0 + Math.round(21.5 * 60) * MIN;
-    const stops = [...opens.map((at, k) => ({ at, k })), { at: sweepAt, k: -1 }].sort((a, b) => a.at - b.at);
+    // The app's day: the opens (new tasks arrive in the gaps, and a fill pass places them).
+    const stops = opens.map((at, k) => ({ at, k }));
     for (const { at: now, k } of stops) {
       applyTicks(now);
-      if (k < 0) { sweep(now); continue; }
       // Overdue rule: a task more than a day past its deadline is finished (60%) or deleted (40%) at the next open. Once only.
       for (const t of tasks) {
         if (t.fixed || log.parents.has(t.id) || t.deadline === undefined || t.deadline + DAY >= now || t.doneAt || t.deletedAt) continue;

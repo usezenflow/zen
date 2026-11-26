@@ -22,6 +22,8 @@
 - Sao lưu và khôi phục dữ liệu ra tệp ngay trong Cài đặt; "Xoá dữ liệu" hỏi lại trước và có nút "Sao lưu trước"
 - Bớt thông báo làm phiền: việc linh hoạt chỉ nhắc khi cần, tối 21:30 có tóm tắt ngày mai; việc zen tự xếp lỡ giờ không còn hiện đỏ
 - Mượt hơn nhiều: màn hình mở nhanh, cuộn trang chủ và gõ phím không còn khựng, hộp "Có gì mới" hiện sau khi màn hình đã sẵn sàng
+- Bấm "Bắt đầu" khi máy hơi chậm vẫn giữ đúng giờ đã đặt, không nhảy sang phút sau; đổi loại việc hiện ngay và báo "Đã đổi thành …"; "Xong" hay "Để sau" ở thẻ "Bây giờ" phản hồi tức thì; bắt đầu và đổi loại chỉ xếp lại đúng việc bị ảnh hưởng nên nhẹ hơn
+- Zen không còn tự dời việc chưa làm sang ngày mai lúc 21:30: lịch chỉ đổi khi bạn yêu cầu
 - Nút giữ để nói gọn thành "Giữ để nói"
 
 ## 26.0.13

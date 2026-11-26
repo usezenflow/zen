@@ -105,19 +105,6 @@ describe("reactToTime (the 30 s tick, launch and background)", () => {
     expect(db.tasks.get("u").start).toBeDefined();
     expect(db.tasks.get("p").start).toBe(at(10));
   });
-  it("the 21:30 sweep moves only the leftovers that ended today, to tomorrow", async () => {
-    db.tasks.set("left", task("left", { start: at(18), end: at(19) })); // ended, undone
-    db.tasks.set("later", task("later", { start: at(21, 40), end: at(21, 55), effort: 15 })); // still ahead tonight
-    const r = await reactToTime(at(21, 30), false);
-    expect(r?.changed).toBe(true);
-    expect(db.tasks.get("left").start).toBeGreaterThanOrEqual(at(9, 0, 1));
-    expect(db.tasks.get("later").start).toBe(at(21, 40));
-    expect(r?.silent).toBe(true); // the move happened, the user is not told
-  });
-  it("a sweep with nothing to roll is not reported at all", async () => {
-    db.tasks.set("later", task("later", { start: at(21, 40), end: at(21, 55), effort: 15 }));
-    expect(await reactToTime(at(21, 30), false)).toBeUndefined();
-  });
   it("inside the grace nothing is replanned", async () => {
     db.kv.set("plannedAt", String(at(5)));
     db.tasks.set("m", task("m", { start: NOW - 2 * H, end: NOW - 5 * MIN }));

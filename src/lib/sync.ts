@@ -8,7 +8,7 @@ import { plain, t } from "./i18n";
 import { digestNotices, marksNotice, type Digest } from "./dlu/materialize";
 import { pushWidgetsNow } from "./widgets";
 import { ensureChannels, pushReminders, recordOpen, soundOf } from "./reminders";
-import { ingest, keepSweep, loadClassMult, loadGone, replan, serial, sweepUndone, topUp, waiting, type Result } from "./apply";
+import { ingest, keepSweep, loadClassMult, loadGone, replan, serial, topUp, waiting, type Result } from "./apply";
 import type { Notice, Task } from "./types";
 import type { ParsedMarks } from "./dlu/parse/student";
 import * as queue from "./queue";
@@ -288,19 +288,12 @@ async function backfill(now: number): Promise<Result | undefined> {
 }
 
 const MIN = 60_000;
-const dayStart = (ms: number) => new Date(new Date(ms).setHours(0, 0, 0, 0)).getTime();
 /** The clock's own work, run on the 30 s tick, at launch and in the background. A new day, an idle gap or a block running out is no cause: nothing moves for them.
- *  The open app (`fg`) places what still waits for a time, and only that (a tick would retry it every 30 s); the 21:30 sweep puts the day's leftovers on tomorrow. Exported for tests. */
+ *  The open app (`fg`) places what still waits for a time, and only that (a tick would retry it every 30 s). What was left undone moves only when the user asks (on demand). Exported for tests. */
 export async function reactToTime(now: number, fg: boolean): Promise<Result | undefined> {
   if (fg) {
     const wait = waiting(await store.allTasks(), now);
     if (wait.length) { const r = await replan(now, undefined, "create", wait.map((x) => x.id)); if (r.changed) return r; }
-  }
-  const day = dayStart(now);
-  if (now >= day + 21.5 * HOUR && (await store.kvGet("sweep.day")) !== String(day)) {
-    await store.kvSet("sweep.day", String(day));
-    const r = await sweepUndone(now);
-    if (r?.changed) return r;
   }
   return undefined;
 }

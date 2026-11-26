@@ -23,6 +23,7 @@ const S = {
   renamed: "Đã đổi tên thành {title}",
   moved: "Đã dời {title} sang {time}",
   resized: "Đã dời {title}",
+  kindSet: "Đã đổi thành {k}",
   learnedAvoid: "Mình sẽ bớt xếp việc buổi {time}", // time: a part word (partAt)
   avoidGone: "Mình quên giờ {a}:00",
   synced: "Lịch học vừa đổi, mình đã dời {n} việc",

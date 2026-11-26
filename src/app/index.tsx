@@ -248,7 +248,7 @@ export default function Home() {
   // A sync result: every notice gets its own toast with "Xem"; otherwise the plain result.
   const landed = useCallback((r?: Result & { notices?: Notice[] }) => {
     if (r?.notices?.length) setToasts((q) => [...q, ...r.notices!.map((n): ToastState => ({ text: n.title, sub: n.sub, action: n.route ? { label: t("view"), run: () => go(n.route!) } : undefined }))]);
-    else if (r && !r.silent && r.toast !== t("nothing")) say(r.toast, r); // a sync that found nothing to do says nothing; the 21:30 sweep is silent
+    else if (r && !r.silent && r.toast !== t("nothing")) say(r.toast, r); // a sync that found nothing to do says nothing
     // a result nobody asked for (a sync, a series topped up 120 days out) keeps the day in view
     if (r) void shuffle(r, undefined, false).then(() => maybeRebalance()).then((p) => { if (p) void refresh(); }, () => {}); // nothing landed: focus already refreshed, resume refreshes itself; an overloaded or at-risk replan may offer a rebalance (once a day)
   }, [say, go, shuffle, refresh]);
@@ -842,7 +842,7 @@ export default function Home() {
     if (!c || c.start === undefined || c.end === undefined) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     // Early means the next 5-minute mark (11:23 gives 11:25), a moment to settle rather than a start this second; never past the block's own start.
-    const now = Date.now(), next5 = Math.ceil(now / 300_000) * 300_000, at = c.start > now ? Math.min(next5, c.start) : Math.ceil(now / 60_000) * 60_000;
+    const now = Date.now(), next5 = Math.ceil(now / 300_000) * 300_000, at = c.start > now ? Math.min(next5, c.start) : now < c.end ? c.start : Math.ceil(now / 60_000) * 60_000; // a block already begun (the tap landed late) keeps its own start
     const r = await take(c.task.id, at, at + (c.end - c.start));
     say(r.toast, r);
     await shuffle(r);
@@ -877,6 +877,10 @@ export default function Home() {
     if (!c) return moreRest();
     if (c.gap) { await store.kvSet("gap.off", String(startOfDay(Date.now()))); return refresh(); } // a swiped gap card: not today
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
+    // The card leaves and the task ticks at once; the save and replan confirm (a failure reloads what is stored, see finish).
+    gen.current++;
+    if (dir === "done") { const at = Date.now(); setTasks((p) => p.map((a) => (a.id === c.task.id || a.parentId === c.task.id ? { ...a, doneAt: at } : a))); }
+    setCard(undefined);
     let r: Result | undefined;
     r = await (dir === "done" ? swipeDone(c.task.id) : swipeLater(c.task.id));
     if (r) say(r.toast, r);
