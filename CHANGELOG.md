@@ -1,6 +1,6 @@
 # zen
 
-## Unreleased
+## 26.1.2
 
 ### Patch Changes
 
@@ -14,11 +14,6 @@
 - Mục chi tiết việc: các buổi hiện ngay dưới "0/2 buổi" (bấm để mở, không còn ", còn N"); "Làm thêm" và "Xong buổi này" nằm dưới danh sách; bỏ "Thêm buổi" vì đã có "Làm thêm"; ô ghi chú cao hơn
 - Cài đặt: phiên bản nằm trong mục "Ứng dụng"; công tắc "Tự kiểm tra cập nhật" tắt thì không kiểm tra khi mở app và không mở hộp thoại cập nhật; mục thống kê dùng biểu tượng biểu đồ
 - Nền tranh của việc dùng các mảng màu sâu hơn, tương phản tốt hơn với chữ trắng; các mảng màu có hình dạng tự do và lớn hơn
-
-## 26.1.2
-
-### Patch Changes
-
 - Dòng "Đang sắp xếp" hiện đúng phía trên lớp mờ khi zen xếp lại lịch, không còn bị lớp mờ che mất
 
 ## 26.1.1
