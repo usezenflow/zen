@@ -68,7 +68,7 @@ describe("anchorsOf and anchorAction", () => {
   });
   it("several matches flag the item and list the candidates", () => {
     const a = anchorAction(base, anchorOf("sau khi xong gym", tasks, now)!);
-    expect(a.flags).toEqual(["anchor-ambiguous"]);
+    expect(a.flags).toEqual(["anchor-ambiguous", expect.stringMatching(/^anchor:(before|after):/)]);
     expect(a.alternatives).toEqual(["g1", "g2"]);
     expect(a.after).toBeUndefined();
   });
@@ -88,5 +88,32 @@ describe("readActions", () => {
     const acts = readActions("ôn trước kỳ thi CSDL", new Date(now), "typed", { tasks });
     expect(acts).toHaveLength(1);
     expect(acts[0]).toMatchObject({ deadline: "2026-12-04T09:00:00", anchor: "exam" });
+  });
+});
+
+describe("anchorOf, said many ways", () => {
+  const ktpm = task({ id: "kt", title: "Thi Kiểm thử phần mềm", fixed: "exam", start: at(2026, 12, 1, 9), end: at(2026, 12, 1, 11) });
+  const ours = [...tasks, ktpm];
+  const ids = (c: string) => anchorOf(c, ours, now)?.xs.map((x) => x.id);
+  it.each([
+    "đọc code outline trước ngày thi ktpm", "doc code outline truoc ngay thi KTPM", "đọc code outline trc ngày thi ktpm", "đọc code outline trươc ngày thi ktmp",
+    "đọc code outline trước kì thi ktp", "đọc code outline trước ngày thi kiểm thử", "đọc code outline trước thi phần mềm", "đọc code outline before the exam ktpm",
+    "đọc code outline truớc ngày thi ktpm", "đọc code outline trước buổi kiểm tra ktpm",
+  ])("%s links the exam", (c) => expect(ids(c)).toEqual(["kt"]));
+  it("a self-correction takes the corrected name", () => {
+    expect(ids("đọc code trước ngày thi toán à nhầm ktpm")).toEqual(["kt"]);
+    expect(ids("đọc code trước thi ktpm ý là csdl")).toEqual(["exam"]);
+  });
+  it("an exam cue never links a lecture of the same course", () => {
+    const lk = task({ id: "lk", title: "Kiểm thử phần mềm", fixed: "lecture", start: at(2026, 11, 27, 7), end: at(2026, 11, 27, 9) });
+    expect(anchorOf("ôn trước ngày thi ktpm", [...ours, lk], now)!.xs.map((x) => x.id)).toEqual(["kt"]);
+  });
+  it("several exams of the name are ambiguous: the which-one prompt", () => {
+    const two = task({ id: "kt2", title: "Thi Kiểm thử phần mềm", fixed: "exam", start: at(2026, 12, 9, 9), end: at(2026, 12, 9, 11) });
+    expect(anchorOf("ôn trước ngày thi ktpm", [...ours, two], now)!.xs).toHaveLength(2);
+  });
+  it("no anchor in plain dates", () => {
+    expect(anchorOf("đọc code outline trước 1/12", ours, now)).toBeUndefined();
+    expect(anchorOf("đọc code trước thứ 6", ours, now)).toBeUndefined();
   });
 });

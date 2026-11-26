@@ -9,6 +9,7 @@ export const withDelay = (_ms: number, v: unknown) => v;
 export const withSequence = (...v: unknown[]) => v[v.length - 1];
 export const withRepeat = (v: unknown) => v;
 export const cancelAnimation = () => {};
+export const useAnimatedReaction = () => {};
 
 export function useSharedValue<T>(init: T) {
   const sv = { value: init, get: () => sv.value, set: (v: T | ((p: T) => T)) => { sv.value = typeof v === "function" ? (v as (p: T) => T)(sv.value) : v; }, modify: (f: (p: T) => T) => { sv.value = f(sv.value); } };

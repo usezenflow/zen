@@ -97,7 +97,7 @@ export function Rhythm({ i, rules, m, hour, onForget, onForgetWhen }: { i: Insig
       ))}
       {/* before anything is seen the same card holds the grid dim: a guess, not a claim, with the logo in its corner */}
       <View style={s.art}>
-        <View style={StyleSheet.absoluteFill}><TypeArt type="plan" w={264} h={170} seed={5} /></View>
+        <View style={StyleSheet.absoluteFill}><TypeArt type="plan" w={264} h={170} seed={5} drift /></View>
         {!seen && <View style={s.leaf}><Logo size={34} mode="line" color="#fff" /></View>}
         <Text style={s.artLab}>{t("thisWeek")}</Text>
         {seen && i.when ? <Text style={s.artT}>{whenLine(i.when)}</Text> : !seen && <Text style={s.artT}>{t("learnedLearning")}</Text>}

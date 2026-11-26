@@ -391,7 +391,7 @@ async function act(w: Work, a: Action, refs = new Map<string, string>()) {
       const edited = new Set(tk.userEdited);
       const next: Task = { ...tk };
       if (a.title) { next.title = a.title; edited.add("title"); w.toast = t("renamed", { title: a.title }); }
-      if (a.effortMinutes) { next.effort = a.effortMinutes; edited.add("effort"); next.effortGuessed = undefined; } // said now, no longer a guess
+      if (a.effortMinutes) { next.effort = a.effortMinutes; edited.add("effort"); next.effortGuessed = undefined; if (!a.title) w.toast = t("resized", { title: tk.title }); } // said now, no longer a guess
       // A length said alone ("90 phút") stretches the block it already has from its start; with a new time the `when` branch below sets the end.
       if (a.effortMinutes && a.when === undefined && next.start !== undefined && next.end !== undefined && !next.fixed) next.end = next.start + a.effortMinutes * 60_000;
       if (a.kind) { next.kind = a.kind as Kind; edited.add("kind"); }
@@ -431,7 +431,7 @@ async function act(w: Work, a: Action, refs = new Map<string, string>()) {
           // Only a move across parts says "avoid": inside one part (20h to 21h) it is logistics, so no line and no lesson on the part (policy learn).
           if (partIdx(new Date(from.start).getHours()) !== partIdx(new Date(when).getHours())) w.sub = t("learnedAvoid", { time: partAt(new Date(from.start).getHours()) });
         }
-        w.toast = t("moved", { title: next.title, time: at12(when, now) }); // one line for a move, a day change or a put-back alike
+        if (!(a.effortMinutes && (from.start ?? tk.start) === when)) w.toast = t("moved", { title: next.title, time: at12(when, now) }); // a length changed on the same start keeps "resized"; one line for a move, a day change or a put-back alike
       }
       next.userEdited = [...edited];
       w.tasks.set(tk.id, next);

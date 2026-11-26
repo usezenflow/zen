@@ -3,7 +3,8 @@
 import type { Action, Task } from "../../types";
 import { found, parse } from "../../find";
 import { wallIso } from "../context";
-import { fold } from "./fold";
+import { fold, osa } from "./fold";
+import { FIX } from "./fixes";
 
 type Kind = "exam" | "class" | "task";
 export interface Anchor {
@@ -15,44 +16,73 @@ export interface Anchor {
   phrase?: string;
 }
 
-// Folded cues, each with its relation and the kind of thing it names. The name is the words after the cue.
-const CUES: [RegExp, Anchor["rel"], Kind][] = [
-  [/\btruoc (?:ky |buoi )?thi\b\s*/, "before", "exam"],
-  [/\btruoc buoi\b\s*/, "before", "class"],
-  [/\btruoc khi (?:xong|nop|lam)\b\s*/, "before", "task"],
-  [/\bbefore (?:the )?(?:exam|test)\b\s*/, "before", "exam"],
-  [/\bbefore (?:the )?class\b\s*/, "before", "class"],
-  [/\bbefore i (?:submit|finish|do)\b\s*/, "before", "task"],
-  [/\bsau (?:buoi|tiet|gio)\b\s*/, "after", "class"],
-  [/\bsau khi (?:hoc|hoc xong)\b\s*/, "after", "class"],
-  [/\bsau khi (?:xong|nop)\b\s*/, "after", "task"],
-  [/\bafter (?:the )?(?:exam|test)\b\s*/, "after", "exam"],
-  [/\bafter (?:the )?class\b\s*/, "after", "class"],
+// A cue is a relation word, filler, then a kind word, each read with typos ("trươc", "truóc", "tiêt", "ktra"). Folded words.
+const near = (w: string, v: string) => w === v || (v.length >= 4 && osa(w, v) <= (v.length >= 8 ? 2 : 1));
+const REL: [string[], Anchor["rel"]][] = [[["truoc", "trc", "before"], "before"], [["sau", "after"], "after"]];
+const FILL = ["ngay", "ky", "ki", "buoi", "tiet", "khi", "mon", "lop", "cai", "the", "gio"];
+// [words, kind, needs "khi" before it]: "nop", "xong", "lam", "hoc" alone are verbs, a kind only after "khi"
+const KINDS: [string[], Kind, boolean][] = [
+  [["thi"], "exam", false], [["kiem", "tra"], "exam", false], [["ktra"], "exam", false], [["exam"], "exam", false], [["test"], "exam", false], [["midterm"], "exam", false], [["final"], "exam", false], [["giua", "ky"], "exam", false], [["cuoi", "ky"], "exam", false],
+  [["tiet"], "class", false], [["lecture"], "class", false], [["class"], "class", false], [["lab"], "class", false], [["thuc", "hanh"], "class", false], [["hoc"], "class", true],
+  [["bai", "tap"], "task", false], [["btl"], "task", false], [["do", "an"], "task", false], [["assignment"], "task", false], [["deadline"], "task", false], [["han", "nop"], "task", false], [["project"], "task", false],
+  [["xong"], "task", true], [["nop"], "task", true], [["lam"], "task", true], [["submit"], "task", true], [["finish"], "task", true],
 ];
+const LEAD_NAME = new Set(["mon", "cua", "ngay", "lop", "cai", "the", "bai"]);
+
+/** The clause as it is finally said: after "à nhầm", "ý là" the correction replaces what it corrects. Folded words; `cue` from the part before when the correction names only the thing. */
+function said(c: string): { cue: string[]; name: string[] } {
+  const T = c.match(/[\p{L}\p{N}]+/gu) ?? [];
+  let at = -1, len = 0;
+  for (let i = 0; i < T.length; i++) for (const p of FIX) if (p.every((x, k) => T[i + k] === x) && i + p.length >= at + len) { at = i; len = p.length; }
+  if (at < 0) return { cue: T, name: [] };
+  const post = T.slice(at + len);
+  return cueOf(post) ? { cue: post, name: [] } : { cue: T.slice(0, at), name: post };
+}
+
+type Cue = { start: number; rel: Anchor["rel"]; kind: Kind; end: number };
+/** Where a cue starts in `T` and where its name begins. */
+function cueOf(T: string[]): Cue | undefined {
+  for (let i = 0; i < T.length; i++) {
+    const rel = REL.find(([vs]) => vs.some((v) => near(T[i], v)))?.[1];
+    if (!rel) continue;
+    let j = i + 1, khi = false, lab: Kind | undefined;
+    while (j < T.length && FILL.includes(T[j])) { if (T[j] === "khi") khi = true; if (["buoi", "tiet", "lop"].includes(T[j])) lab = "class"; j++; }
+    const k = KINDS.find(([ws, , needKhi]) => (!needKhi || khi) && ws.every((w, n) => T[j + n] !== undefined && near(T[j + n], w)));
+    if (k) return { start: i, rel, kind: k[1], end: j + k[0].length };
+    if (lab) return { start: i, rel, kind: lab, end: j };
+  }
+  return undefined;
+}
 
 /** The anchor a clause names, or undefined. Its candidates are the open tasks the name finds; "thứ N" picks the Nth of several. */
 export function anchorOf(clause: string, tasks: Task[], now: number): Anchor | undefined {
-  const c = fold(clause).text;
-  for (const [re, rel, kind] of CUES) {
-    const m = re.exec(c);
-    if (!m) continue;
-    const name = c.slice(m.index + m[0].length);
-    const ord = /\bthu (\d)\b/.exec(name);
-    const ws = name.replace(/\bthu \d\b/, " ").split(" ").filter(Boolean);
-    // open tasks, unscheduled ones placed at their deadline (or today) so the finder can see them
-    const open = tasks.filter((x) => !x.doneAt).map((x) => (x.start === undefined ? { ...x, start: x.deadline ?? now } : x));
-    const search = (q: string) => found(open, parse(q, now), now).flatMap((g) => g.xs);
-    const pre = kind === "exam" ? "thi " : kind === "class" ? "tiet " : "";
-    // longest leading run of the name that finds something: "toan lam bai tap" finds "toan" when "lam bai tap" is the item's own words
+  const { cue: T, name: fixedName } = said(fold(clause).text);
+  const m = cueOf(T);
+  if (!m) return undefined;
+  const { rel, kind } = m;
+  const name = fixedName.length ? fixedName : T.slice(m.end);
+  const lead = name.findIndex((w) => !LEAD_NAME.has(w));
+  const nm = (lead < 0 ? [] : name.slice(lead)).join(" ");
+  const ord = /\bthu (\d)\b/.exec(nm);
+  const ws = nm.replace(/\bthu \d\b/, " ").split(" ").filter(Boolean);
+  // open tasks, unscheduled ones placed at their deadline (or today) so the finder can see them
+  const open = tasks.filter((x) => !x.doneAt).map((x) => (x.start === undefined ? { ...x, start: x.deadline ?? now } : x));
+  const search = (q: string) => found(open, parse(q, now), now).flatMap((g) => g.xs);
+  const pre = kind === "exam" ? "thi " : kind === "class" ? "tiet " : "";
+  const said0 = T.slice(m.start, m.end).join(" ") + (lead > 0 ? " " + name.slice(0, lead).join(" ") : "");
+  // the longest leading run of the name that finds something, then the longest trailing one ("toan lam bai tap" finds "toan"; "bai ktpm" finds "ktpm")
+  for (const run of [(n: number) => ws.slice(0, n), (n: number) => ws.slice(ws.length - n)]) {
     for (let n = ws.length; n > 0; n--) {
-      let xs = search(pre + ws.slice(0, n).join(" ")).sort((a, b) => a.start! - b.start!);
+      let xs = search(pre + run(n).join(" ")).sort((a, b) => a.start! - b.start!);
+      // a lecture or exam kind keeps to those rows when the name finds both ("thi ktpm" is the exam, not the lecture)
+      const kinded = xs.filter((x) => (kind === "exam" ? x.fixed === "exam" : kind === "class" ? x.fixed === "lecture" : !x.fixed));
+      if (kinded.length) xs = kinded;
       if (!xs.length) continue;
       if (ord && xs.length > 1 && +ord[1] <= xs.length) xs = [xs[+ord[1] - 1]];
-      return { rel, kind, xs, phrase: c.slice(m.index, m.index + m[0].length) + ws.slice(0, n).join(" ") };
+      return { rel, kind, xs, phrase: (said0 ? said0 + " " : "") + run(n).join(" ") };
     }
-    return { rel, kind, xs: [] };
   }
-  return undefined;
+  return { rel, kind, xs: [] };
 }
 
 /** The anchors of an utterance by item index: a clause's anchor goes to the one item it is about (the only item, else the most shared words). */
@@ -81,7 +111,7 @@ function untitled(title: string, phrase: string): string {
 /** The action with its anchor applied: one match sets the time or the link; none or several flags "anchor-ambiguous" with the candidates. */
 export function anchorAction(a: Action, h: Anchor): Action {
   if (a.fixed) return a;
-  if (h.xs.length !== 1) return { ...a, flags: [...(a.flags ?? []), "anchor-ambiguous"], alternatives: h.xs.map((x) => x.id) };
+  if (h.xs.length !== 1) return { ...a, flags: [...(a.flags ?? []), "anchor-ambiguous", `anchor:${h.rel}:${h.kind}`], alternatives: h.xs.map((x) => x.id) };
   const x = h.xs[0];
   if (h.phrase && a.title) a = { ...a, title: untitled(a.title, h.phrase) };
   if (h.rel === "after") {

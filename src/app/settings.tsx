@@ -378,7 +378,7 @@ export default function Settings() {
                   {/* Online is the green lecture art, LMS the purple assignment art; a changed password turns only that card red. */}
                   {/* The card is the account only; the rows under it refresh. */}
                   <Tap onPress={err ? () => setOpen(k) : undefined} disabled={!err} scale={0.98} style={s.art}>
-                    <View style={StyleSheet.absoluteFill}><TypeArt type={err ? "exam" : k === "portal" ? "lecture" : "assignment"} seed={k === "portal" ? 5 : 2} w={264} h={104} /></View>
+                    <View style={StyleSheet.absoluteFill}><TypeArt type={err ? "exam" : k === "portal" ? "lecture" : "assignment"} seed={k === "portal" ? 5 : 2} w={264} h={104} drift /></View>
                     <Text style={[s.lab, s.artLab]}>{id}</Text>
                     <Text style={[s.artId, err ? { fontSize: 17 } : null]} numberOfLines={2}>{err ? t(k === "portal" ? "changedPortal" : "changedLms") : t(k === "portal" ? "srcPortal" : "srcLms")}</Text>
                     <Text style={s.artSub}>{err ? t("tapRetype") : t("connected")}</Text>

@@ -7,7 +7,7 @@ import Animated, { clamp, Easing, FadeInDown, FadeInUp, interpolate, Extrapolati
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
-import { Icon, Logo, TypeArt, seedOf } from "@/components/art";
+import { Icon, Logo, TypeArt, scrolling, seedOf } from "@/components/art";
 import { addDays, carried, hhmm, keptOn, keptSpan, live, mondayOf, onDay, parents, shown, startOfDay, type Hols } from "@/components/cal";
 import type { Item } from "@/components/menu";
 import { type Drag, Row, subOf } from "@/components/row";
@@ -138,9 +138,12 @@ export function DayPull({ dayKey, onStep, prevLabel, nextLabel, enabled, childre
     <GestureDetector gesture={pan}>
       <View style={s.fill}>
         <ScrollView
-          ref={list} simultaneousWith={pan} bounces={false} scrollEventThrottle={16} showsVerticalScrollIndicator={false}
+          ref={list} simultaneousWith={pan} bounces={false} scrollEventThrottle={100} showsVerticalScrollIndicator={false}
           automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive"
-          onScroll={(e) => scrollY.set(e.nativeEvent.contentOffset.y)}
+          onScroll={(e) => scrollY.set(e.nativeEvent.contentOffset.y)} // 100 ms is enough: the edge test only reads it when a drag starts, and the end events below make it exact
+          onScrollBeginDrag={() => scrolling.set(true)}
+          onScrollEndDrag={(e) => { scrollY.set(e.nativeEvent.contentOffset.y); if (!e.nativeEvent.velocity?.y) scrolling.set(false); }}
+          onMomentumScrollEnd={(e) => { scrollY.set(e.nativeEvent.contentOffset.y); scrolling.set(false); }}
           onLayout={(e) => viewH.set(e.nativeEvent.layout.height)}
           onContentSizeChange={(_, h) => contentH.set(h)}
           accessibilityActions={[{ name: "increment", label: nextLabel }, { name: "decrement", label: prevLabel }]}
@@ -197,7 +200,7 @@ export function RestCard({ lab, title, sub, leaf = "line", h = 220, art, icon }:
   const tone = art ? th.onart : th.ink, muted = art ? th.onart : th.muted;
   return (
     <View style={[s.rest, art ? s.restArt : { backgroundColor: th.chip }, { minHeight: h }]}>
-      {art && <View style={StyleSheet.absoluteFill}><TypeArt type={art} w={264} h={h} seed={seedOf(title)} /></View>}
+      {art && <View style={StyleSheet.absoluteFill}><TypeArt type={art} w={264} h={h} seed={seedOf(title)} drift /></View>}
       {!!lab && <Text style={[s.lab, { color: muted }]}>{lab}</Text>}
       {icon ? null : <View style={s.restLf}><Logo size={52} mode={leaf} color={tone} /></View>}
       <Text style={[s.restT, { color: tone }]}>{icon && <Icon name={icon} size={24} color={tone} w={1.8} />}{icon && " "}{title}</Text>

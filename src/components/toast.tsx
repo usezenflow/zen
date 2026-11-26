@@ -4,7 +4,7 @@ import type { TypeName } from "@/lib/theme";
 import { useEffect, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
-import Animated, { Easing, FadeInDown, Keyframe, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import Animated, { Easing, Keyframe, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { EASE, settle, Tap } from "@/components/tap";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -12,7 +12,9 @@ import { t } from "@/lib/i18n";
 import { useTheme, ff } from "@/lib/theme";
 
 // Lift-out stays a short fade and drift; the drop-in is a light spring.
-const toastOut = new Keyframe({ 0: { opacity: 1, transform: [{ translateY: 0 }, { scale: 1 }] }, 100: { opacity: 0, transform: [{ translateY: -6 }, { scale: 0.98 }], easing: EASE } }).duration(150);
+// Quick and opaque: it slides down from above in 200 ms with no fade (a fading card is see-through, and its shadow ghosts), and slides back up in 130 ms.
+const toastIn = new Keyframe({ 0: { transform: [{ translateY: -90 }] }, 100: { transform: [{ translateY: 0 }], easing: EASE } }).duration(200);
+const toastOut = new Keyframe({ 0: { transform: [{ translateY: 0 }] }, 100: { transform: [{ translateY: -90 }], easing: EASE } }).duration(130);
 
 // The leading tile is the koi on the art field of what the toast is about: the task's own palette (artOf) when a caller passes
 // `art`; a toast with no task (backup, disconnect, error) rotates through the palettes by a stable hash of its text, errors use clay.
@@ -54,12 +56,12 @@ export function Toast({ text, sub, onAction, actionLabel, onAlt, altLabel, altPl
     },
   });
   const drag = useAnimatedStyle(() => ({ transform: [{ translateX: x.get() }, { translateY: y.get() }] }));
-  const card = th.dark ? "rgba(38,40,44,0.96)" : "rgba(244,245,246,0.96)";
+  const card = th.dark ? "#26282c" : "#f4f5f6"; // solid: a see-through card shows the list through its text
   const pill = th.dark ? "#3a3d43" : "#ffffff";
   return (
     <GestureDetector gesture={pan}>
     <Animated.View style={[s.drag, { top }, drag]}>
-    <Animated.View entering={FadeInDown.springify().damping(18).stiffness(200)} exiting={toastOut} style={[s.toast, { backgroundColor: card }]}>
+    <Animated.View entering={toastIn} exiting={toastOut} style={[s.toast, { backgroundColor: card }]}>
       <View style={s.tl}>
         {lead ?? <View style={s.tile}>
           <View style={StyleSheet.absoluteFill}><TypeArt type={tileArt} w={36} h={36} seed={4} /></View>
@@ -71,7 +73,7 @@ export function Toast({ text, sub, onAction, actionLabel, onAlt, altLabel, altPl
             <Text style={[s.sender, { color: error ? "#d2492f" : th.ink }]}>zen</Text>
           </View>
           <Text numberOfLines={2} style={[s.msg, { color: th.ink }]}>{bolded(text, { fontFamily: ff("500") })}</Text>
-          {!!sub && <Text numberOfLines={2} style={[s.sub, { color: th.muted }]}>{bolded(sub, { color: th.ink, fontFamily: ff("500") })}</Text>}
+          {!!sub && <Text numberOfLines={sub.includes("\n") ? 6 : 2} style={[s.sub, { color: th.muted }]}>{bolded(sub, { color: th.ink, fontFamily: ff("500") })}</Text>}
         </View>
       </View>
       {(!!alt || !!onAction) && (

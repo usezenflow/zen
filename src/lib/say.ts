@@ -15,6 +15,7 @@ export interface Ctx {
   stuck?: string; // no free time for what was asked
   reason?: string; // the top reason for where it landed ("Hợp buổi học")
   understood?: string; // inferred(): only what was worked out beyond the words
+  when?: string; // every placed sitting one per line, or a repeat's pattern: all of it, not the first only
   where?: string; // whereOf(): the day and part it landed in
   notes?: string; // reader repairs, dropped clauses, flags
   far?: string; // a deadline past the 30-day horizon
@@ -35,7 +36,7 @@ export const repeats = (title: string, line: string, name?: string) => {
 /** One title, one sub, one alt, the undo. Sub priority: the caller's own, the engine's (a drag's "Hiểu rồi" or a pull), a clash, no room, the reason, what was inferred, the place, notes, far. */
 export function compose(r: Result | undefined, c: Ctx = {}): Toast {
   const title = c.title ?? r?.toast ?? "";
-  const sub = [c.sub, r?.sub, c.clash, c.stuck, c.reason, c.understood, c.where, c.notes, c.far].find((x) => !!x && !repeats(title, x, c.name));
+  const sub = [c.sub, r?.sub, c.clash, c.stuck, c.when, c.reason, c.understood, c.where, c.notes, c.far].find((x) => !!x && !repeats(title, x, c.name));
   const moved = (r?.moves?.length ?? 0) > 1 || !!r?.moves?.some((m) => m.cause);
   // a drag that taught a hypothesis offers "Chỉ lần này" as its one alt (the caller's own alt wins)
   const once = r?.once;

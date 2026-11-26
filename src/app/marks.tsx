@@ -29,7 +29,7 @@ export default function Marks() {
         ) : (
           <>
             <Animated.View entering={fadeIn} style={s.art}>
-              <View style={StyleSheet.absoluteFill}><TypeArt type="assignment" w={264} h={150} seed={2} /></View>
+              <View style={StyleSheet.absoluteFill}><TypeArt type="assignment" w={264} h={150} seed={2} drift /></View>
               <Text style={s.lab}>{t("cumulative")}</Text>
               <View style={s.meter}>
                 <View style={s.cap}><Fill p={Math.min(1, (m.gpa4 ?? 0) / 4)} /></View>

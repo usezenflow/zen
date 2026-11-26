@@ -13,7 +13,7 @@ import Reanimated, { interpolate, useAnimatedStyle, useSharedValue, withTiming, 
 import { scheduleOnRN } from "react-native-worklets";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
-import { artOf, Icon, Logo } from "@/components/art";
+import { artOf, covered, Icon, Logo } from "@/components/art";
 import { Rhythm, rhythmHead } from "@/components/rhythm";
 import { addDays, live, mondayOf, monthLabel, onDay, parents, short, startOfDay, weekday, type Hols } from "@/components/cal";
 import { Day, DayPull, First, RestCard, mins } from "@/components/day";
@@ -60,9 +60,18 @@ import { GRACE } from "@/planner/policy";
 import { listenWidgets, pushWidgets } from "@/lib/widgets";
 import { useTheme, font, space, ff, fd } from "@/lib/theme";
 import type { Action, Move, Notice, Rule, Step, Task, Warn } from "@/lib/types";
-import { dayLabel, day as dayName, endAt, when } from "@/lib/when";
+import { repeatText } from "@/components/detail-html";
+import { dayLabel, day as dayName, endAt, hm, when } from "@/lib/when";
 import { grounded, insights, typeOf, type Insights } from "@/planner";
 import type { Model } from "@/planner/model";
+
+/** What the picked anchor sets on the item: its deadline (before) or its start bound / predecessor (after). */
+const anchorPatch = ([, rel, kind]: string[], c: Task) => {
+  const iso = (ms: number) => new Date(ms).toISOString();
+  if (rel === "after") return kind === "task" ? { after: c.id } : { notBefore: iso(c.end ?? c.start!) };
+  if (kind === "task") return { deadline: iso(c.deadline ?? c.start!) };
+  return { deadline: iso(c.start!), ...(c.fixed === "exam" ? { anchor: c.id } : {}) };
+};
 
 type View_ = "day" | "week" | "month" | "rhythm"; // rhythm sits apart on the right of the tabs, outside the swipe cycle
 const VIEWS: View_[] = ["day", "week", "month"];
@@ -132,6 +141,7 @@ export default function Home() {
   const asideRef = useRef<Aside>("");
   const [pressing, setPressing] = useState(false); // finger down on the mic: the veil rises (capture.html 2)
   const [typing, setTyping] = useState(false);
+  useEffect(() => { covered.set(typing || !!menu || !!finding); }, [typing, menu, finding]); // the drifting arts hold while a blur or the keyboard is over them
   const [picking, setPicking] = useState(false);
   const [photo, setPhoto] = useState<{ uri: string; w: number; h: number; text?: string; marks?: { start: number; end: number }[] }>();
   const [pdf, setPdf] = useState<{ page: number; pages: number; text?: string; marks?: { start: number; end: number }[]; image?: string }>();
@@ -565,8 +575,9 @@ export default function Home() {
       // An anchor the reader could not pin ("ôn trước kỳ thi Toán" with two Toán exams): the chips pick one, and its start becomes the deadline.
       if (anchor) {
         const target = mine.find((x) => x.title === anchor.title);
+        const how = anchor.flags!.find((f) => f.startsWith("anchor:"))?.split(":") ?? []; // the cue said: before or after a task, class or exam
         const options = anchor.alternatives!.flatMap((id) => { const c = all.find((x) => x.id === id); return c?.start !== undefined ? [c] : []; });
-        if (target && options.length) setChips({ options: options.map((c) => ({ label: c.title, detail: dayLabel(c.start!), run: () => void applyCommand([{ op: "edit", target: target.id, deadline: new Date(c.start!).toISOString(), ...(c.fixed === "exam" ? { anchor: c.id } : {}) }]) })) });
+        if (target && options.length) setChips({ options: options.map((c) => ({ label: c.title, detail: dayLabel(c.start!), run: () => void applyCommand([{ op: "edit", target: target.id, ...anchorPatch(how, c) }]) })) });
       }
       const playing = (r.steps ?? []).some((st) => st.id); // the shuffle picks the day itself
       if (!playing && titles.length && Number.isFinite(firstAt)) setSel(startOfDay(firstAt));
@@ -582,7 +593,11 @@ export default function Home() {
         const alt = notes.alt && { alt: { label: notes.alt.label, run: async () => { await r.undo(); await run(notes.alt!.text, via); } } };
         // Not where or as long as it was asked: the reason says why at once ("Sáng mai kín, dời sang chiều mai").
         const first = made.find((x) => x.start === firstAt), fitWhy = first && (await store.loadModel(now)).placed[first.id]?.why?.find((x) => FIT.has(x.key));
-        say(t("added", { title: titles[0] }), r, { name: titles[0], reason: fitWhy && reasonText(fitWhy), understood, where: Number.isFinite(firstAt) ? whereOf(firstAt, now) : undefined, notes: notes.sub, far: farSub, ...(alt ?? (await otherSlot(made, now))) });
+        // Every instance, not the first: a repeat says its pattern, sittings each their day and time (the first four, then "+n").
+        const pieces = made.filter((x) => !x.fixed).sort((a, b) => a.start! - b.start!), head = pieces[0], until = /UNTIL=\d{4}(\d\d)(\d\d)/.exec(head?.rrule ?? "");
+        const all_ = head?.rrule ? `${repeatText(head.rrule, head.start!)}, ${hm(head.start!)}${until ? ` · ${t("untilDate", { d: `${+until[2]}/${+until[1]}` })}` : ""}`
+          : pieces.length > 1 ? [...pieces.slice(0, 4).map((x) => when(x.start!, now)), ...(pieces.length > 4 ? [`+${pieces.length - 4}`] : [])].join("\n") : undefined;
+        say(t("added", { title: titles[0] }), r, { name: titles[0], when: all_, reason: fitWhy && reasonText(fitWhy), understood, where: Number.isFinite(firstAt) ? whereOf(firstAt, now) : undefined, notes: notes.sub, far: farSub, ...(alt ?? (await otherSlot(made, now))) });
       } else say(r.toast, r);
       setPhoto(undefined);
       setPdf(undefined);

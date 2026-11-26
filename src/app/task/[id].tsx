@@ -25,7 +25,7 @@ import { leftSaved, openedOnDay, setFlash } from "@/lib/flash";
 import { allTasks, loadModel } from "@/lib/store";
 import { KIND_LIST, KIND_VI, reasonText, sayable } from "@/lib/reasons";
 import { useTheme, font, space, ff, fd } from "@/lib/theme";
-import { grounded } from "@/planner";
+import { grounded, typeOf } from "@/planner";
 import type { Placed } from "@/planner/model";
 import { clause, findingsFor, mine as mineFindings, type Finding } from "@/planner/mine";
 import type { Kind, Rule, Task } from "@/lib/types";
@@ -205,8 +205,10 @@ export default function Detail() {
   };
 
   const mine = task.source !== "dlu" && !task.forId;
-  const canTime = !!tt && (task.fixed ? task.fixed === "busy" && mine && task.start !== undefined : true);
-  const hasDue = mine && !task.fixed && !task.rrule && task.deadline !== undefined;
+  // Only a plan or an assignment is the user's to edit; lectures, exams and busy blocks are read-only (delete stays).
+  const editable = mine && (typeOf(task) === "plan" || typeOf(task) === "assignment");
+  const canTime = !!tt && editable;
+  const hasDue = editable && !task.fixed && !task.rrule && task.deadline !== undefined;
   // The open time line (a placed one, or an untimed one once its "no free slot" line is tapped). Start and length come from the task's own values.
   const tid = tt?.id ?? task.id;
   const sNow = tt?.start ?? Math.ceil(now / QUARTER) * QUARTER; // untimed: from the next quarter hour (now is set by the load)
@@ -229,9 +231,9 @@ export default function Detail() {
   const link = /^https?:\/\/\S+$/i.test(task.location ?? "") ? task.location! : undefined;
   const goBack = once(async () => router.back()); // a second tap must not pop the screen below
   const more = () => [
-    ...(mine && !task.fixed && !task.rrule && task.deadline === undefined ? [{ label: t("setDue"), icon: "hourglass" as const, onPress: defaultDue }] : []),
-    ...(mine && !task.location && ed !== "place" ? [{ label: t("addPlace"), icon: "place" as const, onPress: () => setEd("place") }] : []),
-    ...(mine && link && ed !== "place" ? [{ label: t("editPlace"), icon: "pencil" as const, onPress: () => setEd("place") }] : []),
+    ...(editable && !task.fixed && !task.rrule && task.deadline === undefined ? [{ label: t("setDue"), icon: "hourglass" as const, onPress: defaultDue }] : []),
+    ...(editable && !task.location && ed !== "place" ? [{ label: t("addPlace"), icon: "place" as const, onPress: () => setEd("place") }] : []),
+    ...(editable && link && ed !== "place" ? [{ label: t("editPlace"), icon: "pencil" as const, onPress: () => setEd("place") }] : []),
     // A fixed block is the user's own time: zen never offers to plan it, nor says why it is there.
     ...(mine && !task.fixed && task.userEdited?.includes("start") ? [{ label: t("zenReplan"), icon: "sync" as const, onPress: once(async () => {
       await saveFirst();
@@ -271,7 +273,7 @@ export default function Detail() {
   } else {
     const late = task.deadline !== undefined && task.deadline < now ? "red" : undefined; // a due time is muted; red only once missed
     if (task.deadline !== undefined && task.source === "dlu" && !task.forId) lines.push(<Meta key="d" icon="hourglass" tone={late} text={t("dueAt", { t: at(task.deadline) })} />);
-    if (mine && ed === "due" && dueLine) lines.push(dueLine);
+    if (editable && ed === "due" && dueLine) lines.push(dueLine);
     else if (hasDue) lines.push(<Meta key="d" icon="hourglass" tone={late} text={t("dueAt", { t: at(task.deadline!) })} onPress={openDue} />);
     // The time is always shown: a split task's next open sitting (its sittings listed under "Các buổi"), else "no free slot" (views.html "Detail, no free time").
     if (ed === "time" && canTime) lines.push(timeLine);
@@ -282,13 +284,13 @@ export default function Detail() {
   if (task.rrule && !task.section) lines.push(<Meta key="r" icon="repeat" text={repeatText(task.rrule, task.start ?? task.deadline ?? now)} />);
   // a link place opens on tap; the dots menu edits it
   if (link && ed !== "place") lines.push(<Meta key="l" icon="link" tone="link" text={host(link)} onPress={() => void Linking.openURL(link).catch(() => {})} />);
-  else if (mine && (task.location || ed === "place")) lines.push(
+  else if (editable && (task.location || ed === "place")) lines.push(
     <EdLine key="l" icon="pin">
       <Field value={loc} rev={rev} onText={typeLoc} autoFocus={ed === "place"} onEndEditing={savePlace} returnKeyType="done" submitBehavior="blurAndSubmit" placeholder={t("placeHint")} placeholderTextColor={th.muted}
         selectionColor={th.seal} cursorColor={th.seal} accessibilityLabel={t("placeHint")} style={[s.loc, { color: th.ink }]} />
     </EdLine>,
   );
-  else if (task.location && task.fixed && !mine) lines.push(<Meta key="l" icon="pin" text={task.location} />);
+  else if (task.location && !editable) lines.push(<Meta key="l" icon="pin" text={task.location} />);
   if (task.fixed === "lecture" && task.teacher) lines.push(<Meta key="g" icon="person" text={t("teacherIs", { n: task.teacher })} />);
   if (task.course && !exam) lines.push(<Meta key="c" icon="book" tone="link" text={task.course} />); // .dmeta: ink, with the chevron
   if (exam) lines.push(<Meta key="e" icon="book" tone="link" text={exam.title} onPress={() => router.push(`/task/${exam.id}`)} />);
@@ -377,7 +379,7 @@ export default function Detail() {
               <State tone="info" text={task.source === "dlu" && !task.forId ? (task.fixed ? t("fromCampus") : t("fromLms")) : mine && task.fixed === "busy" ? t("youKind", { k: t("fixedTime") }) : t("fromYou")} />
             )}
           </View>
-          <Field value={title} rev={rev} onText={typeTitle} selectionColor={th.seal} cursorColor={th.seal} onEndEditing={submitTitle} returnKeyType="done" submitBehavior="blurAndSubmit" multiline style={[s.h, { color: th.ink }]} />
+          <Field value={title} rev={rev} editable={editable} onText={typeTitle} selectionColor={th.seal} cursorColor={th.seal} onEndEditing={submitTitle} returnKeyType="done" submitBehavior="blurAndSubmit" multiline style={[s.h, { color: th.ink }]} />
           {noTitle && <Text accessibilityLiveRegion="polite" style={[s.hint, { color: th.seal }]}>{t("noTitleHint")}</Text>}
           <QuickBar onSay={quickSay} onMsg={setQuickMsg} />
           {quickMsg && <Text accessibilityLiveRegion="polite" style={[s.hint, { color: th.muted }]}>{quickMsg}</Text>}
@@ -423,7 +425,7 @@ export default function Detail() {
           )}
           {!!task.content?.trim() && <Lms html={task.content} />}
           {(!!why?.length || notes.length > 0) && <WhyBlock items={why ?? []} notes={notes} alt={alt} start={task.start} now={now} onMove={moveTo} />}
-          <Field value={note} rev={rev} onText={typing} selectionColor={th.seal} cursorColor={th.seal} onBlur={() => void saveNote()} multiline scrollEnabled={false} placeholder={t("addNote")} placeholderTextColor={th.muted}
+          <Field value={note} rev={rev} editable={editable} onText={typing} selectionColor={th.seal} cursorColor={th.seal} onBlur={() => void saveNote()} multiline scrollEnabled={false} placeholder={t("addNote")} placeholderTextColor={th.muted}
             style={[s.note, { color: th.ink, borderColor: th.line }]} />
         </Animated.View>
       </ScrollView>

@@ -275,7 +275,7 @@ export function Weekly({ title, sub, onPress }: { title: string; sub: string; on
   const th = useTheme();
   return (
     <Tap onPress={onPress} scale={0.98} accessibilityRole="button" accessibilityLabel={title} style={[s.art, { backgroundColor: th.chip }]}>
-      <View style={StyleSheet.absoluteFill}><TypeArt type="lecture" w={264} h={220} seed={8} /></View>
+      <View style={StyleSheet.absoluteFill}><TypeArt type="lecture" w={264} h={220} seed={8} drift /></View>
       <Text style={[s.lab, { color: th.onart }]}>{t("sundayLab")}</Text>
       <Text style={[s.t, { color: th.onart }]} numberOfLines={3}>{title}</Text>
       <View style={s.foot}>

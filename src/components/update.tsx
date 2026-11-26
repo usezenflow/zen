@@ -80,7 +80,7 @@ export function UpdatePrompt() {
       if (seen === installed) return;
       await kvSet("seenVersion", installed);
       if (!seen) return; // a fresh install has nothing "new"
-      if (notes.length) setD((c) => c ?? { kind: "new", version: installed, notes });
+      if (notes.length) setTimeout(() => setD((c) => c ?? { kind: "new", version: installed, notes }), 1200); // after the first screen has settled, so the modal does not fight its mount
     })();
     const check = (launch = false) => { if (!launch && Date.now() - checkedAt < 15 * 60_000) return; checkedAt = Date.now(); void checkUpdate().then((u) => {
       if (!u || offered === u.version) return;

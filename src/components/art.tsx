@@ -1,6 +1,6 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { memo, useEffect, useId, useMemo, useState } from "react";
 import { View } from "react-native";
-import Animated, { Easing, useAnimatedProps, useReducedMotion, useSharedValue, withRepeat, withSequence, withTiming, type SharedValue } from "react-native-reanimated";
+import Animated, { cancelAnimation, Easing, makeMutable, useAnimatedProps, useAnimatedReaction, useReducedMotion, useSharedValue, withRepeat, withSequence, withTiming, type SharedValue } from "react-native-reanimated";
 import Svg, { Circle, Defs, G, LinearGradient, Mask, Path, RadialGradient, Rect, Stop } from "react-native-svg";
 import { enso } from "@/components/enso";
 import { useTheme, type TypeName } from "@/lib/theme";
@@ -100,22 +100,36 @@ export function artOf(t: Task): TypeName {
 // drift (pause it while a menu or search is open: the redraw competes with them): the colour fields flow across the stripes on their own slow loops (6.5s, 9s, 7.5s, never in step) and the stripes crawl one gap every 5s
 // (a ripple); Reduce Motion holds everything still. Masks stay fixed and the fields move behind them, so the lines read as lines while the colour moves.
 const mv = (dx: number, dy: number) => { "worklet"; return { transform: [{ translateX: dx }, { translateY: dy }] }; }; // runs on the UI thread, so it must be a worklet
-const loop = (v: SharedValue<number>, ms: number) => v.set(withRepeat(withTiming(1, { duration: ms, easing: Easing.inOut(Easing.sin) }), -1, true));
-export function TypeArt({ type, w: w0 = 300, h: h0 = 300, seed = 3, dir, drift }: { type: TypeName; w?: number; h?: number; seed?: number; dir?: "h" | "v" | "d"; drift?: boolean }) {
+/** True while the home list is being scrolled: every drifting field holds still, since each frame of it redraws masked SVG and competes with the scroll. */
+export const scrolling = makeMutable(false);
+/** True while something frosted or typed-into sits over the home screen (the keyboard bar, search, a menu): blurring live SVG each frame stalls the main thread, so the drift holds too. */
+export const covered = makeMutable(false);
+const loop = (v: SharedValue<number>, ms: number) => { "worklet"; v.set(withRepeat(withTiming(1, { duration: ms, easing: Easing.inOut(Easing.sin) }), -1, true)); };
+const start = (ta: SharedValue<number>, tb: SharedValue<number>, tc: SharedValue<number>, ts: SharedValue<number>) => {
+  "worklet";
+  loop(ta, 6500); loop(tb, 9000); loop(tc, 7500); ts.set(withRepeat(withTiming(1, { duration: 5000, easing: Easing.linear }), -1));
+};
+function TypeArtImpl({ type, w: w0 = 300, h: h0 = 300, seed = 3, dir, drift }: { type: TypeName; w?: number; h?: number; seed?: number; dir?: "h" | "v" | "d"; drift?: boolean }) {
   const reduce = useReducedMotion(), ta = useSharedValue(0.5), tb = useSharedValue(0.5), tc = useSharedValue(0.5), ts = useSharedValue(0);
   useEffect(() => {
     if (!drift || reduce) { ta.set(0.5); tb.set(0.5); tc.set(0.5); ts.set(0); return; }
     // Start once the screen has settled: a view that is mounting or a menu that is opening is animating too, and the redraw would compete with it.
-    const go = setTimeout(() => { loop(ta, 6500); loop(tb, 9000); loop(tc, 7500); ts.set(withRepeat(withTiming(1, { duration: 5000, easing: Easing.linear }), -1)); }, 800);
+    const go = setTimeout(() => { if (!scrolling.get() && !covered.get()) start(ta, tb, tc, ts); }, 800);
     return () => clearTimeout(go);
   }, [drift, reduce, ta, tb, tc, ts]);
+  // a scroll holds the drift where it is; it carries on when the scroll rests
+  useAnimatedReaction(() => scrolling.get() || covered.get(), (on, was) => {
+    if (!drift || reduce || was === null) return;
+    if (on) { cancelAnimation(ta); cancelAnimation(tb); cancelAnimation(tc); cancelAnimation(ts); } else start(ta, tb, tc, ts);
+  }, [drift, reduce]);
   const { art } = useTheme();
   const id = useId().replace(/\W/g, "");
   const { a, b, c, d } = art[type];
   const [box, setBox] = useState({ w: w0, h: h0 }), { w, h } = box;
   const g = useMemo(() => {
     const r = rng(seed);
-    const x1 = 0.25 + r() * 0.5, y1 = 0.3 + r() * 0.4, a1 = r() * 180, x2 = 0.1 + r() * 0.8, y2 = 0.1 + r() * 0.8, a2 = r() * 180;
+    // the colour sits right of centre
+    const x1 = 0.62 + r() * 0.2, y1 = 0.4 + r() * 0.2, a1 = r() * 180, x2 = 0.5 + r() * 0.4, y2 = 0.3 + r() * 0.4, a2 = r() * 180;
     const rot = ROT[dir ?? (["h", "v", "d"] as const)[Math.abs(seed) % 3]];
     return { f: field(x1, y1, a1, 1.15, 0.62, 0.55, w, h), k: field(x1, y1, a1, 1.2, 0.55, 0.3, w, h), e: field(x2, y2, a2, 1.3, 0.5, 0.42, w, h), rot };
   }, [type, w, h, seed, dir]);
@@ -132,6 +146,21 @@ export function TypeArt({ type, w: w0 = 300, h: h0 = 300, seed = 3, dir, drift }
   const px = w * 0.3, py = h * 0.3; // the moving field rect is oversized so its edge never shows
   const layer = (gid: string, mid: string, move: ReturnType<typeof useAnimatedProps>) => (
     <G mask={`url(#${id}${mid})`}><AG animatedProps={move}><Rect x={-px} y={-py} width={w + 2 * px} height={h + 2 * py} fill={`url(#${id}${gid})`} /></AG></G>
+  );
+  // A small tile (a row's, a week block's, a toast's): the ground and one colour field, no stripe masks, which are the costly part of a scrolling list.
+  if (Math.min(w0, h0) <= 48) return (
+    <View style={{ flex: 1 }} onLayout={(e) => { const { width, height } = e.nativeEvent.layout; if (width > 0 && height > 0) setBox((b) => (Math.abs(b.w - width) < 1 && Math.abs(b.h - height) < 1 ? b : { w: width, h: height })); }}>
+      <Svg width="100%" height="100%" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
+        <Defs>
+          <LinearGradient id={`${id}g`} x1="0" y1="0" x2="1" y2="1"><Stop offset="0" stopColor={a} /><Stop offset="1" stopColor={c} /></LinearGradient>
+          <RadialGradient id={`${id}f`} gradientUnits="userSpaceOnUse" cx={g.f.cx} cy={g.f.cy} rx={g.f.rx} ry={g.f.ry} gradientTransform={g.f.tf}>
+            <Stop offset="0" stopColor={b} /><Stop offset="0.6" stopColor={b} stopOpacity={0.9} /><Stop offset="1" stopColor={b} stopOpacity={0} />
+          </RadialGradient>
+        </Defs>
+        <Rect width={w} height={h} fill={`url(#${id}g)`} />
+        <Rect width={w} height={h} fill={`url(#${id}f)`} />
+      </Svg>
+    </View>
   );
   return (
     <View style={{ flex: 1 }} onLayout={(e) => { const { width, height } = e.nativeEvent.layout; if (width > 0 && height > 0) setBox((b) => (Math.abs(b.w - width) < 1 && Math.abs(b.h - height) < 1 ? b : { w: width, h: height })); }}>
@@ -160,3 +189,6 @@ export function TypeArt({ type, w: w0 = 300, h: h0 = 300, seed = 3, dir, drift }
     </View>
   );
 }
+
+// memo: a list of rows re-renders often, and each art is a mask and three gradients to redraw.
+export const TypeArt = memo(TypeArtImpl);

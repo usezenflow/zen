@@ -42,6 +42,8 @@ export function bell(p: Piece, now: number, start: number): number {
   if (hi - lo < DAY) centre = 0; // under a day: aim at the start
   else if (!open && due - now <= 30 * DAY) centre = Math.max(0, Math.min(1, ((p.aim ?? SOFT_AIM) * p.k) / Math.max(1, p.n) * (due - lo) / (hi - lo)) - slip);
   else centre = Math.max(0, p.k / (p.n + 1) - slip);
+  // Cold (no learned aim: a last-minute finisher keeps their own), with room to spare (2+ days) the aim never reaches the last EARLY_BUFFER: "trước 1/12" is prepared well before the 30th, never on its eve.
+  if (!open && p.aim === undefined && hi - lo >= 2 * DAY) centre = Math.min(centre, Math.max(0, (hi - lo - EARLY_BUFFER) / (hi - lo)));
   return Math.exp(-((pos - centre) ** 2) / (2 * 0.2 ** 2));
 }
 

@@ -174,8 +174,8 @@ describe("Row", () => {
   it("the time drops the dial; its hour and minute save once, on close", async () => {
     const f = await draw();
     await fireEvent.press(screen.getByText("14:00"));
-    await fireEvent.press(screen.getByLabelText("15"));
-    await fireEvent.press(screen.getByLabelText("30"));
+    await fireEvent.press(screen.getAllByLabelText("hour 15")[0]);
+    await fireEvent.press(screen.getAllByLabelText("minute 30")[0]);
     expect(f.onTime).not.toHaveBeenCalled();
     await fireEvent.press(screen.getByLabelText("close"));
     expect(f.onTime).toHaveBeenCalledTimes(1);
@@ -219,8 +219,8 @@ describe("Row", () => {
     expect(en.fontSize).toBe(st.fontSize);
     expect(en.color).not.toBe(st.color);
     await fireEvent.press(screen.getByText("15:00"));
-    await fireEvent.press(screen.getByLabelText("16")); // an hour before the start would roll to the next day: 16 is the first offered after it
-    await fireEvent.press(screen.getByLabelText("00"));
+    await fireEvent.press(screen.getAllByLabelText("hour 16")[0]); // an hour before the start would roll to the next day: 16 is the first offered after it
+    await fireEvent.press(screen.getAllByLabelText("minute 00")[0]);
     await fireEvent.press(screen.getByLabelText("close"));
     expect(onEnd).toHaveBeenLastCalledWith(new Date(at(16, 0)));
     expect(f.onTime).not.toHaveBeenCalled();

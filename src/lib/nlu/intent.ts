@@ -1,6 +1,7 @@
 // Free-form commands on existing tasks ("xoá việc giặt đồ", "dời họp sang 3h", "đổi tên A thành B", "xong bài tập toán").
 // A line is a command only when its verb leads and its target finds a task; anything else stays a new task.
 // Typos and slang are folded to one form first (canon): "k cần", "ko cần", "khôg cần" read as "khong can".
+import { FIX } from "./reader/fixes";
 import { found, matches, parse, type Query } from "../find";
 import { fold, osa } from "./reader/fold";
 import { findMentions } from "./reader/mentions";
@@ -191,7 +192,13 @@ const scopedOf = (q: Query) => q.days.length > 0 || q.part !== undefined || q.at
 /** Live tasks the target words find, best first, one per series (its next live one); the score is the share of the title the words cover.
  *  `all`: every member of that series the said days, part and clock keep ("gym tuần này": each session this week), by start. */
 function rankIn(tasks: Task[], target: string, now: number, st?: Query["status"], adjust?: (q: Query) => Query) {
-  const q0 = queryOf(tasks, target, now), q = adjust ? adjust(q0) : q0;
+  const q0 = queryOf(tasks, target, now);
+  let q = adjust ? adjust(q0) : q0;
+  // Nothing has every word: the words no task has at all are dropped (a misheard or extra one), the rest find it ("xoá họp nhóm ktpm" for "Họp nhóm").
+  if (q.words.length > 1 && !found(tasks, q, now).length) {
+    const keep = q.words.filter((w) => tasks.some((x) => matches(x, { ...q, words: [w] }, now)));
+    if (keep.length >= 2 && keep.length < q.words.length && q.words.every((w) => keep.includes(w) || !MAKE.has(w))) q = { ...q, words: keep };
+  }
   const n = q.words.length;
   if (!n) return []; // no words left (all said were filler): nothing is named
   const lq = st ? { ...q, status: q.status ?? st } : q;
@@ -205,6 +212,8 @@ function rankIn(tasks: Task[], target: string, now: number, st?: Query["status"]
       all: tasks.filter((y) => kinOf(y) === kinOf(x) && !y.deletedAt && y.start !== undefined && !parents.has(y.id) && matches(y, sq, now)).sort((a, b) => a.start! - b.start!) };
   }).sort((a, b) => b.score - a.score);
 }
+
+const MAKE = new Set(["add", "them", "tao", "create", "new", "moi", "schedule", "book"]); // a create verb is never a misheard word of a target
 
 /** The target read as a search; a part word a title holds is the title's ("Gym buổi tối"), not a part of the day to filter by. */
 function queryOf(tasks: Task[], target: string, now: number): Query {
@@ -626,7 +635,6 @@ const SEP = /^[,;&+\/\n]$/;
 const FILLER = new Set(["khoi lo", "thoi", "ok", "oke", "nhe", "nha", "khong sao"]);
 
 // Self-correction inside a command ("dời họp sang 3h à không 4h", "xoá gym à nhầm yoga") and taking one back ("xoá gym, à thôi").
-const FIX = [["a", "khong"], ["a", "nham"], ["a", "quen"], ["a", "lon"], ["khong", "phai"], ["y", "minh", "la"], ["y", "la"], ["ma", "la"], ["sua", "lai"], ["nham"], ["i", "mean"], ["actually"], ["no", "wait"]];
 const CANCEL = [["a", "thoi"], ["thoi", "khoi"], ["thoi", "bo", "di"], ["thoi", "bo", "qua"], ["thoi", "dung"], ["khoan", "da"], ["never", "mind"], ["nevermind"], ["cancel", "that"], ["forget", "it"]];
 // Words before a new value that say which slot it fills: "à không, sang 4h", "à không thành bơi"
 const SLOT = ["sang", "to", "thanh", "luc", "vao"];

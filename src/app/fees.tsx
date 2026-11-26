@@ -43,7 +43,7 @@ export default function Fees() {
           <Animated.View entering={fadeIn}><RestCard lab={t("fees")} title={t("noFeesT")} sub={t("noFees")} h={150} /></Animated.View>
         ) : total > 0 ? (
           <Animated.View entering={fadeIn} style={s.art}>
-            <View style={StyleSheet.absoluteFill}><TypeArt type="exam" w={264} h={150} seed={3} /></View>
+            <View style={StyleSheet.absoluteFill}><TypeArt type="exam" w={264} h={150} seed={3} drift /></View>
             <Text style={s.lab}>{t("owedT")}</Text>
             <View style={s.bottom}>
               <View style={{ flex: 1 }}>

@@ -5,43 +5,40 @@ import { DateDrop, TimeDial } from "./dial";
 const A = { x: 200, y: 200, w: 60, h: 34 };
 const at = (h: number, m: number) => new Date(2026, 10, 20, h, m);
 const draw = (value: Date, due: boolean, onChange = jest.fn(), min?: Date) => render(<View><TimeDial open anchor={A} due={due} min={min} value={value} onChange={onChange} onClose={jest.fn()} /></View>);
+const H = (h: number) => screen.getAllByLabelText(`hour ${String(h).padStart(2, "0")}`)[0], M = (m: string) => screen.getAllByLabelText(`minute ${m}`)[0];
 const close = () => fireEvent.press(screen.getByLabelText("close"));
 
-it("tapping 17 then 35 then closing saves once: 17:35", async () => {
+it("rolling to 17 then 35 then closing saves once: 17:35", async () => {
   const onChange = jest.fn();
   await draw(at(9, 0), false, onChange);
-  await fireEvent.press(screen.getByLabelText("17")); // the hour: the minutes come up
-  await fireEvent.press(screen.getByLabelText("35"));
-  expect(onChange).not.toHaveBeenCalled(); // nothing saves while the dial turns
+  await fireEvent.press(screen.getAllByLabelText("hour 17")[0]);
+  await fireEvent.press(screen.getAllByLabelText("minute 35")[0]);
+  expect(onChange).not.toHaveBeenCalled(); // nothing saves while the drums roll
   await close();
   expect(onChange).toHaveBeenCalledTimes(1);
   expect(onChange).toHaveBeenCalledWith(at(17, 35));
 });
 
-it("the hour segment of the header goes back to the hours", async () => {
-  await draw(at(9, 0), false);
-  await fireEvent.press(screen.getByLabelText("17"));
-  expect(screen.queryByLabelText("17")).toBeNull(); // the minutes: 00 to 55 only
-  expect(screen.getByLabelText("35")).toBeOnTheScreen();
-  await fireEvent.press(screen.getByLabelText("hour"));
-  expect(screen.getByLabelText("17")).toBeOnTheScreen();
-  expect(screen.queryByLabelText("35")).toBeNull();
+it("the minute drum loops: 55 is followed by 00", async () => {
+  await draw(at(9, 55), false);
+  // the drum repeats its rows, so 00 sits right after 55 and 55 right before 00
+  expect(screen.getAllByLabelText("minute 00").length).toBeGreaterThan(1);
 });
 
-it("hours before min are disabled and greyed; the minutes before it too", async () => {
+it("hours before min are disabled; the minutes before it too", async () => {
   await draw(at(18, 0), false, jest.fn(), at(17, 30));
-  expect(screen.getByLabelText("8")).toBeDisabled();
-  expect(screen.getByLabelText("16")).toBeDisabled();
-  expect(screen.getByLabelText("17")).toBeEnabled();
-  await fireEvent.press(screen.getByLabelText("17"));
-  expect(screen.getByLabelText("25")).toBeDisabled();
-  expect(screen.getByLabelText("30")).toBeEnabled();
+  expect(screen.getAllByLabelText("hour 08")[0]).toBeDisabled();
+  expect(screen.getAllByLabelText("hour 16")[0]).toBeDisabled();
+  expect(screen.getAllByLabelText("hour 17")[0]).toBeEnabled();
+  await fireEvent.press(screen.getAllByLabelText("hour 17")[0]);
+  expect(screen.getAllByLabelText("minute 25")[0]).toBeDisabled();
+  expect(screen.getAllByLabelText("minute 30")[0]).toBeEnabled();
 });
 
 it("a due 23:59 left untouched stays 23:59: nothing is saved on close", async () => {
   const onChange = jest.fn();
   await draw(at(23, 59), true, onChange);
-  expect(screen.getByText("59")).toBeOnTheScreen(); // the header shows the minute the due has
+  expect(screen.getAllByLabelText("minute 59")[0]).toBeOnTheScreen(); // a due's drum offers :59
   await close();
   expect(onChange).not.toHaveBeenCalled();
 });
@@ -49,7 +46,7 @@ it("a due 23:59 left untouched stays 23:59: nothing is saved on close", async ()
 it("a due 23:59 keeps its :59 when the hour changes, until the minutes are touched", async () => {
   const onChange = jest.fn();
   await draw(at(23, 59), true, onChange);
-  await fireEvent.press(screen.getByLabelText("22")); // the inner ring's 22
+  await fireEvent.press(screen.getAllByLabelText("hour 22")[0]);
   await close();
   expect(onChange).toHaveBeenCalledWith(at(22, 59));
 });
@@ -123,11 +120,11 @@ it("on today only now to midnight: no hour gone, the current hour from now, pres
   jest.spyOn(Date, "now").mockReturnValue(at(14, 7).getTime());
   const onChange = jest.fn();
   await draw(at(17, 30), false, onChange);
-  expect(screen.getByLabelText("14")).toBeEnabled();
-  expect(screen.getByLabelText("13")).toBeDisabled();
-  await fireEvent.press(screen.getByLabelText("14"));
-  expect(screen.getByLabelText("00")).toBeDisabled(); // 14:00 is gone; 14:15 on
-  await fireEvent.press(screen.getByLabelText("15"));
+  expect(H(14)).toBeEnabled();
+  expect(H(13)).toBeDisabled();
+  await fireEvent.press(H(14));
+  expect(M("00")).toBeDisabled(); // 14:00 is gone; 14:15 on
+  await fireEvent.press(M("15"));
   await close();
   expect(onChange).toHaveBeenLastCalledWith(at(14, 15));
   onChange.mockClear();
@@ -150,32 +147,32 @@ it("a day picked whose time is already gone takes the next quarter hour", async 
 it("another day keeps the whole day", async () => {
   jest.spyOn(Date, "now").mockReturnValue(at(14, 7).getTime());
   await draw(new Date(2026, 10, 21, 9, 0), false);
-  expect(screen.getByLabelText("8")).toBeEnabled();
+  expect(H(8)).toBeEnabled();
 });
 
 // An end's dial starts 15 minutes after its start, on the start's day; on another day the whole day is offered.
 it("an end offers only times at least 15 minutes after its start", async () => {
   const onChange = jest.fn();
   await draw(at(18, 0), false, onChange, new Date(at(17, 0).getTime() + 15 * 60_000));
-  expect(screen.getByLabelText("16")).toBeDisabled();
-  expect(screen.getByLabelText("17")).toBeEnabled();
-  await fireEvent.press(screen.getByLabelText("17")); // the first hour offered: its first minute 15
-  expect(screen.getByLabelText("00")).toBeDisabled();
-  expect(screen.getByLabelText("15")).toBeEnabled();
+  expect(H(16)).toBeDisabled();
+  expect(H(17)).toBeEnabled();
+  await fireEvent.press(H(17)); // the first hour offered: its first minute 15
+  expect(M("00")).toBeDisabled();
+  expect(M("15")).toBeEnabled();
+  await fireEvent.press(M("15"));
   await close();
   expect(onChange).toHaveBeenLastCalledWith(at(17, 15));
 });
 
 it("an end on a later day than its start keeps the whole day", async () => {
   await render(<View><TimeDial open anchor={A} value={new Date(2026, 10, 21, 9, 0)} min={new Date(at(17, 0).getTime() + 15 * 60_000)} onChange={jest.fn()} onClose={jest.fn()} /></View>);
-  expect(screen.getByLabelText("8")).toBeEnabled();
+  expect(H(8)).toBeEnabled();
 });
 
-it("the minutes are 00 to 55 and the hand snaps to the nearest 5p: 17:57 selects 55", async () => {
+it("an odd minute sits on its nearest 5p: 17:57 selects 55", async () => {
   await draw(at(17, 57), false);
-  await fireEvent.press(screen.getByLabelText("17"));
-  expect(screen.getByLabelText("55")).toBeSelected();
-  expect(screen.getByLabelText("00")).not.toBeSelected();
+  expect(M("55")).toBeSelected();
+  expect(M("00")).not.toBeSelected();
 });
 
 // The relative chips sit beside the usual times: 15 and 30 minutes on from the value, tonight at 20:00, tomorrow morning at 08:00. Earlier renders stay mounted, so take the last.

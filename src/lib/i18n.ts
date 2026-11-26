@@ -22,6 +22,7 @@ const S = {
   deleted: "Đã xoá {title}", // views.html "Deleted, single task": xoá, as removed
   renamed: "Đã đổi tên thành {title}",
   moved: "Đã dời {title} sang {time}",
+  resized: "Đã dời {title}",
   learnedAvoid: "Mình sẽ bớt xếp việc buổi {time}", // time: a part word (partAt)
   avoidGone: "Mình quên giờ {a}:00",
   synced: "Lịch học vừa đổi, mình đã dời {n} việc",
@@ -79,7 +80,7 @@ const S = {
   respread: "Mình chia lại {n} buổi cho đều",
   stillMore: "Còn nữa",
   saveFailed: "Mình chưa lưu được",
-  hold: "Giữ nút để nói",
+  hold: "Giữ để nói",
   listening: "Nói xong thì thả tay",
   thinking: "Đang sắp xếp",
   today: "Hôm nay",
@@ -384,7 +385,7 @@ const S = {
   rulesKept: "Mình sẽ giữ {n} lời dặn",
   ruleHuh: "Mình chưa rõ lời dặn này",
   ruleHuhSub: "Thử nói ngày và giờ, như “tối thứ sáu để trống”",
-  holdRule: "Giữ nút để dặn",
+  holdRule: "Giữ để dặn",
   satPhoto: "Ảnh",
   satType: "Gõ",
   dropPhoto: "Thả để chọn ảnh",

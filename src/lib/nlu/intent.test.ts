@@ -141,6 +141,13 @@ describe("a line with several parts", () => {
     expect(s?.asks.map((a) => a.text)).toEqual(["xoá gym"]);
     expect(think("dời họp nhóm sang 3h rồi xoá gym", now, "typed", {}, tasks)).toEqual([expect.objectContaining({ op: "edit", target: "meet" })]);
   });
+  it("a target said partially, typoed or self-corrected still finds its task", () => {
+    const del = (line: string) => think(line, now, "typed", {}, tasks);
+    expect(del("xoá họp nhóm ktpm")).toEqual([{ op: "delete", target: "meet" }]); // an extra word nothing has
+    expect(del("xoa hop nohm")).toEqual([{ op: "delete", target: "meet" }]); // a swap
+    expect(del("xoá họp nhómm")).toEqual([{ op: "delete", target: "meet" }]); // a stretched letter
+    expect(del(corrected("xoá laundry à nhầm họp nhóm").line)).toEqual([{ op: "delete", target: "meet" }]); // a self-correction
+  });
   it("English parts: a delete, a comma-less 'and', and a create with 'add' dropped", () => {
     expect(think("delete laundry and add study math tomorrow 3pm", now, "typed", {}, en)).toEqual([
       { op: "delete", target: "laundry" },

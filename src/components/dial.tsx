@@ -1,32 +1,27 @@
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
-import { useEffect, useRef, useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import Animated, { FadeOut, ZoomIn, useSharedValue } from "react-native-reanimated";
-import { GestureHandlerRootView, GestureDetector, usePanGesture } from "react-native-gesture-handler";
-import Svg, { Circle, Line, Text as SvgText } from "react-native-svg";
-import { scheduleOnRN } from "react-native-worklets";
+import { useEffect, useRef, useState, type ComponentRef } from "react";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import Animated, { FadeOut, ZoomIn } from "react-native-reanimated";
 import { useDrop } from "@/components/outside";
 import { EASE, Hit } from "@/components/tap";
 import { t } from "@/lib/i18n";
 import { ff, useTheme } from "@/lib/theme";
 
-// views.html .dial: zen's round time dial dropped from its chip like a menu. A header HH:MM (tap a segment to switch), then a face: hours first, then minutes in 5p stops.
+// views.html .dial: zen's round time dial dropped from its chip like a menu. Two rolling drums (hours, minutes in 5p stops), looping like iOS's.
 const PADX = 12, PADY = 10;
 const PRE = 44, PILL = 44, GAP = 8; // the preset row: views.html .pre, one tap picks and closes
 const TW = 208; // two presets to a line, each centred with room on both sides
-const HEAD = 44, FACE = 184, C = FACE / 2, RO = 76, RI = 48; // the face: outer ring 1-12 (stops 00-55 for minutes), inner ring 13-23 and 00
+const FACE = 180; // the two drums: five rows of 36
 // A start's usual morning, afternoon, after class, evening; a due's before midnight and midnight.
 const TPRE: [number, number][] = [[8, 0], [14, 0], [17, 0], [20, 0]], DPRE: [number, number][] = [[23, 59], [0, 0]];
-const TH = (n: number) => 2 * PADY + HEAD + FACE + 8 + Math.ceil(n / 2) * PILL + (Math.ceil(n / 2) - 1) * GAP; // header, face, the 8 above the presets, the pill lines
+const TH = (n: number) => 2 * PADY + FACE + 8 + Math.ceil(n / 2) * PILL + (Math.ceil(n / 2) - 1) * GAP; // the drums, the 8 above the presets, the pill lines
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const pad = (n: number) => String(n).padStart(2, "0");
 let lastTick = 0; // shortcut: one clock for every drum, so a fast spin buzzes at most every 40 ms
 const tick = () => { const n = Date.now(); if (n - lastTick < 40) return; lastTick = n; Haptics.selectionAsync().catch(() => {}); };
 const REL = 4; // the relative presets: +15p, +30p, tonight, tomorrow morning
-// Stop keys: 0-11 the outer ring (12, 1-11), 12-23 the inner (00, 13-23); minutes use 0-11 (00-55).
-const hourOf = (k: number) => (k < 12 ? (k === 0 ? 12 : k) : k === 12 ? 0 : k);
-const pt = (r: number, i: number): [number, number] => [C + r * Math.sin((i * Math.PI) / 6), C - r * Math.cos((i * Math.PI) / 6)];
+const MINS = Array.from({ length: 12 }, (_, i) => i * 5);
 
 export type Anchor = { x: number; y: number; w: number; h: number };
 
@@ -64,10 +59,45 @@ function Drop({ anchor, w, h, side, onClose, children }: { anchor: Anchor; w: nu
   );
 }
 
-type Phase = "h" | "m";
-type St = { h: number; m: number; ph: Phase; touched: boolean };
+type St = { h: number; m: number; touched: boolean };
+const ITEM = 36, ROWS = 5, WH = ITEM * ROWS, REPS = 7, MID = 3;
 
-/** The dial itself. Turning it moves the hand and the header only; `onChange` fires once, when the dial closes (a tap outside), and only if the time moved. */
+/** One iOS-style drum: `n` values rolling in a loop (the last is followed by the first), snapping to a row; the one under the band is `sel`. `dis` rows take no pick, the drum springs back. */
+function Wheel({ n, sel, label, dis, a11y, onPick }: { n: number; sel: number; label: (i: number) => string; dis: (i: number) => boolean; a11y: string; onPick: (i: number) => void }) {
+  const th = useTheme();
+  const ref = useRef<ComponentRef<typeof ScrollView>>(null);
+  const cur = useRef(sel); // the row under the band right now, while rolling
+  const at = (i: number, k = MID) => (k * n + i) * ITEM;
+  useEffect(() => { if (cur.current !== sel) { cur.current = sel; ref.current?.scrollTo({ y: at(sel), animated: false }); } }, [sel]); // eslint-disable-line react-hooks/exhaustive-deps -- at() only reads n
+  const settle = (y: number) => {
+    const row = Math.round(y / ITEM), k = ((row % n) + n) % n;
+    if (dis(k)) { cur.current = sel; ref.current?.scrollTo({ y: at(sel, Math.floor(row / n)), animated: true }); return; }
+    cur.current = k;
+    onPick(k);
+    if (row !== MID * n + k) ref.current?.scrollTo({ y: at(k), animated: false }); // back to the middle copy, so it never runs out
+  };
+  return (
+    <ScrollView
+      ref={ref} style={s.wheel} showsVerticalScrollIndicator={false} snapToInterval={ITEM} decelerationRate="fast" scrollEventThrottle={16}
+      contentOffset={{ x: 0, y: at(sel) }} contentContainerStyle={{ paddingVertical: ITEM * 2 }}
+      onScroll={(e) => { const k = ((Math.round(e.nativeEvent.contentOffset.y / ITEM) % n) + n) % n; if (k !== cur.current) { cur.current = k; tick(); } }}
+      onMomentumScrollEnd={(e) => settle(e.nativeEvent.contentOffset.y)}
+      onScrollEndDrag={(e) => { if (Math.abs(e.nativeEvent.velocity?.y ?? 0) < 0.05) settle(e.nativeEvent.contentOffset.y); }}
+    >
+      {Array.from({ length: REPS * n }, (_, r) => {
+        const i = r % n, mid = Math.floor(r / n) === MID, d = dis(i);
+        return (
+          <Pressable key={r} disabled={d} onPress={() => { cur.current = i; ref.current?.scrollTo({ y: at(i), animated: true }); onPick(i); }}
+            accessible={mid} accessibilityRole="button" accessibilityLabel={`${a11y} ${label(i)}`} accessibilityState={{ selected: i === sel, disabled: d }} style={s.row}>
+            <Text style={[s.rd, { color: th.ink, opacity: d ? 0.3 : 1 }]}>{label(i)}</Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
+/** The dial itself: two drums, hours and minutes, as iOS has them. Rolling changes the time in place; `onChange` fires once, when the dial closes (a tap outside), and only if the time moved. */
 function Clock({ anchor, height, side, value, due, min, past, presets, onChange, onClose }: { anchor: Anchor; height: number; side: "left" | "right"; value: Date; due?: boolean; min?: Date; past?: boolean; presets?: Preset[]; onChange: (d: Date) => void; onClose: () => void }) {
   const th = useTheme();
   // On today only now to midnight is offered: an hour once a quarter of it is left, minutes from now on. `past`: any time (a manual edit).
@@ -84,81 +114,29 @@ function Clock({ anchor, height, side, value, due, min, past, presets, onChange,
   const [st, setSt] = useState<St>(() => {
     const h0 = value.getHours();
     const h = hourOff(h0) ? HOURS.find((x) => !hourOff(x)) ?? h0 : h0; // a time already gone starts on the first hour left
-    return { h, m: fit(h, value.getMinutes()), ph: "h", touched: false };
+    return { h, m: fit(h, value.getMinutes()), touched: false };
   });
-  const { h, m, ph, touched } = st;
-  // a value picked on the current phase; the hours and minutes that are off take no pick
-  const pick = (p: St, phase: Phase, v: number): St => (phase === "h" ? (hourOff(v) ? p : { ...p, h: v, m: fit(v, p.m), touched: true }) : off(p.h, v) ? p : { ...p, m: v, touched: true });
-  // the hand's stop: the hour, or the nearest 5p (a 59 sits at 00)
-  const stop = ph === "h" ? h : Math.round(m / 5) % 12;
-  const prev = useRef(stop);
-  useEffect(() => { if (prev.current !== stop) { prev.current = stop; tick(); } }, [stop]); // one tick per stop the hand passes
-  // Drags report the stop under the hand (a key, see hourOf); the phase turns on release.
-  const drag = (k: number) => setSt((p) => pick(p, p.ph, p.ph === "h" ? hourOf(k) : (k % 12) * 5));
-  const release = () => setSt((p) => (p.ph === "h" ? { ...p, ph: "m" } : p)); // letting go of an hour turns to the minutes
-  const lastKey = useSharedValue(-1);
-  const pan = usePanGesture({
-    onActivate: () => { "worklet"; lastKey.set(-1); },
-    onUpdate: (e) => {
-      "worklet";
-      const dx = e.x - C, dy = e.y - C;
-      const i = Math.round(((Math.atan2(dx, -dy) + 2 * Math.PI) % (2 * Math.PI)) / (Math.PI / 6)) % 12; // nearest stop by angle, 0 at the top
-      const k = Math.hypot(dx, dy) < (RO + RI) / 2 ? 12 + i : i; // the inner ring for hours close to the centre
-      if (k !== lastKey.get()) { lastKey.set(k); scheduleOnRN(drag, k); }
-    },
-    onDeactivate: () => { "worklet"; scheduleOnRN(release); },
-  });
+  const { h, m, touched } = st;
+  const mins = due ? [...MINS, 59] : MINS; // a due offers :59 after :55
+  const mi = m === 59 && due ? 12 : Math.round(m / 5) % 12; // the drum row of the minute (an odd minute sits on its nearest stop)
   const close = () => {
     if (touched && (h !== value.getHours() || m !== value.getMinutes())) { const d = new Date(value); d.setHours(h, m, 0, 0); onChange(d); }
     onClose();
   };
-  const items = Array.from({ length: ph === "h" ? 24 : 12 }, (_, k) => {
-    const inner = ph === "h" && k >= 12, v = ph === "h" ? hourOf(k) : k * 5;
-    const [x, y] = pt(inner ? RI : RO, k % 12);
-    const sel = ph === "h" ? v === h : k === stop;
-    return { k, x, y, inner, sel, dis: ph === "h" ? hourOff(v) : off(h, v), label: ph === "h" && !inner ? String(v) : pad(v), v };
-  });
-  const cur = items.find((x) => x.sel) ?? items[0];
-  const seg = (p: Phase, text: string, label: string) => (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={() => setSt((q) => ({ ...q, ph: p }))} style={[s.seg, ph === p && { backgroundColor: th.chip }]}>
-      <Text style={[s.rd, { color: ph === p ? th.ink : th.muted }]}>{text}</Text>
-    </Pressable>
-  );
   return (
     <Drop anchor={anchor} w={TW} h={height} side={side} onClose={close}>
-      <GestureHandlerRootView style={s.pad}>
-        <View style={s.head}>
-          {seg("h", pad(h), "hour")}
+      <View style={s.pad}>
+        <View style={s.face}>
+          <View pointerEvents="none" style={[s.band, { backgroundColor: th.chip }]} />
+          <Wheel n={24} sel={h} a11y="hour" label={pad} dis={hourOff} onPick={(i) => setSt((p) => (hourOff(i) ? p : { h: i, m: fit(i, p.m), touched: true }))} />
           <Text style={[s.rd, { color: th.ink }]}>:</Text>
-          {seg("m", pad(m), "minute")}
+          <Wheel n={mins.length} sel={mi} a11y="minute" label={(i) => pad(mins[i])} dis={(i) => off(h, mins[i])} onPick={(i) => setSt((p) => (off(p.h, mins[i]) ? p : { ...p, m: mins[i], touched: true }))} />
         </View>
-        <GestureDetector gesture={pan}>
-          <View style={s.face}>
-            <Svg width={FACE} height={FACE}>
-              <Circle cx={C} cy={C} r={C} fill={th.chip} />
-              <Line x1={C} y1={C} x2={cur.x} y2={cur.y} stroke={th.ink} strokeWidth={1.5} />
-              <Circle cx={cur.x} cy={cur.y} r={cur.inner ? 15 : 17} fill={th.ink} />
-              <Circle cx={C} cy={C} r={3} fill={th.ink} />
-              {items.map((x) => (
-                <SvgText key={x.k} x={x.x} y={x.y} fontSize={x.inner ? 12 : 14} fontWeight="600" textAnchor="middle" alignmentBaseline="central" fill={x.sel ? th.bg : x.inner ? th.muted : th.ink} opacity={x.dis ? 0.3 : 1}>{x.label}</SvgText>
-              ))}
-            </Svg>
-            {/* the touch targets: 40px over each number, the labels are what a screen reader and the tests find */}
-            {items.map((x) => (
-              <Pressable
-                key={x.k} disabled={x.dis}
-                onPress={() => setSt((p) => { const q = pick(p, p.ph, x.v); return p.ph === "h" ? { ...q, ph: "m" } : q; })} // an hour picked turns to the minutes
-                accessibilityRole="button" accessibilityLabel={x.label} accessibilityState={{ selected: x.sel, disabled: x.dis }}
-                style={[s.stop, { left: x.x - 20, top: x.y - 20 }]}
-              />
-            ))}
-          </View>
-        </GestureDetector>
         <Presets style={s.dpre} pill={s.dpill} items={presets ? presets.map((x) => ({ label: x.label, on: x.on, onPress: () => { onChange(x.at); onClose(); } })) : [
           ...relative(value, now, past, (d) => { onChange(d); onClose(); }),
           ...(due ? DPRE : TPRE).map(([hh, mm]) => ({ label: `${hh}:${pad(mm)}`, off: off(hh, mm), onPress: () => { const d = new Date(value); d.setHours(hh, mm, 0, 0); onChange(d); onClose(); } })),
         ]} />
-      </GestureHandlerRootView>
+      </View>
     </Drop>
   );
 }
@@ -241,11 +219,11 @@ export function DateDrop({ open, anchor, value, min, past, parts, side = "left",
 const s = StyleSheet.create({
   card: { position: "absolute", borderRadius: 16, overflow: "hidden", boxShadow: "0 0 0 0.5px rgba(0,0,0,0.08), 0 18px 40px -8px rgba(0,0,0,0.28)" },
   pad: { paddingHorizontal: PADX, paddingVertical: PADY },
-  head: { height: HEAD, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 2 },
-  seg: { height: 40, paddingHorizontal: 8, borderRadius: 10, justifyContent: "center" },
-  rd: { fontSize: 32, fontFamily: ff("500"), fontVariant: ["tabular-nums"] },
-  face: { width: FACE, height: FACE, alignSelf: "center" },
-  stop: { position: "absolute", width: 40, height: 40 },
+  rd: { fontSize: 24, fontFamily: ff("500"), fontVariant: ["tabular-nums"] },
+  face: { height: WH, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
+  band: { position: "absolute", left: 0, right: 0, top: ITEM * 2, height: ITEM, borderRadius: 10 },
+  wheel: { width: 72, height: WH },
+  row: { height: ITEM, alignItems: "center", justifyContent: "center" },
   cal: { paddingTop: 14, paddingHorizontal: 12, paddingBottom: 10 },
   mh: { height: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 4 },
   mt: { fontSize: 17, fontFamily: ff("500") },

@@ -52,12 +52,15 @@ function words(s: string): W[] {
   });
 }
 
+/** A word as it sounds to a Vietnamese typist or recognizer: stretched letters shrunk, and the pairs often swapped (d/gi/r, ch/tr, s/x, ph/f) one. "gioi tich" and "zai tich" both read "giải tích". */
+const sound = (w: string) => w.replace(/(.)\1+/g, "$1").replace(/^(?:gi|r|z)(?=[aeiouy])/, "d").replace(/^tr/, "ch").replace(/^x/, "s").replace(/^ph/, "f");
+
 /** Indices of `ws` that word `t` hits: a prefix (across joined words: "giaitich"), inside a word, an acronym ("csdl"),
  *  a known abbreviation ("oop"), or one typo off. */
 function hit(t: string, ws: string[]): number[] {
   if (/^\d+$/.test(t)) return ws.flatMap((w, i) => (w === t ? [i] : [])); // a number names one thing: "bài 1" is never "Bài 12"
   const out = new Set<number>(), add = (i: number, j: number) => { for (let k = i; k <= j; k++) out.add(k); };
-  const ab = ABBR.get(t);
+  const ab = ABBR.get(t), st = sound(t);
   for (let i = 0; i < ws.length; i++) {
     let rest = t, j = i;
     while (j < ws.length - 1 && rest.length > ws[j].length && rest.startsWith(ws[j])) rest = rest.slice(ws[j++].length);
@@ -67,6 +70,7 @@ function hit(t: string, ws: string[]): number[] {
     // an acronym one typo off, from four letters: "csld" for "Cơ sở dữ liệu"
     if (t.length >= 4 && i + t.length <= ws.length && osa(t, ws.slice(i, i + t.length).map((w) => w[0]).join("")) === 1) add(i, i + t.length - 1);
     if (ab && ab.every((p, k) => ws[i + k] === p)) add(i, i + ab.length - 1);
+    if (t.length >= 3 && sound(ws[i]).startsWith(st)) add(i, i); // a sound-alike, or its start ("xaitich")
     // One typo from four letters, two from eight; a three-letter word only forgives a swap ("coa"), or "thi" would find "tai".
     const near = (w: string) => osa(t, w) <= (t.length >= 8 ? 2 : 1) && (t.length >= 4 || [...t].sort().join() === [...w].sort().join());
     if (t.length >= 3 && (near(ws[i]) || (ws[i].length > t.length && near(ws[i].slice(0, t.length))))) add(i, i);
