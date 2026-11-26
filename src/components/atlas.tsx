@@ -159,7 +159,7 @@ const s = StyleSheet.create({
   thumb: { position: "absolute", width: 26, height: 26, marginLeft: -13, borderRadius: 13, top: 9 },
   ticks: { flexDirection: "row", justifyContent: "space-between" },
   tick: { fontSize: 12, fontFamily: ff("500") },
-  hr: { fontSize: 40, lineHeight: 46, fontFamily: fd("700"), letterSpacing: -0.8, marginTop: 16 }, // calm.html .hr: display 700, 40px
+  hr: { fontSize: 40, lineHeight: 52, fontFamily: fd("700"), letterSpacing: -0.8, marginTop: 16 }, // calm.html .hr: display 700, 40px
   ends: { flexDirection: "row", justifyContent: "space-between", marginTop: 6 },
   end: { fontSize: 13, fontFamily: ff("400") },
   kb: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 12 },

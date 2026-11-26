@@ -441,7 +441,7 @@ const s = StyleSheet.create({
   o: { width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   h: { fontSize: font.h, lineHeight: 40, fontFamily: fd("700"), letterSpacing: -1.05, marginTop: 18 },
   // ui.css/v2.css .lab: an eyebrow, 12.5px light capitals with a little tracking
-  lab: { fontSize: 12.5, lineHeight: 16, fontFamily: ff("300"), letterSpacing: 1.1, textTransform: "uppercase" },
+  lab: { fontSize: 12.5, lineHeight: 16, fontFamily: ff("400"), letterSpacing: 1.1, textTransform: "uppercase" },
   labRow: { flexDirection: "row", alignItems: "center", gap: 7 },
   pills: { flexDirection: "row", gap: 8, marginTop: 10 },
   pill: { height: 40, paddingHorizontal: 16, borderRadius: 99, borderWidth: 1, flexDirection: "row", gap: 6, alignItems: "center", justifyContent: "center" }, // ui.css .pill: icon beside the label

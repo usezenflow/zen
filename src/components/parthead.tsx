@@ -57,6 +57,6 @@ export function PartHead({ part, title, onLand }: { part: Part; title: string; o
 
 const s = StyleSheet.create({
   o: { width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
-  h: { fontSize: font.h, lineHeight: 36, fontFamily: fd("500"), letterSpacing: -0.75, marginTop: 18 },
+  h: { fontSize: font.h, lineHeight: 40, fontFamily: fd("500"), letterSpacing: -0.75, marginTop: 18 },
   sub: { marginTop: 4, fontSize: font.base, fontFamily: ff("400") },
 });

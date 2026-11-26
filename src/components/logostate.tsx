@@ -33,7 +33,7 @@ const s = StyleSheet.create({
   wrap: { zIndex: 40, paddingHorizontal: 24 },
   // .state: centred column, gap 6, 90px clear at the bottom
   state: { flex: 1, alignItems: "center", justifyContent: "center", gap: 6, paddingBottom: 90 },
-  h: { marginTop: 26, fontSize: 26, lineHeight: 28.6, fontFamily: fd("800"), letterSpacing: -0.91, textAlign: "center" }, // logo.html .state .h: 26px, line 1.1
+  h: { marginTop: 26, fontSize: 26, lineHeight: 34, fontFamily: fd("800"), letterSpacing: -0.91, textAlign: "center" }, // logo.html .state .h: 26px, line 1.1
   sub: { marginTop: 6, maxWidth: 230, fontSize: 17, lineHeight: 24.65, fontFamily: ff("400"), textAlign: "center" }, // .sub, line-height 1.45
   st: { flexDirection: "row", alignItems: "center", gap: 6, height: 28, paddingHorizontal: 11, borderRadius: 99 },
   stT: { fontSize: 13.5, fontFamily: ff("500") },

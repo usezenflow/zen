@@ -3,13 +3,13 @@ import { StyleSheet, View } from "react-native";
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { useTheme, motion } from "@/lib/theme";
 
-const CAP_IN = 46; // capsule 54 minus 2px border and 2px padding, top and bottom
+const MIN = 12; // a started fill is never thinner than the capsule is wide, so it reads as a rounded pill, not a flat sliver
 
-/** Capsule meter fill, 0..1: grows from empty on mount, then eases to each new value instead of stepping. */
-export function Fill({ p }: { p: number }) {
+/** Capsule meter fill, 0..1: grows from empty on mount, then eases to each new value instead of stepping. `inner`: the capsule's inner height (its height minus border and padding, top and bottom). */
+export function Fill({ p, inner = 46 }: { p: number; inner?: number }) {
   const v = useSharedValue(0);
   useEffect(() => { v.set(withTiming(p, { duration: motion.progress, easing: Easing.out(Easing.cubic) })); }, [p, v]);
-  const st = useAnimatedStyle(() => ({ height: v.get() * CAP_IN }));
+  const st = useAnimatedStyle(() => ({ height: v.get() > 0.001 ? Math.max(MIN, v.get() * inner) : 0 }));
   return <Animated.View style={[s.capFill, st]} />;
 }
 
@@ -28,6 +28,6 @@ export function Meter({ v, guess, width }: { v: number; guess?: boolean; width?:
 
 const s = StyleSheet.create({
   track: { flex: 1, height: 6, borderRadius: 6, overflow: "hidden" },
-  capFill: { borderRadius: 7, backgroundColor: "#fff" },
+  capFill: { borderRadius: 99, backgroundColor: "#fff" },
   fill: { position: "absolute", left: 0, top: 0, bottom: 0, borderRadius: 6 },
 });

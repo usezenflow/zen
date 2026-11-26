@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { View } from "react-native";
-import Animated, { Easing, useAnimatedProps, useReducedMotion, useSharedValue, withRepeat, withSequence, withTiming } from "react-native-reanimated";
+import Animated, { Easing, useAnimatedProps, useReducedMotion, useSharedValue, withRepeat, withSequence, withTiming, type SharedValue } from "react-native-reanimated";
 import Svg, { Circle, Defs, G, LinearGradient, Mask, Path, RadialGradient, Rect, Stop } from "react-native-svg";
 import { enso } from "@/components/enso";
 import { useTheme, type TypeName } from "@/lib/theme";
@@ -97,7 +97,18 @@ export function artOf(t: Task): TypeName {
 }
 
 // No scrim, as in the mockup: white text gets its contrast from a text shadow. w/h seed the box until onLayout reports the real size.
-export function TypeArt({ type, w: w0 = 300, h: h0 = 300, seed = 3, dir }: { type: TypeName; w?: number; h?: number; seed?: number; dir?: "h" | "v" | "d" }) {
+// drift (pause it while a menu or search is open: the redraw competes with them): the colour fields flow across the stripes on their own slow loops (6.5s, 9s, 7.5s, never in step) and the stripes crawl one gap every 5s
+// (a ripple); Reduce Motion holds everything still. Masks stay fixed and the fields move behind them, so the lines read as lines while the colour moves.
+const mv = (dx: number, dy: number) => { "worklet"; return { transform: [{ translateX: dx }, { translateY: dy }] }; }; // runs on the UI thread, so it must be a worklet
+const loop = (v: SharedValue<number>, ms: number) => v.set(withRepeat(withTiming(1, { duration: ms, easing: Easing.inOut(Easing.sin) }), -1, true));
+export function TypeArt({ type, w: w0 = 300, h: h0 = 300, seed = 3, dir, drift }: { type: TypeName; w?: number; h?: number; seed?: number; dir?: "h" | "v" | "d"; drift?: boolean }) {
+  const reduce = useReducedMotion(), ta = useSharedValue(0.5), tb = useSharedValue(0.5), tc = useSharedValue(0.5), ts = useSharedValue(0);
+  useEffect(() => {
+    if (!drift || reduce) { ta.set(0.5); tb.set(0.5); tc.set(0.5); ts.set(0); return; }
+    // Start once the screen has settled: a view that is mounting or a menu that is opening is animating too, and the redraw would compete with it.
+    const go = setTimeout(() => { loop(ta, 6500); loop(tb, 9000); loop(tc, 7500); ts.set(withRepeat(withTiming(1, { duration: 5000, easing: Easing.linear }), -1)); }, 800);
+    return () => clearTimeout(go);
+  }, [drift, reduce, ta, tb, tc, ts]);
   const { art } = useTheme();
   const id = useId().replace(/\W/g, "");
   const { a, b, c, d } = art[type];
@@ -108,11 +119,20 @@ export function TypeArt({ type, w: w0 = 300, h: h0 = 300, seed = 3, dir }: { typ
     const rot = ROT[dir ?? (["h", "v", "d"] as const)[Math.abs(seed) % 3]];
     return { f: field(x1, y1, a1, 1.15, 0.62, 0.55, w, h), k: field(x1, y1, a1, 1.2, 0.55, 0.3, w, h), e: field(x2, y2, a2, 1.3, 0.5, 0.42, w, h), rot };
   }, [type, w, h, seed, dir]);
+  // Arrays, not SVG strings: Reanimated parses string transforms as CSS (see Logo).
+  const fMove = useAnimatedProps(() => mv((ta.get() - 0.5) * 2 * 0.2 * w, (tb.get() - 0.5) * 2 * 0.14 * h));
+  const kMove = useAnimatedProps(() => mv((0.5 - tb.get()) * 2 * 0.18 * w, (tc.get() - 0.5) * 2 * 0.16 * h));
+  const eMove = useAnimatedProps(() => mv((tc.get() - 0.5) * 2 * 0.22 * w, (0.5 - ta.get()) * 2 * 0.2 * h));
+  const crawl = useAnimatedProps(() => mv(0, ts.get() * GAP));
   // Explicit stripe rects in the mask, not a Pattern: native react-native-svg drops a Pattern fill inside a Mask, which leaves the colour fields unmasked (smooth blobs, no lines).
   const stripes = (t: number) => {
     const D = Math.hypot(w, h), n = Math.ceil(D / GAP);
-    return <G transform={`translate(${w / 2} ${h / 2}) rotate(${g.rot})`}>{Array.from({ length: n + 1 }, (_, k) => <Rect key={k} x={-D / 2} y={-D / 2 + k * GAP} width={D} height={t} fill="#fff" />)}</G>;
+    return <G transform={`translate(${w / 2} ${h / 2}) rotate(${g.rot})`}><AG animatedProps={crawl}>{Array.from({ length: n + 2 }, (_, k) => <Rect key={k} x={-D / 2} y={-D / 2 + (k - 1) * GAP} width={D} height={t} fill="#fff" />)}</AG></G>;
   };
+  const px = w * 0.3, py = h * 0.3; // the moving field rect is oversized so its edge never shows
+  const layer = (gid: string, mid: string, move: ReturnType<typeof useAnimatedProps>) => (
+    <G mask={`url(#${id}${mid})`}><AG animatedProps={move}><Rect x={-px} y={-py} width={w + 2 * px} height={h + 2 * py} fill={`url(#${id}${gid})`} /></AG></G>
+  );
   return (
     <View style={{ flex: 1 }} onLayout={(e) => { const { width, height } = e.nativeEvent.layout; if (width > 0 && height > 0) setBox((b) => (Math.abs(b.w - width) < 1 && Math.abs(b.h - height) < 1 ? b : { w: width, h: height })); }}>
     <Svg width="100%" height="100%" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
@@ -133,9 +153,9 @@ export function TypeArt({ type, w: w0 = 300, h: h0 = 300, seed = 3, dir }: { typ
         <Mask id={`${id}n`} maskUnits="userSpaceOnUse" x={0} y={0} width={w} height={h}>{stripes(THICK)}</Mask>
       </Defs>
       <Rect width={w} height={h} fill={`url(#${id}g)`} />
-      <Rect width={w} height={h} fill={`url(#${id}e)`} mask={`url(#${id}m)`} />
-      <Rect width={w} height={h} fill={`url(#${id}f)`} mask={`url(#${id}m)`} />
-      <Rect width={w} height={h} fill={`url(#${id}c)`} mask={`url(#${id}n)`} />
+      {layer("e", "m", eMove)}
+      {layer("f", "m", fMove)}
+      {layer("c", "n", kMove)}
     </Svg>
     </View>
   );

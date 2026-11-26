@@ -4,7 +4,7 @@ import { Icon } from "@/components/icons";
 import Animated, { FadeOut, ZoomIn } from "react-native-reanimated";
 import { Tap, EASE } from "@/components/tap";
 import type { Item } from "@/components/menu";
-import { useTheme, font, ff } from "@/lib/theme";
+import { useTheme, font, ff, space } from "@/lib/theme";
 import { t } from "@/lib/i18n";
 import type { Task } from "@/lib/types";
 
@@ -49,13 +49,13 @@ export function menuTop(bottom: number, top: number, n: number, winH: number, in
   return bottom + 4 + h <= winH - insetBottom - dock || top - 4 - h < insetTop ? bottom + 4 : top - 4 - h;
 }
 
-/** Dropdown under a row, centred on the screen. Outside tap closes. */
-export function RowMenu({ items, top, onClose }: { items: Item[]; top: number; onClose: () => void }) {
+/** Dropdown under a row, centred on the screen; `right`: under a trigger at the right edge (the kind chip), its right edge on the gutter. Outside tap closes. */
+export function RowMenu({ items, top, onClose, right }: { items: Item[]; top: number; onClose: () => void; right?: boolean }) {
   return (
     <>
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="close" />
-      <View pointerEvents="box-none" style={[s.center, { top }]}>
-        <MenuPanel items={items} onPick={(i) => { onClose(); i.onPress(); }} origin="top center" style={{ alignSelf: "center" }} />
+      <View pointerEvents="box-none" style={[s.center, { top }, right && { paddingRight: space.gutter }]}>
+        <MenuPanel items={items} onPick={(i) => { onClose(); i.onPress(); }} origin={right ? "top right" : "top center"} style={{ alignSelf: right ? "flex-end" : "center" }} />
       </View>
     </>
   );

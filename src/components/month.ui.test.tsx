@@ -26,8 +26,8 @@ const cell = (n: string, i = 0) => circle(n, i).parent!;
 type El = { type: unknown; props: { style: unknown }; children: (El | string)[] };
 const all = (e: El, ok: (x: El) => boolean): El[] => [...(ok(e) ? [e] : []), ...e.children.flatMap((c) => (typeof c === "string" ? [] : all(c, ok)))];
 const find = (n: string, ok: (x: El) => boolean, i = 0) => all(cell(n, i) as unknown as El, ok);
-/** Type dots under a cell: 5×5 views. */
-const dots = (n: string, i = 0) => find(n, (x) => flat(x)?.width === 5 && flat(x)?.height === 5, i);
+/** Type dots under a cell: 8×8 views (a three-colour gradient needs the room). */
+const dots = (n: string, i = 0) => find(n, (x) => flat(x)?.width === 8 && flat(x)?.height === 8, i);
 const stripes = (n: string) => find(n, (x) => String(x.type).includes("Pattern"));
 
 it("shows weekday headers and tapping a day selects its local midnight", async () => {

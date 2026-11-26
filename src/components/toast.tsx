@@ -63,7 +63,7 @@ export function Toast({ text, sub, onAction, actionLabel, onAlt, altLabel, altPl
       <View style={s.tl}>
         {lead ?? <View style={s.tile}>
           <View style={StyleSheet.absoluteFill}><TypeArt type={tileArt} w={36} h={36} seed={4} /></View>
-          <Logo size={22} mode="white" />
+          <Logo size={32} mode="white" />
         </View>}
         <View style={s.tx} accessibilityRole={error ? "alert" : undefined}>
           <View style={s.senderRow}>

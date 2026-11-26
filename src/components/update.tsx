@@ -100,7 +100,7 @@ const s = StyleSheet.create({
   list: { flexGrow: 0, flexShrink: 1, marginHorizontal: -22 }, // out to the dialog's edge: the scrollbar sits there, not 22 in
   listIn: { paddingHorizontal: 22 },
   labRow: { flexDirection: "row", alignItems: "center", gap: 7 },
-  lab: { fontSize: 12.5, lineHeight: 16, fontFamily: ff("300"), letterSpacing: 1.1, textTransform: "uppercase" }, // the eyebrow, as ui.css .lab
+  lab: { fontSize: 12.5, lineHeight: 16, fontFamily: ff("400"), letterSpacing: 1.1, textTransform: "uppercase" }, // the eyebrow, as ui.css .lab
   h: { marginTop: 4, marginBottom: 14, fontSize: 24, lineHeight: 32, fontFamily: ff("500"), letterSpacing: -0.6 },
   li: { flexDirection: "row", gap: 8, marginTop: 6 },
   note: { fontSize: 15, lineHeight: 21.75, fontFamily: ff("400") },

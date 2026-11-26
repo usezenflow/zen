@@ -136,7 +136,7 @@ body { font-family: 'Be Vietnam Pro', system-ui, sans-serif; background: var(--p
 .mo .d.today > span:first-child { background: var(--accent); color: var(--on-accent); font-weight: 800; }
 .mo .d.sel > span:first-child { border: 1.5px solid var(--ink); }
 .mo .d .ds { display: flex; gap: 2px; height: 5px; }
-.mo .d .ds i { width: 5px; height: 5px; border-radius: 50%; background: linear-gradient(135deg, var(--c)); }
+.mo .d .ds i { width: 8px; height: 8px; border-radius: 50%; background: linear-gradient(135deg, var(--c)); }
 
 /* Settings rows */
 .set { display: flex; align-items: center; gap: 14px; padding: 17px 0; border-bottom: 1px solid var(--line); font-size: 17px; font-weight: 500; }

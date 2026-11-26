@@ -1,5 +1,21 @@
 # zen
 
+## 26.1.0-alpha.0
+
+### Minor Changes
+
+- Thẻ "Bây giờ" có tranh chuyển động: các vệt màu trôi chậm qua những đường kẻ, đường kẻ trượt nhẹ như gợn sóng. Tạm dừng khi mở menu hoặc tìm kiếm, bắt đầu sau khi màn hình đã yên; tắt hẳn khi bật "Giảm chuyển động"
+- Nút trên thẻ "Bây giờ" có kiểu riêng, không còn cùng một màu xám: "Bắt đầu" là nút đặc rõ nét, "Thử 10p" là nút kính mờ lấy màu từ tranh, nút tick cũng đặc. Bỏ lớp làm mờ chồng lên nền sáng gây viền gãy và màu xám. Khi có đủ ba nút, "Để sau" chỉ còn biểu tượng đồng hồ và hai nút kia bỏ biểu tượng, chữ không còn bị cắt ("Bắt đ…")
+- Bắt đầu sớm thì việc được xếp vào mốc 5 phút kế tiếp (11:23 thành 11:25), không phải ngay giây này; không bao giờ muộn hơn giờ đã xếp của chính nó
+- Thanh tiến độ tròn: phần đã làm luôn là viên thuốc tròn (trước đây khi còn ít là một vạch dẹt), và thanh đầy được hết chiều cao
+- Chấm trên lịch tháng là gradient ba màu của tranh từng loại việc (nền, vệt màu, nền cuối), to hơn để thấy được màu chuyển
+- Menu "Học" mở lệch hàng với nút chọn: nay căn phải đúng mép nút
+- Đổi tab Ngày, Tuần, Tháng, Nhịp không còn trượt cả phần đầu trang sang trái hoặc phải; đổi tại chỗ, nội dung hiện dần. Vuốt bằng ngón tay vẫn trượt như cũ
+- Chữ có dấu không còn bị che: tăng giãn dòng cho tiêu đề thẻ "Bây giờ", "Mình đang học bạn", tiêu đề Cài đặt, Học phí, Điểm, màn mở ứng dụng và Atlas
+- Nhãn viết hoa dùng chữ thường vừa (Regular) thay cho nét rất mảnh
+- Biểu tượng cá koi trên thông báo lớn hơn (chiếm gần hết ô)
+- Chỉnh theo bản thiết kế: biểu tượng, độ đậm và viền nhiều chỗ ở Cài đặt, Học phí, Điểm, màn lỗi đồng bộ
+
 ## 26.1.0-beta.4
 
 ### Minor Changes

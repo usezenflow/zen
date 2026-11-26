@@ -73,7 +73,7 @@ const TYPE_PAL = { lecture: 'mossC', exam: 'duskC', assignment: 'clayC', busy: '
 const palOf = (type, kind) => TYPE_PAL[type] || KIND_PAL[kind] || 'lagoonC';
 // A stable seed per item, so same-kind cards differ in field position and line direction.
 const seedOf = (t) => [...String(t)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 997, 7);
-const DOT = { plan: "#2433f2,#5a3cff", lecture: "#0f8f6a,#1fd1a0", exam: "#ff4f2a,#ff8a00", assignment: "#c21f86,#ff4a5e", busy: "#8d8f8c,#a4a6a2" }; // field colour to edge colour of each art
+const DOT = { plan: "#11b9d4, #2433f2 55%, #a8f0ff", lecture: "#bfe36a, #0f8f6a 55%, #7cc8f0", exam: "#ffc83a, #ff4f2a 55%, #ffb0c4", assignment: "#e9b04f, #c21f86 55%, #a38ff0", busy: "#c9c8c2, #8d8f8c 55%, #e6e4de" }; // ground, field and ground end of each art, as in the app
 function rng(seed) { let s = (seed * 9301 + 49297) % 233280 || 1; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
 let uid = 0;
 function lineField(seed, pal, dir, w, h, cls) {

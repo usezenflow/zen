@@ -126,8 +126,8 @@ const s = StyleSheet.create({
   leaf: { position: "absolute", top: 16, right: 18 },
   find: { marginTop: 12, borderWidth: 1, borderRadius: 22, paddingVertical: 16, paddingHorizontal: 18, gap: 10 }, // calm.html .find: a bordered card per finding
   findT: { fontSize: 17, lineHeight: 23, fontFamily: ff("500") },
-  artLab: { color: "#fff", opacity: 0.92, fontSize: 13, lineHeight: 18, fontFamily: ff("300"), letterSpacing: 1.1, textTransform: "uppercase", textShadowColor: "rgba(0,0,0,.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 },
-  artT: { color: "#fff", fontSize: 32, lineHeight: 35, fontFamily: fd("800"), marginTop: 4, letterSpacing: -1.1, textShadowColor: "rgba(0,0,0,.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 },
+  artLab: { color: "#fff", opacity: 0.92, fontSize: 13, lineHeight: 18, fontFamily: ff("400"), letterSpacing: 1.1, textTransform: "uppercase", textShadowColor: "rgba(0,0,0,.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 },
+  artT: { color: "#fff", fontSize: 32, lineHeight: 41, fontFamily: fd("800"), marginTop: 0, letterSpacing: -1.1, textShadowColor: "rgba(0,0,0,.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 },
   mx: { marginTop: 14, gap: 3 },
   mxRow: { flexDirection: "row", alignItems: "center", gap: 3 },
   mxLab: { width: 42 },

@@ -34,12 +34,13 @@ const tick = () => void Haptics.selectionAsync().catch(() => {});
 /**
  * Horizontal swipe: -1 previous, 1 next. Fails on vertical moves so the page still scrolls.
  * The grid tracks the finger, slides out, and the new page springs in from the far side once `stepKey` changes (as DayPull).
+ * slideIn=false: a change of `stepKey` from outside (a tapped tab) swaps in place; only a swipe slides.
  */
-export function Swipe({ onStep, stepKey, children }: { onStep: (d: -1 | 1) => void; stepKey: number; children: ReactNode }) {
+export function Swipe({ onStep, stepKey, children, slideIn = true }: { onStep: (d: -1 | 1) => void; stepKey: number; children: ReactNode; slideIn?: boolean }) {
   const tx = useSharedValue(0), w = useSharedValue(1), was = useRef(stepKey);
   useEffect(() => {
     // Stepped from outside (a drag held at the edge, "Hôm nay"): the new page slides in from the side it lies on, as a swipe's does.
-    if (Math.abs(tx.get()) < 1 && was.current !== stepKey) tx.set(Math.sign(stepKey - was.current) * w.get() * 0.35);
+    if (slideIn && Math.abs(tx.get()) < 1 && was.current !== stepKey) tx.set(Math.sign(stepKey - was.current) * w.get() * 0.35);
     was.current = stepKey;
     tx.set(settle(0));
   }, [stepKey, tx, w]);

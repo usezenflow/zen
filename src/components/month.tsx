@@ -35,7 +35,7 @@ export function Month({ tasks, hols, selected, anchor = selected, now, onSelect,
                 <Text style={{ fontSize: font.md, fontFamily: ff(isToday || on ? "600" : "500"), color: isToday || on ? th.bg : out ? th.muted : th.ink, opacity: out && !on ? 0.45 : 1 }}>{new Date(day).getDate()}</Text>
               </View>
               {hol ? <Text numberOfLines={1} style={[s.hl, { color: th.muted }]}>{holLines(hol)[0]}</Text> : (
-                <View style={s.ds}>{types.map((ty) => <View key={ty} style={[s.dot, { backgroundImage: `linear-gradient(135deg, ${th.art[ty].b}, ${th.art[ty].d})` }]} />)}</View>
+                <View style={s.ds}>{types.map((ty) => <View key={ty} style={[s.dot, { backgroundImage: `linear-gradient(135deg, ${th.art[ty].a}, ${th.art[ty].b} 55%, ${th.art[ty].c})` }]} />)}</View>
               )}
             </Tap>
           );
@@ -51,7 +51,7 @@ const s = StyleSheet.create({
   w: { width: "14.2857%", textAlign: "center", fontSize: 13, fontFamily: ff("500"), letterSpacing: 1.3, paddingBottom: 6 },
   d: { width: "14.2857%", alignItems: "center", gap: 4 },
   n: { width: 36, height: 36, borderRadius: 18, overflow: "hidden", alignItems: "center", justifyContent: "center" },
-  ds: { flexDirection: "row", gap: 2, height: 5 },
-  dot: { width: 5, height: 5, borderRadius: 3 },
-  hl: { fontSize: 8, fontFamily: ff("600"), lineHeight: 11, height: 11, overflow: "visible", marginTop: -4.5, marginBottom: -1.5, maxWidth: "100%" }, // 11px line so the accent of "Lễ" is not clipped; net 5px like .ds.hl
+  ds: { flexDirection: "row", gap: 3, height: 8 }, // 8px so the three-colour gradient reads (the mockup's 5px shows one colour)
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  hl: { fontSize: 8, fontFamily: ff("600"), lineHeight: 11, height: 11, overflow: "visible", marginTop: -4.5, marginBottom: 1.5, maxWidth: "100%" }, // 11px line so the accent of "Lễ" is not clipped; net 8px like .ds
 });

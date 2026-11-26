@@ -86,7 +86,7 @@ export default function Home() {
   const navLift = Platform.OS === "android" ? insets.bottom : 0;
   const win = useWindowDimensions();
   const menuAt = (bottom: number, top: number, items: Item[]) => ({ top: menuTop(bottom, top, items.length, win.height, inset, insets.bottom), items });
-  const [menu, setMenu] = useState<{ task: Task; top: number; items: Item[] } | undefined>();
+  const [menu, setMenu] = useState<{ task: Task; top: number; items: Item[]; right?: boolean } | undefined>();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [card, setCard] = useState<Card | undefined>();
   const [ask, setAsk] = useState<SeriesOffer | undefined>(); // the weekly repeat offer, in the card slot until answered
@@ -821,12 +821,14 @@ export default function Home() {
     onHold: (x: Task, bottom: number, top: number) => setMenu({ task: x, ...menuAt(bottom, top, itemsFor(x)) }), lifted: menu?.task.id,
   };
 
-  // "Làm luôn" on the next block: that very sitting moves to now (its old slot goes to whatever waits for a time).
+  // "Làm luôn" on the next block: that very sitting moves to the next 5-minute mark (its old slot goes to whatever waits for a time).
   const startNow = async () => {
     const c = cardRef.current;
     if (!c || c.start === undefined || c.end === undefined) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    const at = Math.ceil(Date.now() / 60_000) * 60_000, r = await take(c.task.id, at, at + (c.end - c.start));
+    // Early means the next 5-minute mark (11:23 gives 11:25), a moment to settle rather than a start this second; never past the block's own start.
+    const now = Date.now(), next5 = Math.ceil(now / 300_000) * 300_000, at = c.start > now ? Math.min(next5, c.start) : Math.ceil(now / 60_000) * 60_000;
+    const r = await take(c.task.id, at, at + (c.end - c.start));
     say(r.toast, r);
     await shuffle(r);
   };
@@ -974,9 +976,9 @@ export default function Home() {
   const cardView = shown && (
     <GestureDetector gesture={swipe}>
       <Reanimated.View style={flick}>
-        <NowCard card={shown} over={late ? { next: lateNext } : undefined} onDone={shown.gap ? startNow : () => void finish("done")} onStart={startNow} onLater={() => void finish("later")} onMicroRest={(min) => void addWorked(shown.task.id, min).then(refresh, () => {})}
+        <NowCard still={!!menu || !!finding} card={shown} over={late ? { next: lateNext } : undefined} onDone={shown.gap ? startNow : () => void finish("done")} onStart={startNow} onLater={() => void finish("later")} onMicroRest={(min) => void addWorked(shown.task.id, min).then(refresh, () => {})}
           onExtend={() => late && void retime(late.id, late.start!, late.effort + 15).then((r) => { if (r) say(r.toast, r); refresh(); }, failed)}
-          onKind={(x, top, bottom) => setMenu({ task: x, ...menuAt(bottom, top, kindItems((k) => void apply([{ op: "edit", target: x.id, kind: k }]).then((r) => { say(r.toast, r); refresh(); }, failed))) })} />
+          onKind={(x, top, bottom) => setMenu({ task: x, right: true, ...menuAt(bottom, top, kindItems((k) => void apply([{ op: "edit", target: x.id, kind: k }]).then((r) => { say(r.toast, r); refresh(); }, failed))) })} />
       </Reanimated.View>
     </GestureDetector>
   );
@@ -1011,7 +1013,7 @@ export default function Home() {
   const header = (
       <>
         {/* Swipe the header left/right to switch day / week / month (wraps around); the grids below keep their own swipes. */}
-        <Swipe stepKey={VIEWS.indexOf(view)} onStep={(d) => setView(VIEWS[(VIEWS.indexOf(view) + d + 3) % 3])}>
+        <Swipe slideIn={false} stepKey={VIEWS.indexOf(view)} onStep={(d) => setView(VIEWS[(VIEWS.indexOf(view) + d + 3) % 3])}>
         {firstRun ? first(t("hello"), `${short[(new Date(sel).getDay() + 6) % 7]}, ${dm(sel)}`, t("nothingYet")) : first(head.hello, head.h, head.n)}
         <Reanimated.View entering={fadeIn} style={s.tabs}>
           <View style={s.tabL}>
@@ -1100,7 +1102,7 @@ export default function Home() {
       {lined && <OutlinePreview groups={lined.groups} from={lined.from} onSave={saveLined} onClose={() => setLined(undefined)} />}
       {finding && <Search origin={finding} tasks={tasks} now={now} acts={rowActs} initial={findQ} onClose={() => { setFinding(undefined); setFindQ(undefined); }} />}
       {dd.ghost}
-      {menu && <RowMenu items={menu.items} top={menu.top} onClose={() => setMenu(undefined)} />}
+      {menu && <RowMenu items={menu.items} top={menu.top} right={menu.right} onClose={() => setMenu(undefined)} />}
       {toast && <Toast key={toastKey(toast)} onDismiss={() => setToasts((q) => q.slice(1))} error={toast.error} text={toast.text} sub={toast.sub} onAction={toast.action?.run} actionLabel={toast.action?.label} onAlt={toast.alt?.run} altLabel={toast.alt?.label} altPlain={toast.alt?.plain} art={toast.art} ms={toast.action ? 8000 : 6000} />}
     </SafeAreaView>
     </Sweep>

@@ -501,7 +501,7 @@ const s = StyleSheet.create({
   hint: { marginTop: 4, fontFamily: ff("500"), fontSize: font.sub },
   meta: { marginTop: 12, gap: 4 }, // .dmeta: 28pt lines, 4 apart
   lms: { marginTop: 12, paddingVertical: 14, paddingHorizontal: 16, borderWidth: 1, borderRadius: 16 },
-  lab: { fontSize: 13, lineHeight: 18, fontFamily: ff("300"), letterSpacing: 0.9 }, // .lab: a quiet tracked eyebrow
+  lab: { fontSize: 13, lineHeight: 18, fontFamily: ff("400"), letterSpacing: 0.9 }, // .lab: a quiet tracked eyebrow
   eye: { flexDirection: "row", alignItems: "center", gap: 6 }, // .lab with its glyph
   sit: { marginTop: 18 }, // .sit: the sittings line under the meta
   qbs: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }, // .qb pills in a row

@@ -32,7 +32,7 @@ const parseMicro = (v: string | null): Micro | null => { try { return v ? JSON.p
 // calm.html "Hết giờ": a block whose end passed unticked; Thêm 15 phút and Chuyển việc replace the usual buttons.
 // onKind: the kind chip's tap, with the chip's window top and bottom so the caller can open the kind menu beside it.
 export type KindPick = (task: Task, top: number, bottom: number) => void;
-export function NowCard({ card, onDone, onStart, onLater, onMicroRest, onKind, onExtend, over }: { card: Card; onDone: () => void; onStart?: () => void; onLater?: () => void; onMicroRest?: (minutes: number) => void; onKind?: KindPick; onExtend?: () => void; over?: { next?: Task } }) {
+export function NowCard({ card, onDone, onStart, onLater, onMicroRest, onKind, onExtend, over, still }: { still?: boolean; card: Card; onDone: () => void; onStart?: () => void; onLater?: () => void; onMicroRest?: (minutes: number) => void; onKind?: KindPick; onExtend?: () => void; over?: { next?: Task } }) {
   const th = useTheme();
   const [now, setNow] = useState(() => Date.now());
   const [micro, setMicro] = useState<Micro | null>(null);
@@ -57,7 +57,7 @@ export function NowCard({ card, onDone, onStart, onLater, onMicroRest, onKind, o
   const small = mic ? (micDone ? t("microSub") : t("until", { time: hhmm(mic.endsAt) })) : going ? t("until", { time: hhmm(end) }) : t("nMin", { n: mins });
   return (<>
     <View style={[s.art, { backgroundColor: th.chip }]}>
-      <View style={StyleSheet.absoluteFill}><TypeArt type={artOf(task)} w={264} h={220} seed={seedOf(task.id)} /></View>
+      <View style={StyleSheet.absoluteFill}><TypeArt type={artOf(task)} w={264} h={220} seed={seedOf(task.id)} drift={!still} /></View>
       <View style={s.head}>
         <Text numberOfLines={1} style={[s.lab, { color: th.onart, flexShrink: 1 }]}>{over ? t("overLab", { time: hhmm(end) }) : t(going || mic ? "doingNow" : "nextUp")}</Text>
         {onKind && !card.gap && <KindChip task={task} onKind={onKind} />}
@@ -70,13 +70,13 @@ export function NowCard({ card, onDone, onStart, onLater, onMicroRest, onKind, o
         </View> : <>
         <View style={s.row1}>
         <View style={s.meter}>
-          <View style={s.cap}><Fill p={p} /></View>
+          <View style={s.cap}><Fill p={p} inner={56} /></View>
           <View>
             <Rise text={big} style={[s.big, { color: th.onart }]} />
             <Text numberOfLines={1} style={[s.small, { color: th.onart }]}>{small}</Text>
           </View>
         </View>
-        {!moving && !micDone && <Tap onPress={onDone} hitSlop={8} scale={0.88} testID="nowDone" accessibilityRole="button" accessibilityLabel={t("markDone")} style={[s.glass, s.solid]}><Glass /><Icon name="check" size={22} color="#0b0b0c" w={2} /></Tap>}
+        {!moving && !micDone && <Tap onPress={onDone} hitSlop={8} scale={0.88} testID="nowDone" accessibilityRole="button" accessibilityLabel={t("markDone")} style={[s.glass, s.solid]}><Icon name="check" size={22} color="#0b0b0c" w={2} /></Tap>}
         </View>
         <View style={s.acts2}>
           {mic && micDone ? <>
@@ -84,8 +84,8 @@ export function NowCard({ card, onDone, onStart, onLater, onMicroRest, onKind, o
             {onStart && <Tap onPress={() => { saveMicro(null); onStart(); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microGo")} style={[s.glass, s.start, s.primary, { backgroundColor: th.ink }]}><Glass /><Icon name="play" size={22} color={th.bg} /><Text style={[s.startT, s.primaryT, { color: th.bg }]} numberOfLines={1}>{t("microGo")}</Text></Tap>}
           </> : <>
             {moving && <Tap onPress={onLater} scale={0.94} accessibilityRole="button" accessibilityLabel={t("laterBtn")} style={[s.glass, s.start, s.soft, trio && s.iconOnly]}><Glass /><Icon name="clock" size={22} color="#fff" />{!trio && <Text style={s.startT} numberOfLines={1}>{t("laterBtn")}</Text>}</Tap>}
-            {moving && onStart && <Tap onPress={onStart} scale={0.94} accessibilityRole="button" accessibilityLabel={t("startLab")} style={[s.glass, s.start, s.primary, { backgroundColor: th.ink }]}><Glass /><Icon name="play" size={22} color={th.bg} /><Text style={[s.startT, s.primaryT, { color: th.bg }]} numberOfLines={1}>{t("startLab")}</Text></Tap>}
-            {microOk && !mic && <Tap onPress={() => { const at0 = Date.now(); saveMicro({ id: task.id, startedAt: at0, endsAt: at0 + MICRO_MIN * 60000 }); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microBtn", { n: MICRO_MIN })} style={[s.glass, s.start, s.primary, { backgroundColor: th.ink }]}><Glass /><Icon name="play" size={22} color={th.bg} /><Text style={[s.startT, s.primaryT, { color: th.bg }]} numberOfLines={1}>{t("microBtn", { n: MICRO_MIN })}</Text></Tap>}
+            {moving && onStart && <Tap onPress={onStart} scale={0.94} accessibilityRole="button" accessibilityLabel={t("startLab")} style={[s.solid2, s.start, { backgroundColor: th.ink }]}>{!trio && <Icon name="play" size={22} color={th.bg} />}<Text style={[s.startT, s.primaryT, { color: th.bg }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t("startLab")}</Text></Tap>}
+            {microOk && !mic && <Tap onPress={() => { const at0 = Date.now(); saveMicro({ id: task.id, startedAt: at0, endsAt: at0 + MICRO_MIN * 60000 }); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microBtn", { n: MICRO_MIN })} style={[s.glass, s.start]}><Glass />{!trio && <Icon name="play" size={22} color="#fff" />}<Text style={s.startT} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t("microBtn", { n: MICRO_MIN })}</Text></Tap>}
           </>}
         </View>
         </>}
@@ -333,8 +333,8 @@ export function Steps({ lines }: { lines: string[] }) {
 const SHADOW = { textShadowColor: "rgba(0,0,0,.22)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 } as const;
 const s = StyleSheet.create({
   art: { marginTop: 16, height: 236, borderRadius: 34, overflow: "hidden", paddingHorizontal: 20, paddingTop: 20 }, // calm.html .art: 236 high, 34px radius
-  lab: { fontSize: 13, lineHeight: 18, fontFamily: ff("300"), letterSpacing: 1.1, textTransform: "uppercase", opacity: 0.9, ...SHADOW }, // v2 .lab: 12.5px, light, caps; label and title one group
-  t: { marginTop: 2, fontSize: 32, lineHeight: 35, fontFamily: fd("800"), letterSpacing: -1.1, ...SHADOW }, // v2 .art .t: display 800, 32px, -.035em, 1.1
+  lab: { fontSize: 13, lineHeight: 18, fontFamily: ff("400"), letterSpacing: 1.1, textTransform: "uppercase", opacity: 0.9, ...SHADOW }, // v2 .lab: 12.5px, light, caps; label and title one group
+  t: { marginTop: 2, fontSize: 32, lineHeight: 41, fontFamily: fd("800"), letterSpacing: -1.1, ...SHADOW }, // v2 .art .t: display 800, 32px, -.035em, 1.1
   find: { borderRadius: 22, borderWidth: 1, paddingVertical: 16, paddingHorizontal: 18, marginTop: 16 }, // calm.html .find
   findC: { fontSize: 17, lineHeight: 23, fontFamily: ff("500") },
   findC2: { marginTop: 6, fontSize: 15, lineHeight: 21, fontFamily: ff("400") },
@@ -349,7 +349,8 @@ const s = StyleSheet.create({
   big: { fontSize: 30, fontFamily: fd("700"), lineHeight: 34, letterSpacing: -0.9, ...SHADOW }, // v2 .art .big: display 700, 30px
   small: { fontSize: 17, fontFamily: ff("500"), opacity: 0.94, marginTop: 3, ...SHADOW },
   glass: { width: 56, height: 56, borderRadius: 28, overflow: "hidden", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.22)", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.45)" }, // v2.css .glass 56px
-  solid: { backgroundColor: "rgba(255,255,255,0.85)" },
+  solid2: { borderRadius: 28, overflow: "hidden" }, // ui.css .gbtn.solid: the accent fill, no blur, no border
+  solid: { backgroundColor: "rgba(255,255,255,0.94)", borderColor: "transparent" }, // crisp: a blur under a near-white fill only turns it grey
   acts2: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1, minWidth: 0 },
   start: { flex: 1, flexShrink: 1, minWidth: 0, height: 54, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 14 }, // ui.css .nowbtns .gbtn: 54 high, 14px side padding, 15px label
   iconOnly: { flex: 0, flexGrow: 0, width: 54, paddingHorizontal: 0 }, // trio: only the clock
