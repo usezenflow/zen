@@ -1,5 +1,29 @@
 # zen
 
+## 26.1.4
+
+### Patch Changes
+
+- Chuyển Ngày, Tuần, Tháng mượt hơn với lịch dày: tuần không còn hiệu ứng riêng cho từng khối, tháng tính chấm một lần, việc cân lại tuần chờ lâu hơn và nhớ kết quả
+- Đánh dấu xong một việc đã qua giờ không còn xếp lại lịch
+- Nhấn giữ một việc có thêm "Để sau"
+- Thẻ "Tuần này" ở Nhịp nói bạn là ai ("Bạn là cú đêm", "Bạn là chim sớm"…) với biểu tượng cú, chim; chưa đủ dữ liệu thì hiện dấu hỏi thay vì liệt kê "Tối T2, T4…"
+- Việc quá giờ vừa đánh dấu xong đi thẳng sang "Xong", không nhảy qua "Sắp tới"
+- Kéo được việc chưa có giờ sang một ngày ở tuần và tháng
+- Kéo việc sang ngày không còn chỗ thì việc ở lại giờ cũ ("Chưa có giờ trống"), không bị mất giờ
+
+## 26.1.4
+
+### Patch Changes
+
+- Chuyển Ngày, Tuần, Tháng mượt hơn với lịch dày: tuần không còn hiệu ứng riêng cho từng khối, tháng tính chấm một lần, việc cân lại tuần chờ lâu hơn và nhớ kết quả
+- Đánh dấu xong một việc đã qua giờ không còn xếp lại lịch
+- Nhấn giữ một việc có thêm "Để sau"
+- Bỏ dòng "Tối T2, T4…" dưới "Tuần này" ở Nhịp
+- Việc quá giờ vừa đánh dấu xong đi thẳng sang "Xong", không nhảy qua "Sắp tới"
+- Kéo được việc chưa có giờ sang một ngày ở tuần và tháng
+- Kéo việc sang ngày không còn chỗ thì việc ở lại giờ cũ ("Chưa có giờ trống"), không bị mất giờ
+
 ## 26.1.3
 
 ### Patch Changes

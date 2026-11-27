@@ -491,7 +491,7 @@ describe("said times, edits, replans, causes", () => {
     }
   });
 
-  it("a done ahead of its block frees time that a waiting task takes; a done after its block frees nothing and moves nothing placed", async () => {
+  it("a done ahead of its block frees time that a waiting task takes; a done after its block frees nothing and plans nothing", async () => {
     db.tasks.set("a", T({ id: "a", title: "A", start: NOW + 2 * H1, end: NOW + 3 * H1, notBefore: NOW + 2 * H1 }));
     db.tasks.set("w", T({ id: "w", title: "W", effort: 60 })); // waiting for a time
     await swipeDone("a", NOW);
@@ -502,7 +502,8 @@ describe("said times, edits, replans, causes", () => {
     db.tasks.set("c", T({ id: "c", title: "C", start: NOW + 5 * H1, end: NOW + 6 * H1, notBefore: NOW + 5 * H1 }));
     db.tasks.set("w2", T({ id: "w2", title: "W2", effort: 60 }));
     await swipeDone("b", NOW);
-    expect(db.tasks.get("w2").start).toBeDefined(); // the waiting one is placed, as any trigger does
+    expect(db.tasks.get("w2").start).toBeUndefined(); // a done after its block frees nothing: no replan at all
+    expect(db.kv.get("plannedAt")).toBeUndefined();
     expect(db.tasks.get("c").start).toBe(NOW + 5 * H1); // nothing placed moved
   });
 

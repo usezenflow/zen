@@ -458,6 +458,7 @@ const S = {
   learnedLab: "Mình đang theo",
   learnedFollow: "Đã học", // the Nhịp tab: what Zen picked up (its title is "Zen đã học")
   learnedLearning: "Mình đang học bạn",
+  whoAm: "Bạn là chim sớm", whoNoon: "Bạn bứt phá giữa trưa", whoPm: "Bạn mạnh nhất buổi chiều", whoNight: "Bạn là cú đêm", // Nhịp card: who the week says you are
   learnedCold: "Bạn cứ dùng, mình sẽ ghi nhớ dần.",
   learnedForget: "Bỏ",
   learnedNap: "Nghỉ {m}p sau buổi học",

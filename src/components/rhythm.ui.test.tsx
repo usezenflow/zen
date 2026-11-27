@@ -61,3 +61,12 @@ it("a thin history shows no noticed section", async () => {
   await render(<GestureHandlerRootView><Rhythm i={cold} m={thin} rules={[]} onForget={jest.fn()} onForgetWhen={jest.fn()} /></GestureHandlerRootView>);
   expect(screen.queryByText(t("insSection"))).toBeNull();
 });
+
+it("the week card says who you are by the part of the day that is yours, never the weekdays", async () => {
+  const seen = (part: number) => ({ ...base, grid: Array.from({ length: 7 }, () => [0.5, 0.5, 0.5, 0.5]), when: { part, wds: [1, 2, 4], n: 9, sure: 0.8 } }) as Insights;
+  const { rerender } = await render(<Rhythm i={seen(3)} rules={[]} onForget={jest.fn()} onForgetWhen={jest.fn()} />);
+  expect(screen.getByText(t("whoNight"))).toBeOnTheScreen();
+  await rerender(<Rhythm i={seen(0)} rules={[]} onForget={jest.fn()} onForgetWhen={jest.fn()} />);
+  expect(screen.getByText(t("whoAm"))).toBeOnTheScreen();
+  expect(screen.queryByText(/^(Sáng|Trưa|Chiều|Tối) (T\d|ngày|cuối)/)).toBeNull();
+});

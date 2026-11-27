@@ -78,4 +78,15 @@ describe("moveToDay", () => {
     await moveToDay(id, NOW + 60 * 86_400_000, NOW);
     expect(db.tasks.get(id)).toBe(before);
   });
+
+  it("a day with no room leaves the task where it was, not unscheduled", async () => {
+    await apply([{ op: "create", title: "Học coursera", kind: "study", effortMinutes: 60 }], NOW);
+    const id = live()[0].id, before = db.tasks.get(id).start;
+    expect(before).toBeDefined();
+    db.tasks.set("busy", { id: "busy", title: "Bận", kind: "other", source: "user", fixed: "busy", effort: 1440, start: MON, end: MON + 86_400_000, createdAt: NOW });
+    const r = await moveToDay(id, MON, NOW);
+    expect(r.changed).toBe(false);
+    expect(db.tasks.get(id).start).toBe(before);
+    expect(db.tasks.get(id).userDay).toBeUndefined();
+  });
 });

@@ -163,7 +163,7 @@ export function Row({ task, now, first, done, allDay, sub: subOver, lead, trail,
     holdBox.current?.measureInWindow((_x, y, _w, h) => onHold(y + h, y));
   };
   // Drag: the pan wakes after the same 350 ms hold. Let go without moving: the hold menu, as before. Moved past 8 px: a drag.
-  const canDrag = !!drag && canTime && !editing && !picking;
+  const canDrag = !!drag && (canTime || unset) && !editing && !picking;
   const live2 = useRef({ drag, hold, task });
   useEffect(() => { live2.current = { drag, hold, task }; });
   const moved = useSharedValue(false), held = useSharedValue(0);

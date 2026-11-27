@@ -450,7 +450,7 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
         <View style={{ marginTop: 28 }}>
           <Text style={[s.lab, { color: th.muted }]}>{t(far ? "unplaced" : "noRoom")}</Text>
           <View style={{ marginTop: 6 }}>{unplaced.map((x) => (
-            <Row key={`u${x.id}`} task={x} now={now} sub={x.rrule ? undefined : mins(x.effort)} /* a repeat says its cadence, as on its planned days */ onToggle={() => act.onToggle(x)} onTitle={(v) => act.onTitle(x, v)} onTime={(a) => act.onTime(x, a)} onEnd={act.onEnd && ((a) => act.onEnd!(x, a))} onOpen={() => act.onOpen(x)} onDelete={() => act.onSwipeDelete(x)} onSeries={(b, c) => act.onSwipeDelete(x, b, c)} onHold={act.itemsFor(x).length ? (b, c) => act.onHold(x, b, c) : undefined} />
+            <Row key={`u${x.id}`} task={x} now={now} sub={x.rrule ? undefined : mins(x.effort)} /* a repeat says its cadence, as on its planned days */ onToggle={() => act.onToggle(x)} onTitle={(v) => act.onTitle(x, v)} onTime={(a) => act.onTime(x, a)} onEnd={act.onEnd && ((a) => act.onEnd!(x, a))} onOpen={() => act.onOpen(x)} onDelete={() => act.onSwipeDelete(x)} onSeries={(b, c) => act.onSwipeDelete(x, b, c)} onHold={act.itemsFor(x).length ? (b, c) => act.onHold(x, b, c) : undefined} drag={act.drag} />
           ))}</View>
           {far && <Text style={[s.got, { color: th.muted, marginTop: 6 }]}>{t("unplacedNote")}</Text>}
         </View>
@@ -461,7 +461,7 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
             <Text style={[s.foldT, { color: th.muted }]}>{t("foldWeek", { n: folded.length })}</Text>
           </Tap>
           {weekFold && folded.map((x) => (
-            <Row key={`w${x.id}`} task={x} now={now} sub={x.rrule ? undefined : mins(x.effort)} onToggle={() => act.onToggle(x)} onTitle={(v) => act.onTitle(x, v)} onTime={(a) => act.onTime(x, a)} onEnd={act.onEnd && ((a) => act.onEnd!(x, a))} onOpen={() => act.onOpen(x)} onDelete={() => act.onSwipeDelete(x)} onSeries={(b, c) => act.onSwipeDelete(x, b, c)} onHold={act.itemsFor(x).length ? (b, c) => act.onHold(x, b, c) : undefined} />
+            <Row key={`w${x.id}`} task={x} now={now} sub={x.rrule ? undefined : mins(x.effort)} onToggle={() => act.onToggle(x)} onTitle={(v) => act.onTitle(x, v)} onTime={(a) => act.onTime(x, a)} onEnd={act.onEnd && ((a) => act.onEnd!(x, a))} onOpen={() => act.onOpen(x)} onDelete={() => act.onSwipeDelete(x)} onSeries={(b, c) => act.onSwipeDelete(x, b, c)} onHold={act.itemsFor(x).length ? (b, c) => act.onHold(x, b, c) : undefined} drag={act.drag} />
           ))}
         </Animated.View>
       )}

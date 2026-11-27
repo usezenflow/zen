@@ -124,18 +124,18 @@ export function Week({ tasks, hols, monday, selected, now, onSelect, onStep, rul
               const x = xs[j], pos = { left: i * (cw + GRID), top, width: cw, height: h };
               top += h + GAP;
               over.push("text" in x ? (
-                <Animated.View key={`r${x.id}${i}`} layout={glide} entering={FadeIn} style={[s.b, pos, { borderWidth: 1, borderColor: th.line }]} accessibilityLabel={x.text}>
+                <Animated.View key={`r${x.id}${i}`} style={[s.b, pos, { borderWidth: 1, borderColor: th.line }]} accessibilityLabel={x.text}>
                   <Stripes color={th.line} />
                 </Animated.View>
               ) : (
-                <Animated.View key={`${x.id}${i}`} layout={glide} entering={FadeIn} style={[s.b, pos]}>
+                <Animated.View key={`${x.id}${i}`} style={[s.b, pos]}>
                   <TypeArt type={artOf(x)} w={40} h={h} seed={seedOf(x.id)} />
                   {/* the row trail's dot, until the move is seen (.wk .b.mv::after): a seal dot with a 2px ring */}
                   {moves.includes(x.id) && <View style={[s.mvRing, { backgroundColor: th.bg }]}><View style={[s.mvDot, { backgroundColor: th.seal }]} /></View>}
                 </Animated.View>
               ));
             });
-            if (f.more > 0) over.push(<Animated.View key={`m${i}`} layout={glide} entering={FadeIn} style={[s.more, { left: i * (cw + GRID), top, width: cw, backgroundColor: th.chip }]}><Text style={[s.mt, { color: th.muted }]}>+{f.more}</Text></Animated.View>);
+            if (f.more > 0) over.push(<Animated.View key={`m${i}`} style={[s.more, { left: i * (cw + GRID), top, width: cw, backgroundColor: th.chip }]}><Text style={[s.mt, { color: th.muted }]}>+{f.more}</Text></Animated.View>);
           }
           return (
             <Tap key={day} style={s.c} scale={0.97} onPress={() => onSelect(day)}>

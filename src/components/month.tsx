@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Tap } from "@/components/tap";
 import type { Box } from "@/components/outside";
@@ -16,6 +17,8 @@ export function Month({ tasks, hols, selected, anchor = selected, now, onSelect,
   const today = startOfDay(now);
   const { first, start, rows } = monthGrid(anchor);
   const month = new Date(first).getMonth();
+  // The dots per cell, once per tasks and month, not 42 scans per render.
+  const dots = useMemo(() => new Map(Array.from({ length: rows * 7 }, (_, i) => { const d = addDays(start, i); return [d, [...new Set(onDay(tasks, d).map(typeOf))].slice(0, 3)] as const; })), [tasks, start, rows]);
   return (
     <Swipe onStep={onStep} stepKey={first}>
       <View style={s.mo}>
@@ -26,7 +29,7 @@ export function Month({ tasks, hols, selected, anchor = selected, now, onSelect,
           const day = addDays(start, i);
           const out = new Date(day).getMonth() !== month;
           const hol = hols.get(day);
-          const types = [...new Set(onDay(tasks, day).map(typeOf))].slice(0, 3);
+          const types = dots.get(day) ?? [];
           const isToday = day === today, on = day === hover;
           return (
             <Tap key={day} style={s.d} scale={0.9} onPress={() => onSelect(day)}>

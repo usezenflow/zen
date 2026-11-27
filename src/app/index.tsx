@@ -788,9 +788,9 @@ export default function Home() {
   const toggleNow = async (x: Task) => {
     const at = Date.now();
     gen.current++;
+    setPop((p) => new Set(p).add(x.id)); // with the tick, not after the save: the row never passes through the empty "Sắp tới" state on the way to "Xong"
     setTasks((p) => p.map((a) => (a.id === x.id || a.parentId === x.id ? { ...a, doneAt: at } : a))); // ticks at once; the save confirms
     const r = await swipeDone(x.id);
-    setPop((p) => new Set(p).add(x.id));
     setTimeout(() => setPop((p) => { const n = new Set(p); n.delete(x.id); return n; }), 1400);
     const ps = parents(tasks);
     const left = tasks.filter((a) => live(a) && a.id !== x.id && a.start !== undefined && a.start < addDays(startOfDay(Date.now()), 1) && !ps.has(a.id)).length;
@@ -823,6 +823,7 @@ export default function Home() {
     if (from !== undefined && !x.fixed) out.push({ label: t("itemPutBack", { when: when(from, now) }), icon: "undo", onPress: async () => done(await putBack(x.id, from)) });
     if (alt !== undefined && !x.fixed) out.push({ label: t("itemAlt", { when: when(alt, now) }), icon: "clock", onPress: async () => done(await apply([{ op: "edit", target: x.id, when: new Date(alt).toISOString() }])) });
     if (!x.fixed && !x.doneAt && (from !== undefined || alt !== undefined || maps.reason[x.id] || x.pinned)) out.push({ label: t(x.pinned ? "itemUnpin" : "itemPin"), icon: x.pinned ? "pinOff" : "pin", onPress: async () => done(await pin(x.id, !x.pinned)) });
+    if (!x.fixed && !x.doneAt) out.push({ label: t("laterBtn"), icon: "clock", onPress: async () => done(await swipeLater(x.id)) });
     // A sitting or split task: one more sitting, or one less; "more" also teaches the class multiplier the parent's length was short.
     const sits = sittingItems(x, tasks, {
       more: async (p) => { const r = await addSitting(p.id); say(r.toast, r); refresh(); await needMore(p); },
@@ -988,13 +989,15 @@ export default function Home() {
   const rebalanceWeek = () => { void proposeRebalance(Date.now(), true).then((p) => { if (p) { setRebal(p); setRebalOpen(true); } else setToasts((q) => [{ text: t("rebalNone") }, ...q.slice(1)]); }, (e) => fail(t("saveFailed"), e)); };
   // The week's link shows only when a dry plan has something to move: asked on entering week view and when tasks change, never stored.
   const [weekReb, setWeekReb] = useState(false);
+  const rebSig = useRef<{ sig: string; ok: boolean }>(undefined);
   // Keyed on what the plan reads (times and state), not the array: a refresh that changes nothing must not run the dry plan again.
   const planSig = useMemo(() => tasks.map((x) => `${x.id}.${x.start}.${x.end}.${x.doneAt ?? ""}.${x.deletedAt ?? ""}`).join("|"), [tasks]);
   useEffect(() => {
     if (view !== "week") return;
+    if (rebSig.current?.sig === planSig) { setWeekReb(rebSig.current.ok); return; } // nothing changed since the last dry plan: no second one
     let live = true;
-    // the dry plan blocks the JS thread: well after the switch has painted and the first touches have settled
-    const h = setTimeout(() => { void canRebalance(Date.now()).then((ok) => { if (live) setWeekReb(ok); }, () => { if (live) setWeekReb(false); }); }, 1200);
+    // the dry plan blocks the JS thread: left until the week has been looked at a while (a dense calendar stalls touches for its length)
+    const h = setTimeout(() => { void canRebalance(Date.now()).then((ok) => { rebSig.current = { sig: planSig, ok }; if (live) setWeekReb(ok); }, () => { if (live) setWeekReb(false); }); }, 4000);
     return () => { live = false; clearTimeout(h); };
   }, [view, planSig]);
   const closeStory = async () => { setStory(false); await seeMoves(fresh.map((m) => m.id)); await briefMoves(fresh.map((m) => m.id)); refresh(); };

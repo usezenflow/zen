@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Animated from "react-native-reanimated";
-import { Icon, Logo, TypeArt } from "@/components/art";
+import { Icon, TypeArt } from "@/components/art";
 import type { IconName } from "@/components/icons";
 import { Meter } from "@/components/meter";
 import { SwipeDelete } from "@/components/row";
@@ -25,12 +25,9 @@ const ruleSub = (r: Rule) => {
   return tm ? `${d} ${tm}` : d;
 };
 const ORDER = [1, 2, 3, 4, 5, 6, 0]; // T2 first, CN last (getDay() is 0 = CN)
+/** The part of the day that is yours, as who you are (Sáng, Trưa, Chiều, Tối). */
+const WHO: { key: "whoAm" | "whoNoon" | "whoPm" | "whoNight"; icon: IconName }[] = [{ key: "whoAm", icon: "bird" }, { key: "whoNoon", icon: "sun" }, { key: "whoPm", icon: "target" }, { key: "whoNight", icon: "owl" }];
 const WD = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"], PART = ["Sáng", "Trưa", "Chiều", "Tối"];
-/** "Sáng ngày thường", "Tối T3, T5": where the week is yours (magic.html 11). */
-const whenLine = (w: NonNullable<Insights["when"]>) => {
-  const wds = [...w.wds].sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b)), k = wds.join();
-  return `${PART[w.part]} ${k === "1,2,3,4,5" ? "ngày thường" : k === "6,0" ? "cuối tuần" : wds.map((d) => WD[d]).join(", ")}`;
-};
 
 /** The week at a glance: weekday by part of the day, brighter where you finish and move work, fully white where it is yours (magic.html 11). */
 function Grid({ i }: { i: Insights }) {
@@ -98,9 +95,9 @@ export function Rhythm({ i, rules, m, hour, onForget, onForgetWhen }: { i: Insig
       {/* before anything is seen the same card holds the grid dim: a guess, not a claim, with the logo in its corner */}
       <View style={s.art}>
         <View style={StyleSheet.absoluteFill}><TypeArt type="plan" w={264} h={170} seed={5} drift /></View>
-        {!seen && <View style={s.leaf}><Logo size={34} mode="line" color="#fff" /></View>}
+        <View style={s.leaf}>{seen && i.when ? <Icon name={WHO[i.when.part].icon} size={34} color="#fff" w={1.8} /> : seen ? null : <Icon name="help" size={34} color="#fff" w={1.8} />}</View>
         <Text style={s.artLab}>{t("thisWeek")}</Text>
-        {seen && i.when ? <Text style={s.artT}>{whenLine(i.when)}</Text> : !seen && <Text style={s.artT}>{t("learnedLearning")}</Text>}
+        {seen && i.when ? <Text style={s.artT}>{t(WHO[i.when.part].key)}</Text> : !seen && <Text style={s.artT}>{t("learnedLearning")}</Text>}
         <Grid i={seen ? i : { ...i, grid: Array.from({ length: 7 }, () => [0.1, 0.1, 0.1, 0.1]), when: undefined }} />
       </View>
       {!rows.length && !rules.length && <Text style={[s.calm, { color: th.ink }]}>{t("learnedCold")}</Text>}

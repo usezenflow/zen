@@ -523,11 +523,12 @@ async function transactRun(now: number, mutate: (w: Work) => Promise<void> | voi
   }
   // Only when a piece could take it: flexible, not held by hand (a hold that ran out is a preference), and starting after the gap. Otherwise nothing is planned at all.
   const can = (x: Task, from: number) => !x.fixed && !x.doneAt && !x.deletedAt && !x.pinned && !holding(x, now) && !(x.userEdited?.includes("start") && x.holdUntil === undefined) && (x.start === undefined || x.start > from);
+  const pullGaps0 = pullGaps.length > 0; // a done that frees nothing ahead (a past block ticked) plans nothing: no veil, no replan
   pullGaps = pullGaps.filter((g) => g.to > g.from && [...w.tasks.values()].some((x) => can(x, g.from)));
   const hasPull = pullGaps.length > 0;
   const pulled: string[] = []; // placed earlier than before, or unscheduled before: the freed time took them
   // A pull that frees nothing ahead still places the tasks waiting for a time, and only those (placing them moves nothing placed).
-  const waitIds = pullCause && !hasPull ? waiting([...w.tasks.values()], now).map((x) => x.id) : [];
+  const waitIds = pullCause && !hasPull && !(o.cause === "early-done" && !pullGaps0) ? waiting([...w.tasks.values()], now).map((x) => x.id) : [];
   const waits = waitIds.length > 0;
   const clashes = set.flatMap((mine) => [...w.tasks.values()].filter((f) => f.fixed && f.id !== mine.id && span(f) && f.start! < mine.end! && mine.start! < f.end!).map((fixed) => ({ mine, fixed })));
   const cause = o.cause ?? (clashes.length ? "conflict" : undefined); // a time set over a fixed item plans even with no cause of its own
@@ -1044,8 +1045,16 @@ export const moveMine = (id: string, now = Date.now()) =>
 
 /** Moves a flexible task (or its open sittings) to another day, keeping its part of the day (tods): no clock, the planner picks the slot that day.
  *  `part` (minutes after midnight) sets the part instead ("Dời: chiều nay"). A fixed task (a class, an exam, a busy block) is not moved; nothing is written then. */
-export const moveToDay = (id: string, dayMs: number, now = Date.now(), part?: [number, number]) => {
+export const moveToDay = async (id: string, dayMs: number, now = Date.now(), part?: [number, number]): Promise<Result> => {
   const ids = new Set<string>();
+  const was = (await store.allTasks()).filter((x) => x.id === id || x.parentId === id);
+  const r = await moveToDayRun(id, dayMs, now, part, ids);
+  // The day had no room: the task would be left with no time and a one-day window. Put it back where it was instead.
+  const after = new Set((await store.allTasks()).filter((x) => ids.has(x.id) && x.start === undefined).map((x) => x.id));
+  if (r.changed && was.some((x) => after.has(x.id) && x.start !== undefined)) { await r.undo(); return { ...r, changed: false, toast: t("noRoom"), undoable: false }; }
+  return r;
+};
+const moveToDayRun = (id: string, dayMs: number, now: number, part: [number, number] | undefined, ids: Set<string>) => {
   let title = "";
   return transact(now, (w) => {
     w.only = [];
