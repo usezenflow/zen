@@ -1,6 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { D, KINDS } from "./linucb";
-import { migrateModel, newModel } from "./model";
+import { cloneModel, migrateModel, newModel } from "./model";
+
+describe("cloneModel", () => {
+  it("copies what a plan writes into, so the original (the undo copy) stays as it was", () => {
+    const m = newModel(0);
+    m.placed = { t: { arm: 1, x: [0], start: 0 } };
+    const c = cloneModel(m);
+    c.arms[0].A[0] = 99; c.arms[0].b[0] = 99; c.slip[KINDS[0]].later += 1;
+    c.placed.t = { ...c.placed.t, start: 5 }; c.placed.u = { arm: 2, x: [0], start: 1 };
+    expect(m.arms[0].A[0]).not.toBe(99); expect(m.arms[0].b[0]).not.toBe(99);
+    expect(m.slip[KINDS[0]].later).toBe(0);
+    expect(m.placed).toEqual({ t: { arm: 1, x: [0], start: 0 } });
+    expect(JSON.parse(JSON.stringify(c))).toEqual(c);
+  });
+});
 
 describe("migrateModel", () => {
   it("takes a model saved with 5 kinds: placed rows move, new slip counters start at zero", () => {

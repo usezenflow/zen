@@ -197,7 +197,7 @@ export function drain(opts: { budget?: number } = {}): Promise<Synced | undefine
     const acc: Acc = { digest: { exams: [], assignments: [], rooms: [], moved: [], due: [], makeup: [], cancelled: [], lectures: [] }, extra: [], changed: false,
       hadTimetable: tasks.some((x) => x.source === "dlu" && x.fixed === "lecture" && !x.deletedAt && x.start! > now) };
     await queue.work((j) => run(j, acc), opts.budget);
-    if (acc.changed) await replan(Date.now()).catch(() => {}); // stored already: a failed replan is retried by the next tick
+    if (acc.changed) await replan(Date.now(), undefined, "timetable", undefined, false).catch(() => {}); // stored already: a failed replan is retried by the next tick
     const ls = acc.digest.lectures!;
     acc.digest.timetable = !acc.hadTimetable && ls.length >= 3 ? { n: ls.length, first: Math.min(...ls) } : undefined;
     // lectures of a timetable still coming in (this drain, or the weeks the first drain left queued) are not makeups

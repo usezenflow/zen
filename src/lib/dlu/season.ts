@@ -33,7 +33,10 @@ export function resolveTerm(now: number): Term {
 }
 
 /** Months of LMS calendar fetched, this one included. */
-export const LMS_MONTHS = 4;
+export const LMS_MONTHS = 2;
+
+/** How far ahead sync and series reach: five weeks. Exams keep their dates at any distance (countdowns). */
+export const SYNC_HORIZON = 35 * DAY;
 
 /** Start of the month after the last fetched one, VN time: LMS coverage ends here. */
 export function lmsCoverageEnd(now: number): number {
@@ -68,7 +71,7 @@ export function feeMonth(now: number): string | null {
 }
 
 /** Mondays (`YYYY-MM-DD`, VN) from this week to the term end, capped: one timetable job each. */
-export function termMondays(now: number, term: Term, cap = 26): string[] {
+export function termMondays(now: number, term: Term, cap = 5): string[] {
   const out: string[] = [];
   for (let m = weekStart(vnDate(now)); m < term.end && out.length < cap; m = addDays(m, 7)) out.push(m);
   return out;

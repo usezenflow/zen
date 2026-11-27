@@ -36,7 +36,7 @@ export default function Layout() {
     kvGet("theme").then((m) => { if (m === "light" || m === "dark") Appearance.setColorScheme(m); }).finally(() => setReady(true));
     SplashScreen.hide(); // Boot is already drawn on the same background
     askReminders().then(pushReminders).catch(() => {});
-    const hold = setTimeout(() => setHeld(false), 1400);
+    const hold = setTimeout(() => setHeld(false), 300);
     return () => clearTimeout(hold);
   }, []);
   // A tapped notice opens what it names: a web page (fees: the pay page) or a screen.

@@ -1,6 +1,5 @@
 import { MICRO_MIN } from "../planner/policy";
 import { bolded } from "@/components/bold";
-import { BlurView } from "expo-blur";
 import { useEffect, useRef, useState, type ComponentRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Animated, { Easing, FadeInDown, interpolate, Keyframe, useAnimatedStyle, useFrameCallback, useSharedValue, withRepeat, withTiming, type SharedValue } from "react-native-reanimated";
@@ -36,10 +35,13 @@ export function NowCard({ card, onDone, onStart, onLater, onMicroRest, onMicro, 
   const th = useTheme();
   const [now, setNow] = useState(() => Date.now());
   const [micro, setMicro] = useState<Micro | null>(null);
-  useEffect(() => { // the meter fills continuously: a slow ticker is smooth enough for a 54px capsule
-    const i = setInterval(() => setNow(Date.now()), 3000);
-    return () => clearInterval(i);
-  }, []);
+  useEffect(() => { // the meter fills continuously: a slow ticker is smooth enough for a 54px capsule; paused while a sheet or the keyboard is up
+    if (still) return;
+    const tick = () => setNow(Date.now());
+    const t0 = setTimeout(tick, 0);
+    const i = setInterval(tick, 3000);
+    return () => { clearTimeout(t0); clearInterval(i); };
+  }, [still]);
   const { task, start = 0, end = 0 } = card;
   useEffect(() => { let live = true; kvGet(MICRO_KEY).then((v) => { if (!live) return; const m = parseMicro(v); setMicro(m); onMicro?.(m?.id === task.id ? task.id : undefined); }).catch(() => {}); return () => { live = false; }; }, [task.id, onMicro]);
   const saveMicro = (m: Micro | null) => { setMicro(m); onMicro?.(m?.id === task.id ? task.id : undefined); kvSet(MICRO_KEY, JSON.stringify(m)).catch(() => {}); };
@@ -66,7 +68,7 @@ export function NowCard({ card, onDone, onStart, onLater, onMicroRest, onMicro, 
       <View style={s.foot}>
         {over ? <View style={s.overActs}>
           <Tap onPress={onExtend} scale={0.94} accessibilityRole="button" accessibilityLabel={t("overExtend")} style={[s.start, s.overBtn, s.solid2, { backgroundColor: th.ink }]}><Icon name="plus" size={18} color={th.bg} /><Text style={[s.startT, s.primaryT, { color: th.bg }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t("overExtend")}</Text></Tap>
-          <Tap onPress={onLater} scale={0.94} accessibilityRole="button" accessibilityLabel={t("overMove")} style={[s.glass, s.start, s.overBtn]}><Glass /><Icon name="right" size={20} color="#fff" /><Text style={s.startT} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t("overMove")}</Text></Tap>
+          <Tap onPress={onLater} scale={0.94} accessibilityRole="button" accessibilityLabel={t("overMove")} style={[s.glass, s.start, s.overBtn]}><Icon name="right" size={20} color="#fff" /><Text style={s.startT} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t("overMove")}</Text></Tap>
         </View> : <>
         <View style={s.row1}>
         <View style={s.meter}>
@@ -82,12 +84,12 @@ export function NowCard({ card, onDone, onStart, onLater, onMicroRest, onMicro, 
         </View>
         <View style={s.acts2}>
           {mic && micDone ? <>
-            <Tap onPress={() => { saveMicro(null); onMicroRest?.(MICRO_MIN); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microRest")} style={[s.glass, s.start, s.soft]}><Glass /><Icon name="clock" size={22} color="#fff" /><Text style={s.startT} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t("microRest")}</Text></Tap>
-            {onStart && <Tap onPress={() => { saveMicro(null); onStart(); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microGo")} style={[s.glass, s.start, s.primary, { backgroundColor: th.ink }]}><Glass /><Icon name="play" size={22} color={th.bg} /><Text style={[s.startT, s.primaryT, { color: th.bg }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t("microGo")}</Text></Tap>}
+            <Tap onPress={() => { saveMicro(null); onMicroRest?.(MICRO_MIN); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microRest")} style={[s.glass, s.start, s.soft]}><Icon name="clock" size={22} color="#fff" /><Text style={s.startT} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t("microRest")}</Text></Tap>
+            {onStart && <Tap onPress={() => { saveMicro(null); onStart(); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microGo")} style={[s.glass, s.start, s.primary, { backgroundColor: th.ink }]}><Icon name="play" size={22} color={th.bg} /><Text style={[s.startT, s.primaryT, { color: th.bg }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t("microGo")}</Text></Tap>}
           </> : <>
-            {moving && <Tap onPress={onLater} scale={0.94} accessibilityRole="button" accessibilityLabel={t("laterBtn")} style={[s.glass, s.start, s.soft, trio && s.iconOnly]}><Glass /><Icon name="clock" size={22} color="#fff" />{!trio && <Text style={s.startT} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t("laterBtn")}</Text>}</Tap>}
+            {moving && <Tap onPress={onLater} scale={0.94} accessibilityRole="button" accessibilityLabel={t("laterBtn")} style={[s.glass, s.start, s.soft, trio && s.iconOnly]}><Icon name="clock" size={22} color="#fff" />{!trio && <Text style={s.startT} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t("laterBtn")}</Text>}</Tap>}
             {moving && onStart && <Tap onPress={onStart} scale={0.94} accessibilityRole="button" accessibilityLabel={t("startLab")} style={[s.solid2, s.start, { backgroundColor: th.ink }]}>{!trio && <Icon name="play" size={22} color={th.bg} />}<Text style={[s.startT, s.primaryT, { color: th.bg }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t("startLab")}</Text></Tap>}
-            {microOk && !mic && <Tap onPress={() => { const at0 = Date.now(); saveMicro({ id: task.id, startedAt: at0, endsAt: at0 + MICRO_MIN * 60000 }); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microBtn", { n: MICRO_MIN })} style={[s.glass, s.start]}><Glass />{!trio && <Icon name="play" size={22} color="#fff" />}<Text style={s.startT} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t("microBtn", { n: MICRO_MIN })}</Text></Tap>}
+            {microOk && !mic && <Tap onPress={() => { const at0 = Date.now(); saveMicro({ id: task.id, startedAt: at0, endsAt: at0 + MICRO_MIN * 60000 }); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microBtn", { n: MICRO_MIN })} style={[s.glass, s.start]}>{!trio && <Icon name="play" size={22} color="#fff" />}<Text style={s.startT} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t("microBtn", { n: MICRO_MIN })}</Text></Tap>}
           </>}
         </View>
         </>}
@@ -115,9 +117,6 @@ function KindChip({ task, onKind }: { task: Task; onKind: KindPick }) {
     </View>
   );
 }
-
-// ui.css .glass: backdrop-filter blur(8px) behind the translucent circle.
-const Glass = () => <BlurView intensity={20} tint="default" style={StyleSheet.absoluteFill} />;
 
 // Odometer: each digit is keyed by position and value, so only the digits that change rise in from below.
 function Rise({ text, style }: { text: string; style: object }) {
@@ -282,7 +281,7 @@ export function Weekly({ title, sub, onPress }: { title: string; sub: string; on
       <Text style={[s.t, { color: th.onart }]} numberOfLines={3}>{title}</Text>
       <View style={s.foot}>
         <Text style={[s.small, { color: th.onart, fontFamily: ff("500") }]}>{sub}</Text>
-        <View style={s.glass}><Glass /><Icon name="right" size={22} color="#fff" w={2} /></View>
+        <View style={s.glass}><Icon name="right" size={22} color="#fff" w={2} /></View>
       </View>
     </Tap>
   );
@@ -350,7 +349,7 @@ const s = StyleSheet.create({
   rise: { flexDirection: "row", overflow: "hidden", marginVertical: -5 }, // pulls the taller line back to the old footprint
   big: { fontSize: 30, fontFamily: fd("700"), lineHeight: 34, letterSpacing: -0.9, ...SHADOW }, // v2 .art .big: display 700, 30px
   small: { fontSize: 17, fontFamily: ff("500"), opacity: 0.94, marginTop: 3, ...SHADOW },
-  glass: { width: 56, height: 56, borderRadius: 28, overflow: "hidden", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.22)", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.45)" }, // v2.css .glass 56px
+  glass: { width: 56, height: 56, borderRadius: 28, overflow: "hidden", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.24)", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.45)" }, // v2.css .glass 56px
   solid2: { borderRadius: 28, overflow: "hidden" }, // ui.css .gbtn.solid: the accent fill, no blur, no border
   solid: { backgroundColor: "rgba(255,255,255,0.94)", borderColor: "transparent" }, // crisp: a blur under a near-white fill only turns it grey
   acts2: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1, minWidth: 0 },

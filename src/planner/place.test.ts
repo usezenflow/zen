@@ -23,13 +23,13 @@ describe("cells", () => {
     const cs = cells(piece("far", { deadline: now + 90 * D, userDay: true }), now);
     expect(Math.max(...cs)).toBeGreaterThanOrEqual(now + 29 * D);
   });
-  it("a portal (dlu) deadline keeps its own reach past 30 days", () => {
+  it("a portal (dlu) deadline is cut at the 30-day horizon too", () => {
     const cs = cells(piece("exam", { source: "dlu", deadline: now + 90 * D }), now);
-    expect(Math.max(...cs)).toBeGreaterThan(now + 60 * D);
+    expect(Math.max(...cs)).toBeLessThan(now + 30 * D);
   });
-  it("an exam's prep (forId) keeps its reach to the exam too", () => {
+  it("an exam's prep (forId) is cut at the 30-day horizon too", () => {
     const cs = cells(piece("prep", { forId: "dlu:portal:exam:9", deadline: now + 90 * D }), now);
-    expect(Math.max(...cs)).toBeGreaterThan(now + 60 * D);
+    expect(Math.max(...cs)).toBeLessThan(now + 30 * D);
   });
 });
 

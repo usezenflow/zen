@@ -12,6 +12,7 @@ vi.mock("./store", () => ({
   removeTasks: async (ids: string[]) => ids.forEach((i) => db.tasks.delete(i)),
   allEvents: async () => [],
   putEvent: async () => {},
+  putEvents: async () => {},
   removeEvents: async () => {},
   loadModel: async (now: number) => newModel(now),
   saveModel: async () => {},

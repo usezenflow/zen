@@ -18,7 +18,9 @@ const fixed = {
     plan: { a: "#0a5f7a", b: "#2433f2", c: "#0b2f8f", d: "#7a5cff" }, // lagoon: deep grounds so white text reads
     lecture: { a: "#0b5443", b: "#0f8f6a", c: "#173f6e", d: "#2fd49a" }, // moss
     exam: { a: "#9e2a0c", b: "#ff4f2a", c: "#6a1838", d: "#ffa000" }, // citrus
+    exam_prep: { a: "#8a4b08", b: "#e68a00", c: "#5c2d16", d: "#ffd166" }, // warm amber-ochre: prep for an exam
     assignment: { a: "#5c1450", b: "#c21f86", c: "#2e2478", d: "#ff4a5e" }, // dusk
+    assignment_prep: { a: "#28357a", b: "#4f6bed", c: "#1d4e6e", d: "#7cc6fe" }, // calm indigo-slate: prep for an assignment
     night: { a: "#1e2a8a", b: "#7a4dff", c: "#35e0ff", d: "#ff5ac8" }, // work, finance (artOf)
     clay: { a: "#6e2a16", b: "#cf4a2c", c: "#1f3c80", d: "#f08a5d" }, // self, other, some assignments
     void: { a: "#f1eff6", b: "#bdb9d3", c: "#fbfafd", d: "#d6d2e6" }, // an unscheduled task: a pale mist that is not yet anywhere

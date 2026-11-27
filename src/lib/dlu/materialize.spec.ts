@@ -110,8 +110,11 @@ describe("materialize", () => {
   });
 
   it("does not delete LMS tasks beyond the fetched months", () => {
-    const far = stored(assign({ scheduledStartTime: new Date(NOW + 150 * D) }));
+    const far = { ...stored(assign()), deadline: NOW + 150 * D };
     expect(materialize([] as unknown as Fetched, [far], NOW).deletes).toEqual([]);
+  });
+  it("does not store an LMS assignment due past the 35-day sync horizon", () => {
+    expect(materialize([assign({ scheduledStartTime: new Date(NOW + 40 * D) })] as Fetched, [], NOW).upserts).toEqual([]);
   });
 
   it("revives an unedited deleted task when it returns", () => {

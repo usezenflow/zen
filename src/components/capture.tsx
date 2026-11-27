@@ -1,4 +1,3 @@
-import { BlurView } from "expo-blur";
 import { Image } from "expo-image";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
 import { scheduleOnRN } from "react-native-worklets";
@@ -19,11 +18,10 @@ const MIC_Y = 93;
 /** capture.html .veil: a glow of the page colour rising from the mic, so the day steps back while you choose. */
 export function Veil({ onPress, z }: { onPress?: () => void; z?: number }) {
   const { bg } = useTheme();
-  const style = [StyleSheet.absoluteFill, { zIndex: z, backgroundImage: `radial-gradient(130% 75% at 50% 100%, ${bg} 30%, ${bg}c7 60%, ${bg}6b 100%)` }];
+  // The wash alone softens the page: a BlurView here costs an offscreen pass on every keyboard frame and Telex keystroke.
+  const style = [StyleSheet.absoluteFill, { zIndex: z, backgroundImage: `radial-gradient(130% 75% at 50% 100%, ${bg} 30%, ${bg}eb 60%, ${bg}b8 100%)` }];
   return (
     <Animated.View entering={fadeIn} exiting={fadeOut} style={style} pointerEvents={onPress ? "auto" : "none"}>
-      {/* .veil backdrop-filter: blur(3px) */}
-      <BlurView intensity={5} style={StyleSheet.absoluteFill} pointerEvents="none" />
       {onPress && <Pressable style={StyleSheet.absoluteFill} onPress={onPress} accessibilityRole="button" accessibilityLabel={t("close")} />}
     </Animated.View>
   );

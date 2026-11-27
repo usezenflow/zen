@@ -19,7 +19,17 @@ interface Tables {
 
 let tables: Tables | undefined;
 
-const bytes = (b64: string): Uint8Array => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+// Base64 by lookup table into one pre-sized buffer: atob + Uint8Array.from over 2.7 MB cost hundreds of ms on Hermes.
+const B64 = new Uint8Array(128);
+"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/".split("").forEach((c, i) => (B64[c.charCodeAt(0)] = i));
+const bytes = (b64: string): Uint8Array => {
+  const out = new Uint8Array((b64.length / 4) * 3 - (b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0));
+  for (let i = 0, o = 0; o < out.length; i += 4) {
+    const n = (B64[b64.charCodeAt(i)] << 18) | (B64[b64.charCodeAt(i + 1)] << 12) | (B64[b64.charCodeAt(i + 2)] << 6) | B64[b64.charCodeAt(i + 3)];
+    for (let k = 0; k < 3 && o < out.length; k++) out[o++] = (n >> (16 - 8 * k)) & 0xff;
+  }
+  return out;
+};
 const floats = (b64: string): Float32Array => new Float32Array(bytes(b64).buffer);
 
 function load(): Tables {
@@ -58,6 +68,11 @@ function addTrigrams(out: Float32Array, word: string, t: Tables): void {
 /** Folded title as its letter words; digits and punctuation separate words and are not embedded. */
 export function words(title: string): string[] {
   return fold(title).text.match(/\p{L}+/gu) ?? [];
+}
+
+/** Decodes the tables now, so the first capture does not pay for it. */
+export function warm(): void {
+  tables ??= load();
 }
 
 /** Embeds a title: 1 x DIM, L2-normalised, all zeros when the title has no letters. */
@@ -104,3 +119,6 @@ export function cos(a: Float32Array, b: Float32Array): number {
   }
   return na && nb ? d / Math.sqrt(na * nb) : 0;
 }
+
+// Idle pre-warm: decode after the first frames, so the first capture does not stall on it.
+setTimeout(warm, 2000);

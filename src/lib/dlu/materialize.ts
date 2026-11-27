@@ -6,7 +6,7 @@ import type { ParsedMarks } from "./parse/student";
 import { sanitizeNoteHtml } from "../nlu/shared/note-html";
 import type { Fetched } from "./client";
 import { PREP_SITTING, preps, workOf } from "../../planner/prep";
-import { lmsCoverageEnd, resolveTerm } from "./season";
+import { SYNC_HORIZON, lmsCoverageEnd, resolveTerm } from "./season";
 
 const UNSIZED = 45; // minutes every assignment got before it was sized by its work and the marks
 const OLD_SITTING = 45; // preps and assignments were split in 45 min sittings before half hours
@@ -129,6 +129,8 @@ export function materialize(items: Fetched, tasks: Task[], now = Date.now(), mul
     && o.upstreamKey !== undefined && !keys.has(o.upstreamKey) && !taken.has(o.id) && o.start !== undefined && o.start > now && dayOf(o.start) === dayOf(next.start!));
   for (const i of items) {
     seen.add(i.externalKey);
+    // An LMS assignment due past the sync horizon is not stored yet; seen keeps a stored one from being treated as removed.
+    if (i.type === "PLAN" && sourceOf(i.externalKey) === "lms" && i.scheduledStartTime.getTime() > now + SYNC_HORIZON) continue;
     const next = fromItem(i, now, mult);
     let old = byKey.get(i.externalKey);
     if (!old) {
@@ -184,7 +186,8 @@ export function materialize(items: Fetched, tasks: Task[], now = Date.now(), mul
   const kids = (id: string) => tasks.filter((t) => t.parentId === id && !t.deletedAt && !t.doneAt).map((t) => t.id);
   for (const e of exams.values()) {
     const old = prepOf.get(`prep:${e.id}`);
-    const live = !e.deletedAt && !dropped.has(e.id) && e.start! > now;
+    // A prep is made once its exam is within the sync horizon; the exam itself is kept at any distance.
+    const live = !e.deletedAt && !dropped.has(e.id) && e.start! > now && e.start! <= now + SYNC_HORIZON;
     const [want] = live ? preps(e, mult(e.title), pace) : [];
     if (old?.deletedAt && old.userEdited?.includes("deleted")) continue; // "Không cần ôn": the student dropped this prep, a sync never brings it back
     if (want && !old) upserts.push(want);

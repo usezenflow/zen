@@ -3,7 +3,7 @@ import { DAY, HOUR, I_AFTER, I_ENERGY, I_SIM, KINDS, MIN, PART4, type FeatCtx, c
 import { aimOf, effort, fallacy, leadSample, lateDragged, neighbors, noteHyp, peakHour, slipOf } from "./habits";
 import { ALPHA, ARMS, D, LAMBDA, N0, type Primed, coldParts, decayArms, posteriorOf, primeBatch, ucb, ucbAt, update } from "./linucb";
 import { grounded } from "./grounded";
-import { type Model, afterBuffer, newModel } from "./model";
+import { type Model, afterBuffer, cloneModel, newModel } from "./model";
 import { PART_NAMES } from "../lib/parts";
 import { type Busy, type End, type Rest, type Util, EJECT_CAP, SLOT, STEP, W_BATCH, W_HARD, W_SOFT, awake, backToBack, batchKind, cells, dayGone, fixedHours, solve, wakeEnd } from "./place";
 import { DEFAULT_BOUNDS, boundsOf } from "./bounds";
@@ -35,9 +35,13 @@ const HALF = 14 * DAY;
 const COLD_A0 = LAMBDA + N0;
 const SURE = 3; // outcomes an hour must remember before a reason may name it
 type Titled = Busy & { title?: string };
-const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 // One colour per task everywhere (rows, week, month, detail): a prep is the user's plan even though it has a due time.
-export const typeOf = (t: Task): TaskType => t.fixed ?? (dueOf(t) !== undefined && !t.forId ? "assignment" : "plan");
+export const typeOf = (t: Task): TaskType => {
+  if (t.fixed) return t.fixed;
+  if (t.forId) return t.forId.startsWith("dlu:lms:") ? "assignment_prep" : "exam_prep";
+  if (t.source === "dlu") return t.parentId ? "assignment_prep" : "assignment";
+  return "plan";
+};
 // A said length keeps its minutes; a guessed one sits on the half hour (a micro chore on 15).
 const sized = (t: Task, m: number) => (!t.effortGuessed ? m : snapGuess(m)); // said: as said; guessed: 15, else half hours
 
@@ -155,12 +159,15 @@ function planPlain(tasks: Task[], busy: Busy[], model: Model, now: number, opts:
 }
 
 function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: Opts, unlock?: Set<string>): { diff: Diff; model: Model; bump?: string[]; trouble: number } {
-  const m = clone(model);
+  const m = cloneModel(model);
   decay(m, now);
   const fill = !!opts.fill;
   const B = boundsOf(m); // the user's own parts and awake window once learned; the defaults until then
   const live = tasks.filter((t) => !t.doneAt && !t.deletedAt);
-  const allBusy: Titled[] = [...busy];
+  // The plan's window: from yesterday's start to 30 days out. Busy time outside it is not planned around.
+  const winLo = dayStart(now) - DAY, winHi = now + 30 * DAY;
+  const inWin = (s: number, e: number) => e > winLo && s < winHi;
+  const allBusy: Titled[] = busy.filter((b) => inWin(b.start, b.end));
   const half = new Set<Busy>(); // lectures and exams count half an hour of load each (worked() in rest.ts)
   const fixedEnds: End[] = [];
   const flex: Task[] = [];
@@ -168,9 +175,8 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
     const inProgress = t.start !== undefined && t.end !== undefined && t.start <= now && now < t.end + GRACE && opts.later !== t.id; // "later" on the running task moves it; a block just ended stays busy through its grace
     if ((t.fixed || t.pinned || inProgress || holding(t, now)) && t.start !== undefined && t.end !== undefined) {
       const b: Titled = { start: t.start, end: t.end, title: t.title };
-      allBusy.push(b);
+      if (inWin(b.start, b.end)) { allBusy.push(b); fixedEnds.push({ kind: t.kind, end: t.end }); }
       if (t.fixed === "lecture" || t.fixed === "exam") half.add(b);
-      fixedEnds.push({ kind: t.kind, end: t.end });
     } else if (!t.fixed) flex.push(t);
   }
   allBusy.sort((a, b) => a.start - b.start);
@@ -218,6 +224,7 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
   const lost = (t: Task) => (t.start !== undefined && t.end !== undefined && t.end + GRACE <= now ? t.start : undefined);
   for (let t of flex) {
     if (t.parentId) continue;
+    if (t.notBefore !== undefined && t.notBefore >= winHi) continue; // starts past the 30-day window: not split or solved now
     // An exam's prep is done by 22:00 the evening before, never the morning of, unless that leaves no time at all.
     if (t.forId && t.deadline !== undefined && dayStart(t.deadline) - 2 * HOUR > now + HOUR) t = { ...t, deadline: Math.min(t.deadline, dayStart(t.deadline) - 2 * HOUR) };
     if (dayGone(t, now, B.to)) continue; // a past day of a repeating task stays missed; the next day has its own
@@ -772,7 +779,7 @@ export function outcome(model: Model, ev: TaskEvent, task: Task): { arm: number;
 export function learn(model: Model, ev: TaskEvent, task: Task, own = false, classEnds: number[] = []): Model {
   // Teaches nothing: the same model back, so a title/note/place edit doesn't clone and rewrite ~500 KB (decay catches up on the next event).
   if (!["kept", "done", "later", "delete", "drag"].includes(ev.type)) return model;
-  const m = own ? model : clone(model);
+  const m = own ? model : cloneModel(model);
   decay(m, ev.at);
   m.parts ??= coldParts();
   delete m.hypNow;

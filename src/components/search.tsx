@@ -69,7 +69,7 @@ export function Search({ origin, tasks, now, acts, initial, onClose }: { origin:
     if (!xs.length) return got || t("sampleAbbr");
     const name = mine.find((c) => c.q === v)?.name; // initials say which course they stand for
     if (name) return `${name} · ${t("nTasks", { n: xs.length })}`;
-    const mix = [...new Set(xs.map((x) => (x.forId ? "exam" : typeOf(x))))].map((ty) => t(TYPE_KEY[ty])).join(", ");
+    const mix = [...new Set(xs.map(typeOf))].map((ty) => t(TYPE_KEY[ty])).join(", ");
     return `${got || mix} · ${t("nTasks", { n: xs.length })}`;
   };
   const sections: { lab: string; icon: IconName; xs: string[]; sub: boolean; clear?: boolean }[] = q.trim() ? [] : [

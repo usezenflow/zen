@@ -9,6 +9,7 @@ vi.mock("../store", () => ({
   allEvents: async () => [...db.events.values()],
   keptPlaced: async () => ({ kept: new Set<string>(), placed: new Map<string, number>() }),
   putEvent: async (e: TaskEvent) => void db.events.set(e.id, e),
+  putEvents: async (es: TaskEvent[]) => void es.forEach((e) => db.events.set(e.id, e)),
   removeEvents: async (ids: string[]) => ids.forEach((i) => db.events.delete(i)),
   loadModel: async (now: number) => db.model ?? newModel(now),
   saveModel: async (m: unknown) => void (db.model = m),

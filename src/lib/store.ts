@@ -72,6 +72,15 @@ const fromRow = (r: Row): Task => ({
 // Read and parsed once until the next write (a cold start reads it ~15 times). Each caller gets its own copies, as from a fresh read.
 let tasksCache: Task[] | undefined, tasksGen = 0;
 const dropTasks = () => { tasksGen++; tasksCache = undefined; };
+// A write lands in the cache in place (no re-read of the table); a reader that started before it sees the gen change and keeps nothing.
+const patchTasks = (upsert: Task[], gone: string[] = []) => {
+  tasksGen++;
+  if (!tasksCache) return;
+  const byId = new Map(tasksCache.map((x) => [x.id, x]));
+  for (const id of gone) byId.delete(id);
+  for (const t of upsert) byId.set(t.id, { ...t });
+  tasksCache = [...byId.values()];
+};
 export async function allTasks(): Promise<Task[]> {
   if (!tasksCache) {
     const g = tasksGen, rows = (await (await open()).getAllAsync<Row>("SELECT * FROM tasks")).map(fromRow);
@@ -85,7 +94,6 @@ export async function allTasks(): Promise<Task[]> {
 let writing: Promise<unknown> = Promise.resolve();
 export async function putTasks(ts: Task[]) {
   const d = await open();
-  dropTasks();
   const run = writing.catch(() => {}).then(() => d.withTransactionAsync(async () => {
     for (const t of ts) {
       await d.runAsync(
@@ -95,14 +103,13 @@ export async function putTasks(ts: Task[]) {
     }
   }));
   writing = run;
-  try { await run; } finally { dropTasks(); }
+  try { await run; patchTasks(ts); } catch (e) { dropTasks(); throw e; }
   widgets();
 }
 
 export async function removeTasks(ids: string[]) {
   const d = await open();
-  dropTasks();
-  try { for (const id of ids) await d.runAsync("DELETE FROM tasks WHERE id=?", [id]); } finally { dropTasks(); }
+  try { for (const id of ids) await d.runAsync("DELETE FROM tasks WHERE id=?", [id]); patchTasks([], ids); } catch (e) { dropTasks(); throw e; }
   widgets();
 }
 
@@ -120,6 +127,16 @@ export async function allEvents(taskId?: string): Promise<TaskEvent[]> {
 }
 export async function putEvent(e: TaskEvent) {
   await (await open()).runAsync("INSERT OR REPLACE INTO events(id,taskId,type,at,data) VALUES(?,?,?,?,?)", [e.id, e.taskId, e.type, e.at, e.data ? JSON.stringify(e.data) : null]);
+}
+/** One transaction for a whole plan's events (one commit, not one per event); queued with the other writes. */
+export async function putEvents(es: TaskEvent[]) {
+  if (!es.length) return;
+  const d = await open();
+  const run = writing.catch(() => {}).then(() => d.withTransactionAsync(async () => {
+    for (const e of es) await d.runAsync("INSERT OR REPLACE INTO events(id,taskId,type,at,data) VALUES(?,?,?,?,?)", [e.id, e.taskId, e.type, e.at, e.data ? JSON.stringify(e.data) : null]);
+  }));
+  writing = run;
+  await run;
 }
 export async function removeEvents(ids: string[]) {
   const d = await open();

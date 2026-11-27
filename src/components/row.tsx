@@ -125,7 +125,7 @@ export function Row({ task, now, first, done, allDay, sub: subOver, lead, trail,
   const canTime = task.start !== undefined && !allDay && !tm && !done && !ghost && (task.fixed ? task.fixed === "busy" && task.source !== "dlu" && !task.forId : true);
   // No time yet: nothing to tick. A faded row with the pale "void" art in place of the circle.
   const unset = task.start === undefined && !task.fixed && !allDay && !ghost && !done;
-  const check = (type === "plan" || type === "assignment") && !unset;
+  const check = (type === "plan" || type === "assignment" || type === "exam_prep" || type === "assignment_prep") && !unset;
   // Missed: a checkable task whose block has ended without a tick; vermilion circle and time (views.html "Day, missed").
   // Red only for a real deadline or a said clock (fixed lecture/exam, pinned): a flexible block Zen placed never turns red by the clock alone.
   const late = check && !done && !allDay && ((task.deadline !== undefined && task.deadline <= now) || (!!task.pinned && (task.end ?? Infinity) <= now) || (!!task.fixed && (task.end ?? task.start ?? Infinity) <= now));
@@ -208,7 +208,7 @@ export function Row({ task, now, first, done, allDay, sub: subOver, lead, trail,
         <View style={[s.ck, { borderColor: th.line, borderStyle: "dashed" }]} />
       ) : check ? (
         <Hit onPress={() => { if (!done) { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {}); onToggle(); } }} hitSlop={8} testID="ck">
-          <Animated.View style={[s.ck, { borderColor: late ? th.seal : th.line }, done && [{ borderWidth: 0 }, pop]]}>
+          <Animated.View style={[s.ck, { borderColor: late ? th.seal : th.art[pal].b }, done && [{ borderWidth: 0 }, pop]]}>
             {done && <Animated.View entering={ZoomIn.duration(180).easing(EASE)}>
               <Icon name="check" size={18} color={th.ink} w={2} />
               <Animated.View style={[StyleSheet.absoluteFill, popInk]}><Icon name="check" size={18} color={th.bg} w={2} /></Animated.View>

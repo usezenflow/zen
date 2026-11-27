@@ -129,7 +129,7 @@ export function Week({ tasks, hols, monday, selected, now, onSelect, onStep, rul
                 </Animated.View>
               ) : (
                 <Animated.View key={`${x.id}${i}`} style={[s.b, pos]}>
-                  <TypeArt type={artOf(x)} w={40} h={h} seed={seedOf(x.id)} />
+                  <TypeArt type={artOf(x)} w={Math.max(20, Math.round(cw))} h={h} seed={seedOf(x.parentId ?? x.id)} />
                   {/* the row trail's dot, until the move is seen (.wk .b.mv::after): a seal dot with a 2px ring */}
                   {moves.includes(x.id) && <View style={[s.mvRing, { backgroundColor: th.bg }]}><View style={[s.mvDot, { backgroundColor: th.seal }]} /></View>}
                 </Animated.View>

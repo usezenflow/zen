@@ -496,7 +496,11 @@ describe("first move, maxSitting, typeOf, alt", () => {
 
   it("typeOf", () => {
     expect(typeOf(task("x"))).toBe("plan");
-    expect(typeOf(task("x", { deadline: 1 }))).toBe("assignment");
+    expect(typeOf(task("x", { deadline: 1 }))).toBe("plan"); // a personal deadline keeps its kind's palette
+    expect(typeOf(task("x", { source: "dlu", deadline: 1 }))).toBe("assignment");
+    expect(typeOf(task("x", { source: "dlu", parentId: "p", deadline: 1 }))).toBe("assignment_prep");
+    expect(typeOf(task("x", { forId: "dlu:portal:exam:9" }))).toBe("exam_prep");
+    expect(typeOf(task("x", { forId: "dlu:lms:a1" }))).toBe("assignment_prep");
     expect(typeOf(task("x", { fixed: "exam", deadline: 1 }))).toBe("exam");
   });
 

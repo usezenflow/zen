@@ -109,6 +109,13 @@ it.each([[10, 24], [60, 27], [180, 52]])("a %i-minute task is %ipx tall (clamped
   expect(flat(blocks()[0]).height).toBe(h);
 });
 
+it("a prep block is drawn in its own palette, not the exam's or the plan's", async () => {
+  await show({ tasks: [task({ start: TODAY + 9 * HOUR, end: TODAY + 10 * HOUR, forId: "dlu:portal:exam:9" })] });
+  const ground = all(root(), (x) => String(x.type).includes("LinearGradient"))[0];
+  const colors = (ground.props.children as unknown as { props: { stopColor: string } }[]).map((s) => s.props.stopColor);
+  expect(colors).toEqual(["#8a4b08", "#5c2d16"]); // exam_prep's ground: a and c
+});
+
 it("more than eight blocks in a day keep seven and a +n chip", async () => {
   const tasks = Array.from({ length: 9 }, (_, i) => task({ start: TODAY + (8 + i) * HOUR, end: TODAY + (9 + i) * HOUR }));
   await show({ tasks });

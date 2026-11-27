@@ -93,6 +93,12 @@ it("at most three type dots, one per type", async () => {
   expect(dots("19")).toHaveLength(1);
 });
 
+it.each([["dlu:portal:exam:9", "#e68a00"], ["dlu:lms:a1", "#4f6bed"]])("a prep dot takes its own palette (forId %s)", async (forId, amber) => {
+  const d = local(2026, 11, 19);
+  await show({ tasks: [task({ start: d + 8 * 3600_000, end: d + 9 * 3600_000, forId })] });
+  expect(String(flat(dots("19")[0]).backgroundImage)).toContain(amber);
+});
+
 it("done, deleted and unplaced tasks draw no dot", async () => {
   await show({ tasks: [task({ start: at(9), end: at(10), doneAt: NOW }), task({ start: at(11), end: at(12), deletedAt: NOW }), task({ start: undefined, end: undefined })] });
   expect(dots("17")).toHaveLength(0);

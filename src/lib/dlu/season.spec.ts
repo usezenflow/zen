@@ -12,7 +12,7 @@ describe("season", () => {
     const now = Date.UTC(2026, 9, 1);
     const weeks = termMondays(now, resolveTerm(now)).map(isoWeek);
     expect(weeks[0]).toBe(40);
-    expect(weeks.length).toBeGreaterThan(10);
+    expect(weeks).toEqual([40, 41, 42, 43, 44]); // current week and four more: the five-week sync horizon
   });
   it("keeps exams and marks to their seasons", () => {
     expect([1, 2, 3, 5, 6, 8, 9, 10, 12].map((m) => examMonth(Date.UTC(2026, m - 1, 15)))).toEqual([false, false, true, false, true, false, false, true, false]);

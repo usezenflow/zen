@@ -66,7 +66,7 @@
       "expo-background-task",
       [
         "expo-build-properties",
-        { "android": { "minSdkVersion": 26 } }
+        { "android": { "minSdkVersion": 26, "enableMinifyInReleaseBuilds": true, "enableShrinkResourcesInReleaseBuilds": true } }
       ],
       [
         "expo-speech-recognition",

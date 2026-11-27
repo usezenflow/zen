@@ -68,8 +68,8 @@ export function cells(p: Piece, now: number, rest?: Rest): number[] {
   if (p.lock) return [p.prior!];
   const t = p.task;
   let lo = ceil(Math.max(now, t.notBefore ?? now));
-  // The planning horizon is 7 days: a piece that starts past it waits unplaced, not tried at all (no solver work). A portal/LMS deadline (source dlu) and an exam's prep (forId, due at the synced exam) are anchored outside, so they keep their reach; a day the user picked by hand keeps the 30-day reach.
-  const horizon = t.source === "dlu" || t.forId !== undefined ? Infinity : now + (t.userDay || t.deadline !== undefined ? 30 : 7) * DAY; // a said due reaches 30 days too: its sittings spread over the days before it, not the first week
+  // The planning horizon is 30 days for every piece (portal, LMS and prep ones too): past it a piece waits unplaced, not tried at all (no solver work).
+  const horizon = now + 30 * DAY;
   // a piece already placed past the horizon keeps its reach to its own day: a replan moves it near that day, never pushes it back into the horizon
   const cap = p.prior !== undefined && p.prior >= horizon ? dayStart(p.prior) + 2 * DAY : horizon;
   if (lo >= cap) return [];

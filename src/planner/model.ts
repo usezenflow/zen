@@ -51,6 +51,24 @@ export function afterBuffer(m: Model): number {
   return Math.min(60, Math.max(0, s[Math.floor(s.length / 2)]));
 }
 
+/** A copy the planner may write into: the arms, slip counts, placed entries and rows it updates are fresh; the rest is copied one level down.
+ *  Replaces a JSON round trip of the whole model (~500 KB) on every plan. */
+export function cloneModel(m: Model): Model {
+  const arm = (a: Arm): Arm => ({ A: a.A.slice(), b: a.b.slice() });
+  const rec = <T extends object>(r: Record<string, T>): Record<string, T> => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, { ...v }]));
+  const rows = <T extends object>(xs: T[]): T[] => xs.map((x) => ({ ...x }));
+  const nums = <K extends string>(r: Partial<Record<K, number[]>> | undefined) => r && Object.fromEntries(Object.entries(r).map(([k, v]) => [k, (v as number[]).slice()]));
+  return {
+    ...m,
+    arms: m.arms.map(arm), parts: m.parts?.map(arm),
+    slip: rec(m.slip), placed: rec(m.placed),
+    hist: rows(m.hist), efforts: rows(m.efforts), doneHours: rows(m.doneHours), moved: m.moved && rows(m.moved), left: m.left && rows(m.left),
+    hyps: m.hyps && rows(m.hyps), active: m.active && rows(m.active), surfaced: m.surfaced && rows(m.surfaced),
+    rules: m.rules && rows(m.rules), kept: m.kept?.slice(), afterClass: m.afterClass?.slice(),
+    lead: nums(m.lead), partSeen: nums(m.partSeen),
+  } as Model;
+}
+
 /** A saved model from an older layout (fewer kinds): arms, slip counts and placed feature rows move onto this one. */
 export function migrateModel(m: Model): Model {
   m.arms = fitArms(m.arms);

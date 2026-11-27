@@ -209,6 +209,8 @@ const S = {
   gotExam: "Bài thi",
   gotLecture: "Lịch học",
   gotAssignment: "Bài tập",
+  gotExamPrep: "Ôn thi",
+  gotAssignmentPrep: "Làm bài tập",
   gotBusy: "Giờ cố định",
   gotPlan: "Việc của bạn",
   gotLive: "Chưa xong",

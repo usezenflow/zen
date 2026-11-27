@@ -206,8 +206,9 @@ export default function Detail() {
 
   const mine = task.source !== "dlu" && !task.forId;
   // Only a plan or an assignment is the user's to edit; lectures, exams and busy blocks are read-only (delete stays).
-  const editable = (mine || (!!task.forId && task.source !== "dlu")) && (typeOf(task) === "plan" || typeOf(task) === "assignment");
-  const canMove = !task.fixed && (typeOf(task) === "plan" || typeOf(task) === "assignment"); // synced work keeps its time editable; only the timetable and exams are frozen
+  const flex = ["plan", "assignment", "exam_prep", "assignment_prep"].includes(typeOf(task)); // checkable, flexible work: not the timetable, exams or busy blocks
+  const editable = (mine || (!!task.forId && task.source !== "dlu")) && flex;
+  const canMove = !task.fixed && flex; // synced work keeps its time editable; only the timetable and exams are frozen
   const canTime = !!tt && (editable || canMove);
   const hasDue = editable && !task.fixed && !task.rrule && task.deadline !== undefined;
   // The open time line (a placed one, or an untimed one once its "no free slot" line is tapped). Start and length come from the task's own values.

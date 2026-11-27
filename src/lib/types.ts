@@ -1,7 +1,7 @@
 // Shared contract for zen modules. Times are epoch ms.
 export type Kind = "study" | "exercise" | "chores" | "social" | "other" | "work" | "errand" | "finance" | "self";
 export type Source = "user" | "dlu";
-export type TaskType = "plan" | "lecture" | "exam" | "busy" | "assignment";
+export type TaskType = "plan" | "lecture" | "exam" | "exam_prep" | "assignment" | "assignment_prep" | "busy";
 export type Fixed = "lecture" | "exam" | "busy";
 
 export interface Task {

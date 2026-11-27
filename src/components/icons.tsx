@@ -1,4 +1,4 @@
-import { createElement, type ComponentType } from "react";
+import { createElement, memo, type ComponentType } from "react";
 import Svg, { Circle, Path, Rect } from "react-native-svg";
 
 // Path dictionary from mockups zen.js and ui.js (ui.js wins on clashes: mic, gear, back; the gear is a toothed cog so it never reads as the theme sun).
@@ -73,19 +73,35 @@ export type IconName = keyof typeof I;
 
 const TAGS: Record<string, ComponentType<any>> = { path: Path, circle: Circle, rect: Rect };
 
+// Each icon's tags are regex-parsed once (first use), then only the colour is applied per render.
+type Desc = { tag: ComponentType<any>; props: Record<string, string> };
+const cache = new Map<IconName, Desc[]>();
+function descs(name: IconName): Desc[] {
+  let list = cache.get(name);
+  if (!list) {
+    list = [...I[name].matchAll(/<(\w+)([^>]*?)\/>/g)].map((m) => {
+      const props: Record<string, string> = {};
+      for (const a of m[2].matchAll(/([\w-]+)="([^"]*)"/g)) props[a[1]] = a[2];
+      return { tag: TAGS[m[1]], props };
+    });
+    cache.set(name, list);
+  }
+  return list;
+}
+
 // Turn the self-closing tags above into react-native-svg elements.
-function parse(src: string, color: string) {
-  return [...src.matchAll(/<(\w+)([^>]*?)\/>/g)].map((m, i) => {
-    const props: Record<string, string> = { key: String(i) };
-    for (const a of m[2].matchAll(/([\w-]+)="([^"]*)"/g)) props[a[1]] = a[2] === "currentColor" ? color : a[2];
-    return createElement(TAGS[m[1]], props);
+function parse(name: IconName, color: string) {
+  return descs(name).map(({ tag, props }, i) => {
+    const p: Record<string, string> = { key: String(i) };
+    for (const k in props) p[k] = props[k] === "currentColor" ? color : props[k];
+    return createElement(tag, p);
   });
 }
 
-export function Icon({ name, size = 20, color = "#000", w = 2 }: { name: IconName; size?: number; color?: string; w?: number }) {
+export const Icon = memo(function Icon({ name, size = 20, color = "#000", w = 2 }: { name: IconName; size?: number; color?: string; w?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={w} strokeLinecap="round" strokeLinejoin="round">
-      {parse(I[name], color)}
+      {parse(name, color)}
     </Svg>
   );
-}
+});

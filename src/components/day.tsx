@@ -250,7 +250,7 @@ export function First({ onSchool }: { onSchool: () => void }) {
   );
 }
 
-export const TYPE_KEY = { exam: "gotExam", lecture: "gotLecture", assignment: "gotAssignment", busy: "gotBusy", plan: "gotPlan" } as const;
+export const TYPE_KEY = { exam: "gotExam", exam_prep: "gotExamPrep", lecture: "gotLecture", assignment: "gotAssignment", assignment_prep: "gotAssignmentPrep", busy: "gotBusy", plan: "gotPlan" } as const;
 const STATUS_KEY = { live: "gotLive", done: "gotDone", late: "gotLate" } as const;
 /** views.html "Search, understood": the filters Zen read, as one muted line ("Bài thi · 23 đến 29/11"). Words alone say nothing. */
 export function gotLine(q: Query, now: number) {

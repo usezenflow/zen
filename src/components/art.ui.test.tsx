@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react-native";
 import { processColor } from "react-native";
-import { Logo, TypeArt } from "./art";
+import { artOf, Logo, TypeArt } from "./art";
+import { task } from "../../test/factories";
 
 type J = { type: string; props: Record<string, any>; children: unknown[] | null };
 const nodes = (j: unknown): J[] => (!j || typeof j === "string" ? [] : Array.isArray(j) ? j.flatMap(nodes) : [j as J, ...nodes((j as J).children)]);
@@ -33,6 +34,19 @@ describe("Logo", () => {
       await render(<Logo size={40} state={state} />);
       expect(of("RNSVGSvgView")[0].props.width).toBe(72);
     }
+  });
+});
+
+describe("artOf", () => {
+  it("each type keeps its own palette: exam is not assignment, and each prep has its own", () => {
+    expect(artOf(task({ fixed: "exam" }))).toBe("exam");
+    expect(artOf(task({ forId: "dlu:portal:exam:9" }))).toBe("exam_prep");
+    expect(artOf(task({ forId: "dlu:lms:a1" }))).toBe("assignment_prep");
+    expect(artOf(task({ source: "dlu", id: "dlu:lms:a1", deadline: 5 }))).toBe("assignment");
+  });
+  it("a personal task keeps its kind's palette, with or without a deadline", () => {
+    expect(artOf(task({ kind: "work" }))).toBe("night");
+    expect(artOf(task({ kind: "work", deadline: 5 }))).toBe("night");
   });
 });
 

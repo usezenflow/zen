@@ -188,7 +188,7 @@ const minuteOf = (ms: number) => { const d = new Date(ms); return d.getHours() *
 /** Does `x` pass every filter and hit every word? */
 export function matches(x: Task, q: Query, now: number): boolean {
   const hay = [x.title, x.course, x.location, x.teacher].filter(Boolean).flatMap((s) => words(s!).map((w) => w.w)), ty = typeOf(x);
-  if (q.types.length && !q.types.some((c) => c.type === ty || (c.type === "exam" && x.forId) || c.words.every((w) => whole(w, hay).length))) return false;
+  if (q.types.length && !q.types.some((c) => c.type === ty || (c.type === "exam" && ty === "exam_prep") || (c.type === "assignment" && ty === "assignment_prep") || c.words.every((w) => whole(w, hay).length))) return false;
   if (q.status === "live" && x.doneAt) return false;
   if (q.status === "done" && !x.doneAt) return false;
   if (q.status === "late" && (x.fixed || x.doneAt || (x.deadline ?? x.end ?? Infinity) >= now)) return false; // lectures, exams, busy blocks are never ticked, so never late

@@ -50,7 +50,7 @@ describe("understood", () => {
     expect(ids(xs, "a2.301")).toEqual(["lec", "exam2"]);
   });
   it("deadline and status", () => {
-    expect(ids(xs, "bài tập hạn t6 chưa xong")).toEqual(["bc", "bt"]); // a deadline makes it an assignment
+    expect(ids(xs, "bài tập hạn t6 chưa xong")).toEqual(["bt"]); // a personal deadline is a plan, not an assignment: only the words match
     expect(ids(xs, "bai tap giai tich")).toEqual(["bt"]);
     expect(ids(xs, "hạn t6")).toEqual(["bc", "btDone", "bt"]);
     expect(ids(xs, "han t6 da xong")).toEqual(["btDone"]);

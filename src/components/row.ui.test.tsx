@@ -292,6 +292,12 @@ describe("Row", () => {
   });
 });
 
+it.each([["exam", "dlu:portal:exam:9", "#e68a00"], ["assignment", "dlu:lms:a1", "#4f6bed"]])("a %s prep row is checkable, its circle in its own palette", async (_, forId, color) => {
+  await draw({ task: task({ forId, start: at(9), end: at(10) }) });
+  expect(screen.getByTestId("ck")).toBeTruthy();
+  expect(screen.container.queryAll((n) => flat(n).borderColor === color).length).toBeGreaterThan(0);
+});
+
 describe("SwipeDelete", () => {
   // scheduleOnRN lands in queueMicrotask (worklets mock), which the fake timers hold: run the ticks.
   const swipe = async (translationX: number) => {

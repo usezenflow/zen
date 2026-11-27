@@ -6,7 +6,7 @@ import { Stripes, Swipe } from "@/components/week";
 import { addDays, holLines, monthGrid, onDay, short, startOfDay, type Hols } from "@/components/cal";
 import { useTheme, font, ff } from "@/lib/theme";
 import type { Task } from "@/lib/types";
-import { typeOf } from "@/planner";
+import { artOf } from "@/components/art";
 
 export function Month({ tasks, hols, selected, anchor = selected, now, onSelect, onStep, gridRef, hover }: {
   tasks: Task[]; hols: Hols; selected: number; now: number; onSelect: (day: number) => void; onStep: (d: -1 | 1) => void;
@@ -18,7 +18,7 @@ export function Month({ tasks, hols, selected, anchor = selected, now, onSelect,
   const { first, start, rows } = monthGrid(anchor);
   const month = new Date(first).getMonth();
   // The dots per cell, once per tasks and month, not 42 scans per render.
-  const dots = useMemo(() => new Map(Array.from({ length: rows * 7 }, (_, i) => { const d = addDays(start, i); return [d, [...new Set(onDay(tasks, d).map(typeOf))].slice(0, 3)] as const; })), [tasks, start, rows]);
+  const dots = useMemo(() => new Map(Array.from({ length: rows * 7 }, (_, i) => { const d = addDays(start, i); return [d, [...new Set(onDay(tasks, d).map(artOf))].slice(0, 3)] as const; })), [tasks, start, rows]);
   return (
     <Swipe onStep={onStep} stepKey={first}>
       <View style={s.mo}>

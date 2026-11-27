@@ -79,7 +79,7 @@ const tod = (ms: number) => ms - dayStart(ms);
 const addDays = (d: number, k: number) => { const x = new Date(d); return new Date(x.getFullYear(), x.getMonth(), x.getDate() + k).getTime(); };
 
 type Occ = { notBefore?: number; deadline?: number };
-const MAX_OCC = 120; // a series is made as far ahead as a deadline may be (cells: 120 days); the planner places only the first 30
+const MAX_OCC = 35; // a series is made five weeks ahead (the sync horizon); the planner places only the first 30 days
 
 /** Day starts a DAILY, WEEKLY-with-days, MONTHLY or YEARLY rule lands on from `d0`, and whether the list stops short of the rule's own end.
  *  COUNT is the total from `d0`, past days included; only days from today to `upTo` (default: the rule's first stretch) are listed. */
@@ -155,6 +155,9 @@ function occurrences(rrule: string | undefined, now: number, when?: number, due?
 
 const at = (x: Task) => x.start ?? x.notBefore ?? x.deadline ?? 0;
 const seriesKey = (x: Task) => x.seriesId ?? `${x.rrule}|${x.title}`; // older repeats have no id: rule and title
+/** Items the planner and the narration count: a class or exam still running or ahead, anything else starting within the 30-day window. */
+const inPlanWindow = (x: Task, now: number) => x.fixed ? (x.end ?? x.start ?? 0) > now && (x.start ?? 0) <= now + 30 * DAY
+  : ((x.start ?? x.deadline ?? x.notBefore) ?? now) <= now + 30 * DAY;
 
 /** Ids a scope pick covers. Series = same section (DLU lectures) or same rrule and title (user repeats);
  *  "following" is this one and later ones, "all" the whole series, "this" just itself. */
@@ -214,10 +217,10 @@ export function reshapeSeries(id: string, from: number, rrule: string, now = Dat
   });
 }
 
-/** Occurrences a live user series is missing so it reaches 120 days ahead, as it was made: the rule's own days (BYDAY, INTERVAL, COUNT as a total, UNTIL),
+/** Occurrences a live user series is missing so it reaches 35 days ahead, as it was made: the rule's own days (BYDAY, INTERVAL, COUNT as a total, UNTIL),
  *  or `COUNT` per week for a plain weekly "n lần mỗi tuần". */
 function missing(tasks: Task[], gone: Gone, now: number): Task[] {
-  const horizon = now + 119 * DAY;
+  const horizon = now + 35 * DAY;
   const series = new Map<string, Task[]>();
   for (const x of tasks) if (x.source === "user" && x.rrule && !x.parentId) { const k = seriesKey(x), xs = series.get(k); if (xs) xs.push(x); else series.set(k, [x]); }
   const out: Task[] = [];
@@ -255,7 +258,7 @@ function missing(tasks: Task[], gone: Gone, now: number): Task[] {
   return out;
 }
 
-/** Keeps live repeating series 120 days ahead (a foreground hook); replans only when something was added. */
+/** Keeps live repeating series 35 days ahead (a foreground hook); replans only when something was added. */
 // Read inside the write queue: two at once (app focus and resume both fire it) each saw the series short and both added copies.
 export function topUp(now = Date.now()): Promise<Result | undefined> {
   return serial(async () => {
@@ -350,7 +353,7 @@ async function act(w: Work, a: Action, refs = new Map<string, string>()) {
     const seriesId = a.seriesId ?? (a.repeat ? uid() : undefined); // a one-off session carries its series' id, with no rule
     // an order: the predecessor is a ref of this batch (its id is set up front) or an existing task; an anchor that is a task id is the exam it prepares
     const after = a.after && (refs.get(a.after) ?? (w.tasks.get(a.after) && !w.tasks.get(a.after)!.deletedAt ? a.after : undefined));
-    const forId = a.anchor && w.tasks.get(a.anchor) && !w.tasks.get(a.anchor)!.deletedAt ? a.anchor : undefined; // an exam id (the sizer's anchor is a date)
+    const anc = a.anchor ? w.tasks.get(a.anchor) : undefined, forId = anc && !anc.deletedAt && (anc.fixed === "exam" || anc.id.startsWith("dlu:lms:")) ? anc.id : undefined; // an exam or an LMS assignment id (the sizer's anchor is a date)
     let own = a.ref ? refs.get(a.ref) : undefined; // the first occurrence takes the id the batch gave its ref
     for (const o of occ.list) {
       if (!fixed && dayGone({ rrule: a.repeat, deadline: o.deadline, tods: a.tods, effort: a.effortMinutes ?? 0 } as Task, now)) continue; // today's part already gone: from the next day
@@ -413,7 +416,8 @@ async function act(w: Work, a: Action, refs = new Map<string, string>()) {
       }
       const dl = ms(a.deadline);
       if (dl) { next.deadline = dl; edited.add("deadline"); }
-      if (a.anchor && w.tasks.get(a.anchor)?.fixed === "exam") next.forId = a.anchor; // the anchor picker: prep for that exam
+      const pick = a.anchor ? w.tasks.get(a.anchor) : undefined;
+      if (pick && (pick.fixed === "exam" || pick.id.startsWith("dlu:lms:"))) next.forId = pick.id; // the anchor picker: prep for that exam or LMS assignment
       // a time the user sets wins over the parts of the day it was said in
       if (when !== undefined) { next.tods = undefined; next.notAfter = undefined; next.userDay = undefined; } // a clock set by hand ends any window a drop or a said part left
       if (when !== undefined && tk !== lead) {
@@ -575,6 +579,7 @@ async function transactRun(now: number, mutate: (w: Work) => Promise<void> | voi
   const cause = o.cause ?? (clashes.length ? "conflict" : undefined); // a time set over a fixed item plans even with no cause of its own
   // Place once: a new task, a done or a delete, or the clock's own placing only fill open time; a direct clash, a deadline or a kind change may still move what is placed
   const fillOnly = o.fill ?? (cause === "create" || cause === "early-done" || cause === "delete");
+  let thinkAt: number | undefined; // when the veil rose: the writes wait until it has held a second
   if (((cause && !pullCause) || hasPull || waits) && (!past || hasPull || waits)) {
     // The newest time set by hand wins: an older hand-set flexible task under it gives way and is planned again (not one already running).
     for (const a of set) for (const x of [...w.tasks.values()]) {
@@ -588,14 +593,17 @@ async function transactRun(now: number, mutate: (w: Work) => Promise<void> | voi
     const avoid = w.events.filter((e) => e.type === "drag" && e.data?.fromStart !== undefined && e.data?.fromEnd !== undefined).map((e) => ({ from: Number(e.data!.fromStart), to: Number(e.data!.fromEnd) }));
     const only = w.only ?? (waits ? waitIds : undefined);
     if (!o.dry && o.veil !== false) { // every real replan (create, edit, clash, new timetable, delete, early done) shows its steps; the veil draws before the plan holds the thread (no frame loop under tests)
-      mark.on = true; thinkBy(1);
-      const frame = () => (typeof requestAnimationFrame === "function" ? new Promise<void>((go) => requestAnimationFrame(() => setTimeout(go, 0))) : Promise.resolve());
+      mark.on = true; thinkBy(1); thinkAt = Date.now();
+      // Paced only where the veil can draw (a browser frame): under tests the plan runs at once.
+      const paced = typeof requestAnimationFrame === "function";
+      const frame = () => (paced ? new Promise<void>((go) => requestAnimationFrame(() => setTimeout(go, 0))) : Promise.resolve());
+      const step = () => (paced ? new Promise<void>((go) => setTimeout(go, 180)) : Promise.resolve());
       // What is really being done, one line each, so the wait is never empty. The solve that follows blocks the thread: its line is drawn first.
-      const live = [...w.tasks.values()].filter((x) => !x.deletedAt && !x.doneAt);
+      const live = [...w.tasks.values()].filter((x) => !x.deletedAt && !x.doneAt && inPlanWindow(x, now));
       const fixedN = live.filter((x) => x.fixed).length, changed = [...w.tasks.values()].filter((x) => !before.has(x.id) || before.get(x.id)!.start !== x.start || before.get(x.id)!.deadline !== x.deadline || before.get(x.id)!.deletedAt !== x.deletedAt || before.get(x.id)!.doneAt !== x.doneAt);
       narration.set([t("thinkRead", { n: live.length - fixedN, f: fixedN })]); await frame();
-      narration.set([...narrated, changed.length === 1 ? t("thinkOne", { title: changed[0].title }) : t("thinkMany", { n: Math.max(1, changed.length) })]); await frame();
-      narration.set([...narrated, t("thinkSearch")]); await frame();
+      narration.set([...narrated, changed.length === 1 ? t("thinkOne", { title: changed[0].title }) : t("thinkMany", { n: Math.max(1, changed.length) })]); await step();
+      narration.set([...narrated, t("thinkSearch")]); await step();
     }
     const extras = await planExtras([...w.tasks.values()], w.events, now); // the balance areas and the evidence-based rules: neutral until configured or proven
     // An elapsed task that is not done keeps its time: the planner never moves it by itself (day.tsx shows it under "Quá giờ").
@@ -651,12 +659,14 @@ async function transactRun(now: number, mutate: (w: Work) => Promise<void> | voi
     else if (pulled.length > 1) w.sub = t("pulledInN", { n: pulled.length, part: partAt(new Date(diff.placed.find((p) => p.id === pulled[0])!.start).getHours()) });
   }
 
+  // The veil holds at least a second, so a quick plan never flickers it; shortcut: a plan longer than ~1.4 s runs past the 1.8 s cap, unpaced.
+  if (thinkAt !== undefined && typeof requestAnimationFrame === "function") { const left = thinkAt + 1000 - Date.now(); if (left > 0) await new Promise<void>((go) => setTimeout(go, left)); }
   const changed = [...w.tasks.values()].filter((x) => before.get(x.id) !== x);
-  const lost = (diff?.unplaced ?? []).map((u) => before.get(u.id)).filter((x): x is Task => !!x && x.start !== undefined && x.start > now);
+  const lost =(diff?.unplaced ?? []).map((u) => before.get(u.id)).filter((x): x is Task => !!x && x.start !== undefined && x.start > now);
   const extra = { moves: w.moves, clashes, lost };
   if (o.dry) return { toast: "", changed: false, undo: async () => {}, ...extra, warn: diff?.warn }; // a preview: nothing written
   await store.putTasks(changed);
-  for (const e of w.events) await store.putEvent(e);
+  await store.putEvents(w.events);
   // a guessed length (per frame class) against what the user finished: its multiplier learns from it
   for (const e of w.events) {
     const x = w.tasks.get(e.taskId);
@@ -881,10 +891,10 @@ export const settleHyp = (kind: Kind, part: number, state: "rule" | "off", now =
 
 // Replans waiting for their turn are one: the tick, a foreground and a sync landing together plan once, not three times over the whole calendar.
 let waitingReplan: Promise<Result> | undefined;
-export function replan(now = Date.now(), toast?: (d: Diff) => string | undefined, cause: Cause = "timetable", only?: string[]) {
-  const shared = !toast && !only; // only the plain whole-calendar replans are one: a narrowed one must not stand in for another
+export function replan(now = Date.now(), toast?: (d: Diff) => string | undefined, cause: Cause = "timetable", only?: string[], veil = true) {
+  const shared = !toast && !only && veil; // only the plain whole-calendar replans are one: a narrowed one must not stand in for another, a silent one not for a shown one
   if (shared && waitingReplan) return waitingReplan;
-  const r = transact(now, () => { if (waitingReplan === r) waitingReplan = undefined; }, { self: false, cause, plan: only ? { only } : undefined, text: (d) => (d && toast ? toast(d) : undefined) }).then(quiet);
+  const r = transact(now, () => { if (waitingReplan === r) waitingReplan = undefined; }, { self: false, cause, veil, plan: only ? { only } : undefined, text: (d) => (d && toast ? toast(d) : undefined) }).then(quiet);
   if (shared) { waitingReplan = r; const clear = () => { if (waitingReplan === r) waitingReplan = undefined; }; r.then(clear, clear); }
   return r;
 }
@@ -902,6 +912,7 @@ export function ingest(upserts: Task[], deletes: string[], now = Date.now(), not
     for (const id of deletes) { const x = w.tasks.get(id); if (x && !x.doneAt) w.tasks.set(id, { ...x, deletedAt: now }); }
   }, {
     self: false,
+    veil: false, // a sync plans silently: the veil is for the student's own reschedules
     cause: plan && (upserts.length || deletes.length) ? "timetable" : undefined,
     text: (d, w) => {
       if (notices.length === 1) w.sub = notices[0].sub;

@@ -71,7 +71,7 @@ const anchorPatch = ([, rel, kind]: string[], c: Task) => {
   const iso = (ms: number) => new Date(ms).toISOString();
   if (rel === "after") return kind === "task" ? { after: c.id } : { notBefore: iso(c.end ?? c.start!) };
   if (kind === "task") return { deadline: iso(c.deadline ?? c.start!) };
-  return { deadline: iso(c.start!), ...(c.fixed === "exam" ? { anchor: c.id } : {}) };
+  return { deadline: iso(c.start!), ...(c.fixed === "exam" || c.id.startsWith("dlu:lms:") ? { anchor: c.id } : {}) }; // prep for an exam or an LMS assignment keeps its link
 };
 
 type View_ = "day" | "week" | "month" | "rhythm"; // rhythm sits apart on the right of the tabs, outside the swipe cycle
@@ -137,7 +137,7 @@ export default function Home() {
   const [shufOn] = useState(false);
   const tasksRef = useRef<Task[]>([]);
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
-  const [mind, setMind] = useState<{ i: Insights; rules: Rule[]; m: Model }>();
+  const [mind, setMind] = useState<{ i?: Insights; rules: Rule[]; m: Model }>();
   // capture.html: the thumb on a satellite, the type field, the photo dropdown, the photo or PDF being read.
   const [aside, setAside] = useState<Aside>("");
   const asideRef = useRef<Aside>("");
@@ -151,6 +151,7 @@ export default function Home() {
 
   // A refresh that began before a newer edit or refresh must not land after it with older tasks.
   const gen = useRef(0);
+  const viewNow = useRef(view); // read by refresh, which is not re-created per view
   const refresh = useCallback(async () => {
     const now = Date.now(), mine = ++gen.current;
     setNow(now);
@@ -180,13 +181,14 @@ export default function Home() {
       // Assignments keep the due-date sub unless the reason says more than "do it early".
       if (why && !x.fixed && !trail[x.id] && (typeOf(x) !== "assignment" || ["pace", "explore", "rule", "pinned", "chose", "packed", "fit", "over"].includes(why.key))) reason[x.id] = reasonText(why);
     }
-    const ins = insights(model, now), wkAgo = now - 7 * 86400_000, w = new Date(now).getDay() === 0 ? t("sundayLab") : undefined; // Sundays only
+    const wkAgo = now - 7 * 86400_000, w = new Date(now).getDay() === 0 ? t("sundayLab") : undefined; // Sundays only
+    const ins = w || viewNow.current === "rhythm" ? insights(model, now) : undefined; // the matrix solve is for Nhịp and the Sunday card only
     setMind({ i: ins, rules: model.rules ?? [], m: model });
     // A saved card outlives its task until the next re-plan: drop it once the task is gone or ticked, or it was never short of time.
     const open = (id: string) => all.some((x) => x.id === id && !x.doneAt && !x.deletedAt);
     setMoves(unseen); setRebal(rp); if (!rp) setRebalOpen(false); setWarns(wn.filter((w) => open(w.id) && (w.deadline <= now || w.free < w.need))); setMaps({ trail, froms, reason, alts });
-    const k = ins.keep;
-    setWk(w ? { title: w, sub: (k ? t("sundayKeep", { pct: k.pct, delta: `${k.delta > 0 ? "+" : ""}${k.delta}%` }) : t("sundaySub", { done: all.filter((x) => x.doneAt && x.doneAt >= wkAgo).length, moved: mv.filter((m) => m.at >= wkAgo).length })) + (ins.sunday ? `\n${ins.sunday}` : "") } : undefined);
+    const k = ins?.keep;
+    setWk(w ? { title: w, sub: (k ? t("sundayKeep", { pct: k.pct, delta: `${k.delta > 0 ? "+" : ""}${k.delta}%` }) : t("sundaySub", { done: all.filter((x) => x.doneAt && x.doneAt >= wkAgo).length, moved: mv.filter((m) => m.at >= wkAgo).length })) + (ins?.sunday ? `\n${ins.sunday}` : "") } : undefined);
     setAsk(seriesOffer(all, now, JSON.parse((await store.kvGet(SERIES_NO)) ?? "[]")));
     const cur = pickNow(all, now);
     if (cur && cur.start === undefined) { setRest(undefined); const s = Math.ceil(now / 60_000) * 60_000; return setCard({ task: cur, start: s, end: s + cur.effort * 60_000 }); } // unscheduled: shown from now for its length
@@ -289,6 +291,13 @@ export default function Home() {
     return () => sub.remove();
   }, [refresh, landed]);
   useEffect(() => { pushWidgets(); return listenWidgets(refresh); }, [refresh]);
+  // Entering Nhịp computes its insights (refresh skips them on other views): one refresh on the switch.
+  useEffect(() => {
+    viewNow.current = view;
+    if (view !== "rhythm") return;
+    const id = setTimeout(() => void refresh(), 0);
+    return () => clearTimeout(id);
+  }, [view, refresh]);
   useEffect(() => onLeftSaved(refresh), [refresh]); // the detail screen's last edits, saved as it closed
   // Rolled five times: a flexible task the planner has moved past its block five times is asked once, the question over the chips (Bỏ / Chia nhỏ / Giữ).
   useEffect(() => {
@@ -582,16 +591,17 @@ export default function Home() {
       const titles = [...new Set(actions.filter((a) => a.op === "create" && a.title).map((a) => a.title!))];
       const anchor = actions.find((a) => a.flags?.includes("anchor-ambiguous") && a.alternatives?.length);
       // Show where the new work landed: the day of its earliest placed piece, not today.
-      const made = (await store.allTasks()).filter((x) => x.createdAt === now && x.source === "user" && !x.deletedAt && x.start !== undefined);
+      const after = await store.allTasks(); // one read after the apply, shared by the three checks below
+      const made = after.filter((x) => x.createdAt === now && x.source === "user" && !x.deletedAt && x.start !== undefined);
       const firstAt = Math.min(...made.map((x) => x.start!));
       // Said but no free time anywhere it may go: say so, never "added" with a time it does not have.
-      const mine = (await store.allTasks()).filter((x) => x.createdAt === now && x.source === "user" && !x.deletedAt && !x.parentId);
+      const mine = after.filter((x) => x.createdAt === now && x.source === "user" && !x.deletedAt && !x.parentId);
       const stuck = mine.filter((x) => !made.some((y) => y.id === x.id || y.parentId === x.id));
       lastIds.current = mine.map((x) => x.id);
       const stuckDay = stuck.length && !made.length ? startOfDay(Math.max(now, (stuck[0].deadline ?? stuck[0].notAfter ?? now + 1) - 1)) : undefined;
       if (stuckDay !== undefined) setSel(stuckDay);
       // A deadline past the 7-day horizon is kept as the due date; the sittings land inside the horizon. Said once, for the furthest one.
-      const far = Math.max(0, ...(await store.allTasks()).filter((x) => x.createdAt === now && x.source === "user" && !x.deletedAt && x.deadline !== undefined && x.deadline > addDays(now, 7)).map((x) => x.deadline!));
+      const far = Math.max(0, ...after.filter((x) => x.createdAt === now && x.source === "user" && !x.deletedAt && x.deadline !== undefined && x.deadline > addDays(now, 7)).map((x) => x.deadline!));
       const farSub = far ? t("farDue", { date: dayLabel(far).slice(4) }) : undefined; // dayLabel: "T6, 21/11" → "21/11"
       // An anchor the reader could not pin ("ôn trước kỳ thi Toán" with two Toán exams): the chips pick one, and its start becomes the deadline.
       if (anchor) {
@@ -965,7 +975,7 @@ export default function Home() {
     : view === "week"
       ? { hello: mon === mondayOf(today0) ? t("thisWeek") : mon === addDays(mondayOf(today0), 7) ? t("nextWeek") : t("yearN", { y: sm.getFullYear() }), h: t("rangeTo", { a: sm.getMonth() === em.getMonth() ? sm.getDate() : dm(mon), b: dm(sun) }), n: count(mon, addDays(mon, 7), 1) || t("nothingYet") }
       : view === "rhythm"
-        ? { hello: t("rhythmHello"), h: t("learnedTitle"), n: mind ? rhythmHead(mind.i, mind.rules) : "" }
+        ? { hello: t("rhythmHello"), h: t("learnedTitle"), n: mind?.i ? rhythmHead(mind.i, mind.rules) : "" }
       : { hello: t("yearN", { y: sd.getFullYear() }), h: monthLabel(sel), n: count(new Date(sd.getFullYear(), sd.getMonth(), 1).getTime(), new Date(sd.getFullYear(), sd.getMonth() + 1, 1).getTime(), 1) || t("nothingYet") };
   const stepWeek = (d: -1 | 1) => setSel(addDays(sel, 7 * d));
   const stepMonth = (d: -1 | 1) => setSel(new Date(sd.getFullYear(), sd.getMonth() + d, 1).getTime());
@@ -1036,7 +1046,7 @@ export default function Home() {
   const cardView = shown && (
     <GestureDetector gesture={swipe}>
       <Reanimated.View style={flick}>
-        <NowCard still={!!menu || !!finding} card={shown} over={late ? { next: lateNext } : undefined} onDone={shown.gap ? startNow : () => void finish("done")} onStart={startNow} onLater={() => void finish("later")} onMicro={setMicroId} onMicroRest={(min) => void addWorked(shown.task.id, min).then(refresh, () => {})}
+        <NowCard still={typing || !!menu || !!finding} card={shown} over={late ? { next: lateNext } : undefined} onDone={shown.gap ? startNow : () => void finish("done")} onStart={startNow} onLater={() => void finish("later")} onMicro={setMicroId} onMicroRest={(min) => void addWorked(shown.task.id, min).then(refresh, () => {})}
           onExtend={() => late && void retime(late.id, late.start!, late.effort + 15).then((r) => { if (r) say(r.toast, r); refresh(); }, failed)}
           onKind={(x, top, bottom) => setMenu({ task: x, right: true, ...menuAt(bottom, top, kindItems((k) => void apply([{ op: "edit", target: x.id, kind: k }]).then((r) => { say(r.toast, r); refresh(); }, failed))) })} />
       </Reanimated.View>
@@ -1127,7 +1137,7 @@ export default function Home() {
           {(view === "day" || view === "week" || view === "month") && !!rebal && !mine && (rebalOpen
             ? <Story moves={rebal} now={now} onClose={() => setRebalOpen(false)} onKeep={keepRebal} onApply={applyRebal} />
             : <MovesPill moves={rebal} now={now} onOpen={() => setRebalOpen(true)} onDismiss={keepRebal} head={t("rebalPill", { n: rebal.length })} sub={t("rebalSub")} />)}
-          {view === "rhythm" && mind && <Rhythm i={mind.i} rules={mind.rules} m={mind.m} hour={openHour !== undefined ? Number(openHour) : undefined} onForget={async (x) => { const r = await removeRule(x.id); say(r.toast, r); refresh(); }} onForgetWhen={async (w) => { const r = await forgetWhen(w); say(r.toast, r); refresh(); }} />}
+          {view === "rhythm" && mind?.i && <Rhythm i={mind.i}rules={mind.rules} m={mind.m} hour={openHour !== undefined ? Number(openHour) : undefined} onForget={async (x) => { const r = await removeRule(x.id); say(r.toast, r); refresh(); }} onForgetWhen={async (w) => { const r = await forgetWhen(w); say(r.toast, r); refresh(); }} />}
           {(view === "week" || view === "month") && (
             <Reanimated.View key={view} entering={fadeIn}>
               {view === "week"
