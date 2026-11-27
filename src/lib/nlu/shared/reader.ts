@@ -66,6 +66,10 @@ export interface ReaderItem {
   cls?: string;
   /** The guessed length before the class multiplier, minutes (a flexible, non-practice item). */
   guessMin?: number;
+  /** The deadline came from a class or learned default, not from a date or window in the text. */
+  defaultDue?: boolean;
+  /** The deadline was inferred or shifted by user-learned deadline habits. */
+  learnedDue?: boolean;
   /** An exam prep is due the day before this exam: "YYYY-MM-DD" of the exam. */
   anchor?: { kind: "exam"; at: string };
   /** An exam's prep the reader made (its length is the workload of its category): the sizer leaves it. */

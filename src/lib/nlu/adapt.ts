@@ -1,5 +1,6 @@
 import type { Action, Fixed, Kind, Task } from "../types";
 import { kindOf as kindOfTitle } from "./kind";
+import { learnedKindOf, type NluLearned } from "./learn";
 import { read, readBest } from "./reader/reader";
 import { t, type Key } from "../i18n";
 import { WINDOW_END, WINDOW_FROM } from "../parts";
@@ -61,7 +62,10 @@ export function itemAction(it: ReaderItem): Action {
   // That same-day pair is the said window, not a due time: as a deadline it would make the plan an assignment ("Hạn 22:00").
   // A repeat keeps its start ("mỗi sáng" from today) but its window is no deadline either ("Hạn 12:00").
   const win = !!one && !!a.notAfter;
-  if (it.deadline && !win) a.deadline = iso(it.deadline);
+  if (it.deadline && !win) {
+    a.deadline = iso(it.deadline);
+    if (it.learnedDue) a.deadlineGuessed = true;
+  }
   // Said minutes stand. A guessed one keeps its whole length; one with no class is split into sittings of at most GUESS_SITTING.
   if (it.durationMinutes) {
     const guessed = it.inferred?.includes("durationMinutes");
@@ -75,7 +79,10 @@ export function itemAction(it: ReaderItem): Action {
   if (a.fixed && c && (!it.durationMinutes || it.inferred?.includes("durationMinutes")) && mins(c.to) > mins(c.from)) a.effortMinutes = mins(c.to) - mins(c.from);
   if (it.rrule) a.repeat = it.rrule;
   if (it.notBefore && (!win || it.rrule)) a.notBefore = iso(it.notBefore);
-  if (it.location) a.location = it.location;
+  if (it.location) {
+    a.location = it.location;
+    if (it.inferred?.includes("location")) a.locationGuessed = true;
+  }
   // the task note is plain text: the reader's paragraphs become lines
   const note = it.note?.replace(/<\/(p|li|h\d)>|<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&").trim();
   if (note) a.note = note;
@@ -95,7 +102,7 @@ export function itemAction(it: ReaderItem): Action {
 
 /** What the app knows that the reader cannot: the user's timetable, habits per title, marks, and typos they refused. */
 /** `alternatives` are other transcripts of the same voice take; the best-read one wins. */
-export type ReadExtra = Partial<Pick<ReadOpts, "calendar" | "prior" | "affinity" | "rejected" | "hint" | "classMult">> & { alternatives?: string[]; tasks?: Task[] };
+export type ReadExtra = Partial<Pick<ReadOpts, "calendar" | "prior" | "affinity" | "rejected" | "hint" | "classMult" | "learned">> & { alternatives?: string[]; tasks?: Task[] };
 
 /** The last few reader crashes (message only, never the user's text), for a bug report. */
 export const readErrors: string[] = [];
@@ -139,9 +146,19 @@ export function marksOf(text: string, r: ReaderResult): { start: number; end: nu
 
 /** Rule-based reading of one utterance; empty when the reader finds nothing. Never throws. */
 export function readActions(text: string, now: Date, source: ReaderSource = "typed", extra: ReadExtra = {}): Action[] {
-  const items = readFull(text, now, source, extra).items;
+  const full = readFull(text, now, source, extra);
+  const items = full.items;
+  const reps = full.repairs.map((r) => ({ was: text.slice(r.start, r.end), to: r.to }));
   const anchors = extra.tasks ? anchorsOf(text, items.map((it) => it.title), extra.tasks, now.getTime()) : new Map();
-  return items.map((it, i) => (anchors.has(i) ? anchorAction(itemAction(it), anchors.get(i)) : itemAction(it)));
+  return items.map((it, i) => {
+    const base = itemAction(it);
+    if (it.type === "PLAN" && extra.learned) {
+      const lk = learnedKindOf(it.title, it.note, extra.learned, now.getTime());
+      if (lk) base.kind = lk;
+    }
+    if (reps.length) base.repairs = reps;
+    return anchors.has(i) ? anchorAction(base, anchors.get(i)) : base;
+  });
 }
 
 const FLAGS = ["weekday_mismatch", "date_past", "menu"];

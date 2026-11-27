@@ -34,7 +34,7 @@ import { fadeIn, fadeOut, glide, popIn, settle, Tap, EASE } from "@/components/t
 import { Sweep, useSweep } from "@/components/sweep";
 import { Toast } from "@/components/toast";
 import { Swipe, Week } from "@/components/week";
-import { SERIES_NO, acceptSeries, addWorked, apply, markRolled, reshapeSeries, declineSeries, retime, forgetWhen, makeRoom, moveMine, moveToDay, pickNow, addRule, addSitting, dropSitting, loadClassMult, needMore, pin, putBack, removeRule, removeScope, scopeIds, swipeDone, swipeLater, take, type Result, applyProposal, canRebalance, dismissProposal, maybeRebalance, proposalFor, proposeRebalance } from "@/lib/apply";
+import { SERIES_NO, acceptSeries, addWorked, apply, markRolled, reshapeSeries, declineSeries, retime, forgetWhen, makeRoom, moveMine, moveToDay, pickNow, addRule, addSitting, dropSitting, loadClassMult, loadNlu, needMore, pin, putBack, removeRule, removeScope, scopeIds, swipeDone, swipeLater, take, type Result, applyProposal, canRebalance, dismissProposal, maybeRebalance, proposalFor, proposeRebalance } from "@/lib/apply";
 import { briefMoves, loadMoves, loadWarn, seeMoves } from "@/lib/moves";
 import { reasonText, stepText, topReason } from "@/lib/reasons";
 import { narration, thinkHold } from "@/lib/apply";
@@ -522,7 +522,9 @@ export default function Home() {
         if (view === "rhythm") { say(t("ruleHuh"), undefined, { sub: t("ruleHuhSub") }); return; }
       }
       // A list (a note, a chat, a page, a scan) goes to the outline preview; anything else reads as before.
-      const ol = via === "voice" ? undefined : outline(text, new Date());
+      const nowD = new Date();
+      const learned = await loadNlu(nowD.getTime()).catch(() => undefined);
+      const ol = via === "voice" ? undefined : outline(text, nowD, learned);
       if (ol) {
         setPdf(undefined);
         setLined({ groups: ol.groups, from: via === "photo" || via === "scan" ? "ảnh" : via === "pdf" ? "PDF" : "văn bản" });
@@ -530,10 +532,9 @@ export default function Home() {
         return;
       }
       const all = await store.allTasks();
-      const nowD = new Date();
       // What the reader cannot know from the words: the timetable, what this user usually saves per title, and the marks.
       const old = JSON.parse((await store.kvGet("nlu.committed").catch(() => null)) ?? "[]");
-      const extra = { tasks: all, calendar: calendarOf(all, nowD.getTime()), affinity: affinityOf((await getMarks().catch(() => null))?.marks ?? []), prior: personalPrior(old), classMult: await loadClassMult().catch(() => ({})), alternatives };
+      const extra = { tasks: all, calendar: calendarOf(all, nowD.getTime()), affinity: affinityOf((await getMarks().catch(() => null))?.marks ?? []), prior: personalPrior(old), classMult: await loadClassMult().catch(() => ({})), learned, alternatives };
       const source = via === "voice" ? "voice" : via === "photo" || via === "scan" ? "ocr" : via === "pdf" ? "paste" : "typed"; // ocr and paste: the reader reads a notice's lines and tables as such
       // A line that names tasks but is not sure of one: a bulk confirm, or chips to pick from. Anything clear is applied below.
       // A line may hold several parts: the clear commands and the rest as creates, one toast and one undo; a part not sure of its task asks after.

@@ -1,5 +1,13 @@
 # zen
 
+## 26.1.6
+
+### Patch Changes
+
+- zen học dần từ những lần bạn sửa việc: tự mở rộng chữ viết tắt và sửa lỗi gõ quen thuộc trong tên việc (sửa hai lần là nhớ, đổi ngược lại là thôi)
+- Tự đoán độ dài, khoảng hạn (ví dụ dự án cá nhân thường 2 tuần), địa điểm và loại việc dựa trên cả tên việc lẫn ghi chú; những gì bạn nói rõ trong câu luôn được giữ nguyên
+- Ô "Sửa nhanh" trong chi tiết việc hiểu thêm địa điểm ("tại phòng B2.04"), và bấm "Hoàn tác" cũng hoàn tác luôn phần vừa học
+
 ## 26.1.5
 
 ### Patch Changes

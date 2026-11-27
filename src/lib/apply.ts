@@ -1,4 +1,4 @@
-import { embed } from "./nlu/embed";
+import { NLU_KEY, contextVec, learnDeadline, learnDuration, learnKind, learnLocation, learnTitle, parseNluLearned, refreshSampleContext, type NluLearned } from "./nlu/learn";
 import { learn, missedReplan, outcome, plan, type Model, type Opts } from "../planner";
 import { GRACE, holding } from "../planner/policy";
 import { dayGone } from "../planner/place";
@@ -55,6 +55,9 @@ interface Work {
   short?: boolean; // a repeat was only partly expanded
   moves: Move[];
   only?: string[]; // planned alone: these ids (and a split task's sittings) may move, every other piece holds
+  quiet?: boolean;
+  nluDirty?: boolean;
+  nlu(): NluLearned;
   log(type: EventType, task: Task, data?: TaskEvent["data"]): void;
 }
 
@@ -338,7 +341,7 @@ async function act(w: Work, a: Action, refs = new Map<string, string>()) {
     if (a.repeat && [...w.tasks.values()].some((x) => x.rrule === a.repeat && !x.deletedAt && !x.doneAt && x.title.toLowerCase() === title.toLowerCase() && JSON.stringify(x.tods ?? []) === JSON.stringify(a.tods ?? []) && clock(x) === (a.fixed && when !== undefined ? clock({ start: when }) : -1))) { w.toast = t("added", { title }); return; }
     const occ = occurrences(a.repeat, now, when, ms(a.deadline));
     if (occ.short) w.short = true;
-    const vec = embed(title);
+    const vec = contextVec(title, a.note);
     // A kind the user corrected on a title that reads alike wins.
     const near = [...w.tasks.values()].filter((x) => x.vec && x.userEdited?.includes("kind")).map((x) => ({ c: cosine(vec, x.vec!), k: x.kind })).filter((n) => n.c > 0.6).sort((p, q) => q.c - p.c)[0];
     const fixed = a.fixed && when !== undefined ? a.fixed : undefined;
@@ -355,6 +358,7 @@ async function act(w: Work, a: Action, refs = new Map<string, string>()) {
         id: own ?? uid(), title, vec, kind: near?.k ?? a.kind ?? "other", source: "user", effort: a.effortMinutes ?? 0, createdAt: now,
         deadline: o.deadline, notBefore: o.notBefore, rrule, ...(seriesId ? { seriesId } : {}), ...(a.location ? { location: a.location } : {}), ...(a.note ? { note: a.note } : {}), ...(notAfter !== undefined ? { notAfter } : {}), ...(a.tods?.length ? { tods: a.tods } : {}),
         ...(a.maxSitting ? { maxSitting: a.maxSitting } : {}), ...(a.effortGuessed ? { effortGuessed: true } : {}), ...(a.effortGuessed && a.cls ? { cls: a.cls, guessMin: a.guessMin } : {}),
+        ...(a.repairs?.length ? { repairs: a.repairs } : {}),
         ...(after ? { after: [after] } : {}), ...(forId ? { forId } : {}),
       };
       own = undefined;
@@ -369,6 +373,7 @@ async function act(w: Work, a: Action, refs = new Map<string, string>()) {
   }
   const whole = a.op === "edit" && a.when === undefined && a.deadline === undefined && !a.effortMinutes;
   const all = targets(w, a.target, whole), lead = [...all].sort((x, y) => (x.start ?? Infinity) - (y.start ?? Infinity))[0];
+  let taughtNlu = false;
   for (const [tk, b] of [...all.map((x): [Task, Action] => [x, a]), ...(whole ? seriesWide(w, a, all) : [])]) {
     a = b; // the rest of a series takes only the fields it shared (seriesWide)
     if (a.op === "done") {
@@ -435,9 +440,39 @@ async function act(w: Work, a: Action, refs = new Map<string, string>()) {
         }
         if (!(a.effortMinutes && (from.start ?? tk.start) === when)) w.toast = t("moved", { title: next.title, time: at12(when, now) }); // a length changed on the same start keeps "resized"; one line for a move, a day change or a put-back alike
       }
+      if (a.title || a.note !== undefined) next.vec = contextVec(next.title, next.note);
       next.userEdited = [...edited];
       w.tasks.set(tk.id, next);
       w.log("edit", next);
+      if (!w.quiet && !taughtNlu && tk.source === "user") {
+        taughtNlu = true;
+        const root = tk.parentId ? w.tasks.get(tk.parentId) ?? tk : tk;
+        const ctx = { id: root.id, title: next.title, note: next.note, cls: next.cls ?? root.cls, kind: next.kind, guessMin: root.guessMin };
+        if (a.title && a.title.trim() && a.title.trim() !== tk.title) {
+          learnTitle(w.nlu(), tk.title, a.title.trim(), root.repairs, now);
+          refreshSampleContext(w.nlu(), root.id, next.title, next.note, now);
+        } else if (a.note !== undefined && a.note !== (tk.note ?? "")) {
+          refreshSampleContext(w.nlu(), root.id, next.title, next.note, now);
+        }
+        if (a.effortMinutes && a.effortMinutes !== tk.effort) {
+          const total = tk.parentId
+            ? [...w.tasks.values()].filter((c) => c.parentId === tk.parentId && !c.deletedAt).reduce((s, c) => s + (c.id === tk.id ? a.effortMinutes! : c.effort), 0)
+            : a.effortMinutes;
+          learnDuration(w.nlu(), ctx, total, tk.parentId ? a.effortMinutes : next.maxSitting, now);
+        }
+        if (a.deadline === "" && root.deadline !== undefined) {
+          learnDeadline(w.nlu(), ctx, null, now);
+        } else if (dl && dl !== root.deadline) {
+          const base = root.notBefore && root.notBefore > root.createdAt ? root.notBefore : root.createdAt;
+          learnDeadline(w.nlu(), ctx, Math.max(0.5, (dl - base) / DAY), now);
+        }
+        if (a.location !== undefined && (a.location.trim() || undefined) !== root.location) {
+          learnLocation(w.nlu(), ctx, a.location.trim() || null, root.location, now);
+        }
+        if (a.kind && a.kind !== root.kind) {
+          learnKind(w.nlu(), ctx, a.kind as Kind, now);
+        }
+      }
     }
   }
 }
@@ -489,8 +524,14 @@ async function transactNow(now: number, mutate: (w: Work) => Promise<void> | voi
 async function transactRun(now: number, mutate: (w: Work) => Promise<void> | void, o: TxOpts, mark: { on: boolean }): Promise<Result> {
   const model0 = await store.loadModel(now);
   const before = new Map((await store.allTasks()).map((x) => [x.id, x]));
+  const nlu0 = o.quiet ? null : await store.kvGet(NLU_KEY);
+  let nluState: NluLearned | undefined;
   const w: Work = {
-    timed: new Set(), tasks: new Map(before), model: model0, events: [], moves: [], now,
+    timed: new Set(), tasks: new Map(before), model: model0, events: [], moves: [], now, quiet: o.quiet,
+    nlu() {
+      w.nluDirty = true;
+      return (nluState ??= parseNluLearned(nlu0, now));
+    },
     log(type, task, data) {
       if (o.quiet) return; // a value held mid-edit: the edit that settles it is the one worth learning from
       const ev: TaskEvent = { id: uid(), taskId: task.id, type, at: now, data };
@@ -625,6 +666,8 @@ async function transactRun(now: number, mutate: (w: Work) => Promise<void> | voi
   }
   let modelV: string | undefined; // the model this change wrote: undo restores it only while it is still the stored one
   if (w.model !== model0) { await store.saveModel(w.model); modelV = uid(); await store.kvSet("model.v", modelV); } // ~500 KB of JSON: not rewritten by a write that learned nothing (a held wheel value)
+  let nluV: string | undefined;
+  if (w.nluDirty && nluState) { await store.kvSet(NLU_KEY, JSON.stringify(nluState)); nluV = uid(); await store.kvSet("nlu.learn.v", nluV); }
   if (diff) { await store.kvSet("plannedAt", String(now)); await recordMoves(w.moves); await saveWarn(diff.warn ?? []); }
 
   const ins = diff?.insight;
@@ -664,6 +707,7 @@ async function transactRun(now: number, mutate: (w: Work) => Promise<void> | voi
       await store.removeEvents(w.events.map((e) => e.id));
       await stats.forget(kv, w.events.map((e) => e.id));
       if (modelV !== undefined && (await store.kvGet("model.v")) === modelV) await store.saveModel(model0); // a later change learned since: its learning stays
+      if (nluV !== undefined && (await store.kvGet("nlu.learn.v")) === nluV) await store.kvSet(NLU_KEY, nlu0 ?? "");
       for (const k of ["moves", "warn"] as const) await store.kvSet(k, kv0[k] ?? "[]");
     }),
   };
@@ -873,9 +917,16 @@ async function learnClass(cls: string, ratio: number) {
 }
 /** The learned multiplier per frame class, for the reader's sizer. */
 export const loadClassMult = async (): Promise<Record<string, number>> => classMults(classLogsOf(await store.kvGet(CLASS_KEY)));
+/** The online NLU model learned from user corrections. */
+export const loadNlu = async (now = Date.now()): Promise<NluLearned> => parseNluLearned(await store.kvGet(NLU_KEY), now);
 /** "Cần thêm một buổi": a guessed length the user needed one more sitting of, a ratio above the guess. */
-export async function needMore(x: Task) {
-  if (x.cls && x.effortGuessed && x.guessMin) await learnClass(x.cls, (x.guessMin + (x.maxSitting ?? 60)) / x.guessMin);
+export async function needMore(x: Task, now = Date.now()) {
+  if (x.cls && x.effortGuessed && x.guessMin) {
+    await learnClass(x.cls, (x.guessMin + (x.maxSitting ?? 60)) / x.guessMin);
+    const nlu = await loadNlu(now);
+    learnDuration(nlu, x, x.guessMin + (x.maxSitting ?? 60), x.maxSitting, now);
+    await store.kvSet(NLU_KEY, JSON.stringify(nlu));
+  }
 }
 
 const sitIx = (c: Task) => Number(c.id.slice(c.id.lastIndexOf("#") + 1)) || 0;

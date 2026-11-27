@@ -27,8 +27,9 @@ describe("patchOf", () => {
   it("reads the number said in words", () => {
     expect(patchOf("chia ba buổi", task, now)).toEqual({ splitCount: 3 });
   });
-  it("sets a length alone", () => {
+  it("sets a length or place alone", () => {
     expect(patchOf("90p", task, now).edit).toEqual({ op: "edit", target: "gym", effortMinutes: 90 });
+    expect(patchOf("tại phòng B2.04", task, now).edit).toMatchObject({ op: "edit", target: "gym", location: "B2.04" });
   });
   it("patches nothing from a line with no date, length or repeat", () => {
     expect(patchOf("xyz", task, now).edit).toBeUndefined();

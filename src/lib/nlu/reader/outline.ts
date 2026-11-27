@@ -3,6 +3,7 @@
 import type { ReaderWC } from "../shared";
 import type { Action, Kind } from "../../types";
 import { classify } from "../classify";
+import { applyLearnedItem, correctTitle, type NluLearned } from "../learn";
 import { saidMin } from "./calendar";
 import { read } from "./reader";
 
@@ -16,6 +17,7 @@ export interface Leaf {
   start?: number;
   /** Epoch ms: "sau 15/12", the earliest it may run. */
   notBefore?: number;
+  location?: string;
   kind?: string;
   /** "said": the words gave the length. "budget": the group's budget did. Absent: the learned guess. */
   sized: "said" | "budget" | undefined;
@@ -115,9 +117,11 @@ function lineOf(raw: string): Line | undefined {
 interface Parsed {
   rest: string;
   minutes?: number;
+  guessedMin?: number;
   deadline?: number;
   start?: number;
   notBefore?: number;
+  location?: string;
   cls?: string;
 }
 
@@ -140,24 +144,31 @@ function sizeWord(text: string): { minutes: number; start: number; end: number }
   return undefined;
 }
 
-function parse(text: string, ref: ReaderWC): Parsed {
-  const res = read(text, { ref, source: "typed" });
+function parse(text: string, ref: ReaderWC, groupNote?: string, learned?: NluLearned): Parsed {
+  const res = read(text, { ref, source: "typed", learned });
   const item = res.items[0];
+  if (item && groupNote && learned) {
+    item.note ||= groupNote;
+    applyLearnedItem(item, learned, ref);
+  }
   const spans: [number, number][] = [];
   // the size's own words leave the title; read's span can run into the title ("3 - 1 tiếng" in "chương 3 - 1 tiếng")
   const w = sizeWord(text);
   let minutes: number | undefined;
+  let guessedMin: number | undefined;
   if (item && item.durationMinutes !== undefined && !item.inferred.includes("durationMinutes")) {
     minutes = item.durationMinutes;
   } else if (w) {
     minutes = saidMin(w.minutes);
+  } else if (learned && item?.durationMinutes !== undefined) {
+    guessedMin = item.durationMinutes;
   }
   if (w && minutes === saidMin(w.minutes)) spans.push([w.start, w.end]);
   else if (minutes !== undefined) for (const m of res.mentions) if (m.kind === "dur") spans.push([m.start, m.end]);
   let deadline: number | undefined;
   // a written date counts even when read defaulted the hour to the end of the day
   const dates = res.mentions.filter((m) => m.kind === "date");
-  if (item?.deadline && (dates.length || !item.inferred.includes("deadline"))) {
+  if (item?.deadline && (dates.length || !item.inferred.includes("deadline") || item.learnedDue)) {
     const [d, t] = item.deadline.split(" ");
     const [y, mo, da] = d.split("-").map(Number);
     const [hh, mm] = t.split(":").map(Number);
@@ -187,7 +198,8 @@ function parse(text: string, ref: ReaderWC): Parsed {
     .trim();
   // a date taken out of the front ("Mai đi siêu thị") leaves a lower-case start
   rest = rest.charAt(0).toLocaleUpperCase("vi") + rest.slice(1);
-  return { rest, minutes, deadline, start, notBefore, cls: item?.cls };
+  if (learned) rest = correctTitle(rest, learned).title;
+  return { rest, minutes, guessedMin, deadline, start, notBefore, location: item?.location, cls: item?.cls };
 }
 
 /** Lines into a tree: a line is the child of the nearest earlier line with a smaller key. */
@@ -208,27 +220,30 @@ function tree(lines: Line[]): Node[] {
 /** Prose: a sentence or a paragraph, not a task. */
 const isProse = (l: Line) => !l.marker && (l.text.split(/\s+/).length > 12 || (/[.!?]$/.test(l.text) && l.text.split(/\s+/).length > 5));
 
-function toGroup(nodes: Node[], ref: ReaderWC, title: string, budgetMin?: number): Group {
+function toGroup(nodes: Node[], ref: ReaderWC, title: string, budgetMin?: number, learned?: NluLearned): Group {
   const items: Leaf[] = [];
   const groups: Group[] = [];
   let seq = true, leaves = 0; // ordered only when every leaf is numbered or checked: one ✅ among bullets orders nothing
   for (const n of nodes) {
     if (n.kids.length) {
-      const p = parse(n.text, ref);
-      const g = toGroup(n.kids, ref, p.rest || n.text, p.minutes);
+      const p = parse(n.text, ref, undefined, learned);
+      const g = toGroup(n.kids, ref, p.rest || n.text, p.minutes, learned);
       if (countLeaves(g)) groups.push(g);
     } else if (!n.heading && !isProse(n)) {
-      const p = parse(n.text, ref);
+      const p = parse(n.text, ref, title || undefined, learned);
       leaves++;
       seq = seq && n.seq;
       const leaf: Leaf = { title: p.rest || n.text, done: n.done, sized: undefined };
       if (p.minutes !== undefined) {
         leaf.minutes = p.minutes;
         leaf.sized = "said";
+      } else if (p.guessedMin !== undefined) {
+        leaf.minutes = p.guessedMin;
       }
       if (p.deadline !== undefined) leaf.deadline = p.deadline;
       if (p.start !== undefined) leaf.start = p.start;
       if (p.notBefore !== undefined) leaf.notBefore = p.notBefore;
+      if (p.location) leaf.location = p.location;
       const kind = p.cls ?? classify(leaf.title).cls;
       if (kind) leaf.kind = kind;
       items.push(leaf);
@@ -237,7 +252,7 @@ function toGroup(nodes: Node[], ref: ReaderWC, title: string, budgetMin?: number
   // shortcut: the budget shares only the group's own leaves, not its sub-groups' (each sub-group has its own budget), upgrade when a parent budget must cover nested items
   if (budgetMin) {
     const said = items.reduce((s, i) => s + (i.sized === "said" ? (i.minutes ?? 0) : 0), 0);
-    const open = items.filter((i) => !i.done && i.minutes === undefined);
+    const open = items.filter((i) => !i.done && i.sized !== "said");
     if (open.length) {
       const each = Math.max(15, Math.round((budgetMin - said) / open.length / 15) * 15);
       for (const i of open) {
@@ -273,6 +288,7 @@ export function actionsOf(groups: Group[]): Action[] {
         if (l.minutes !== undefined) { a.effortMinutes = l.minutes; if (l.sized !== "said") a.effortGuessed = true; }
         if (l.deadline !== undefined) a.deadline = new Date(l.deadline).toISOString();
         if (l.notBefore !== undefined) a.notBefore = new Date(l.notBefore).toISOString();
+        if (l.location) a.location = l.location;
         if (l.start !== undefined) { a.when = new Date(l.start).toISOString(); a.fixed = "busy"; }
         if (l.kind) a.kind = l.kind as Kind;
         if (g.ordered && prev) a.after = prev;
@@ -290,7 +306,7 @@ export function actionsOf(groups: Group[]): Action[] {
  * The groups and leaves of a pasted outline, or undefined when fewer than three leaves are found (the sentence reader
  * takes the text then). Lines without children are leaves; a line with children is a group.
  */
-export function outline(text: string, now: Date | number): { groups: Group[] } | undefined {
+export function outline(text: string, now: Date | number, learned?: NluLearned): { groups: Group[] } | undefined {
   const t = now instanceof Date ? now : new Date(now);
   const ref: ReaderWC = { y: t.getFullYear(), m: t.getMonth() + 1, d: t.getDate(), h: t.getHours(), mi: t.getMinutes() };
   const lines = text.split(/\r?\n/).map(lineOf).filter((l): l is Line => !!l);
@@ -301,7 +317,7 @@ export function outline(text: string, now: Date | number): { groups: Group[] } |
       l.heading = true;
   });
   const roots = tree(lines);
-  const top = toGroup(roots, ref, "");
+  const top = toGroup(roots, ref, "", undefined, learned);
   if (countLeaves(top) < 3) return undefined;
   // leaves above every heading go in an untitled first group
   const groups = top.items.length ? [{ title: "", items: top.items, ordered: top.ordered }, ...(top.groups ?? [])] : (top.groups ?? []);

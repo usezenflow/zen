@@ -41,7 +41,7 @@ const UNITS = new Map<string, Unit>([
 const READ_UNITS = new Set<Unit>(["chuong", "trang", "cuon"]);
 /** Words a 1-letter typo may stand for: keyword words of 4+ letters. */
 const VOCAB = [
-  "thesis", "luan", "tieu", "essay", "slide", "thuyet", "powerpoint", "report", "proposal", "viet", "tai", "lieu", "doc",
+  "thesis", "luan", "tieu", "essay", "slide", "thuyet", "powerpoint", "report", "proposal", "viet", "tai", "lieu", "doc", "project",
   "read", "tieng", "ielts", "toeic", "code", "lap", "trinh", "implement", "debug", "fix", "review", "gym", "yoga", "chay",
   "guitar", "piano", "nhay", "swim", "meditation", "journal", "nhat", "clean", "lau", "laundry", "cook", "shop", "budget",
   "ngan", "sach", "thue", "tax", "giay", "email", "mail", "meeting", "standup", "appointment", "kham", "homework", "bai",
@@ -138,8 +138,8 @@ const CLASSES: [TaskClass, RegExp][] = [
   ["meal_lunch", /\b(?:an trua|bua trua|lunch)\b/],
   ["meal_dinner", /\b(?:an toi|bua toi|dinner)\b/],
   ["cafe", /\b(?:ca phe|cafe|cf|coffee)\b/],
-  // last: a course or work project when nothing more specific (meeting, homework, report) named it
-  ["project", /\b(?:do an|bai tap lon|btl|capstone|du an)\b/],
+  // last: a course, side or work project when nothing more specific (meeting, homework, report) named it
+  ["project", /\b(?:do an|bai tap lon|btl|capstone|du an|side project|pet project|project)\b/],
 ];
 
 // Flags on the whole title, each removed from the objects.
@@ -216,8 +216,7 @@ function removeAll(toks: string[], re: RegExp): void {
   while ((sp = spanOf(toks, re))) toks.splice(sp[0], sp[1] - sp[0]);
 }
 
-/** Reads a task title into its frame. Objects keep their own spelling: only class words are fuzzed. */
-export function frameOf(title: string): Frame {
+function frameText(title: string): Frame {
   // "đa" is the shorthand for đồ án; matched raw, since folded it is also "đã" (already).
   const raw = title.normalize("NFC").replace(/(?<!\p{L})đa(?!\p{L})/giu, " đồ án ");
   const toks = fold(raw).text
@@ -268,4 +267,24 @@ export function frameOf(title: string): Frame {
 
   const objects = toks.join(" ").split("|").map((s) => s.trim()).filter(Boolean);
   return { verb, objects, qty, domain: cls && DOMAIN[cls], cls, stakes, group, hard, ...(lab ? { lab } : {}) };
+}
+
+/** Reads a task title (and optional note context for open fields) into its frame. Objects keep the title's own words. */
+export function frameOf(title: string, note?: string | null): Frame {
+  const f = frameText(title);
+  if (!note?.trim()) return f;
+  const fn = frameText(note.replace(/<[^>]+>/g, " ").slice(0, 400));
+  const cls = f.cls ?? fn.cls;
+  const lab = f.lab || fn.lab || undefined;
+  const qty = f.qty ?? (!f.cls || f.cls === fn.cls ? fn.qty : undefined);
+  return {
+    ...f,
+    cls,
+    domain: f.domain ?? (cls && DOMAIN[cls]),
+    stakes: f.stakes ?? fn.stakes,
+    group: f.group || fn.group,
+    hard: f.hard || fn.hard,
+    ...(qty ? { qty } : {}),
+    ...(lab ? { lab } : {}),
+  };
 }

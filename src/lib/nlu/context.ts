@@ -64,7 +64,7 @@ export const classMults = (logs: ClassLogs): Record<string, number> =>
 const KEEP = 300;
 /** Rows kept for `prior`: what each saved item looked like, newest first, capped. */
 export const committedRows = (items: ReaderItem[], old: Committed[] = []): Committed[] =>
-  [...items.map((i) => ({ title: i.title, type: i.type, durationMinutes: i.durationMinutes, window: i.windows?.[0] })), ...old].slice(0, KEEP);
+  [...items.map((i) => ({ title: i.title, type: i.type, durationMinutes: i.inferred?.includes("durationMinutes") ? undefined : i.durationMinutes, window: i.windows?.[0] })), ...old].slice(0, KEEP);
 
 const TERMS = ["deadline", "demo", "meeting", "assignment", "project", "quiz", "midterm", "final", "exam", "report", "submit", "slide", "seminar", "workshop", "online", "zoom"];
 const HINTS = 100;

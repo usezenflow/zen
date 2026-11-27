@@ -87,7 +87,7 @@ function objectItems(it: ReaderItem, o: SizeOpts): ReaderItem[] | undefined {
 
 /** Sizes one flexible item by its class. Returns it (changed in place). */
 function sizeOne(it: ReaderItem, o: SizeOpts): ReaderItem {
-  const f = frameOf(it.title);
+  const f = frameOf(it.title, it.note);
   // an exam's prep keeps the workload length the reader gave it
   if (!f.cls || it.prep) return it;
   it.cls = f.cls;
@@ -140,6 +140,7 @@ function sizeOne(it: ReaderItem, o: SizeOpts): ReaderItem {
     it.deadline = `${ymd(size.due)} 23:59`;
     mark(it, "deadline");
     if (exam) it.anchor = { kind: "exam", at: exam };
+    else it.defaultDue = true;
   }
   return it;
 }

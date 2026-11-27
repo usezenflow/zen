@@ -29,6 +29,7 @@ export interface Task {
   effortGuessed?: boolean; // the length was guessed, not said
   cls?: string; // the reader's frame class of a guessed length ("code"): its guesses are learned per class
   guessMin?: number; // that guess before the class multiplier: a done task's real minutes are compared to it
+  repairs?: { was: string; to: string }[]; // reader repairs applied when created, so reverting a word teaches NLU to stop repairing it
   deadline?: number;
   notBefore?: number;
   notAfter?: number; // end of a said window ("tối thứ 5"): the planner keeps the whole task inside notBefore..notAfter
@@ -73,6 +74,9 @@ export interface Action {
   from?: { start?: number; end?: number }; // edit: where the task was before a live edit's held values (what the move teaches)
   effortMinutes?: number;
   effortGuessed?: boolean; // the length is a guess (inferred), not said
+  deadlineGuessed?: boolean; // the deadline was inferred from learned habits, not said
+  locationGuessed?: boolean; // the location was inferred from learned habits, not said
+  repairs?: { was: string; to: string }[];
   cls?: string; // the frame class of a guessed length
   guessMin?: number; // the guess before the class multiplier
   maxSitting?: number; // longest sitting in minutes: the task is split into sittings of at most this

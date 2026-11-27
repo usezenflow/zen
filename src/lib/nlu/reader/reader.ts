@@ -33,6 +33,7 @@ import { bareTitle, segment, type Clause } from "./segment";
 import { findMentions as findDates } from "./mentions";
 import { sizeItems } from "./sizing";
 import { isMicro, defaultMinutes } from "../size";
+import { applyLearnedItem, correctTitle, rejectedSet, titleRepairsInRaw, type NluLearned } from "../learn";
 import { documentItems } from "./document";
 import { ocrSchedule } from "./table";
 /** Options of `read`. The controller maps `ReadRequest` onto it. */
@@ -51,6 +52,8 @@ export interface ReadOpts {
   calendar?: CalDay[];
   /** Per frame class, the multiplier of its guessed lengths, learned from what the user finished (context.ts classMults). */
   classMult?: Record<string, number>;
+  /** Online NLU model learned from user edits (title auto-corrections, duration, deadline offset, location, kind). */
+  learned?: NluLearned;
 }
 
 /** Words of a hint that name the person, not the section they want: "Tui tham gia co vua" reads "co vua". */
@@ -130,8 +133,9 @@ const LIST_MARK = /^([ \t]*)(?:bước|buổi|day)[ \t]+(\d{1,2})[ \t]+/gimu;
 export function read(raw: string, opts: ReadOpts): ReaderResult {
   const marked = [...raw.matchAll(LIST_MARK)].length >= 2 ? raw.replace(LIST_MARK, (m, _sp, n) => " ".repeat(m.length - n.length - 2) + `${n}. `) : raw;
   const rep = repair(marked, opts.source);
-  const repairs = repairsOf(raw, rep).filter(
-    (r) => !opts.rejected?.has(repairWord(raw, r)),
+  const rej = opts.rejected ?? rejectedSet(opts.learned);
+  let repairs = repairsOf(raw, rep).filter(
+    (r) => !rej?.has(repairWord(raw, r)),
   );
   // an official notice or plan (a PDF, a scan): read by its structure; a pasted or OCR schedule: its cells as columns
   const sched =
@@ -417,17 +421,25 @@ export function read(raw: string, opts: ReadOpts): ReaderResult {
         .replace(/\s{2,}/g, " ")
         .trim() || it.title;
 
-  // the activity's parts of the day come before the history prior, which overrides them
+  const titleFixes: { from: string; to: string }[] = [];
+  for (const it of items) {
+    const fixed = correctTitle(it.title, opts.learned);
+    it.title = fixed.title;
+    titleFixes.push(...fixed.applied);
+  }
+
+  // the activity's parts of the day come before sizing and the history priors
   for (const it of items) applyImplied(it, opts.ref);
-  for (const it of items) applyPrior(it, opts.prior);
   // the class sizes what the words did not: length, sittings, due, repeat (a said one stays)
   const sizeOpts = { ref: opts.ref, source: opts.source, calendar: opts.calendar, affinity: opts.affinity, classMult: opts.classMult };
   items = sizeItems(items, sizeOpts, new Set(links.flat()));
 
   // a said length keeps the 15 minute grid ("45p"); a guessed one rounds to 30, at least 30
-  for (const it of items)
+  const roundItem = (it: ReaderItem) => {
     if (it.durationMinutes !== undefined)
       it.durationMinutes = !it.inferred.includes("durationMinutes") ? saidMin(it.durationMinutes) : isMicro(it.cls) ? it.durationMinutes : lengthMin(it.durationMinutes);
+  };
+  for (const it of items) roundItem(it);
 
   // S7: one item per type, title, time and place
   const seen = new Set<string>();
@@ -449,6 +461,9 @@ export function read(raw: string, opts: ReadOpts): ReaderResult {
   if (!items.length && raw.trim()) {
     // the repaired words, so a spoken term ("đăng pốt") reads as its form in the title
     const fb = fallbackTask(rep.text.trim() ? rep.text : raw);
+    const fixed = correctTitle(fb.title, opts.learned);
+    fb.title = fixed.title;
+    titleFixes.push(...fixed.applied);
     applyImplied(fb, opts.ref);
     if (leadsFiller(fb.evidence) && !findDates(raw).some((m) => m.kind === "date")) laterToday(fb, opts.ref);
     // a task with no words for a length takes its class's or its kind's (size.ts), never none
@@ -456,7 +471,8 @@ export function read(raw: string, opts: ReadOpts): ReaderResult {
       fb.durationMinutes = defaultMinutes(fb.type, fb.evidence);
       fb.inferred.push("durationMinutes");
     }
-    items = sizeItems(applyDayPick(raw, [fb], opts.calendar), { ref: opts.ref, source: opts.source, calendar: opts.calendar, affinity: opts.affinity, classMult: opts.classMult }, new Set());
+    items = sizeItems(applyDayPick(raw, [fb], opts.calendar), sizeOpts, new Set());
+    for (const it of items) roundItem(it);
   }
 
   // a bare deadline label is no title: name the task by the list due with it
@@ -475,11 +491,24 @@ export function read(raw: string, opts: ReadOpts): ReaderResult {
   // (the input box sends a paste as "typed"; a short line needs no note repeating it,
   // nor does a jotted list: each task's words are its own title, the rest is only the other tasks)
   const lines = raw.trim().includes("\n");
+  const hadNote = items.length === 1 && !!items[0].note;
   if (
     ((opts.source === "paste" || opts.source === "ocr") && (items.length === 1 || lines)) ||
     (opts.source === "typed" && items.length === 1 && (lines || raw.length > 120))
   )
     for (const it of items) it.note ||= sanitizeNoteHtml(raw) || null;
+
+  // if a single task gained its note from the raw body and had no title class, size it with its note context
+  if (items.length === 1 && !hadNote && items[0].note && !items[0].cls) {
+    items = sizeItems(items, sizeOpts, new Set());
+    for (const it of items) roundItem(it);
+  }
+
+  for (const it of items) {
+    applyPrior(it, opts.prior);
+    applyLearnedItem(it, opts.learned, opts.ref);
+  }
+  repairs = titleRepairsInRaw(raw, titleFixes, repairs);
 
   return {
     items,

@@ -44,10 +44,18 @@ export function compose(r: Result | undefined, c: Ctx = {}): Toast {
   return { title, sub: sub || undefined, alt, more: !alt && c.see && moved ? { label: t("briefSee"), plain: true, run: c.see } : undefined, undo: r?.undo };
 }
 
-/** "Mình hiểu": only what Zen inferred beyond the words, a length it guessed and the sittings or due it worked out. */
+const dmOf = (s: string) => { const m = /^(\d{4})-?(\d\d)-?(\d\d)/.exec(s); return m ? `${+m[3]}/${+m[2]}` : s; };
+
+/** "Mình hiểu": only what Zen inferred beyond the words, a length it guessed and the sittings, due or place it worked out. */
 export function inferred(acts: Action[], sized?: string): string | undefined {
   const guess = acts.find((a) => a.effortGuessed && a.effortMinutes);
-  const what = [guess && lenW(guess.effortMinutes!), sized].filter(Boolean).join(", ");
+  const due = !sized ? acts.find((a) => a.deadlineGuessed && a.deadline) : undefined;
+  const loc = acts.find((a) => a.locationGuessed && a.location);
+  const what = [
+    guess && lenW(guess.effortMinutes!),
+    sized ?? (due && t("due", { time: dmOf(due.deadline!) }).toLocaleLowerCase("vi")),
+    loc?.location,
+  ].filter(Boolean).join(", ");
   return what ? t("understood", { what }) : undefined;
 }
 

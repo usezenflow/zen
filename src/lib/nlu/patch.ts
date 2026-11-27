@@ -3,6 +3,7 @@
 import type { Action, Task } from "../types";
 import { readFull } from "./adapt";
 import { fold } from "./reader/fold";
+import { findMentions } from "./reader/mentions";
 
 export interface Patch {
   edit?: Action;
@@ -33,6 +34,9 @@ export function patchOf(text: string, task: Task, now: Date): Patch {
   else if (it.deadline) edit.deadline = wall(it.deadline);
   // a length the reader guessed ("họp" = 60p) is not a length said
   if (it.durationMinutes && !it.inferred?.includes("durationMinutes")) edit.effortMinutes = it.durationMinutes;
+  const pm = findMentions(text).find((m) => m.kind === "place");
+  const place = (it.location && !it.inferred?.includes("location") ? it.location : undefined) ?? (pm?.v.k === "place" ? pm.v.text : undefined);
+  if (place) edit.location = place;
   if (Object.keys(edit).length > 2) out.edit = edit;
   return out;
 }
