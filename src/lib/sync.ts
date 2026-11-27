@@ -288,15 +288,7 @@ async function backfill(now: number): Promise<Result | undefined> {
 }
 
 const MIN = 60_000;
-/** The clock's own work, run on the 30 s tick, at launch and in the background. A new day, an idle gap or a block running out is no cause: nothing moves for them.
- *  The open app (`fg`) places what still waits for a time, and only that (a tick would retry it every 30 s). What was left undone moves only when the user asks (on demand). Exported for tests. */
-export async function reactToTime(now: number, fg: boolean): Promise<Result | undefined> {
-  if (fg) {
-    const wait = waiting(await store.allTasks(), now);
-    if (wait.length) { const r = await replan(now, undefined, "create", wait.map((x) => x.id)); if (r.changed) return r; }
-  }
-  return undefined;
-}
+// The clock moves nothing (no daily, idle or tick replan): a replan comes only from a create, an edit, a clash, a new timetable or exam, a delete or an early tick.
 
 /** Queues the parts whose last campus answer is older than `ttl` (0: always), for connected accounts not refused; exams only in exam months. */
 async function refresh(now: number, parts: Part[], ttl: number): Promise<void> {
@@ -326,7 +318,7 @@ async function tick(now: number): Promise<Result | undefined> {
     await refresh(now, ["tt", "lms"], 0);
     void drain().catch(() => {});
   }
-  return reactToTime(now, false);
+  return undefined;
 }
 
 let foreground: Promise<Synced | undefined> | undefined;
@@ -345,9 +337,6 @@ async function foregroundNow(now: number): Promise<Synced | undefined> {
     await store.kvSet("morning.day", day);
     await keepSweep(now);
   }
-  // A task still waiting for a time is placed (see reactToTime).
-  const clock = await reactToTime(now, true);
-  if (!out && clock) out = wrap(clock);
   const up = await topUp(now);
   if (up) out = wrap(up);
   const made = await backfill(now); // before the sync, which an auto refresh may skip
@@ -362,5 +351,5 @@ async function foregroundNow(now: number): Promise<Synced | undefined> {
 
 // iOS gives a background task about 30 s: stop picking new jobs after 25; the rest waits for the next run or app open.
 // Each run also re-pushes the widgets, so their timeline (through the end of tomorrow) keeps rolling without the app opened.
-export const setupBackground = () => registerBackgroundSync(async () => { await reactToTime(Date.now(), false).catch(() => undefined); await schedule(); await drain({ budget: 25_000 }); await pushWidgetsNow(); }).catch(() => {});
+export const setupBackground = () => registerBackgroundSync(async () => { await schedule(); await drain({ budget: 25_000 }); await pushWidgetsNow(); }).catch(() => {});
 export { kvStorage };

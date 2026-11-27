@@ -16,6 +16,18 @@ const gym2 = task({ id: "g2", title: "Gym", start: at(2026, 11, 26, 18), end: at
 const tasks = [exam, ...lecs, report, notes, gym1, gym2];
 const base: Action = { op: "create", title: "Ôn" };
 
+describe("anchors on a busy block", () => {
+  const meet = task({ id: "m", title: "Họp nhóm đồ án", fixed: "busy", start: at(2026, 11, 26, 15), end: at(2026, 11, 26, 16) });
+  it("after a meeting waits for its end; before it is due at its start", () => {
+    const a = anchorOf("viết biên bản sau cuộc họp nhóm", [...tasks, meet], now)!;
+    expect(a).toMatchObject({ rel: "after", kind: "busy" });
+    expect(a.xs.map((x) => x.id)).toEqual(["m"]);
+    expect(anchorAction(base, a).notBefore).toBeDefined();
+    const b = anchorOf("chuẩn bị trước buổi họp nhóm", [...tasks, meet], now)!;
+    expect(anchorAction(base, b).deadline).toBeDefined();
+  });
+});
+
 describe("anchorOf", () => {
   it("before an exam names it by its words", () => {
     const h = anchorOf("ôn trước kỳ thi CSDL", tasks, now);

@@ -1,5 +1,23 @@
 # zen
 
+## 26.1.3
+
+### Patch Changes
+
+- Logo và icon app là con cá đặc màu cam (nét liền, không vệt cọ): nền trắng ở giao diện sáng, nền xanh đen ở giao diện tối, cùng màu con cá ở màn hình tải
+- Màn hình tải: bỏ nhãn xám "Đang đồng bộ" (trông như nút nhưng không bấm được), chữ chuyển xuống phía dưới như các dòng "Đang sắp xếp"
+- Thẻ "Hết giờ": hai nút "Thêm 15p" và "Chuyển việc" không còn bị cắt chữ thành "Chuyển vi…"
+- Bỏ nút "Thử 15p" cho việc ngắn hơn 1 giờ
+- Mục "Quá giờ": nút "Làm luôn" nằm dưới tên việc, không còn chen vào cột giờ
+- zen chỉ xếp lại lịch khi có việc mới, sửa hạn/loại/buổi trong ngày/không trước, việc dời vào chỗ trùng, lịch học hoặc lịch thi mới đụng việc đã xếp, hoặc xoá/xong sớm một việc; không còn xếp lại khi mở app hay chuyển màn hình, và việc lặp tự thêm xếp âm thầm
+- Lúc xếp lại hiện từng bước đang làm ("Đọc lịch…", "Xem xét…", "Tìm chỗ trống…") rồi tới từng việc được dời, các nhịp ngắn hơn nên đỡ chậm
+- Câu hỏi "Việc nào?" hiện thành thẻ nổi trên lớp mờ với các lựa chọn lớn, bấm ra ngoài để bỏ qua
+- "sau cuộc họp", "trước buổi hẹn" gắn việc vào khối bận đã có
+- Gõ tiếng Việt trong ghi chú, tên việc và địa điểm ở màn chi tiết không còn nhảy dòng đầu; bấm vào tên việc mở được bàn phím
+- Việc có hạn được xếp sớm hơn một chút trong khoảng còn lại, không dồn sát hạn; việc có hạn xa (tới 30 ngày) chia buổi rải đều tới hạn thay vì dồn vào tuần đầu
+- "4 buổi tuần này" giờ hiểu là 4 buổi (trước đây bị đọc nhầm thành 4 buổi mỗi tuần)
+- Chuyển Ngày, Tuần, Tháng mượt hơn: việc tính xem có nên cân lại tuần chạy trễ hơn và không chạy lại khi lịch không đổi
+
 ## 26.1.2
 
 ### Patch Changes

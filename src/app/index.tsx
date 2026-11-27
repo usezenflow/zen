@@ -5,7 +5,7 @@ import * as ImagePicker from "expo-image-picker";
 import { extractTextFromPage, getPageCount } from "expo-pdf-text-extract";
 import { extractTextFromImage } from "expo-text-extractor";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from "react";
 import { Appearance, AppState, Image, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useIncomingShare } from "expo-sharing";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
@@ -110,6 +110,8 @@ export default function Home() {
   const toast = toasts[0];
   const [now, setNow] = useState(() => Date.now());
   const [view, setView] = useState<View_>("day");
+  // The heavy list for the new view renders at low priority, so the tap answers at once and a tap in between is never stuck behind it.
+  const switchView = (v: View_) => startTransition(() => setView(v));
   const [finding, setFinding] = useState<Origin>(); // set = searching, from the circle at this window point (views.html "Search, opening")
   const findBtn = useRef<ComponentRef<typeof View>>(null);
   const [findQ, setFindQ] = useState<string>(); // a question said ("mai có gì") opens search with it
@@ -238,6 +240,7 @@ export default function Home() {
     const steps = (r?.steps ?? []).slice(0, 4);
     if (!old.length || !steps.some(id)) return refresh();
     thinkHold(true); // the veil holds from the plan to the last step line: no gap, no second veil
+    const head = narration.get(); // the stage lines of the plan (what was read and searched) stay above the moves
     try {
       const fresh = new Map((await store.allTasks()).map((x) => [x.id, x]));
       // A step names the task; when it was split into sittings, its rows are the sittings (the parent only loses its time).
@@ -248,14 +251,14 @@ export default function Home() {
       // Thinking out loud (magic 4, 29): the old list stays, then one task at a time moves under a step line.
       setTasks(old);
       for (let i = 0; i < steps.length; i++) {
-        await new Promise((ok) => setTimeout(ok, 350));
-        narration.set(steps.slice(0, i + 1).map(stepText));
+        await new Promise((ok) => setTimeout(ok, 160));
+        narration.set([...head, ...steps.slice(0, i + 1).map(stepText)]);
         const xs = rows(steps[i]);
         if (!xs.length) continue;
         setTasks((p) => [...p.filter((a) => !xs.some((x) => x.id === a.id)), ...xs]);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
       }
-      await new Promise((ok) => setTimeout(ok, 350));
+      await new Promise((ok) => setTimeout(ok, 160));
       await refresh();
     } finally {
       narration.set([]);
@@ -985,13 +988,15 @@ export default function Home() {
   const rebalanceWeek = () => { void proposeRebalance(Date.now(), true).then((p) => { if (p) { setRebal(p); setRebalOpen(true); } else setToasts((q) => [{ text: t("rebalNone") }, ...q.slice(1)]); }, (e) => fail(t("saveFailed"), e)); };
   // The week's link shows only when a dry plan has something to move: asked on entering week view and when tasks change, never stored.
   const [weekReb, setWeekReb] = useState(false);
+  // Keyed on what the plan reads (times and state), not the array: a refresh that changes nothing must not run the dry plan again.
+  const planSig = useMemo(() => tasks.map((x) => `${x.id}.${x.start}.${x.end}.${x.doneAt ?? ""}.${x.deletedAt ?? ""}`).join("|"), [tasks]);
   useEffect(() => {
     if (view !== "week") return;
     let live = true;
-    // the dry plan is heavy: after the switch has painted, so the tap itself stays instant
-    const h = setTimeout(() => { void canRebalance(Date.now()).then((ok) => { if (live) setWeekReb(ok); }, () => { if (live) setWeekReb(false); }); }, 250);
+    // the dry plan blocks the JS thread: well after the switch has painted and the first touches have settled
+    const h = setTimeout(() => { void canRebalance(Date.now()).then((ok) => { if (live) setWeekReb(ok); }, () => { if (live) setWeekReb(false); }); }, 1200);
     return () => { live = false; clearTimeout(h); };
-  }, [view, tasks]);
+  }, [view, planSig]);
   const closeStory = async () => { setStory(false); await seeMoves(fresh.map((m) => m.id)); await briefMoves(fresh.map((m) => m.id)); refresh(); };
   const busy = state !== "idle";
   const listing = busy && !shufOn && !!words; // the day stays under the veil until words are heard; while the plan plays out the list stays, the dock keeps thinking
@@ -1057,19 +1062,19 @@ export default function Home() {
   const header = (
       <>
         {/* Swipe the header left/right to switch day / week / month (wraps around); the grids below keep their own swipes. */}
-        <Swipe slideIn={false} stepKey={VIEWS.indexOf(view)} onStep={(d) => setView(VIEWS[(VIEWS.indexOf(view) + d + 3) % 3])}>
+        <Swipe slideIn={false} stepKey={VIEWS.indexOf(view)} onStep={(d) => switchView(VIEWS[(VIEWS.indexOf(view) + d + 3) % 3])}>
         {firstRun ? first(t("hello"), `${short[(new Date(sel).getDay() + 6) % 7]}, ${dm(sel)}`, t("nothingYet")) : first(head.hello, head.h, head.n)}
         <Reanimated.View entering={fadeIn} style={s.tabs}>
           <View style={s.tabL}>
             {VIEWS.map((v) => (
-              <Tap key={v} onPress={() => setView(v)} hitSlop={10} accessibilityRole="tab" accessibilityState={{ selected: view === v }} style={{ paddingVertical: 10 }}>
+              <Tap key={v} onPress={() => switchView(v)} hitSlop={10} accessibilityRole="tab" accessibilityState={{ selected: view === v }} style={{ paddingVertical: 10 }}>
                 <Text numberOfLines={1} style={{ fontSize: font.md, fontFamily: ff(view === v ? "500" : "500"), color: view === v ? th.ink : th.muted }}>{t(v === "day" ? "tabDay" : v === "week" ? "tabWeek" : "tabMonth")}</Text>
                 {view === v && <Reanimated.View entering={ZoomIn.duration(180).easing(EASE)} exiting={ZoomOut.duration(120)} style={[s.tabDot, { backgroundColor: th.ink }]} />}
               </Tap>
             ))}
           </View>
           {/* Not a calendar view: a hairline pill with the leaf, so it reads as Zen talking about you. */}
-          <Tap onPress={() => setView("rhythm")} hitSlop={7} accessibilityRole="tab" accessibilityState={{ selected: view === "rhythm" }} accessibilityLabel={t("rhythm")}
+          <Tap onPress={() => switchView("rhythm")} hitSlop={7} accessibilityRole="tab" accessibilityState={{ selected: view === "rhythm" }} accessibilityLabel={t("rhythm")}
             style={[s.mind, view === "rhythm" ? { backgroundColor: th.ink, borderColor: th.ink } : { borderColor: th.line }]}>
             <Logo size={14} mode="line" color={view === "rhythm" ? th.bg : th.ink} />
             <Text style={{ fontSize: 14, fontFamily: ff("500"), color: view === "rhythm" ? th.bg : th.ink }}>{t("rhythmTab")}</Text>
@@ -1098,8 +1103,6 @@ export default function Home() {
           prevLabel={dayLabel(addDays(sel, -1))} nextLabel={dayLabel(addDays(sel, 1))}
         >
           {header}
-          {/* "Which one" chips (calm.html pick): in the list under the header, so a long list scrolls with it. */}
-          {chips && <View style={[s.chips, { borderColor: th.line, backgroundColor: th.bg }]}>{chips.ask && <Text style={[s.chipAsk, { color: th.ink }]}>{chips.ask}</Text>}{chips.sub && <Text style={[s.chipSub, { color: th.muted }]}>{chips.sub}</Text>}<View style={chips.row ? s.chipRow : s.chipCol}>{chips.options.map((o) => <Pressable key={o.label} onPress={o.run} style={[chips.row ? s.chipR : s.chip, { borderColor: th.line, backgroundColor: o.on ? th.ink : "transparent" }]}><Text numberOfLines={1} ellipsizeMode="tail" style={[s.chipT, chips.row && s.chipRT, { color: o.on ? th.bg : th.ink, fontFamily: ff(o.on ? "600" : "500") }]}>{o.label}</Text>{o.detail && <Text numberOfLines={1} style={[s.chipD, { color: o.on ? th.bg : th.ink }]}>{o.detail}</Text>}</Pressable>)}</View></View>}
           {view === "day" && isToday && (
             // Keyed per branch so hero swaps cross-fade; a new now-card lands with a small pop.
             <Reanimated.View key={hero} entering={card && hero === card.task.id ? popIn : fadeIn} exiting={fadeOut} layout={glide}>
@@ -1138,6 +1141,24 @@ export default function Home() {
       </Svg>
       {/* The finger on the mic owns the touch, so the veil only hears a tap once a press is stuck: that tap lets go. Steps sit on it too. */}
       {(pressing || aside || picking) && <Veil onPress={picking ? () => setPicking(false) : pressing || aside ? cancel : undefined} />}
+      {/* "Which one" (calm.html "Command, which one"): over the veil like a question card, big options, a tap outside puts it away. */}
+      {chips && <>
+        <Veil z={30} onPress={() => setChips(undefined)} />
+        <View style={[s.askWrap, { zIndex: 31 }]} pointerEvents="box-none">
+          <Reanimated.View entering={fadeIn} exiting={fadeOut} style={[s.askCard, { backgroundColor: th.bg, borderColor: th.line }]} accessibilityViewIsModal>
+            {chips.ask && <Text style={[s.chipAsk, { color: th.ink }]}>{chips.ask}</Text>}
+            {chips.sub && <Text style={[s.chipSub, { color: th.muted }]}>{chips.sub}</Text>}
+            <View style={chips.row ? s.chipRow : s.chipCol}>
+              {chips.options.map((o) => (
+                <Pressable key={o.label} onPress={o.run} accessibilityRole="button" style={[chips.row ? s.chipR : s.askOpt, { borderColor: o.on ? th.ink : th.line, backgroundColor: o.on ? th.ink : th.chip }]}>
+                  <Text numberOfLines={2} ellipsizeMode="tail" style={[s.chipT, chips.row && s.chipRT, { color: o.on ? th.bg : th.ink, fontFamily: ff(o.on ? "600" : "500") }]}>{o.label}</Text>
+                  {o.detail && <Text numberOfLines={1} style={[s.chipD, { color: o.on ? th.bg : th.muted }]}>{o.detail}</Text>}
+                </Pressable>
+              ))}
+            </View>
+          </Reanimated.View>
+        </View>
+      </>}
       {/* Over a photo or PDF too: thinking while it is read (capture.html 9, 12), then pressing it puts it away and listens, no close button. */}
       {!showStory && !finding && <View style={[s.dock, { bottom: navLift }]} pointerEvents="box-none"><Hold state={state} pinned={picking ? "photo" : ""} onAside={onAside} onStart={() => { setPressing(true); setPhoto(undefined); setPdf(undefined); if (!latched.current) void start(); }} onEnd={onEnd} idle={view === "rhythm" ? "holdRule" : "hold"} /></View>}
       {picking && <PhotoMenu onPick={readPhoto} />}
@@ -1167,6 +1188,9 @@ function ThemeTap() {
 const s = StyleSheet.create({
   // calm.html .find + .pills.blk .pl: a bordered card, the question, then full-width outlined pills (name left, day right)
   chips: { marginTop: 16, borderRadius: 22, borderWidth: 1, paddingVertical: 16, paddingHorizontal: 18 },
+  askWrap: { ...StyleSheet.absoluteFill, justifyContent: "center", paddingHorizontal: 20, paddingBottom: 90 },
+  askCard: { borderRadius: 28, borderWidth: 1, padding: 20, shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 30, shadowOffset: { width: 0, height: 14 }, elevation: 12 },
+  askOpt: { minHeight: 56, width: "100%", justifyContent: "center", gap: 2, paddingVertical: 10, paddingHorizontal: 18, borderRadius: 16, borderWidth: 1 },
   chip: { height: 44, width: "100%", flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 18, borderRadius: 99, borderWidth: 1 },
   chipCol: { marginTop: 12, gap: 8 },
   chipRow: { marginTop: 14, flexDirection: "row", gap: 8 }, // .find .acts: the answers in one row of pills

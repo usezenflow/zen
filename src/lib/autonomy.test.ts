@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { newModel, plan } from "../planner";
 import type { Task, TaskEvent } from "./types";
 import { markRolled, swipeLater } from "./apply";
-import { reactToTime } from "./sync";
 
 const db = vi.hoisted(() => ({ tasks: new Map<string, any>(), events: new Map<string, any>(), kv: new Map<string, string>(), model: null as any }));
 vi.mock("./store", () => ({
@@ -76,41 +75,6 @@ describe("a said block that is set aside does not fire later actions", () => {
     await swipeLater("L", NOW);
     expect([...db.events.values()].filter((e) => e.type === "later")).toHaveLength(0);
     expect(db.tasks.get("L").start).toBe(at(13));
-  });
-});
-
-describe("reactToTime (the 30 s tick, launch and background)", () => {
-  it("a block that ended past its grace stays where it is: the overrun nudge asks, nothing rolls by itself", async () => {
-    db.kv.set("plannedAt", String(at(5)));
-    db.tasks.set("m", task("m", { start: NOW - 2 * H, end: NOW - 90 * MIN }));
-    const r = await reactToTime(NOW, false);
-    expect(r).toBeUndefined();
-    expect(db.tasks.get("m").start).toBe(NOW - 2 * H);
-  });
-  it("a new day, an idle gap and the tick plan nothing: an unscheduled task waits", async () => {
-    const yesterday = at(5, 0, -1);
-    db.kv.set("plannedAt", String(yesterday));
-    db.tasks.set("busy", task("busy", { fixed: "busy", start: at(14), end: at(15) })); // an idle gap 08:00-14:00
-    db.tasks.set("u", task("u"));
-    expect(await reactToTime(NOW, false)).toBeUndefined();
-    expect(db.tasks.get("u").start).toBeUndefined();
-    expect(db.kv.get("plannedAt")).toBe(String(yesterday));
-  });
-  it("the open app places what waits for a time, and nothing placed moves", async () => {
-    db.kv.set("plannedAt", String(at(5, 0, -1)));
-    db.tasks.set("p", task("p", { start: at(10), end: at(11), notBefore: at(10) }));
-    db.tasks.set("u", task("u"));
-    const r = await reactToTime(NOW, true);
-    expect(r?.changed).toBe(true);
-    expect(db.tasks.get("u").start).toBeDefined();
-    expect(db.tasks.get("p").start).toBe(at(10));
-  });
-  it("inside the grace nothing is replanned", async () => {
-    db.kv.set("plannedAt", String(at(5)));
-    db.tasks.set("m", task("m", { start: NOW - 2 * H, end: NOW - 5 * MIN }));
-    const r = await reactToTime(NOW, true);
-    expect(r).toBeUndefined();
-    expect(db.tasks.get("m").start).toBe(NOW - 2 * H);
   });
 });
 

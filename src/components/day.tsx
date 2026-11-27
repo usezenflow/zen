@@ -437,10 +437,11 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
       {!!elapsed.length && (
         <View style={{ marginTop: 28 }}>
           <Text style={[s.lab, { color: th.muted }]}>{t("elapsedLab")}</Text>
-          <View style={{ marginTop: 6 }}>{elapsed.map((x) => (
-            <View key={`e${x.id}`} style={{ flexDirection: "row", alignItems: "center" }}>
-              <View style={{ flex: 1 }}><Row task={x} now={now} onToggle={() => act.onToggle(x)} onTitle={(v) => act.onTitle(x, v)} onTime={(a) => act.onTime(x, a)} onEnd={act.onEnd && ((a) => act.onEnd!(x, a))} onOpen={() => act.onOpen(x)} onDelete={() => act.onSwipeDelete(x)} /></View>
-              {act.onStartNow && <Tap onPress={() => act.onStartNow!(x)} scale={0.94} accessibilityRole="button" accessibilityLabel={t("startNow")} style={[s.pl, { backgroundColor: th.ink }]}><Text style={[s.plt, { color: th.bg }]}>{t("startNow")}</Text></Tap>}
+          <View style={{ marginTop: 6 }}>{elapsed.map((x, i) => (
+            <View key={`e${x.id}`}>
+              <Row task={x} now={now} first={i === 0} onToggle={() => act.onToggle(x)} onTitle={(v) => act.onTitle(x, v)} onTime={(a) => act.onTime(x, a)} onEnd={act.onEnd && ((a) => act.onEnd!(x, a))} onOpen={() => act.onOpen(x)} onDelete={() => act.onSwipeDelete(x)} />
+              {/* Under the title, in its column: beside the row it crowded the time column. */}
+              {act.onStartNow && <Tap onPress={() => act.onStartNow!(x)} scale={0.94} accessibilityRole="button" accessibilityLabel={t("startNow")} style={[s.pl, { backgroundColor: th.ink, alignSelf: "flex-start", marginLeft: 48, marginTop: -4, marginBottom: 8 }]}><Text style={[s.plt, { color: th.bg }]}>{t("startNow")}</Text></Tap>}
             </View>
           ))}</View>
         </View>

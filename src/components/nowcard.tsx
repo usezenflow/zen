@@ -23,7 +23,7 @@ import type { Item } from "@/components/menu";
 export type Card = { task: Task; start?: number; end?: number; gap?: string };
 
 // Art card with progress meter; the circle marks it done. Swipe is handled by the caller.
-// Thử 15p: a short ramp on a block of 45 minutes or more, or one put off before; kv "now.micro" keeps it across restarts.
+// Thử 15p: a short ramp on a block of an hour or more; kv "now.micro" keeps it across restarts.
 type Micro = { id: string; startedAt: number; endsAt: number };
 const MICRO_KEY = "now.micro";
 const parseMicro = (v: string | null): Micro | null => { try { return v ? JSON.parse(v) : null; } catch { return null; } };
@@ -50,7 +50,7 @@ export function NowCard({ card, onDone, onStart, onLater, onMicroRest, onKind, o
   const mins = Math.max(1, Math.round((going ? end - now : end - start) / 60000));
   const left = Math.max(1, Math.ceil(((mic?.endsAt ?? 0) - now) / 60000));
   const moving = !going && !task.fixed && !card.gap && !!onLater;
-  const microOk = !going && !task.fixed && !card.gap && (end - start >= 45 * 60000 || (task.misses ?? 0) > 0);
+  const microOk = !going && !task.fixed && !card.gap && end - start >= 60 * 60000; // under an hour is short enough to just start
   // Three pills do not fit a phone with labels: the Dời one goes icon-only, as a 54px round glass.
   const trio = moving && microOk && !mic && !!onStart;
   const big = mic ? (micDone ? t("microFull", { n: MICRO_MIN }) : t("nMin", { n: left })) : going ? t("nMin", { n: mins }) : hhmm(start);
@@ -65,8 +65,8 @@ export function NowCard({ card, onDone, onStart, onLater, onMicroRest, onKind, o
       <Text style={[s.t, { color: th.onart }]} numberOfLines={2}>{task.title}</Text>
       <View style={s.foot}>
         {over ? <View style={s.overActs}>
-          <Tap onPress={onExtend} scale={0.94} accessibilityRole="button" accessibilityLabel={t("overExtend")} style={[s.glass, s.start, s.overBtn, s.soft]}><Glass /><Icon name="plus" size={18} color="#fff" /><Text style={s.startT} numberOfLines={1}>{t("overExtend")}</Text></Tap>
-          <Tap onPress={onLater} scale={0.94} accessibilityRole="button" accessibilityLabel={t("overMove")} style={[s.glass, s.start, s.overBtn, s.primary]}><Glass /><Icon name="right" size={22} color={th.bg} /><Text style={[s.startT, s.primaryT, { color: th.bg }]} numberOfLines={1}>{t("overMove")}</Text></Tap>
+          <Tap onPress={onExtend} scale={0.94} accessibilityRole="button" accessibilityLabel={t("overExtend")} style={[s.glass, s.start, s.overBtn, s.soft]}><Glass /><Icon name="plus" size={18} color="#fff" /><Text style={s.startT} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t("overExtend")}</Text></Tap>
+          <Tap onPress={onLater} scale={0.94} accessibilityRole="button" accessibilityLabel={t("overMove")} style={[s.glass, s.start, s.overBtn, s.primary]}><Glass /><Icon name="right" size={20} color={th.bg} /><Text style={[s.startT, s.primaryT, { color: th.bg }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t("overMove")}</Text></Tap>
         </View> : <>
         <View style={s.row1}>
         <View style={s.meter}>
@@ -82,10 +82,10 @@ export function NowCard({ card, onDone, onStart, onLater, onMicroRest, onKind, o
         </View>
         <View style={s.acts2}>
           {mic && micDone ? <>
-            <Tap onPress={() => { saveMicro(null); onMicroRest?.(MICRO_MIN); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microRest")} style={[s.glass, s.start, s.soft]}><Glass /><Icon name="clock" size={22} color="#fff" /><Text style={s.startT} numberOfLines={1}>{t("microRest")}</Text></Tap>
-            {onStart && <Tap onPress={() => { saveMicro(null); onStart(); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microGo")} style={[s.glass, s.start, s.primary, { backgroundColor: th.ink }]}><Glass /><Icon name="play" size={22} color={th.bg} /><Text style={[s.startT, s.primaryT, { color: th.bg }]} numberOfLines={1}>{t("microGo")}</Text></Tap>}
+            <Tap onPress={() => { saveMicro(null); onMicroRest?.(MICRO_MIN); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microRest")} style={[s.glass, s.start, s.soft]}><Glass /><Icon name="clock" size={22} color="#fff" /><Text style={s.startT} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t("microRest")}</Text></Tap>
+            {onStart && <Tap onPress={() => { saveMicro(null); onStart(); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microGo")} style={[s.glass, s.start, s.primary, { backgroundColor: th.ink }]}><Glass /><Icon name="play" size={22} color={th.bg} /><Text style={[s.startT, s.primaryT, { color: th.bg }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t("microGo")}</Text></Tap>}
           </> : <>
-            {moving && <Tap onPress={onLater} scale={0.94} accessibilityRole="button" accessibilityLabel={t("laterBtn")} style={[s.glass, s.start, s.soft, trio && s.iconOnly]}><Glass /><Icon name="clock" size={22} color="#fff" />{!trio && <Text style={s.startT} numberOfLines={1}>{t("laterBtn")}</Text>}</Tap>}
+            {moving && <Tap onPress={onLater} scale={0.94} accessibilityRole="button" accessibilityLabel={t("laterBtn")} style={[s.glass, s.start, s.soft, trio && s.iconOnly]}><Glass /><Icon name="clock" size={22} color="#fff" />{!trio && <Text style={s.startT} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t("laterBtn")}</Text>}</Tap>}
             {moving && onStart && <Tap onPress={onStart} scale={0.94} accessibilityRole="button" accessibilityLabel={t("startLab")} style={[s.solid2, s.start, { backgroundColor: th.ink }]}>{!trio && <Icon name="play" size={22} color={th.bg} />}<Text style={[s.startT, s.primaryT, { color: th.bg }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t("startLab")}</Text></Tap>}
             {microOk && !mic && <Tap onPress={() => { const at0 = Date.now(); saveMicro({ id: task.id, startedAt: at0, endsAt: at0 + MICRO_MIN * 60000 }); }} scale={0.94} accessibilityRole="button" accessibilityLabel={t("microBtn", { n: MICRO_MIN })} style={[s.glass, s.start]}><Glass />{!trio && <Icon name="play" size={22} color="#fff" />}<Text style={s.startT} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t("microBtn", { n: MICRO_MIN })}</Text></Tap>}
           </>}
@@ -394,6 +394,6 @@ const s = StyleSheet.create({
   kc: { flexDirection: "row", alignItems: "center", gap: 6, height: 30, paddingHorizontal: 12, borderRadius: 99, backgroundColor: "rgba(255,255,255,0.22)", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.4)" }, // v2 .kc: 32 high, 14px, hairline glass
   kcT: { maxWidth: 150, fontSize: 14, lineHeight: 20, fontFamily: ff("500"), ...SHADOW },
   overActs: { flexDirection: "row", gap: 8 },
-  overBtn: { flex: 1 },
+  overBtn: { flex: 1, paddingHorizontal: 10, gap: 6 }, // two flex pills share ~300 px: tighter padding, and the label shrinks before it would be cut
   note: { marginTop: 12, fontSize: font.md, lineHeight: 23, fontFamily: ff("500") }, // calm.html: the caption under the card
 });

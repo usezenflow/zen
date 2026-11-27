@@ -3,58 +3,58 @@
     "1": {
       "movesPerDay": 0,
       "churn": 0,
-      "keepRate": 0.4827586206896552
+      "keepRate": 0.4482758620689655
     },
     "2": {
       "movesPerDay": 0,
       "churn": 0,
-      "keepRate": 0.5964912280701754
+      "keepRate": 0.5636363636363636
     },
     "3": {
       "movesPerDay": 0,
       "churn": 0,
-      "keepRate": 0.43636363636363634
+      "keepRate": 0.4642857142857143
     },
     "4": {
       "movesPerDay": 0,
       "churn": 0,
-      "keepRate": 0.5740740740740741
+      "keepRate": 0.7192982456140351
     },
     "5": {
       "movesPerDay": 0,
       "churn": 0,
-      "keepRate": 0.43333333333333335
+      "keepRate": 0.4827586206896552
     },
     "6": {
       "movesPerDay": 0,
       "churn": 0,
-      "keepRate": 0.35714285714285715
+      "keepRate": 0.5357142857142857
     }
   },
   "missed": {
     "1": {
       "missBand": 1,
-      "keepRate": 0.5813953488372093
+      "keepRate": 0.5609756097560976
     },
     "2": {
       "missBand": 1,
-      "keepRate": 0.5476190476190477
+      "keepRate": 0.6129032258064516
     },
     "3": {
       "missBand": 1,
-      "keepRate": 0.4838709677419355
+      "keepRate": 0.6521739130434783
     },
     "4": {
       "missBand": 1,
-      "keepRate": 0.5769230769230769
+      "keepRate": 0.6060606060606061
     },
     "5": {
       "missBand": 1,
-      "keepRate": 0.6363636363636364
+      "keepRate": 0.6153846153846154
     },
     "6": {
       "missBand": 1,
-      "keepRate": 0.5897435897435898
+      "keepRate": 0.6153846153846154
     }
   },
   "parts": {
@@ -86,15 +86,15 @@
   "awake": {
     "1": {
       "outsideShare": 0,
-      "keepRate": 0.9032258064516129
+      "keepRate": 0.8214285714285714
     },
     "2": {
-      "outsideShare": 0,
-      "keepRate": 0.6521739130434783
+      "outsideShare": 0.037037037037037035,
+      "keepRate": 0.75
     },
     "3": {
-      "outsideShare": 0.045454545454545456,
-      "keepRate": 0.5333333333333333
+      "outsideShare": 0.04,
+      "keepRate": 0.6470588235294118
     },
     "4": {
       "outsideShare": 0,
@@ -102,37 +102,37 @@
     },
     "5": {
       "outsideShare": 0,
-      "keepRate": 0.9230769230769231
+      "keepRate": 0.9310344827586207
     },
     "6": {
       "outsideShare": 0,
-      "keepRate": 0.6666666666666666
+      "keepRate": 0.64
     }
   },
   "load": {
     "1": {
-      "overloadDays": 10,
-      "keepRate": 0.3333333333333333
+      "overloadDays": 7,
+      "keepRate": 0.35789473684210527
     },
     "2": {
-      "overloadDays": 9,
-      "keepRate": 0.3877551020408163
+      "overloadDays": 8,
+      "keepRate": 0.4421052631578947
     },
     "3": {
-      "overloadDays": 6,
-      "keepRate": 0.40350877192982454
+      "overloadDays": 7,
+      "keepRate": 0.45454545454545453
     },
     "4": {
       "overloadDays": 6,
-      "keepRate": 0.3968253968253968
+      "keepRate": 0.4594594594594595
     },
     "5": {
-      "overloadDays": 9,
-      "keepRate": 0.3815789473684211
+      "overloadDays": 3,
+      "keepRate": 0.5
     },
     "6": {
       "overloadDays": 7,
-      "keepRate": 0.38
+      "keepRate": 0.52
     }
   },
   "fallacy": {
@@ -163,19 +163,19 @@
   },
   "lead": {
     "1": {
-      "leadShare": 0.3783783783783784,
-      "keepDated": 0.3783783783783784,
-      "lateRate": 0.75
+      "leadShare": 1,
+      "keepDated": 1,
+      "lateRate": 0
     },
     "2": {
-      "leadShare": 0.48,
-      "keepDated": 0.48,
-      "lateRate": 0.38461538461538464
+      "leadShare": 1,
+      "keepDated": 1,
+      "lateRate": 0
     },
     "3": {
       "leadShare": 1,
-      "keepDated": 0.8,
-      "lateRate": 0.25
+      "keepDated": 0.75,
+      "lateRate": 0.3333333333333333
     },
     "4": {
       "leadShare": 1,
@@ -188,35 +188,35 @@
       "lateRate": 0
     },
     "6": {
-      "leadShare": 0.625,
-      "keepDated": 0.625,
-      "lateRate": 0.15384615384615385
+      "leadShare": 0.47058823529411764,
+      "keepDated": 0.47058823529411764,
+      "lateRate": 0.3333333333333333
     }
   },
   "buffer": {
     "1": {
-      "bufferShare": 0.12307692307692308,
-      "keepRate": 0.3939393939393939
+      "bufferShare": 0.13636363636363635,
+      "keepRate": 0.24242424242424243
     },
     "2": {
       "bufferShare": 0.13333333333333333,
       "keepRate": 0.5161290322580645
     },
     "3": {
-      "bufferShare": 0.10909090909090909,
-      "keepRate": 0.4411764705882353
+      "bufferShare": 0.109375,
+      "keepRate": 0.4117647058823529
     },
     "4": {
-      "bufferShare": 0.125,
-      "keepRate": 0.40625
+      "bufferShare": 0.12698412698412698,
+      "keepRate": 0.4411764705882353
     },
     "5": {
-      "bufferShare": 0.12307692307692308,
-      "keepRate": 0.4
+      "bufferShare": 0.13793103448275862,
+      "keepRate": 0.37142857142857144
     },
     "6": {
-      "bufferShare": 0.14035087719298245,
-      "keepRate": 0.46875
+      "bufferShare": 0.16176470588235295,
+      "keepRate": 0.34375
     }
   },
   "group": {

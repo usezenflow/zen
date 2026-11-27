@@ -35,3 +35,26 @@ describe("a said count of sittings", () => {
   for (const [said, n] of [["ôn thi 4 buổi trước 25/11", 4], ["làm đồ án 3 buổi mỗi buổi 2 tiếng trước 30/11", 3], ["học từ vựng 10 buổi trước 15/12", 10]] as const)
     it(said, () => expect(sittings(said).n).toBe(n));
 });
+
+describe("sittings spread over days", () => {
+  const days = (said: string) => new Set(sittings(said).placed.map((p) => new Date(p.start).toDateString())).size;
+  it("ôn thi 4 buổi trước 25/11: one a day while the days allow", () => expect(days("ôn thi 4 buổi trước 25/11")).toBe(4));
+  it("học từ vựng 6 buổi trước 8/12", () => expect(days("học từ vựng 6 buổi trước 8/12")).toBeGreaterThanOrEqual(5));
+});
+
+describe("a lone task with a due", () => {
+  it("lands before the last day, not on its eve", () => {
+    const [it] = read("làm bài tập trước 25/11", { ref: REF, source: "typed" }).items;
+    const a = itemAction(it) as { deadline?: string; effortMinutes?: number };
+    const t = { id: "g", title: "b", kind: "study", source: "user", createdAt: now, effort: a.effortMinutes ?? 60, deadline: new Date(a.deadline!).getTime() } as Task;
+    const p = plan([t], [], newModel(now), now).diff.placed.find((x) => x.id.startsWith("g"))!;
+    expect(new Date(p.start).getDate()).toBeLessThanOrEqual(23);
+  });
+});
+
+describe("a far due", () => {
+  it("đọc code 4 buổi trước 17/12 (from 18/11): sittings reach past the first week", () => {
+    const s = sittings("đọc code 4 buổi trước 17/12");
+    expect(Math.max(...s.placed.map((p) => p.start))).toBeGreaterThan(now + 9 * 86400_000);
+  });
+});

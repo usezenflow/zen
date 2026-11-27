@@ -6,7 +6,7 @@ import { wallIso } from "../context";
 import { fold, osa } from "./fold";
 import { FIX } from "./fixes";
 
-type Kind = "exam" | "class" | "task";
+type Kind = "exam" | "class" | "task" | "busy"; // busy: a fixed block of the user's own ("sau cuộc họp", "trước buổi hẹn")
 export interface Anchor {
   rel: "before" | "after";
   kind: Kind;
@@ -19,10 +19,11 @@ export interface Anchor {
 // A cue is a relation word, filler, then a kind word, each read with typos ("trươc", "truóc", "tiêt", "ktra"). Folded words.
 const near = (w: string, v: string) => w === v || (v.length >= 4 && osa(w, v) <= (v.length >= 8 ? 2 : 1));
 const REL: [string[], Anchor["rel"]][] = [[["truoc", "trc", "before"], "before"], [["sau", "after"], "after"]];
-const FILL = ["ngay", "ky", "ki", "buoi", "tiet", "khi", "mon", "lop", "cai", "the", "gio"];
+const FILL = ["ngay", "ky", "ki", "buoi", "tiet", "khi", "mon", "lop", "cai", "the", "gio", "cuoc"];
 // [words, kind, needs "khi" before it]: "nop", "xong", "lam", "hoc" alone are verbs, a kind only after "khi"
 const KINDS: [string[], Kind, boolean][] = [
   [["thi"], "exam", false], [["kiem", "tra"], "exam", false], [["ktra"], "exam", false], [["exam"], "exam", false], [["test"], "exam", false], [["midterm"], "exam", false], [["final"], "exam", false], [["giua", "ky"], "exam", false], [["cuoi", "ky"], "exam", false],
+  [["hop"], "busy", false], [["meeting"], "busy", false], [["hen"], "busy", false],
   [["tiet"], "class", false], [["lecture"], "class", false], [["class"], "class", false], [["lab"], "class", false], [["thuc", "hanh"], "class", false], [["hoc"], "class", true],
   [["bai", "tap"], "task", false], [["btl"], "task", false], [["do", "an"], "task", false], [["assignment"], "task", false], [["deadline"], "task", false], [["han", "nop"], "task", false], [["project"], "task", false],
   [["xong"], "task", true], [["nop"], "task", true], [["lam"], "task", true], [["submit"], "task", true], [["finish"], "task", true],
@@ -75,7 +76,7 @@ export function anchorOf(clause: string, tasks: Task[], now: number): Anchor | u
     for (let n = ws.length; n > 0; n--) {
       let xs = search(pre + run(n).join(" ")).sort((a, b) => a.start! - b.start!);
       // a lecture or exam kind keeps to those rows when the name finds both ("thi ktpm" is the exam, not the lecture)
-      const kinded = xs.filter((x) => (kind === "exam" ? x.fixed === "exam" : kind === "class" ? x.fixed === "lecture" : !x.fixed));
+      const kinded = xs.filter((x) => (kind === "exam" ? x.fixed === "exam" : kind === "class" ? x.fixed === "lecture" : kind === "busy" ? x.fixed === "busy" : !x.fixed));
       if (kinded.length) xs = kinded;
       if (!xs.length) continue;
       if (ord && xs.length > 1 && +ord[1] <= xs.length) xs = [xs[+ord[1] - 1]];
@@ -120,6 +121,6 @@ export function anchorAction(a: Action, h: Anchor): Action {
     return { ...a, notBefore, ...(a.when && a.when < notBefore ? { when: notBefore } : {}) };
   }
   if (h.kind === "exam") return { ...a, deadline: wallIso(x.start!), anchor: x.id };
-  if (h.kind === "class") return { ...a, deadline: wallIso(x.start!) };
+  if (h.kind === "class" || h.kind === "busy") return { ...a, deadline: wallIso(x.start!) };
   return x.deadline === undefined ? a : { ...a, deadline: wallIso(x.deadline) };
 }

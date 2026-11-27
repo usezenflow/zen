@@ -82,7 +82,7 @@ describe("NowCard", () => {
 
 describe("NowCard Thử 10p", () => {
   const micro = async () => JSON.parse((await kvGet("now.micro")) ?? "null");
-  it("a block of 45 minutes or more offers it beside Để sau; tapping stores the ten minutes and shows them", async () => {
+  it("a block of an hour or more offers it beside Để sau; tapping stores the ten minutes and shows them", async () => {
     const tk = task();
     await render(<NowCard card={{ task: tk, start: at(14), end: at(15, 30) }} onDone={jest.fn()} onStart={jest.fn()} onLater={jest.fn()} />);
     await fireEvent.press(screen.getByLabelText(t("microBtn", { n: MICRO_MIN })));
@@ -91,11 +91,11 @@ describe("NowCard Thử 10p", () => {
     expect(screen.getByLabelText(t("nMin", { n: MICRO_MIN }))).toBeOnTheScreen();
     expect(screen.queryByLabelText(t("microBtn", { n: MICRO_MIN }))).toBeNull();
   });
-  it("a shorter block has no ramp unless it was put off before", async () => {
+  it("a block under an hour has no ramp, even one put off before", async () => {
     await render(<NowCard card={{ task: task(), start: at(14), end: at(14, 30) }} onDone={jest.fn()} onLater={jest.fn()} />);
     expect(screen.queryByLabelText(t("microBtn", { n: MICRO_MIN }))).toBeNull();
-    await render(<NowCard card={{ task: task({ misses: 1 }), start: at(14), end: at(14, 30) }} onDone={jest.fn()} onLater={jest.fn()} />);
-    expect(screen.getByLabelText(t("microBtn", { n: MICRO_MIN }))).toBeOnTheScreen();
+    await render(<NowCard card={{ task: task({ misses: 1 }), start: at(14), end: at(14, 45) }} onDone={jest.fn()} onLater={jest.fn()} />);
+    expect(screen.queryByLabelText(t("microBtn", { n: MICRO_MIN }))).toBeNull();
   });
   it("never on a fixed class, a block already running, or a gap offer", async () => {
     await render(<NowCard card={{ task: task({ fixed: "lecture" }), start: at(14), end: at(16) }} onDone={jest.fn()} onLater={jest.fn()} />);

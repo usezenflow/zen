@@ -565,9 +565,8 @@ function QuickBar({ onSay, onMsg }: { onSay(text: string): unknown; onMsg(msg: s
   );
 }
 
-/** A text field that owns what is typed: the screen hears the text through `onText` (a ref write) and shows `value` again only when it changes or `rev` bumps. */
-const Field = memo(function Field({ value, rev, onText, ...p }: Omit<ComponentProps<typeof TextInput>, "value" | "onChangeText"> & { value: string; rev: number; onText: (v: string) => void }) {
-  const [v, setV] = useState(value), [seen, setSeen] = useState({ value, rev });
-  if (seen.value !== value || seen.rev !== rev) { setSeen({ value, rev }); setV(value); } // the stored text changed under us: show it
-  return <TextInput {...p} value={v} onChangeText={(x) => { setV(x); onText(x); }} />;
+/** A text field that owns what is typed: the screen hears the text through `onText` (a ref write). Uncontrolled, so a key press never
+ *  re-sets the text (that broke Telex composition on iOS); it remounts only when the stored `value` changes or `rev` bumps. */
+const Field = memo(function Field({ value, rev, onText, ...p }: Omit<ComponentProps<typeof TextInput>, "value" | "onChangeText" | "defaultValue"> & { value: string; rev: number; onText: (v: string) => void }) {
+  return <TextInput {...p} key={`${rev}|${value}`} defaultValue={value} onChangeText={onText} />;
 });

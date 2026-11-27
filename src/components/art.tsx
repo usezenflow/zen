@@ -12,7 +12,7 @@ export { Icon, type IconName } from "./icons";
 // Ensō koi mark (enso.tsx geometry): one brush stroke round a circle, eye knocked out by a mask, dry-brush rings as the mask.
 // "color" is the whole mark in koi orange (ui.js LOGO), "line" is the empty-state outline. States: "load" turns the ring one
 // revolution per 6s and breathes the stroke (2.1s in/out); "err" tips the ring -24° and fans the tail wider. Reduce Motion holds both.
-const EN = enso();
+const EN = enso({ brush: false }); // the solid fish: no dry-brush rings (the logo board's small mark)
 const AG = Animated.createAnimatedComponent(G);
 const TIP = Easing.bezier(0.3, 0.7, 0.2, 1), BREATHE = 2100, TURN = 6000;
 export function Logo({ size = 40, mode = "color", color = "#000", state }: { size?: number; mode?: "color" | "white" | "mono" | "line"; color?: string; state?: "load" | "err" }) {
@@ -48,10 +48,8 @@ export function Logo({ size = 40, mode = "color", color = "#000", state }: { siz
     <Svg width={box} height={box} viewBox={vb} style={animated ? { margin: -size * 0.4 } : undefined}>
       {!line && <Defs>
         <Mask id={`m${id}`} maskUnits="userSpaceOnUse" x={0} y={0} width={100} height={100}>
-          <G fill="none" stroke="#fff" strokeWidth={Math.max(EN.lw, 40 / size)}>
-            {EN.rings.map((r) => <Circle key={r} cx={50} cy={50} r={r} />)}
-          </G>
-          <Circle cx={ex} cy={ey} r={2.4} fill="#000" />
+          <Rect width={100} height={100} fill="#fff" />
+          <Circle cx={ex} cy={ey} r={2.8} fill="#000" />
         </Mask>
       </Defs>}
       <AG animatedProps={ring}>

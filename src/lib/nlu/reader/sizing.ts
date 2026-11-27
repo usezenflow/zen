@@ -146,7 +146,7 @@ function sizeOne(it: ReaderItem, o: SizeOpts): ReaderItem {
 
 const SPOKEN_N: Record<string, number> = { hai: 2, ba: 3, bon: 4, nam: 5, sau: 6, bay: 7, tam: 8, chin: 9, muoi: 10 };
 /** "ôn thi 5 buổi": a count of sittings, never a rate ("3 buổi một tuần") or a part ("2 buổi sáng"). Folded. */
-const SIT_COUNT = /(?<![\d/.:a-z])(\d{1,2}|hai|ba|bon|nam|sau|bay|tam|chin|muoi) buoi(?![a-z])(?!\s*(?:\/|mot|moi|1)?\s*tuan)(?! (?:sang|trua|chieu|toi|dem)(?![a-z]))/;
+const SIT_COUNT = /(?<![\d/.:a-z])(\d{1,2}|hai|ba|bon|nam|sau|bay|tam|chin|muoi) buoi(?![a-z])(?!\s*(?:\/|mot|moi|1)?\s*tuan(?! (?:nay|toi|sau|truoc|nua)))(?! (?:sang|trua|chieu|toi|dem)(?![a-z]))/;
 
 /**
  * "ôn thi 5 buổi trước 25/11": one task in that many sittings, each the said length ("mỗi buổi 2 tiếng" reads as one

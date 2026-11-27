@@ -25,7 +25,7 @@ export const dur = (p: Piece) => p.effort * MIN;
 
 // A said due within 30 days: aim at this share of the window from its start (or creation) to the due, so the work lands
 // before the last days. A preference only: the hard deadline (lateH) stays as said.
-export const SOFT_AIM = 0.75;
+export const SOFT_AIM = 0.65;
 
 export function bell(p: Piece, now: number, start: number): number {
   const t = p.task;

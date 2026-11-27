@@ -6,18 +6,14 @@ import { t } from "@/lib/i18n";
 import { useTheme, ff, fd } from "@/lib/theme";
 
 /** logo.html States: the first school sync (leaf rocking) or a failed one (leaf tipped, sun rolled away), full screen, no dock. */
-export function LogoState({ state, onRetry, onLater, chip, title, sub }: { state: "load" | "err"; onRetry?: () => void; onLater?: () => void; chip?: string; title?: string; sub?: string }) {
+export function LogoState({ state, onRetry, onLater, title, sub }: { state: "load" | "err"; onRetry?: () => void; onLater?: () => void; title?: string; sub?: string }) {
   const th = useTheme();
   const err = state === "err";
   return (
     <Animated.View entering={fadeIn} exiting={fadeOut} style={[StyleSheet.absoluteFill, s.wrap, { backgroundColor: th.bg }]} accessibilityLiveRegion="polite">
-      <View style={s.state}>
-        <Logo size={96} mode="color" state={state} />
-        {/* v2.css .st: the status chip between the mark and the heading, 28 high, tinted */}
-        <View style={[s.st, { backgroundColor: err ? th.errT : th.infoT, marginTop: 6 }]}>
-          <Icon name={err ? "xCircle" : "refresh"} size={14} color={err ? th.err : th.info} w={2} />
-          <Text style={[s.stT, { color: err ? th.err : th.info }]}>{chip ?? t(err ? "syncChipErr" : "syncChipLoad")}</Text>
-        </View>
+      <View style={s.state}><Logo size={96} mode="color" state={state} /></View>
+      {/* The words sit at the bottom, where the thinking steps do; no chip, so nothing here looks like a button. */}
+      <View style={s.foot}>
         <Text style={[s.h, { color: th.ink }]}>{title ?? t(err ? "syncErrT" : "syncLoadT")}</Text>
         <Text style={[s.sub, { color: th.muted }]}>{sub ?? t(err ? "syncErrSub" : "syncLoadSub")}</Text>
         {err && <>
@@ -32,15 +28,14 @@ export function LogoState({ state, onRetry, onLater, chip, title, sub }: { state
 const s = StyleSheet.create({
   wrap: { zIndex: 40, paddingHorizontal: 24 },
   // .state: centred column, gap 6, 90px clear at the bottom
-  state: { flex: 1, alignItems: "center", justifyContent: "center", gap: 6, paddingBottom: 90 },
-  h: { marginTop: 26, fontSize: 26, lineHeight: 34, fontFamily: fd("800"), letterSpacing: -0.91, textAlign: "center" }, // logo.html .state .h: 26px, line 1.1
+  state: { flex: 1, alignItems: "center", justifyContent: "center" },
+  foot: { position: "absolute", left: 24, right: 24, bottom: 110, alignItems: "center" },
+  h: { marginTop: 0, fontSize: 26, lineHeight: 34, fontFamily: fd("800"), letterSpacing: -0.91, textAlign: "center" }, // logo.html .state .h: 26px, line 1.1
   sub: { marginTop: 6, maxWidth: 230, fontSize: 17, lineHeight: 24.65, fontFamily: ff("400"), textAlign: "center" }, // .sub, line-height 1.45
-  st: { flexDirection: "row", alignItems: "center", gap: 6, height: 28, paddingHorizontal: 11, borderRadius: 99 },
-  stT: { fontSize: 13.5, fontFamily: ff("500") },
   btn: { marginTop: 22, alignSelf: "stretch", height: 56, borderRadius: 99, flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center" },
   bt: { fontSize: 17, fontFamily: ff("600") },
   ghost: { marginTop: 10, fontSize: 15, fontFamily: ff("500") },
 });
 
 /** The app's first screen: logo.html "Loading" with start-up words. The native splash is a plain background, this takes over at once. */
-export const Boot = () => <LogoState state="load" chip={t("bootChip")} title={t("bootT")} sub={t("bootSub")} />;
+export const Boot = () => <LogoState state="load" title={t("bootT")} sub={t("bootSub")} />;

@@ -267,7 +267,7 @@ export function topUp(now = Date.now()): Promise<Result | undefined> {
       await store.putTasks(old.map((x) => Object.assign(x, { seriesId: ids.get(seriesKey(x)) })));
     }
     const add = missing(tasks, gone, now);
-    return add.length ? transactNow(now, (w) => { for (const x of add) w.tasks.set(x.id, x); }, { self: false, cause: "create", plan: { only: add.map((x) => x.id) } }).then(quiet) : undefined;
+    return add.length ? transactNow(now, (w) => { for (const x of add) w.tasks.set(x.id, x); }, { self: false, cause: "create", veil: false, plan: { only: add.map((x) => x.id) } }).then(quiet) : undefined;
   });
 }
 
@@ -458,7 +458,7 @@ export const waiting = (all: Task[], now = Date.now()) => {
 };
 
 /** A transaction's options. `cause` plans (none plans nothing); `dry` plans but writes nothing; `self`: moves are the user's own. */
-type TxOpts = { cause?: Cause; self?: boolean; quiet?: boolean; dry?: boolean; fill?: boolean; plan?: Opts; text?: (d: Diff | undefined, w: Work) => string | undefined };
+type TxOpts = { cause?: Cause; self?: boolean; quiet?: boolean; veil?: boolean /* false: plans silently (a series topped up in the background) */; dry?: boolean; fill?: boolean; plan?: Opts; text?: (d: Diff | undefined, w: Work) => string | undefined };
 
 /** Runs one mutation, optionally replans, mirrors to the calendar and persists. One call is one undo group. */
 function transact(now: number, mutate: (w: Work) => Promise<void> | void, o: TxOpts = {}): Promise<Result> {
@@ -468,7 +468,11 @@ function transact(now: number, mutate: (w: Work) => Promise<void> | void, o: TxO
 // Replans running now: the Thinking veil shows while any is (a plan blocks the JS thread, so it is shown before the plan starts).
 let thinkN = 0;
 const thinkSubs = new Set<() => void>();
-const thinkBy = (d: number) => { thinkN += d; thinkSubs.forEach((f) => f()); };
+const thinkBy = (d: number) => {
+  thinkN += d; thinkSubs.forEach((f) => f());
+  // the stage lines go with the veil (a beat later: the shuffle that follows a plan holds it again and continues the same lines)
+  if (thinkN === 0) setTimeout(() => { if (thinkN === 0 && narrated.length) narration.set([]); }, 60);
+};
 export const thinking = { get: () => thinkN > 0, sub: (f: () => void) => { thinkSubs.add(f); return () => void thinkSubs.delete(f); } };
 /** Hold the veil from a plan to its last step line (counted, so holds nest). */
 export const thinkHold = (on: boolean) => thinkBy(on ? 1 : -1);
@@ -541,9 +545,15 @@ async function transactRun(now: number, mutate: (w: Work) => Promise<void> | voi
     // The slots the user just set tasks off: a flexible task is not knocked back into one (soft, see value.ts moveCost).
     const avoid = w.events.filter((e) => e.type === "drag" && e.data?.fromStart !== undefined && e.data?.fromEnd !== undefined).map((e) => ({ from: Number(e.data!.fromStart), to: Number(e.data!.fromEnd) }));
     const only = w.only ?? (waits ? waitIds : undefined);
-    if (!o.dry) { // let the veil draw before the plan holds the thread (no frame loop under tests)
+    if (!o.dry && o.veil !== false) { // every real replan (create, edit, clash, new timetable, delete, early done) shows its steps; the veil draws before the plan holds the thread (no frame loop under tests)
       mark.on = true; thinkBy(1);
-      if (typeof requestAnimationFrame === "function") await new Promise<void>((go) => requestAnimationFrame(() => setTimeout(go, 0)));
+      const frame = () => (typeof requestAnimationFrame === "function" ? new Promise<void>((go) => requestAnimationFrame(() => setTimeout(go, 0))) : Promise.resolve());
+      // What is really being done, one line each, so the wait is never empty. The solve that follows blocks the thread: its line is drawn first.
+      const live = [...w.tasks.values()].filter((x) => !x.deletedAt && !x.doneAt);
+      const fixedN = live.filter((x) => x.fixed).length, changed = [...w.tasks.values()].filter((x) => !before.has(x.id) || before.get(x.id)!.start !== x.start || before.get(x.id)!.deadline !== x.deadline || before.get(x.id)!.deletedAt !== x.deletedAt || before.get(x.id)!.doneAt !== x.doneAt);
+      narration.set([t("thinkRead", { n: live.length - fixedN, f: fixedN })]); await frame();
+      narration.set([...narrated, changed.length === 1 ? t("thinkOne", { title: changed[0].title }) : t("thinkMany", { n: Math.max(1, changed.length) })]); await frame();
+      narration.set([...narrated, t("thinkSearch")]); await frame();
     }
     const extras = await planExtras([...w.tasks.values()], w.events, now); // the balance areas and the evidence-based rules: neutral until configured or proven
     // An elapsed task that is not done keeps its time: the planner never moves it by itself (day.tsx shows it under "Quá giờ").
