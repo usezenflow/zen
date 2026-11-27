@@ -65,8 +65,8 @@ export function NowCard({ card, onDone, onStart, onLater, onMicroRest, onKind, o
       <Text style={[s.t, { color: th.onart }]} numberOfLines={2}>{task.title}</Text>
       <View style={s.foot}>
         {over ? <View style={s.overActs}>
-          <Tap onPress={onExtend} scale={0.94} accessibilityRole="button" accessibilityLabel={t("overExtend")} style={[s.glass, s.start, s.overBtn, s.soft]}><Glass /><Icon name="plus" size={18} color="#fff" /><Text style={s.startT} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t("overExtend")}</Text></Tap>
-          <Tap onPress={onLater} scale={0.94} accessibilityRole="button" accessibilityLabel={t("overMove")} style={[s.glass, s.start, s.overBtn, s.primary]}><Glass /><Icon name="right" size={20} color={th.bg} /><Text style={[s.startT, s.primaryT, { color: th.bg }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t("overMove")}</Text></Tap>
+          <Tap onPress={onExtend} scale={0.94} accessibilityRole="button" accessibilityLabel={t("overExtend")} style={[s.start, s.overBtn, s.solid2, { backgroundColor: th.ink }]}><Icon name="plus" size={18} color={th.bg} /><Text style={[s.startT, s.primaryT, { color: th.bg }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t("overExtend")}</Text></Tap>
+          <Tap onPress={onLater} scale={0.94} accessibilityRole="button" accessibilityLabel={t("overMove")} style={[s.glass, s.start, s.overBtn]}><Glass /><Icon name="right" size={20} color="#fff" /><Text style={s.startT} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t("overMove")}</Text></Tap>
         </View> : <>
         <View style={s.row1}>
         <View style={s.meter}>
@@ -383,8 +383,8 @@ const s = StyleSheet.create({
   close: { alignSelf: "flex-start", height: 40, paddingHorizontal: 16, borderRadius: 99, alignItems: "center", justifyContent: "center" },
   ct: { fontSize: font.sub, fontFamily: ff("600") },
   shut: { flex: 1, height: 52, borderRadius: 99, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }, // calm.html .gbtn in the rebalance pair
-  undo: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, height: 36, paddingHorizontal: 14, borderRadius: 99, borderWidth: 1, marginTop: 8 }, // calm.html .undo: 36 high, 14px
-  undoT: { fontSize: 14, fontFamily: ff("500") },
+  undo: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, height: 40, paddingHorizontal: 16, borderRadius: 99, borderWidth: 1 }, // calm.html .undo: 36 high, 14px
+  undoT: { fontSize: font.sub, fontFamily: ff("500") },
   steps: { position: "absolute", left: 24, right: 24, bottom: 150, gap: 10, zIndex: 7 },
   st: { flexDirection: "row", alignItems: "center", gap: 10 },
   spin: { width: 16, height: 16, borderRadius: 8, borderWidth: 2 },

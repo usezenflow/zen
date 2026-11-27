@@ -1,5 +1,15 @@
 # zen
 
+## 26.1.5
+
+### Patch Changes
+
+- Việc bận, tiết học, lịch thi hết giờ không còn thành thẻ "Hết giờ": đang diễn ra chỉ hiện tiến độ, vuốt không còn báo "Chưa có gì để làm"; hết giờ thì sang "Quá giờ"
+- Thẻ "Hết giờ": "Thêm 15p" là nút chính, "Chuyển việc" chữ trắng, bỏ viền vỡ
+- "Đã xem" và "Hoàn tác" ngang hàng, cùng cỡ
+- Sửa được giờ của buổi ôn do LMS xếp; chỉ thời khóa biểu và lịch thi đồng bộ là cố định
+- Xếp giờ sau hạn thì có dòng cảnh báo vàng "Sau hạn …" dưới giờ, cho mọi việc có hạn
+
 ## 26.1.4
 
 ### Patch Changes

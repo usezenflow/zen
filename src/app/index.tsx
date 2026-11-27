@@ -305,7 +305,7 @@ export default function Home() {
   }, [tasks, ask, chips, say, refresh]);
   // calm.html "Hết giờ": a block that ran out unticked (overdue: its end plus the grace) is the now card until it is extended, moved or ticked.
   // The card's swipe and buttons act on the same task (cardRef), so they never reach the next block by mistake.
-  const late = overdue(tasks, now + GRACE)[0];
+  const late = overdue(tasks, now + GRACE).find((x) => !x.fixed); // a fixed block just ends: nothing to extend, move or tick
   const lateNext = late ? pickNow(tasks.filter((x) => x.id !== late.id), now) : undefined;
   const shown = late && late.start !== undefined ? { task: late, start: late.start, end: late.end } : card;
   const cardRef = useRef(shown);
@@ -913,7 +913,7 @@ export default function Home() {
     await shuffle(r);
   };
   const cx = useSharedValue(0);
-  const noDone = useSharedValue(false); // a fixed lecture, exam or busy block is never ticked, so a right swipe springs back
+  const noDone = useSharedValue(false); // a fixed lecture, exam or busy block is never ticked, and has no later either, so a swipe springs back
   useEffect(() => { noDone.set(!!shown?.task.fixed && !shown.gap); }, [shown, noDone]);
   const committing = useRef(false);
   // The card comes back even when the save fails, and a second tap mid-save does nothing.
@@ -928,7 +928,7 @@ export default function Home() {
     onUpdate: (e) => { "worklet"; cx.set(e.translationX); },
     onDeactivate: (e) => {
       "worklet";
-      if (Math.abs(e.translationX) <= 110 || (e.translationX > 0 && noDone.get())) { cx.set(settle(0)); return; }
+      if (Math.abs(e.translationX) <= 110 || noDone.get()) { cx.set(settle(0)); return; }
       const dir = e.translationX > 0 ? "done" : "later";
       cx.set(withTiming(e.translationX > 0 ? 500 : -500, { duration: 180 }, (ok) => { if (ok) scheduleOnRN(finish, dir); }));
     },

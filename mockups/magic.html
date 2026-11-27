@@ -98,6 +98,8 @@
 .rb { flex: none; min-width: 44px; min-height: 44px; padding: 0 14px; border-radius: 99px; border: 1px solid var(--line); display: inline-grid; place-items: center; font-size: 15px; font-weight: 600; }
 .calm { margin-top: 22px; font-size: 16px; font-weight: 500; line-height: 1.35; }
 /* Toast chips: 44px touch targets. */
+.pastdue{display:inline-flex;align-items:center;gap:8px;margin-top:6px;padding:8px 12px;border-radius:14px;font-size:15px;font-weight:500;color:#946a00;background:rgba(255,214,102,.32)}
+.device.dark .pastdue{color:#ffd666;background:rgba(255,184,0,.16)}
 </style>
 </head>
 <body>
@@ -353,6 +355,12 @@ const prepDetail = (h) => `${dtop}${mine}
   ${sizeWhy(h)}
   <div class="lab" style="margin-top:20px">Các buổi</div><div class="sits">${SITS}</div>${lessMore}`;
 
+// 45. Past the due: a time the user chose after the deadline keeps, with a yellow note under it.
+const pastDue = `${dtop}${mine}
+  <div class="h" style="margin-top:14px">Đọc code outline</div>
+  <div class="meta">${ml("hourglass", "Hạn T2 30/11 23:59")}${ml("clock", "Làm T2 30/11 23:00 - 00:30")}</div>
+  <div class="pastdue">${ic('<path d="M12 4 3 19.5h18Z"/><path d="M12 10v4.5M12 17.2v.1"/>', 18, 2)}<span>Sau hạn T2 30/11 23:59</span></div>`;
+
 // 19. Steps, not copies.
 const prepDay = `${head("T4", "18/11", "4 việc, 1 tiết học")}${tabs("Ngày")}
   <div class="lab" style="margin-top:28px">Hôm nay</div>
@@ -606,6 +614,7 @@ mount([
   { tag: "41b. Tonight, for a non-night owl", sub: "A user who has dragged work out of late hours gets tomorrow evening instead of đêm; the row says why.", html: chrome(tomorrowEve) },
   { tag: "42. Missed three times", sub: "A task whose time passed untouched three times at about the same hour is not put back there: it gets another hour, and a guessed length shrinks one step (a said length never does). Other tasks of the same kind are not affected.", html: chrome(missed3) },
   { tag: "43. Lighter days", sub: "A holiday or Tết takes half the usual own work, and the day before an exam three quarters (that exam\u2019s prep is not cut). Work moved off such a day says so on its new day.", html: chrome(lighter) },
+  { tag: "45. Past the due", sub: "Any plan, prep or synced task can take a time you choose, even after its deadline (only the synced timetable and exams are frozen). Zen never places there itself, so a time past the due is yours, kept as set, with one small yellow notice under the time (a warning triangle and text: dark yellow on a light yellow tint in the light theme, light yellow on a dark yellow tint in the dark theme): “Sau hạn”, and the due.", html: chrome(pastDue, { dock: null }) },
   { tag: "44. Errands together", sub: "Errands and payments on the same day sit back to back, so one trip covers them; the second row names the first.", html: chrome(batched) },
 ]);
 </script>

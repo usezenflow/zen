@@ -317,8 +317,8 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
     && worked(tasks, day, now) + flex.reduce((n, x) => n + (x.end !== undefined ? x.end - x.start! : x.effort * 60_000), 0) >= capOf(tasks, day, now).ms;
   const overflow = new Set((enoughDay ? flex : []).map((x) => x.id));
   const real0 = [...live_.filter((x) => !overflow.has(x.id)), ...tasks.filter((x) => pop.has(x.id) && x.start! >= day && x.start! < end && !live_.includes(x))];
-  // Elapsed and not done: its own section, never moved by itself (the planner holds it); "Làm luôn" starts it now.
-  const elapsed = day === startOfDay(now) ? real0.filter((x) => x.start !== undefined && x.end !== undefined && x.end + GRACE <= now && !x.doneAt && !x.fixed) : [];
+  // Elapsed and not done: its own section, never moved by itself (the planner holds it); "Làm luôn" starts it now (not for a fixed block, which is just over).
+  const elapsed = day === startOfDay(now) ? real0.filter((x) => x.start !== undefined && x.end !== undefined && x.end + GRACE <= now && !x.doneAt) : [];
   const real = real0.filter((x) => !elapsed.includes(x));
   // Ghost: moved off this day, left at its old time saying where it went.
   const ghosts = moves.filter((m) => m.from >= day && m.from < end && (m.to < day || m.to >= end) && !real.some((x) => x.id === m.id)).flatMap((m) => {
@@ -441,7 +441,7 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
             <View key={`e${x.id}`}>
               <Row task={x} now={now} first={i === 0} onToggle={() => act.onToggle(x)} onTitle={(v) => act.onTitle(x, v)} onTime={(a) => act.onTime(x, a)} onEnd={act.onEnd && ((a) => act.onEnd!(x, a))} onOpen={() => act.onOpen(x)} onDelete={() => act.onSwipeDelete(x)} />
               {/* Under the title, in its column: beside the row it crowded the time column. */}
-              {act.onStartNow && <Tap onPress={() => act.onStartNow!(x)} scale={0.94} accessibilityRole="button" accessibilityLabel={t("startNow")} style={[s.pl, { backgroundColor: th.ink, alignSelf: "flex-start", marginLeft: 48, marginTop: -4, marginBottom: 8 }]}><Text style={[s.plt, { color: th.bg }]}>{t("startNow")}</Text></Tap>}
+              {act.onStartNow && !x.fixed && <Tap onPress={() => act.onStartNow!(x)} scale={0.94} accessibilityRole="button" accessibilityLabel={t("startNow")} style={[s.pl, { backgroundColor: th.ink, alignSelf: "flex-start", marginLeft: 48, marginTop: -4, marginBottom: 8 }]}><Text style={[s.plt, { color: th.bg }]}>{t("startNow")}</Text></Tap>}
             </View>
           ))}</View>
         </View>

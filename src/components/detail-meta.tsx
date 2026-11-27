@@ -15,6 +15,7 @@ const G = {
   hourglass: [["path", { d: "M7 3h10M7 21h10M8 3v3.5a4 4 0 0 0 1.6 3.2L12 12l-2.4 2.3A4 4 0 0 0 8 17.5V21M16 3v3.5a4 4 0 0 1-1.6 3.2L12 12l2.4 2.3A4 4 0 0 1 16 17.5V21" }]],
   repeat: [["path", { d: "M17 3l3 3-3 3M4 11V9a3 3 0 0 1 3-3h13M7 21l-3-3 3-3M20 13v2a3 3 0 0 1-3 3H4" }]],
   dots: [["circle", { cx: 6, cy: 12, r: 1 }], ["circle", { cx: 12, cy: 12, r: 1 }], ["circle", { cx: 18, cy: 12, r: 1 }]],
+  warn: [["path", { d: "M12 4 3 19.5h18Z" }], ["path", { d: "M12 10v4.5M12 17.2v.1" }]],
   right: [["path", { d: "M9 6l6 6-6 6" }]],
 } as const;
 export type Glyph = Exclude<keyof typeof G, "right">;
@@ -28,9 +29,9 @@ export function Gly({ name, size, color, w = 2 }: { name: keyof typeof G; size: 
 }
 
 /** One detail line (mockup .dmeta div): icon, text. Plain text is a 28pt row; only a tappable line takes the 44pt touch area (hitSlop) and the chevron on a link. */
-export function Meta({ icon, text, tone, onPress }: { icon: Glyph; text: string; tone?: "link" | "red"; onPress?: () => void }) {
+export function Meta({ icon, text, tone, onPress }: { icon: Glyph; text: string; tone?: "link" | "red" | "warn"; onPress?: () => void }) {
   const th = useTheme();
-  const color = tone === "red" ? th.seal : tone === "link" ? th.ink : th.muted;
+  const color = tone === "warn" ? (th.dark ? "#ffd666" : "#946a00") : tone === "red" ? th.seal : tone === "link" ? th.ink : th.muted;
   const body = (
     <>
       <View style={{ opacity: 0.8 }}><Gly name={icon} size={18} color={color} w={2} /></View>

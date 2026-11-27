@@ -241,6 +241,7 @@ const S = {
   try2: "T6 nộp báo cáo nhóm",
   try3: "Tối nào cũng đọc sách",
   fromSchool: "Hoặc lấy lịch từ Online",
+  pastDue: "Sau hạn {d}",
   clash: "Trùng giờ",
   clashBody: "{a} vừa lấy từ Online và trùng giờ với {b}.",
   clashHere: "{a} cũng diễn ra lúc này.",

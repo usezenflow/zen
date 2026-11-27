@@ -206,8 +206,9 @@ export default function Detail() {
 
   const mine = task.source !== "dlu" && !task.forId;
   // Only a plan or an assignment is the user's to edit; lectures, exams and busy blocks are read-only (delete stays).
-  const editable = mine && (typeOf(task) === "plan" || typeOf(task) === "assignment");
-  const canTime = !!tt && editable;
+  const editable = (mine || (!!task.forId && task.source !== "dlu")) && (typeOf(task) === "plan" || typeOf(task) === "assignment");
+  const canMove = !task.fixed && (typeOf(task) === "plan" || typeOf(task) === "assignment"); // synced work keeps its time editable; only the timetable and exams are frozen
+  const canTime = !!tt && (editable || canMove);
   const hasDue = editable && !task.fixed && !task.rrule && task.deadline !== undefined;
   // The open time line (a placed one, or an untimed one once its "no free slot" line is tapped). Start and length come from the task's own values.
   const tid = tt?.id ?? task.id;
@@ -280,6 +281,11 @@ export default function Detail() {
     else if (tt?.start !== undefined) lines.push(<Meta key="t" icon="clock" text={tt.rrule ? span : t("planAt", { t: span })} onPress={canTime ? openTime : undefined} />);
     else if (tt && !task.doneAt) lines.push(<Meta key="t" icon="clock" tone="red" text={t("noSlot")} onPress={canTime ? openTime : undefined} />);
   }
+  // A time the user set past the due (the task's own, its parent's, or its exam's): a yellow note under the time line; Zen itself never places there.
+  const due = task.deadline ?? pool.find((y) => y.id === task.parentId)?.deadline ?? exam?.start;
+  const pastDue = !task.fixed && !task.doneAt && due !== undefined && tt?.start !== undefined && (tt.end ?? tt.start) > due;
+  const wInk = th.dark ? "#ffd666" : "#946a00";
+  if (pastDue) lines.push(<View key="pd" style={[s.pd, { backgroundColor: th.dark ? "rgba(255,184,0,.16)" : "rgba(255,214,102,.32)" }]}><Gly name="warn" size={18} color={wInk} /><Text style={[s.pdT, { color: wInk, fontFamily: ff("500") }]}>{t("pastDue", { d: at(due) })}</Text></View>);
   // The repeat sits right under the time (views.html "Detail, repeating"); lectures have none, the timetable is the repeat.
   if (task.rrule && !task.section) lines.push(<Meta key="r" icon="repeat" text={repeatText(task.rrule, task.start ?? task.deadline ?? now)} />);
   // a link place opens on tap; the dots menu edits it
@@ -506,6 +512,8 @@ const s = StyleSheet.create({
   lab: { fontSize: 13, lineHeight: 18, fontFamily: ff("400"), letterSpacing: 0.9 }, // .lab: a quiet tracked eyebrow
   eye: { flexDirection: "row", alignItems: "center", gap: 6 }, // .lab with its glyph
   sit: { marginTop: 18 }, // .sit: the sittings line under the meta
+  pd: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "flex-start", borderRadius: 14, paddingVertical: 8, paddingHorizontal: 12, marginTop: 4 }, // a light notice under the time
+  pdT: { fontSize: 15, lineHeight: 20, flexShrink: 1 },
   qbs: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }, // .qb pills in a row
   qb: { height: 42, paddingHorizontal: 16, borderRadius: 99, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }, // .qb: hairline pill
   qbT: { fontSize: 15, lineHeight: 20, fontFamily: ff("500") },
