@@ -4,6 +4,8 @@
 
 ### Patch Changes
 
+- Việc đang làm trên thẻ "Đang làm" và việc vừa đánh dấu xong không còn hiện lặp trong danh sách bên dưới; đánh dấu xong đi thẳng xuống mục "Xong"
+- Chi tiết việc nhiều buổi: mở ra hiện đầy đủ tất cả các buổi thay vì gộp thành "{n} buổi sau", và thêm khoảng cách dọc giữa các buổi
 - Widget đồng bộ diện mạo mới với ứng dụng: tranh đường kẻ nhiều mảng màu theo từng loại việc, chữ tiêu đề mới, chữ trong hàng nhẹ dễ đọc hơn và biểu tượng cá koi cam
 - Widget hết thường xuyên hiện khung xám trống thay vì danh sách việc; đánh dấu xong ngay trên widget Hôm nay giữ nguyên trạng thái qua các mốc giờ
 - zen học dần từ những lần bạn sửa việc: tự mở rộng chữ viết tắt và sửa lỗi gõ quen thuộc trong tên việc (sửa hai lần là nhớ, đổi ngược lại là thôi)

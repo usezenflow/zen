@@ -19,11 +19,3 @@ export function foldRepeats(tasks: Task[], now: number) {
   });
   return { hidden, folds };
 }
-
-/** A split task's open sittings from tomorrow on fold into one row, as repeats past their window do; today's and earlier sittings, done ones and unplaced ones stay rows. */
-export function foldSittings(sits: Task[], now: number): { shown: Task[]; folded: Task[] } {
-  const cut = addDays(startOfDay(now), 1);
-  const folded = sits.filter((x) => !x.doneAt && x.start !== undefined && x.start >= cut).sort((a, b) => a.start! - b.start!);
-  const out = new Set(folded);
-  return { shown: sits.filter((x) => !out.has(x)), folded };
-}

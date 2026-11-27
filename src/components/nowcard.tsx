@@ -32,7 +32,7 @@ const parseMicro = (v: string | null): Micro | null => { try { return v ? JSON.p
 // calm.html "Hết giờ": a block whose end passed unticked; Thêm 15 phút and Chuyển việc replace the usual buttons.
 // onKind: the kind chip's tap, with the chip's window top and bottom so the caller can open the kind menu beside it.
 export type KindPick = (task: Task, top: number, bottom: number) => void;
-export function NowCard({ card, onDone, onStart, onLater, onMicroRest, onKind, onExtend, over, still }: { still?: boolean; card: Card; onDone: () => void; onStart?: () => void; onLater?: () => void; onMicroRest?: (minutes: number) => void; onKind?: KindPick; onExtend?: () => void; over?: { next?: Task } }) {
+export function NowCard({ card, onDone, onStart, onLater, onMicroRest, onMicro, onKind, onExtend, over, still }: { still?: boolean; card: Card; onDone: () => void; onStart?: () => void; onLater?: () => void; onMicroRest?: (minutes: number) => void; onMicro?: (id?: string) => void; onKind?: KindPick; onExtend?: () => void; over?: { next?: Task } }) {
   const th = useTheme();
   const [now, setNow] = useState(() => Date.now());
   const [micro, setMicro] = useState<Micro | null>(null);
@@ -40,9 +40,9 @@ export function NowCard({ card, onDone, onStart, onLater, onMicroRest, onKind, o
     const i = setInterval(() => setNow(Date.now()), 3000);
     return () => clearInterval(i);
   }, []);
-  useEffect(() => { let live = true; kvGet(MICRO_KEY).then((v) => { if (live) setMicro(parseMicro(v)); }).catch(() => {}); return () => { live = false; }; }, []);
-  const saveMicro = (m: Micro | null) => { setMicro(m); kvSet(MICRO_KEY, JSON.stringify(m)).catch(() => {}); };
   const { task, start = 0, end = 0 } = card;
+  useEffect(() => { let live = true; kvGet(MICRO_KEY).then((v) => { if (!live) return; const m = parseMicro(v); setMicro(m); onMicro?.(m?.id === task.id ? task.id : undefined); }).catch(() => {}); return () => { live = false; }; }, [task.id, onMicro]);
+  const saveMicro = (m: Micro | null) => { setMicro(m); onMicro?.(m?.id === task.id ? task.id : undefined); kvSet(MICRO_KEY, JSON.stringify(m)).catch(() => {}); };
   const going = !card.gap && start <= now && now < end;
   const mic = micro?.id === task.id ? micro : null; // a try on another task is not this card's
   const micDone = !!mic && now >= mic.endsAt;

@@ -3,7 +3,6 @@ import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Icon } from "@/components/art";
 import { Chevron } from "@/components/day";
 import { hhmm } from "@/components/cal";
-import { foldSittings } from "@/components/fold";
 import { DateChip, TimeChip } from "@/components/pick";
 import { Tap } from "@/components/tap";
 import { t } from "@/lib/i18n";
@@ -14,16 +13,13 @@ import type { Task } from "@/lib/types";
 const nextQuarter = () => Math.ceil(Date.now() / 900_000) * 900_000;
 const sameDay = (ts: number, d: Date) => { const n = new Date(ts); n.setFullYear(d.getFullYear(), d.getMonth(), d.getDate()); return n.getTime(); };
 
-/** "Các buổi" (views.html .si): a summary line "{done}/{total} buổi · còn {left}" with one-tap "Làm thêm" / "Đủ rồi"; tapping the line opens the rows. Later sittings past today fold into one row. Each chip drops its picker; closing it saves once. A done one keeps its place, struck. */
+/** "Các buổi" (views.html .si): a summary line "{done}/{total} buổi" with one-tap "Làm thêm" / "Xong buổi này"; tapping the line opens every sitting. Each chip drops its picker; closing it saves once. A done one keeps its place, struck. */
 export const SittingList = memo(function SittingList({ sits, me, canDrop, canAdd, onTime, onDrop, onAdd, onSettle }: {
   sits: Task[]; me?: string; canDrop: boolean; canAdd: boolean;
   onTime: (id: string, s: number, m: number) => void; onDrop: (id: string) => void; onAdd: () => void; onSettle: () => void;
 }) {
   const th = useTheme();
   const [open, setOpen] = useState(false);
-  const [more, setMore] = useState(false); // the folded later sittings, in place
-  const [now] = useState(() => Date.now()); // folded as of opening: a render never reads the clock
-  const { shown, folded } = foldSittings(sits, now);
   const { width } = useWindowDimensions();
   const narrow = width < 360; // a 320dp phone: the two pills keep their words, not their icons
   const add = canAdd ? (
@@ -47,19 +43,14 @@ export const SittingList = memo(function SittingList({ sits, me, canDrop, canAdd
       </View>
       {/* the instances sit right under the header; the two buttons come after them, always shown */}
       {open && (
-        <View style={{ marginTop: 10 }}>
-          {(more ? [...shown, ...folded] : shown).map((k) => (
+        <View style={s.list}>
+          {sits.map((k) => (
             <SittingRow key={k.id} k={k} canDrop={canDrop} onTime={onTime} onDrop={onDrop} onSettle={onSettle} />
           ))}
-          {!more && folded.length > 0 && (
-            <Tap onPress={() => setMore(true)} accessibilityRole="button" accessibilityLabel={t("sitFold", { n: folded.length })} style={[s.add, { borderColor: th.line }]}>
-              <Text style={[s.addT, { color: th.muted }]}>{t("sitFold", { n: folded.length })}</Text>
-            </Tap>
-          )}
         </View>
       )}
       {(canAdd || (canDrop && lastOpen)) && (
-        <View style={[s.pair, { marginTop: 12, marginBottom: 12 }]}>
+        <View style={[s.pair, { marginTop: 14, marginBottom: 12 }]}>
           {canAdd && <Tap onPress={onAdd} accessibilityRole="button" accessibilityLabel={t("sitMore")} style={[s.pl, s.half, pill]}>{!narrow && <Icon name="plus" size={18} color={th.ink} />}<Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[s.plT, { color: th.ink }]}>{t("sitMore")}</Text></Tap>}
           {canDrop && lastOpen && <Tap onPress={() => onDrop(lastOpen.id)} accessibilityRole="button" accessibilityLabel={t("enoughT")} style={[s.pl, s.half, { backgroundColor: th.ink, borderWidth: 0 }]}>{!narrow && <Icon name="check" size={18} color={th.bg} />}<Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[s.plT, { color: th.bg }]}>{t("enoughT")}</Text></Tap>}
         </View>
@@ -125,6 +116,7 @@ function Drop({ id, onDrop }: { id: string; onDrop: (id: string) => void }) {
 const s = StyleSheet.create({
   sum: { gap: 8 },
   sumT: { minHeight: 28, flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: 6 },
+  list: { marginTop: 12, gap: 10 },
   pair: { flexDirection: "row", gap: 8 },
   half: { flex: 1, minWidth: 0, paddingHorizontal: 10, gap: 4 },
   sumTxt: { fontSize: font.sub, lineHeight: 22, fontFamily: ff("500"), fontVariant: ["tabular-nums"] }, // .sit .n: regular

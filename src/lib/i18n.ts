@@ -306,7 +306,6 @@ const S = {
   sitNoTime: "chưa có giờ",
   sitSum: "{done}/{total} buổi",
   sitMore: "Làm thêm",
-  sitFold: "{n} buổi sau",
   dialPlus15: "+15p",
   dialMinus15: "−15p",
   prepSkip: "Bỏ qua phần ôn",

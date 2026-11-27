@@ -297,8 +297,8 @@ export function Found({ tasks, q: raw, now, ...act }: RowActions & { tasks: Task
 const dmOf = (ms: number) => { const d = new Date(ms); return `${d.getDate()}/${d.getMonth() + 1}`; };
 
 // `empty`: what an empty day shows (views.html). rest: the art slot's card plus what's next; week: the whole week is empty; inl: a small note in place of rows.
-export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl", onMove, onKeep, trail, moves, warns, onFix, rules = [], noCard, ...act }: RowActions & {
-  tasks: Task[]; hols: Hols; day: number; now: number; pop: Set<string>; overlaps: Overlap[]; label?: string; empty?: "rest" | "inl" | "week"; onMove: (o: Overlap) => void; onKeep: (o: Overlap) => void; rules?: Rule[]; noCard?: boolean;
+export function Day({ tasks, hols, day, now, activeId, overlaps, label, empty = "inl", onMove, onKeep, trail, moves, warns, onFix, rules = [], noCard, ...act }: RowActions & {
+  tasks: Task[]; hols: Hols; day: number; now: number; activeId?: string; overlaps: Overlap[]; label?: string; empty?: "rest" | "inl" | "week"; onMove: (o: Overlap) => void; onKeep: (o: Overlap) => void; rules?: Rule[]; noCard?: boolean;
   trail: Record<string, string>; moves: Move[]; warns: Warn[]; onFix: (w: Warn, f: Warn["fixes"][number]) => void;
 }) {
   const th = useTheme();
@@ -316,12 +316,12 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
   const enoughDay = empty === "rest" && !noCard && day === startOfDay(now)
     && worked(tasks, day, now) + flex.reduce((n, x) => n + (x.end !== undefined ? x.end - x.start! : x.effort * 60_000), 0) >= capOf(tasks, day, now).ms;
   const overflow = new Set((enoughDay ? flex : []).map((x) => x.id));
-  const real0 = [...live_.filter((x) => !overflow.has(x.id)), ...tasks.filter((x) => pop.has(x.id) && x.start! >= day && x.start! < end && !live_.includes(x))];
+  const real0 = live_.filter((x) => !overflow.has(x.id) && x.id !== activeId);
   // Elapsed and not done: its own section, never moved by itself (the planner holds it); "Làm luôn" starts it now (not for a fixed block, which is just over).
   const elapsed = day === startOfDay(now) ? real0.filter((x) => x.start !== undefined && x.end !== undefined && x.end + GRACE <= now && !x.doneAt) : [];
   const real = real0.filter((x) => !elapsed.includes(x));
   // Ghost: moved off this day, left at its old time saying where it went.
-  const ghosts = moves.filter((m) => m.from >= day && m.from < end && (m.to < day || m.to >= end) && !real.some((x) => x.id === m.id)).flatMap((m) => {
+  const ghosts = moves.filter((m) => m.from >= day && m.from < end && (m.to < day || m.to >= end) && !real.some((x) => x.id === m.id) && m.id !== activeId).flatMap((m) => {
     const x = tasks.find((a) => a.id === m.id);
     // The ghost keeps the task's length: its end moves back with its start, not to the new day.
     return x && !x.deletedAt && !x.doneAt ? [{ x: { ...x, start: m.from, end: x.end !== undefined && x.start !== undefined ? m.from + x.end - x.start : x.end }, g: m }] : [];
@@ -334,18 +334,19 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
   // window day, today once that day is gone (a repeat's gone day stays missed). Muted, with its length; a tap on the time picks one.
   const today = startOfDay(now), far = day >= addDays(today, 7);
   const homeOf = (x: Task) => { const a = x.deadline ?? x.notAfter, d = a === undefined ? today : startOfDay(a - 1); return d >= today ? d : x.rrule ? undefined : today; };
-  const unplacedAll = tasks.filter((x) => live(x) && x.start === undefined && !x.fixed && !ps.has(x.id) && homeOf(x) === day);
+  const unplacedAll = tasks.filter((x) => live(x) && x.id !== activeId && x.start === undefined && !x.fixed && !ps.has(x.id) && homeOf(x) === day);
   const unplaced = enoughDay ? [] : unplacedAll;
   const folded = enoughDay ? [...flex, ...unplacedAll] : [];
-  const done =tasks.filter((x) => x.doneAt && !x.deletedAt && !pop.has(x.id) && x.start !== undefined && x.start >= day && x.start < end && !ps.has(x.id));
+  const done = tasks.filter((x) => x.doneAt && !x.deletedAt && (x.start ?? x.doneAt) >= day && (x.start ?? x.doneAt) < end && !ps.has(x.id));
   const title = hols.get(day);
   const hol: Task | undefined = title === undefined ? undefined : { id: `hol${day}`, title, kind: "other", source: "user", fixed: "busy", effort: 0, start: day, end: day + 86400_000, createdAt: 0 };
-  const isEmpty = !enoughDay && !rows.length && !hol && !unplaced.length && !fold.length;
+  const hasMain = !!hol || rows.length > 0 || fold.length > 0;
+  const isEmpty = !enoughDay && !activeId && !elapsed.length && !hasMain && !unplaced.length;
   const after = (from: number, to = Infinity) => shown(tasks).filter((x) => !hidden.has(x.id) && x.start! >= from && x.start! < to).sort((a, b) => a.start! - b.start!).slice(0, 3);
   const near = isEmpty && empty === "inl" ? after(Math.max(end, now))[0] : undefined;
   // The day is over from 20:00 and past its last block: only then may tomorrow show (views.html "Day, all done, night").
   // Today only: a past day is done, not "Hôm nay xong rồi", and its "tomorrow" is not what comes next.
-  const over = day === startOfDay(now) && now >= Math.max(day + 20 * 3600_000, ...[...real, ...done].map((x) => x.end ?? x.start! + x.effort * 60_000));
+  const over = day === startOfDay(now) && !activeId && now >= Math.max(day + 20 * 3600_000, ...[...real, ...done].map((x) => x.end ?? (x.start ?? x.doneAt!) + x.effort * 60_000));
   // "Sắp tới" is about what comes after today: a past day never lists it (today and past days read the same way).
   const next = !isEmpty || empty === "inl" || day < startOfDay(now) ? undefined : (() => {
     if (empty === "rest" && done.length) { if (!over) return undefined; const xs = onDay(tasks, end).slice(0, 3); if (xs.length) return { lab: t("tomorrow"), xs, dated: false }; }
@@ -359,7 +360,8 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
   // card.html "Night, nothing left": the rest card's sub names tomorrow's first task, once the day is over.
   const tomorrow = next?.lab === t("tomorrow") ? next.xs[0] : undefined;
   // views.html "Day, assignment sittings": a split assignment's next sitting after this day, under its own day label.
-  const later = [...new Set(real.map((x) => x.parentId).filter(Boolean))]
+  const active = activeId ? live_.find((x) => x.id === activeId) : undefined;
+  const later = [...new Set([...real, ...(active ? [active] : [])].map((x) => x.parentId).filter(Boolean))]
     .flatMap((p) => tasks.filter((x) => x.parentId === p && live(x) && x.start !== undefined && x.start >= end).sort((a, b) => a.start! - b.start!).slice(0, 1));
   const sitDay = later.length ? startOfDay(Math.min(...later.map((x) => x.start!))) : undefined;
   const sits = sitDay === undefined ? [] : later.filter((x) => startOfDay(x.start!) === sitDay).sort((a, b) => a.start! - b.start!);
@@ -409,7 +411,7 @@ export function Day({ tasks, hols, day, now, pop, overlaps, label, empty = "inl"
           </Animated.View>
         );
       })}
-      {!!label && !(isEmpty && empty !== "inl") && <Text style={[s.lab, { color: th.muted }, warns.length > 0 && { marginTop: 26 }]}>{label}</Text>}
+      {!!label && (hasMain || (isEmpty && empty === "inl")) && <Text style={[s.lab, { color: th.muted }, warns.length > 0 && { marginTop: 26 }]}>{label}</Text>}
       <View style={{ marginTop: hol || rows.length || unplaced.length ? 6 : 0 }}>
         {hol && <Row task={hol} now={now} first allDay done={false} onToggle={() => {}} onTitle={() => {}} onTime={() => {}} onOpen={() => {}} />}
         {[...rows, undefined].map((r, i) => keptBefore(i).map((k) => (

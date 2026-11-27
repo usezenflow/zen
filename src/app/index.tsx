@@ -120,7 +120,7 @@ export default function Home() {
   const askQ = useRef<{ cmd: Command; text: string; via: "voice" | "type" | "photo" | "pdf" | "scan" }[]>([]); // a line's later asks, one at a time
   const [sel, setSel] = useState(() => startOfDay(Date.now()));
   const [over, setOver] = useState<Overlap[]>([]);
-  const [pop, setPop] = useState<Set<string>>(new Set());
+  const [microId, setMicroId] = useState<string>();
   const level = useSharedValue(0); // real mic level 0..1 for the listening wave
   const [moves, setMoves] = useState<Move[]>([]); // unseen only
   const [warns, setWarns] = useState<Warn[]>([]);
@@ -789,10 +789,8 @@ export default function Home() {
   const toggleNow = async (x: Task) => {
     const at = Date.now();
     gen.current++;
-    setPop((p) => new Set(p).add(x.id)); // with the tick, not after the save: the row never passes through the empty "Sắp tới" state on the way to "Xong"
     setTasks((p) => p.map((a) => (a.id === x.id || a.parentId === x.id ? { ...a, doneAt: at } : a))); // ticks at once; the save confirms
     const r = await swipeDone(x.id);
-    setTimeout(() => setPop((p) => { const n = new Set(p); n.delete(x.id); return n; }), 1400);
     const ps = parents(tasks);
     const left = tasks.filter((a) => live(a) && a.id !== x.id && a.start !== undefined && a.start < addDays(startOfDay(Date.now()), 1) && !ps.has(a.id)).length;
     if (!left) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {}); // the day's last one: a second buzz
@@ -972,7 +970,7 @@ export default function Home() {
   const stepWeek = (d: -1 | 1) => setSel(addDays(sel, 7 * d));
   const stepMonth = (d: -1 | 1) => setSel(new Date(sd.getFullYear(), sd.getMonth() + d, 1).getTime());
   const stepDay = (d: -1 | 1) => setSel(addDays(sel, d));
-  const share = { tasks, hols, now, pop, rules: mind?.rules ?? [], overlaps: over, onMove: async (o: Overlap) => { const r = await moveMine(o.mine.id); say(r.toast, r); refresh(); }, onKeep: async (o: Overlap) => { await keepBoth(o); refresh(); }, trail: maps.trail, moves, onFix: async (w: Warn, f: Warn["fixes"][number]) => { const r = await makeRoom(f.id, w.deadline); say(r.toast, r); refresh(); }, ...rowActs, onStartNow: startTask, drag: dd.drag };
+  const share = { tasks, hols, now, rules: mind?.rules ?? [], overlaps: over, onMove: async (o: Overlap) => { const r = await moveMine(o.mine.id); say(r.toast, r); refresh(); }, onKeep: async (o: Overlap) => { await keepBoth(o); refresh(); }, trail: maps.trail, moves, onFix: async (w: Warn, f: Warn["fixes"][number]) => { const r = await makeRoom(f.id, w.deadline); say(r.toast, r); refresh(); }, ...rowActs, onStartNow: startTask, drag: dd.drag };
   const isToday = sel === today0;
   const running = !!card && card.start! <= now && now < card.end!;
   const quiet = isToday && view === "day" && !running;
@@ -981,6 +979,15 @@ export default function Home() {
   const fresh = moves.filter((m) => !m.briefed), unseen = moves.filter((m) => !m.seen).map((m) => m.id);
   const pillOn = fresh.length > 0 && !mine && (view === "day" || view === "week" || view === "month");
   const sunOn = quiet && !!wk;
+  const activeId = view === "day" && isToday && !mine && !ask && !sunOn && !late && shown
+    && ((!shown.gap && shown.start !== undefined && shown.end !== undefined && shown.start <= now && now < shown.end) || microId === shown.task.id)
+    ? shown.task.id : undefined;
+  useEffect(() => {
+    const next = [shown?.start, shown?.end].filter((ts): ts is number => ts !== undefined && ts > Date.now()).sort((a, b) => a - b)[0];
+    if (next === undefined || next - Date.now() > 3600_000) return;
+    const h = setTimeout(() => setNow(Date.now()), next - Date.now() + 50);
+    return () => clearTimeout(h);
+  }, [shown?.start, shown?.end, now]);
   const showStory = !!mine || (story && pillOn) || (rebalOpen && !!rebal); // the list becomes the story, in place
   const dismissBrief = () => { void briefMoves(fresh.map((m) => m.id)).then(refresh); }; // magic 1b: swiped away for good
   // Rebalance: "Để nguyên" keeps the calendar and is not offered again until it changes; "Áp dụng" moves exactly what was shown, undoable.
@@ -1029,7 +1036,7 @@ export default function Home() {
   const cardView = shown && (
     <GestureDetector gesture={swipe}>
       <Reanimated.View style={flick}>
-        <NowCard still={!!menu || !!finding} card={shown} over={late ? { next: lateNext } : undefined} onDone={shown.gap ? startNow : () => void finish("done")} onStart={startNow} onLater={() => void finish("later")} onMicroRest={(min) => void addWorked(shown.task.id, min).then(refresh, () => {})}
+        <NowCard still={!!menu || !!finding} card={shown} over={late ? { next: lateNext } : undefined} onDone={shown.gap ? startNow : () => void finish("done")} onStart={startNow} onLater={() => void finish("later")} onMicro={setMicroId} onMicroRest={(min) => void addWorked(shown.task.id, min).then(refresh, () => {})}
           onExtend={() => late && void retime(late.id, late.start!, late.effort + 15).then((r) => { if (r) say(r.toast, r); refresh(); }, failed)}
           onKind={(x, top, bottom) => setMenu({ task: x, right: true, ...menuAt(bottom, top, kindItems((k) => void apply([{ op: "edit", target: x.id, kind: k }]).then((r) => { say(r.toast, r); refresh(); }, failed))) })} />
       </Reanimated.View>
@@ -1133,7 +1140,7 @@ export default function Home() {
           )}
           {firstRun || (nothingAhead && !sunOn) ? <First onSchool={() => router.push("/settings")} /> : !showStory && view !== "rhythm" && (
             <Reanimated.View entering={fadeIn} exiting={fadeOut} layout={glide} style={{ marginTop: empty === "rest" || empty === "week" ? 0 : isToday && view === "day" && warns.length ? 20 : view === "month" ? 24 : 28 }}>
-              <Day {...share} empty={empty} noCard={isToday && !!rest} warns={isToday ? warns : []} day={sel} label={view === "day" ? (isToday ? (card && !sunOn ? t("after") : t("today")) : dayLabel(sel)) : dayLabel(sel)} />
+              <Day {...share} activeId={activeId} empty={empty} noCard={isToday && !!rest} warns={isToday ? warns : []} day={sel} label={view === "day" ? (isToday ? (card && !sunOn ? t("after") : t("today")) : dayLabel(sel)) : dayLabel(sel)} />
             </Reanimated.View>
           )}
         </DayPull>
