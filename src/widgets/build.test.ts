@@ -103,7 +103,7 @@ it("gives each iOS widget only its fields, an entry only where they change", () 
   expect(Object.keys(next[0].props).sort()).toEqual([...USES.ZenNext].sort());
   // every change survives: each kept entry differs from the one before, and the countdown at 14:25 is still there
   expect(next.every((e, i) => i === 0 || JSON.stringify(e.props) !== JSON.stringify(next[i - 1].props))).toBe(true);
-  expect(next.some((e) => e.date.getTime() === at(14, 25))).toBe(true);
+  expect(next.some((e) => e.date.getTime() === at(14, 30))).toBe(true); // 15-min ticks: 14:25 is no longer an instant
   expect(slim(tl, USES.ZenToday).length).toBeLessThanOrEqual(tl.length);
 });
 
@@ -134,4 +134,21 @@ it("every widgets.html state still fills three slots (rows, then next-up, then t
   expect(slots(widgetData([cs, t1], now, art))).toEqual(["cs", "t1"]);
   // Nothing ahead at all: no rows, the layout shows its three try lines.
   expect(slots(widgetData([], now, art))).toEqual([]);
+});
+
+it("maps task kinds and fixed types onto the mobile app's art palettes", () => {
+  const now = at(8, 0);
+  const items = [
+    task("w1", "Ca làm thêm", at(9), at(11), { kind: "work" }),
+    task("c1", "Dọn phòng", at(13), at(14), { kind: "chores" }),
+    task("s1", "Viết nhật ký", at(15), at(16), { kind: "self" }),
+    task("ex1", "Thi Giải tích", at(17), at(19), { fixed: "exam" }),
+  ];
+  const d = widgetData(items, now);
+  expect(d.next?.type).toBe("night");
+  expect(d.rows.map((r) => [r.id, r.type, r.check])).toEqual([
+    ["c1", "exam", true],
+    ["s1", "clay", true],
+    ["ex1", "exam", false],
+  ]);
 });

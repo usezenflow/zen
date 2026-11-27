@@ -1,13 +1,13 @@
 // Contract between the app and its widgets (mockups/widgets.html). Every widget gets the same props.
 // The widget runtime cannot import or format, so every string arrives ready to print.
-export type ArtType = "plan" | "lecture" | "exam" | "assignment" | "busy";
+export type ArtType = "plan" | "lecture" | "exam" | "assignment" | "night" | "clay" | "busy";
 
 export interface WRow {
   id: string;
   title: string; // "Báo cáo nhóm"
   type: ArtType;
   time: string; // "16:00"
-  check: boolean; // plan/assignment: hairline circle that ticks in place; others: art swatch
+  check: boolean; // plan/assignment and their preps: hairline circle that ticks in place; others: art swatch
   done: boolean;
   url: string; // "zen:///task/<id>"
 }

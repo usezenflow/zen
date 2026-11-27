@@ -1,11 +1,15 @@
 // Relative imports: vitest has no "@/" alias.
 import { addDays, hhmm, mondayOf, short, shown, startOfDay, weekday } from "../components/cal";
+import { artOf } from "../lib/art";
 import { t } from "../lib/i18n";
 import type { Task } from "../lib/types";
 import { when } from "../lib/when";
 import { typeOf } from "../planner/policy";
 import { pickNow } from "../lib/now";
 import type { ArtType, WidgetData, WidgetName, WRow } from "./data";
+// The widget art files exist for the base types only: a prep shows the art of the exam or assignment it prepares for.
+// shortcut: exam_prep and assignment_prep reuse exam and assignment art, add their own files (zen_art_*) to lose this, when the widget art set grows.
+const widgetArt = (t: Parameters<typeof artOf>[0]): ArtType => { const a = artOf(t); return a === "exam_prep" ? "exam" : a === "assignment_prep" ? "assignment" : a as ArtType; };
 
 const MIN = 60_000, DAY = 86_400_000, ROWS = 3;
 const url = (id: string) => `zen:///task/${encodeURIComponent(id)}`; // a sitting id holds "#", a fragment if left bare
@@ -17,7 +21,7 @@ const sorted = (tasks: Task[]) => { let s = memo.get(tasks); if (!s) memo.set(ta
 const onDay = (sh: Task[], day: number) => { const e = addDays(day, 1); return sh.filter((x) => x.start! < e && x.end! > day); };
 
 /** Widget props at time `now`; pure so a timeline can be built from future instants. */
-export function widgetData(tasks: Task[], now: number, art: WidgetData["art"], ticked: string[] = []): WidgetData {
+export function widgetData(tasks: Task[], now: number, art: WidgetData["art"] = "", ticked: string[] = []): WidgetData {
   const day = startOfDay(now), d = new Date(now);
   const sh = sorted(tasks);
   const today = onDay(sh, day);
@@ -29,7 +33,7 @@ export function widgetData(tasks: Task[], now: number, art: WidgetData["art"], t
     const s = nextToday.start!, e = nextToday.end!, going = s <= now, to = going ? e : s;
     const mins = Math.max(1, Math.round((to - now) / MIN)), left = t("nMin", { n: mins });
     next = {
-      id: nextToday.id, title: nextToday.title, type: typeOf(nextToday) as ArtType, label: t("nextUp"),
+      id: nextToday.id, title: nextToday.title, type: widgetArt(nextToday), label: t("nextUp"),
       big: left, small: t("until", { time: hhmm(to) }), mins: `${mins}′`, at: hhmm(s),
       // Running: the share done. Upcoming: the last half hour drains to the start (10 min left ≈ the mockup's 35%).
       fill: going ? Math.min(1, (now - s) / (e - s)) : Math.min(1, (s - now) / (30 * MIN)),
@@ -37,8 +41,8 @@ export function widgetData(tasks: Task[], now: number, art: WidgetData["art"], t
     };
   }
   const toRow = (x: Task): WRow => {
-    const type = typeOf(x) as ArtType;
-    return { id: x.id, title: x.title, type, time: hhmm(x.start!), check: type === "plan" || type === "assignment", done: ticked.includes(x.id), url: url(x.id) };
+    const kind = typeOf(x);
+    return { id: x.id, title: x.title, type: widgetArt(x), time: hhmm(x.start!), check: ["plan", "assignment", "exam_prep", "assignment_prep"].includes(kind), done: ticked.includes(x.id), url: url(x.id) };
   };
   // Every layout lists three rows at most; a day of daily series once sent twelve per entry and the timeline outgrew the widget (skeletons).
   const rows = today.filter((x) => x.id !== nextToday?.id && x.end! > now).slice(0, ROWS).map(toRow);
@@ -111,24 +115,23 @@ export function abbr(title: string): string {
 }
 
 /** Instants where the widgets change, through the end of tomorrow so an unopened app never leaves yesterday on screen:
- *  now, every 5 minutes for 6 hours, every 30 to midnight, hourly through tomorrow, each start/end, and both midnights (about 140 entries). */
+ *  now, every 15 min to 6h, every 30 to midnight, hourly through tomorrow, each start/end, and both midnights (~55 entries). */
 export function instants(tasks: Task[], now: number): number[] {
-  const near = now + 6 * 3600_000, mid = addDays(startOfDay(now), 1), end = addDays(mid, 1), set = new Set<number>([now, mid, end]);
-  for (let x = Math.ceil(now / (5 * MIN)) * 5 * MIN; x < end; x += (x < near ? 5 : x < mid ? 30 : 60) * MIN) set.add(x);
+  const six = now + 6 * 3600_000, mid = addDays(startOfDay(now), 1), end = addDays(mid, 1), set = new Set<number>([now, mid, end]);
+  for (let x = Math.ceil(now / (15 * MIN)) * 15 * MIN; x < end; x += (x < six ? 15 : x < mid ? 30 : 60) * MIN) set.add(x);
   // Only what the widgets can show: deleted/done rows (every reschedule leaves some) once added hundreds of entries and the widget went to skeleton.
   for (const k of sorted(tasks)) for (const v of [k.start, k.end]) if (v !== undefined && v > now && v <= end) set.add(v);
   return [...set].sort((a, b) => a - b);
 }
 
-// The fields each iOS layout reads. Six full copies of a ~140-entry timeline came near the 4 MB app-group defaults limit and the
-// widget extension's memory cap; past either the widget shows only its placeholder skeleton.
+// The fields each widget layout reads. Bundled asset catalogs / drawables serve art directly, so `art` paths no longer ride on entries.
 export const USES: Record<WidgetName, (keyof WidgetData)[]> = {
   ZenTalk: ["listen"],
   ZenScan: [],
-  ZenExam: ["art", "exam", "home", "short"],
+  ZenExam: ["exam", "home", "short"],
   ZenLock: ["exam", "home", "next", "short", "tomorrow"],
-  ZenNext: ["art", "home", "next", "short", "tomorrow"],
-  ZenToday: ["ahead", "aheadCount", "aheadHead", "art", "count", "dayName", "doneCount", "exam", "home", "listen", "more", "next", "rows", "ticked"],
+  ZenNext: ["home", "next", "short", "tomorrow"],
+  ZenToday: ["ahead", "aheadCount", "aheadHead", "count", "dayName", "doneCount", "exam", "home", "listen", "more", "next", "rows", "ticked"],
 };
 /** A widget's own timeline: only its fields, and an entry only where they change (Talk and Scan keep one). */
 export function slim(tl: { date: Date; props: WidgetData }[], keys: (keyof WidgetData)[]) {

@@ -4,10 +4,10 @@ import Animated, { cancelAnimation, Easing, makeMutable, useAnimatedProps, useAn
 import Svg, { Circle, Defs, G, LinearGradient, Mask, Path, RadialGradient, Rect, Stop } from "react-native-svg";
 import { enso } from "@/components/enso";
 import { useTheme, type TypeName } from "@/lib/theme";
-import type { Kind, Task } from "@/lib/types";
-import { typeOf } from "@/planner";
+import { artOf, seedOf } from "../lib/art";
 
 export { Icon, type IconName } from "./icons";
+export { artOf, seedOf };
 
 // Ensō koi mark (enso.tsx geometry): one brush stroke round a circle, eye knocked out by a mask, dry-brush rings as the mask.
 // "color" is the whole mark in koi orange (ui.js LOGO), "line" is the empty-state outline. States: "load" turns the ring one
@@ -90,19 +90,6 @@ const blob = (r: () => number, cx: number, cy: number, R: number) => {
   }
   return `${d} Z`;
 };
-// Palette per task, so a normal day shows several arts: timetable rows keep their own look, prep follows its exam, a due task picks clay or dusk by course, the rest by kind.
-// shortcut: the course hash is a plain string hash (no stable course code upstream), so a course's colour may shift if its name changes.
-const hash = (s: string) => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
-export const seedOf = (id: string) => (hash(id) % 997) + 1; // stable per task: same kind, different field position and direction
-const KIND_ART: Record<Kind, TypeName> = { study: "plan", work: "night", exercise: "lecture", chores: "exam", social: "assignment", self: "clay", errand: "exam", finance: "night", other: "clay" };
-export function artOf(t: Task): TypeName {
-  if (t.fixed === "lecture") return "lecture";
-  if (t.fixed === "exam") return "assignment";
-  if (t.fixed === "busy") return "busy";
-  if (t.forId) return "assignment"; // prep: its exam's palette
-  if (typeOf(t) === "assignment") return hash(t.course ?? t.id) % 2 ? "clay" : "assignment";
-  return KIND_ART[t.kind];
-}
 
 // No scrim, as in the mockup: white text gets its contrast from a text shadow. w/h seed the box until onLayout reports the real size.
 // drift (pause it while a menu or search is open: the redraw competes with them): the colour fields flow across the stripes on their own slow loops (6.5s, 9s, 7.5s, never in step) and the stripes crawl one gap every 5s

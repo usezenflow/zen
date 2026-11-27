@@ -70,11 +70,42 @@ index b0b6479c2292763fd18eaee78b5e8d2dc4234493..259d2f5d81fe0adff4d44feee9a9faad
    val intent = when (source) {
      is InteractionSource.Widget -> Intent(WIDGET_INTERACTION_ACTION)
        .setComponent(widgetProviderComponentName(context, source.name))
+diff --git a/ios/Widgets/AppIntent.swift b/ios/Widgets/AppIntent.swift
+index 1730fffee8dd7992c09457e88542cd743be741e1..85200e4f852776aa659aeb524f1935ef66c88b22 100644
+--- a/ios/Widgets/AppIntent.swift
++++ b/ios/Widgets/AppIntent.swift
+@@ -86,6 +86,26 @@ struct WidgetUserInteraction: AppIntent {
+         return .result()
+       }
+       newTimeline[entryIndex] = newEntry
++      // zen patch: carry ticked ids forward through remaining entries so the next 5-min tick does not untick the row before the app opens.
++      if let ticked = (newEntry["props"] as? [String: Any])?["ticked"] as? [String], !ticked.isEmpty {
++        let doneSet = Set(ticked)
++        for i in (entryIndex + 1)..<newTimeline.count {
++          guard var props = newTimeline[i]["props"] as? [String: Any] else { continue }
++          let prev = (props["ticked"] as? [String]) ?? []
++          props["ticked"] = Array(Set(prev).union(doneSet))
++          for key in ["rows", "ahead", "more"] {
++            if let list = props[key] as? [[String: Any]] {
++              props[key] = list.map { row in
++                guard let id = row["id"] as? String, doneSet.contains(id) else { return row }
++                var copy = row
++                copy["done"] = true
++                return copy
++              }
++            }
++          }
++          newTimeline[i]["props"] = props
++        }
++      }
+       WidgetsStorage.set(newTimeline, forKey: "__expo_widgets_\(source)_timeline")
+     }
+ 
 diff --git a/ios/Widgets/TimelineProvider.swift b/ios/Widgets/TimelineProvider.swift
-index f339d981be36efed718ddd635b9c82195f981880..acf2f8b3e409a02c3c74c4aeb9004e155e4b9ad2 100644
+index f339d981be36efed718ddd635b9c82195f981880..539e8a2d813364a7e7d5c021251fde11fefdc9cf 100644
 --- a/ios/Widgets/TimelineProvider.swift
 +++ b/ios/Widgets/TimelineProvider.swift
-@@ -8,8 +8,7 @@ public struct WidgetsTimelineProvider: TimelineProvider {
+@@ -8,14 +8,13 @@ public struct WidgetsTimelineProvider: TimelineProvider {
    public func getSnapshot(
      in context: Context, completion: @escaping @Sendable (WidgetsTimelineEntry) -> Void
    ) {
@@ -84,16 +115,92 @@ index f339d981be36efed718ddd635b9c82195f981880..acf2f8b3e409a02c3c74c4aeb9004e15
      guard let groupIdentifier else {
        completion(WidgetsTimelineEntry(date: Date(), name: name, props: WidgetsLayoutRegistry.initialProps(for: name), entryIndex: nil))
        return
-@@ -23,8 +22,7 @@ public struct WidgetsTimelineProvider: TimelineProvider {
+     }
+ 
+-    let entries = parseTimeline(identifier: groupIdentifier, name: name, family: context.family)
++    let (entries, _) = parseTimeline(identifier: groupIdentifier, name: name, family: context.family)
+     completion(entries.first ?? WidgetsTimelineEntry(date: Date(), name: name, props: WidgetsLayoutRegistry.initialProps(for: name), entryIndex: nil))
+   }
+ 
+@@ -23,15 +22,17 @@ public struct WidgetsTimelineProvider: TimelineProvider {
      in context: Context,
      completion: @escaping @Sendable (Timeline<WidgetsTimelineEntry>) -> Void
    ) {
 -    let groupIdentifier =
 -      Bundle.main.object(forInfoDictionaryKey: "ExpoWidgetsAppGroupIdentifier") as? String
-+    let groupIdentifier = WidgetsStorage.appGroupIdentifier
-     guard let groupIdentifier else {
-       fatalError("Could not get the app group identifier from Info.plist")
+-    guard let groupIdentifier else {
+-      fatalError("Could not get the app group identifier from Info.plist")
++    guard let groupIdentifier = WidgetsStorage.appGroupIdentifier else {
++      let fallback = WidgetsTimelineEntry(date: Date(), name: name, props: WidgetsLayoutRegistry.initialProps(for: name), entryIndex: nil)
++      completion(Timeline(entries: [fallback], policy: .never))
++      return
      }
+ 
+-    let entries = parseTimeline(identifier: groupIdentifier, name: name, family: context.family)
++    let (entries, nextReload) = parseTimeline(identifier: groupIdentifier, name: name, family: context.family)
+ 
+-    let timeline = Timeline<WidgetsTimelineEntry>(entries: entries, policy: .atEnd)
++    // zen patch: only reload when UserDefaults holds another slice; .atEnd on exhausted/past entries loops chronod and burns reload budget.
++    let policy: TimelineReloadPolicy = nextReload.map { .after($0) } ?? .never
++    let timeline = Timeline<WidgetsTimelineEntry>(entries: entries, policy: policy)
+     completion(timeline)
+   }
+ 
+diff --git a/ios/Widgets/Utils.swift b/ios/Widgets/Utils.swift
+index 76b2199c2d3f879463fed5d2bd49038b0428a2e7..75710c16fdf09cc7d495392ad6306fd62d24174e 100644
+--- a/ios/Widgets/Utils.swift
++++ b/ios/Widgets/Utils.swift
+@@ -14,24 +14,38 @@ public struct WidgetConfigurationOption {
+   }
+ }
+ 
+-func parseTimeline(identifier: String, name: String, family: WidgetFamily) -> [WidgetsTimelineEntry] {
++// zen patch: cap each WidgetKit batch so archiving timelines in the 30 MB widget extension never hits Jetsam (skeletons).
++private let maxTimelineEntries = 36
++
++func parseTimeline(identifier: String, name: String, family: WidgetFamily) -> (entries: [WidgetsTimelineEntry], nextReload: Date?) {
++  let now = Date()
++  let fallback = { [WidgetsTimelineEntry(date: now, name: name, props: WidgetsLayoutRegistry.initialProps(for: name), entryIndex: nil)] }
+   guard let timeline = WidgetsStorage.getArray(forKey: "__expo_widgets_\(name)_timeline") else {
+-    return [WidgetsTimelineEntry(date: Date(), name: name, props: WidgetsLayoutRegistry.initialProps(for: name), entryIndex: nil)]
++    return (fallback(), nil)
+   }
+ 
+-  let entries: [WidgetsTimelineEntry?] = timeline.enumerated().map { index, entry in
+-    if let entry = entry as? [String: Any], let timestamp = entry["timestamp"] as? Int, let props = entry["props"] as? [String: Any] {
+-      return WidgetsTimelineEntry(
+-        date: Date(timeIntervalSince1970: Double(timestamp) / 1000),
+-        name: name,
+-        props: props,
+-        entryIndex: index
+-      )
++  let all: [WidgetsTimelineEntry] = timeline.enumerated().compactMap { index, entry in
++    guard let entry = entry as? [String: Any],
++          let timestamp = (entry["timestamp"] as? NSNumber)?.doubleValue,
++          let props = entry["props"] as? [String: Any] else {
++      return nil
+     }
+-    return nil
++    return WidgetsTimelineEntry(
++      date: Date(timeIntervalSince1970: timestamp / 1000),
++      name: name,
++      props: props,
++      entryIndex: index
++    )
++  }
++  guard !all.isEmpty else {
++    return (fallback(), nil)
+   }
+ 
+-  return entries.compactMap(\.self)
++  let start = all.lastIndex(where: { $0.date <= now }) ?? 0
++  let remaining = Array(all[start...])
++  let slice = Array(remaining.prefix(maxTimelineEntries))
++  let nextReload = remaining.count > maxTimelineEntries ? slice.last?.date : nil
++  return (slice, nextReload)
+ }
+ 
+ public func widgetConfigurationOptions(
 diff --git a/ios/WidgetsStorage.swift b/ios/WidgetsStorage.swift
 index 86f9d6c615a77777a9a497786b6a883e15eefdc1..e43ecda69ab983224f03fd2d39883495b67d4de1 100644
 --- a/ios/WidgetsStorage.swift

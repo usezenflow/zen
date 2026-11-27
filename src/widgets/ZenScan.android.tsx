@@ -1,4 +1,4 @@
-import { Box, Button, Row, Text } from "@expo/ui/jetpack-compose";
+import { Box, Button, Image, Row, Text } from "@expo/ui/jetpack-compose";
 import { background, cornerRadius, fillMaxSize, fillMaxWidth, padding, size } from "@expo/ui/jetpack-compose/modifiers";
 import type { JSX } from "react";
 import { createWidget, type WidgetEnvironment } from "expo-widgets";
@@ -9,26 +9,9 @@ import { SAMPLE } from "./ZenNext.android";
 function ZenScan(_: WidgetData, env: WidgetEnvironment) {
   "widget";
   const c = env.colorScheme === "dark"
-    ? { bg: "#121314", ink: "#ecebe6", muted: "#7f817e", chip: "#1c1d1f" }
-    : { bg: "#fbfaf7", ink: "#16181b", muted: "#8d8f8c", chip: "#f0eee9" };
+    ? { bg: "#0d0d0f", ink: "#f2f3f5", muted: "#8a8d94", chip: "#1a1b1f" }
+    : { bg: "#ffffff", ink: "#0d0d0f", muted: "#737a87", chip: "#f1f3f7" };
   const tap = (target: string) => ({ target }) as object;
-  const logo = (ink: string) => (
-    <Box modifiers={[size(24, 24)]}>
-      <Box modifiers={[fillMaxSize(), padding(3, 3, 0, 0)]}>
-        <Box modifiers={[size(15, 18), cornerRadius(7.5), background(ink)]} />
-      </Box>
-      <Box modifiers={[fillMaxSize(), padding(10.5, 3, 0, 0)]}>
-        <Box modifiers={[size(7.5, 9), background(ink)]} />
-      </Box>
-      <Box modifiers={[fillMaxSize(), padding(3, 12, 0, 0)]}>
-        <Box modifiers={[size(7.5, 9), background(ink)]} />
-      </Box>
-      <Box modifiers={[fillMaxSize(), padding(17, 17, 0, 0)]}>
-        <Box modifiers={[size(6.5, 6.5), cornerRadius(3.25), background("#d9432b")]} />
-      </Box>
-    </Box>
-  );
-  // Camera glyph (ui.js I.camera at 31dp) from boxes: the top bump, a stroked body over it, a stroked lens.
   const at = (top: number, child: JSX.Element) => (
     <Box contentAlignment="topCenter" modifiers={[fillMaxSize(), padding(0, top, 0, 0)]}>{child}</Box>
   );
@@ -49,9 +32,9 @@ function ZenScan(_: WidgetData, env: WidgetEnvironment) {
     <Button {...tap("zen:///?scan=1")} modifiers={[fillMaxSize()]}>
       <Box modifiers={[fillMaxSize(), cornerRadius(28), background(c.bg), padding(18, 17, 18, 17)]}>
         <Row verticalAlignment="center" modifiers={[fillMaxWidth()]}>
-          {logo(c.ink)}
+          <Image source={{ uri: "zen_logo" }} contentScale="fit" contentDescription={null} modifiers={[size(24, 24)]} />
           <Box contentAlignment="centerEnd" modifiers={[fillMaxWidth()]}>
-            <Text color={c.muted} maxLines={1} style={{ fontSize: 14.4 }}>Chụp</Text>
+            <Text color={c.muted} maxLines={1} style={{ fontSize: 14 }}>Chụp</Text>
           </Box>
         </Row>
         <Box contentAlignment="bottomCenter" modifiers={[fillMaxSize()]}>

@@ -1,42 +1,31 @@
-import { Circle, HStack, Image, Spacer, Text, UnevenRoundedRectangle, VStack, ZStack } from "@expo/ui/swift-ui";
-import { containerBackground, font, foregroundStyle, frame, offset, padding, widgetURL } from "@expo/ui/swift-ui/modifiers";
+import { Circle, HStack, Image, Spacer, Text, VStack, ZStack } from "@expo/ui/swift-ui";
+import { aspectRatio, containerBackground, font, foregroundStyle, frame, kerning, padding, resizable, widgetURL } from "@expo/ui/swift-ui/modifiers";
 import { createWidget, type WidgetEnvironment } from "expo-widgets";
 
 import type { WidgetData } from "./data";
 
 // Small: talk. A widget cannot hold the mic, so it opens the app already listening (mockups/widgets.html `talk`).
-const ZenTalk = (p: WidgetData, env: WidgetEnvironment) => {
+const ZenTalk = (p0: WidgetData, env: WidgetEnvironment) => {
   "widget";
+  const listen = p0?.listen || "zen:///?listen=1";
   const dark = env.colorScheme === "dark";
   const c = dark
-    ? { bg: "#121314", ink: "#ecebe6", muted: "#7f817e", chip: "#1c1d1f" }
-    : { bg: "#fbfaf7", ink: "#16181b", muted: "#8d8f8c", chip: "#f0eee9" };
-
-  const logo = (s: number, ink: string) => (
-    <ZStack alignment="topLeading" modifiers={[frame({ width: s, height: s, alignment: "topLeading" })]}>
-      <UnevenRoundedRectangle
-        topLeadingRadius={0.38 * s}
-        bottomTrailingRadius={0.38 * s}
-        modifiers={[foregroundStyle(ink), frame({ width: 0.62 * s, height: 0.76 * s }), offset({ x: 0.12 * s, y: 0.12 * s })]}
-      />
-      <Circle modifiers={[foregroundStyle("#d9432b"), frame({ width: 0.26 * s, height: 0.26 * s }), offset({ x: 0.71 * s, y: 0.71 * s })]} />
-    </ZStack>
-  );
+    ? { bg: "#0d0d0f", ink: "#f2f3f5", muted: "#8a8d94", chip: "#1a1b1f" }
+    : { bg: "#ffffff", ink: "#0d0d0f", muted: "#737a87", chip: "#f1f3f7" };
 
   return (
     <VStack
       spacing={0}
       modifiers={[
-        padding({ vertical: 16.25, horizontal: 17.5 }), frame({ maxWidth: Infinity, maxHeight: Infinity }),
-        containerBackground(c.bg, "widget"), widgetURL(p.listen),
+        padding({ vertical: 16, horizontal: 17 }), frame({ maxWidth: Infinity, maxHeight: Infinity }),
+        containerBackground(c.bg, "widget"), widgetURL(listen),
       ]}>
       <HStack>
-        {logo(22.5, c.ink)}
+        <Image assetName="zen_logo" modifiers={[resizable(), aspectRatio({ contentMode: "fit" }), frame({ width: 22.5, height: 22.5 })]} />
         <Spacer />
-        <Text modifiers={[font({ family: "BeVietnamPro-Medium", size: 13.75, weight: "medium" }), foregroundStyle(c.muted)]}>zen</Text>
+        <Text modifiers={[font({ family: "BricolageGrotesque-ExtraBold", size: 15 }), kerning(-0.5), foregroundStyle(c.muted)]}>zen</Text>
       </HStack>
       <Spacer minLength={0} />
-      {/* 58px ink disc with a 6px chip ring, x1.25 */}
       <ZStack>
         <Circle modifiers={[foregroundStyle(c.chip), frame({ width: 87.5, height: 87.5 })]} />
         <Circle modifiers={[foregroundStyle(c.ink), frame({ width: 72.5, height: 72.5 })]} />

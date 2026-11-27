@@ -4,6 +4,8 @@
 
 ### Patch Changes
 
+- Widget đồng bộ diện mạo mới với ứng dụng: tranh đường kẻ nhiều mảng màu theo từng loại việc, chữ tiêu đề mới, chữ trong hàng nhẹ dễ đọc hơn và biểu tượng cá koi cam
+- Widget hết thường xuyên hiện khung xám trống thay vì danh sách việc; đánh dấu xong ngay trên widget Hôm nay giữ nguyên trạng thái qua các mốc giờ
 - zen học dần từ những lần bạn sửa việc: tự mở rộng chữ viết tắt và sửa lỗi gõ quen thuộc trong tên việc (sửa hai lần là nhớ, đổi ngược lại là thôi)
 - Tự đoán độ dài, khoảng hạn (ví dụ dự án cá nhân thường 2 tuần), địa điểm và loại việc dựa trên cả tên việc lẫn ghi chú; những gì bạn nói rõ trong câu luôn được giữ nguyên
 - Ô "Sửa nhanh" trong chi tiết việc hiểu thêm địa điểm ("tại phòng B2.04"), và bấm "Hoàn tác" cũng hoàn tác luôn phần vừa học
