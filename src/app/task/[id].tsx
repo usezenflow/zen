@@ -432,7 +432,7 @@ export default function Detail() {
           )}
           {!!task.content?.trim() && <Lms html={task.content} />}
           {(!!why?.length || notes.length > 0) && <WhyBlock items={why ?? []} notes={notes} alt={alt} start={task.start} now={now} onMove={moveTo} />}
-          <Field value={note} rev={rev} editable={editable} onText={typing} selectionColor={th.seal} cursorColor={th.seal} onBlur={() => void saveNote()} multiline scrollEnabled={false} placeholder={t("addNote")} placeholderTextColor={th.muted}
+          <Field value={note} rev={rev} editable={editable} onText={typing} selectionColor={th.seal} cursorColor={th.seal} onBlur={() => void saveNote()} multiline placeholder={t("addNote")} placeholderTextColor={th.muted}
             style={[s.note, { color: th.ink, backgroundColor: th.chip }]} />
         </Animated.View>
       </ScrollView>
@@ -537,7 +537,7 @@ const s = StyleSheet.create({
   pill: { height: 48, paddingHorizontal: 16, borderRadius: 99, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   clr: { marginLeft: "auto", minHeight: 44, justifyContent: "center" },
   dash: { fontSize: font.sub, fontFamily: ff("500") },
-  note: { marginTop: 14, fontFamily: ff(), fontSize: font.base, lineHeight: 24, minHeight: 200, textAlignVertical: "top", paddingVertical: 16, paddingHorizontal: 18, borderRadius: 22 }, // .notebox: a gray fill, no border
+  note: { marginTop: 14, fontFamily: ff(), fontSize: font.base, lineHeight: 24, minHeight: 200, maxHeight: 360, textAlignVertical: "top", paddingVertical: 16, paddingHorizontal: 18, borderRadius: 22 }, // .notebox: a gray fill, no border
 });
 
 /** The one-line "Sửa nhanh" field under the title: typed, or said (tap the mic to listen, tap again to finish). */

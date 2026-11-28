@@ -11,7 +11,7 @@ export type Shape = "project" | "practice" | "errand" | "event";
 export type TaskClass =
   | "code" | "project" | "fix" | "review_code" | "write_doc" | "essay" | "slides" | "thesis" | "exam_review" | "homework" | "read"
   | "language" | "skill" | "workout_gym" | "workout_run" | "workout_yoga" | "workout_swim" | "habit_read" | "habit_meditate"
-  | "habit_journal" | "clean" | "laundry" | "cook" | "shop" | "bill" | "budget" | "tax" | "paperwork" | "call" | "email"
+  | "habit_journal" | "clean" | "laundry" | "cook" | "shop" | "bill" | "budget" | "tax" | "paperwork" | "print" | "call" | "email"
   | "meeting" | "appointment"
   | "content" | "design" | "sales" | "report" | "plan" | "interview" | "deploy" | "research" | "spec" | "presentation" | "admin_work"
   | "pet" | "plants" | "trash" | "meds" | "pickup" | "repair" | "selfcare"
@@ -70,11 +70,13 @@ export function within1(a: string, b: string): boolean {
 
 // Class keywords, first match wins: the more specific class comes first.
 const CLASSES: [TaskClass, RegExp][] = [
+  // "in" is printing, not writing: before "báo cáo" reads it as a report to write. A leading "in" needs an object, so English "in the" is spared.
+  ["print", /\b(?:print|in (?:tai lieu|bai|slide|ban|anh|file|pdf|bao cao|de cuong|giay|ho so|do an|luan van|ve|bang))\b|^in (?!the |a |an |my |your )/],
   ["thesis", /\b(?:luan van|khoa luan|do an tot nghiep|datn|kltn|lv|thesis)\b/],
   ["essay", /\b(?:tieu luan|essay|bai luan)\b/],
   ["language", /\b(?:(?:hoc|luyen|on) )?(?:tieng anh|anh van|tieng nhat|tieng trung|tieng han|ielts|toeic)\b/],
   // a bare "ôn" is a review, but "cảm ơn" is thanks
-  ["exam_review", /\b(?:hoc bai thi|on thi|on tap|luyen de|(?<!cam )on)\b/],
+  ["exam_review", /\b(?:hoc bai thi|on thi|on tap|luyen de|(?<!cam )on(?! (?:the|my|a|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b))\b/],
   ["homework", /\b(?:(?:lam )?bai tap(?: ve nha)?|btvn|bt|homework|lab|thuc hanh)\b/],
   ["review_code", /\breview (?:pr|code|pull request)\b/],
   // work before the study words: "báo cáo tuần" is a report, "viết tài liệu kỹ thuật" a spec
@@ -88,7 +90,7 @@ const CLASSES: [TaskClass, RegExp][] = [
   ["slides", /\b(?:slides?|thuyet trinh|powerpoint|pptx|deck)\b/],
   ["presentation", /\b(?:pitch|pitching|present|presentation)\b/],
   ["write_doc", /\b(?:viet (?:bao cao|tai lieu|doc|proposal)|bao cao|report|proposal)\b/],
-  ["skill", /\b(?:hoc )?(?:guitar|piano|ghi ta|nhay|boi loi)\b|\bhoc dan\b|\bdan (?:guitar|piano|bau)\b|\bhoc ve\b|\bve tranh\b/],
+  ["skill", /\b(?:hoc )?(?:guitar|piano|ghi ta|nhay|boi loi)\b|\bhoc dan\b|\bdan (?:guitar|piano|bau)\b|\bve tranh\b/],
   ["learn_tool", /\bhoc (?:excel|figma|photoshop|cach dung|cach su dung)\b/],
   ["workout_gym", /\b(?:gym|tap ta)\b/],
   ["workout_yoga", /\byoga\b/],
@@ -139,6 +141,7 @@ const CLASSES: [TaskClass, RegExp][] = [
   ["meal_dinner", /\b(?:an toi|bua toi|dinner)\b/],
   ["cafe", /\b(?:ca phe|cafe|cf|coffee)\b/],
   // last: a course, side or work project when nothing more specific (meeting, homework, report) named it
+  ["shop", /\b(?:dat|mua|goi|order) do an\b/],
   ["project", /\b(?:do an|bai tap lon|btl|capstone|du an|side project|pet project|project)\b/],
 ];
 
@@ -159,7 +162,7 @@ const DOMAIN: Record<TaskClass, Domain> = {
   language: "growth", skill: "growth", habit_read: "growth", habit_meditate: "growth", habit_journal: "growth",
   workout_gym: "health", workout_run: "health", workout_yoga: "health", workout_swim: "health", appointment: "health",
   clean: "home", laundry: "home", cook: "home", shop: "errand", bill: "finance", budget: "finance", tax: "finance",
-  paperwork: "admin", call: "social", email: "work", meeting: "work",
+  paperwork: "admin", print: "errand", call: "social", email: "work", meeting: "work",
   content: "work", design: "work", sales: "work", report: "work", plan: "work", interview: "work", deploy: "work",
   research: "work", spec: "work", presentation: "work", admin_work: "work",
   pet: "home", plants: "home", trash: "home", repair: "home", meds: "growth", pickup: "errand", selfcare: "growth",

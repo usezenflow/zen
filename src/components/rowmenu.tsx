@@ -66,5 +66,5 @@ const s = StyleSheet.create({
   center: { position: "absolute", left: 0, right: 0 },
   mi: { height: 50, paddingHorizontal: 20, flexDirection: "row", alignItems: "center", gap: 12 },
   sep: { borderTopWidth: 0.5, borderTopColor: "rgba(127,127,127,0.28)" },
-  t: { flexShrink: 1, fontSize: font.base, fontFamily: ff("500") },
+  t: { flexShrink: 1, fontSize: font.base, lineHeight: 24, fontFamily: ff("500") },
 });

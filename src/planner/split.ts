@@ -19,7 +19,7 @@ export function split(effort: number, maxSitting = 120, weights?: number[]): num
 
 // Shortest sitting worth doing when no length was said: an errand fits 15 min, deep work never under 1h30.
 const FLOOR: Record<string, number> = {
-  fix: 15, review_code: 15, clean: 15, laundry: 15, cook: 15, shop: 15, bill: 15, paperwork: 15, call: 15, email: 15,
+  fix: 15, review_code: 15, clean: 15, laundry: 15, cook: 15, shop: 15, bill: 15, paperwork: 15, print: 15, call: 15, email: 15,
   language: 15, workout_run: 15, workout_yoga: 15, habit_read: 15, habit_meditate: 15, habit_journal: 15,
   skill: 30, workout_gym: 30, workout_swim: 30, read: 30, budget: 30,
   homework: 60, slides: 60, exam_review: 60,

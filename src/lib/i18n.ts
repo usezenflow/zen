@@ -21,6 +21,7 @@ const S = {
   added: "Đã thêm {title}",
   done: "Xong. Tốt lắm.",
   later: "Mình đã dời việc này",
+  laterStay: "Chưa có chỗ trống hơn nên mình giữ nguyên giờ này",
   deleted: "Đã xoá {title}", // views.html "Deleted, single task": xoá, as removed
   renamed: "Đã đổi tên thành {title}",
   moved: "Đã dời {title} sang {time}",
@@ -114,6 +115,8 @@ const S = {
   disconnect: "Ngắt kết nối",
   stats: "Chia sẻ số liệu ẩn danh",
   back: "Quay lại",
+  next: "Tiếp",
+  anchorAsk: "Ý bạn là việc nào?",
   theme: "Giao diện",
   themeSystem: "Hệ thống",
   themeLight: "Sáng",

@@ -36,7 +36,7 @@ export const EJECT_CAP = 12;
 export const W_SOFT = 1 / 3, W_HARD = 1;
 
 // about a move's cost: a sitting takes another day when one is free, and shares a day when the due leaves no room
-const TWIN = 1.5;
+const TWIN = 4;
 const ceil = (t: number) => Math.ceil(t / STEP) * STEP;
 const ov = (a0: number, a1: number, b0: number, b1: number) => Math.max(0, Math.min(a1, b1) - Math.max(a0, b0));
 

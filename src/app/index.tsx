@@ -21,6 +21,7 @@ import { gapPick, restLine, worked } from "@/lib/rest";
 import { foldRepeats } from "@/components/fold";
 import { useDragDay } from "@/components/dragday";
 import { Search, type Origin } from "@/components/search";
+import { AskSheet, type AskQ } from "@/components/ask";
 import { PdfView, PhotoMenu, PhotoView, TypeBar, Veil } from "@/components/capture";
 import { Hold, type Aside, type HoldState } from "@/components/hold";
 import { OutlinePreview } from "@/components/outline";
@@ -106,7 +107,7 @@ export default function Home() {
   const [words, setWords] = useState("");
   const [toasts, setToasts] = useState<ToastState[]>([]); // [0] is showing, the rest wait their turn
   // Chips under the toast: which task a line meant, or which exam an anchor points at. One tap, then they go.
-  const [chips, setChips] = useState<{ ask?: string; sub?: string; row?: boolean; options: { label: string; detail?: string; on?: boolean; run: () => void }[] }>();
+  const [chips, setChips] = useState<AskQ & { next?: AskQ[] }>();
   const toast = toasts[0];
   const [now, setNow] = useState(() => Date.now());
   const [view, setView] = useState<View_>("day");
@@ -608,7 +609,7 @@ export default function Home() {
         const target = mine.find((x) => x.title === anchor.title);
         const how = anchor.flags!.find((f) => f.startsWith("anchor:"))?.split(":") ?? []; // the cue said: before or after a task, class or exam
         const options = anchor.alternatives!.flatMap((id) => { const c = all.find((x) => x.id === id); return c?.start !== undefined ? [c] : []; });
-        if (target && options.length) setChips({ options: options.map((c) => ({ label: c.title, detail: dayLabel(c.start!), run: () => void applyCommand([{ op: "edit", target: target.id, ...anchorPatch(how, c) }]) })) });
+        if (target && options.length) setChips({ ask: t("anchorAsk"), options: options.map((c) => ({ label: c.title, detail: dayLabel(c.start!), run: () => void applyCommand([{ op: "edit", target: target.id, ...anchorPatch(how, c) }]) })) });
       }
       const playing = (r.steps ?? []).some((st) => st.id); // the shuffle picks the day itself
       if (!playing && titles.length && Number.isFinite(firstAt)) setSel(startOfDay(firstAt));
@@ -1163,23 +1164,7 @@ export default function Home() {
       {/* The finger on the mic owns the touch, so the veil only hears a tap once a press is stuck: that tap lets go. Steps sit on it too. */}
       {(pressing || aside || picking) && <Veil onPress={picking ? () => setPicking(false) : pressing || aside ? cancel : undefined} />}
       {/* "Which one" (calm.html "Command, which one"): over the veil like a question card, big options, a tap outside puts it away. */}
-      {chips && <>
-        <Veil z={30} onPress={() => setChips(undefined)} />
-        <View style={[s.askWrap, { zIndex: 31 }]} pointerEvents="box-none">
-          <Reanimated.View entering={fadeIn} exiting={fadeOut} style={[s.askCard, { backgroundColor: th.bg, borderColor: th.line }]} accessibilityViewIsModal>
-            {chips.ask && <Text style={[s.chipAsk, { color: th.ink }]}>{chips.ask}</Text>}
-            {chips.sub && <Text style={[s.chipSub, { color: th.muted }]}>{chips.sub}</Text>}
-            <View style={chips.row ? s.chipRow : s.chipCol}>
-              {chips.options.map((o) => (
-                <Pressable key={o.label} onPress={o.run} accessibilityRole="button" style={[chips.row ? s.chipR : s.askOpt, { borderColor: o.on ? th.ink : th.line, backgroundColor: o.on ? th.ink : th.chip }]}>
-                  <Text numberOfLines={2} ellipsizeMode="tail" style={[s.chipT, chips.row && s.chipRT, { color: o.on ? th.bg : th.ink, fontFamily: ff(o.on ? "600" : "500") }]}>{o.label}</Text>
-                  {o.detail && <Text numberOfLines={1} style={[s.chipD, { color: o.on ? th.bg : th.muted }]}>{o.detail}</Text>}
-                </Pressable>
-              ))}
-            </View>
-          </Reanimated.View>
-        </View>
-      </>}
+      {chips && <><Veil z={30} onPress={() => setChips(undefined)} /><AskSheet qs={[chips, ...(chips.next ?? [])]} onClose={() => setChips(undefined)} /></>}
       {/* Over a photo or PDF too: thinking while it is read (capture.html 9, 12), then pressing it puts it away and listens, no close button. */}
       {!showStory && !finding && <View style={[s.dock, { bottom: navLift }]} pointerEvents="box-none"><Hold state={state} pinned={picking ? "photo" : ""} onAside={onAside} onStart={() => { setPressing(true); setPhoto(undefined); setPdf(undefined); if (!latched.current) void start(); }} onEnd={onEnd} idle={view === "rhythm" ? "holdRule" : "hold"} /></View>}
       {picking && <PhotoMenu onPick={readPhoto} />}
@@ -1209,18 +1194,7 @@ function ThemeTap() {
 const s = StyleSheet.create({
   // calm.html .find + .pills.blk .pl: a bordered card, the question, then full-width outlined pills (name left, day right)
   chips: { marginTop: 16, borderRadius: 22, borderWidth: 1, paddingVertical: 16, paddingHorizontal: 18 },
-  askWrap: { ...StyleSheet.absoluteFill, justifyContent: "center", paddingHorizontal: 20, paddingBottom: 90 },
-  askCard: { borderRadius: 28, borderWidth: 1, padding: 20, shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 30, shadowOffset: { width: 0, height: 14 }, elevation: 12 },
-  askOpt: { minHeight: 56, width: "100%", justifyContent: "center", gap: 2, paddingVertical: 10, paddingHorizontal: 18, borderRadius: 16, borderWidth: 1 },
   chip: { height: 44, width: "100%", flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 18, borderRadius: 99, borderWidth: 1 },
-  chipCol: { marginTop: 12, gap: 8 },
-  chipRow: { marginTop: 14, flexDirection: "row", gap: 8 }, // .find .acts: the answers in one row of pills
-  chipR: { height: 40, flexShrink: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 16, borderRadius: 99, borderWidth: 1 },
-  chipRT: { flex: 0, textAlign: "center" },
-  chipAsk: { fontSize: 17, lineHeight: 23, fontFamily: ff("500") },
-  chipSub: { marginTop: 6, fontSize: 15, lineHeight: 21, fontFamily: ff("400") },
-  chipT: { flex: 1, minWidth: 0, fontSize: 15, fontFamily: ff("500") },
-  chipD: { flexShrink: 0, opacity: 0.7, fontSize: 15, fontFamily: ff("500"), fontVariant: ["tabular-nums"] },
   root: { flex: 1 },
   pad: { padding: space.gutter, paddingTop: 0 }, // .scr: the safe area stands in for its 54px top
   top: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginTop: 6 },

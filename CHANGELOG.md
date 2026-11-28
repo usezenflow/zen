@@ -1,5 +1,18 @@
 # zen
 
+## 26.1.7
+
+### Patch Changes
+
+- Câu hỏi "Ý bạn là việc nào?" giờ là bảng trượt lên từ cạnh dưới, nằm trên lớp mờ, dễ chạm bằng ngón cái thay vì nằm giữa màn hình; mỗi lựa chọn có số (nói "cái 1" cũng được) và giờ nằm ở dòng dưới tên việc, không che tên
+- Hỏi nhiều câu liên tiếp trong một bảng với mũi tên quay lại và tiếp theo cỡ lớn dễ bấm; chọn câu cuối thì áp dụng tất cả cùng lúc
+- Sửa tên việc bị cắt mất nửa trên trong bảng chọn, và chữ trong vài nút có chiều cao cố định
+- "In báo cáo", "in tài liệu" là việc in ấn ngắn (khoảng 20 phút), không còn bị tính là viết báo cáo 4 tiếng rưỡi chia 3 buổi
+- Không nhầm "on" tiếng Anh ("Call mom on Sunday") thành ôn thi, "đặt đồ ăn" thành đồ án, hay "học về" thành học vẽ
+- Các buổi của một việc có hạn được rải ra nhiều ngày thay vì dồn vào một ngày
+- "Chuyển việc" không còn báo đã dời khi planner giữ nguyên giờ cũ vì không có chỗ trống hơn; báo rõ lý do
+- Ghi chú dài cuộn bên trong ô thay vì tràn ra ngoài, dễ sửa hơn
+
 ## 26.1.6
 
 ### Patch Changes

@@ -7,7 +7,7 @@ describe("kindOf", () => {
       ["Ôn Giải tích", "study"], ["Học tiếng Anh", "study"], ["Bài tập Toán", "study"], ["Đọc sách", "self"], ["Viết luận", "study"],
       ["Làm báo cáo", "study"], ["Báo cáo thực hành", "study"], ["Đề cương Vật lý", "study"], ["Ôn thi", "study"], ["Học từ vựng", "study"],
       ["Gym", "exercise"], ["Chạy bộ", "exercise"], ["Tập yoga", "exercise"], ["Đi bơi", "exercise"], ["Đá bóng", "exercise"], ["Tập thể dục", "exercise"],
-      ["Dọn nhà", "chores"], ["Giặt đồ", "chores"], ["Mua sữa", "errand"], ["Rút tiền", "chores"], ["In tài liệu", "chores"], ["Trả sách", "chores"], ["Tưới cây", "chores"], ["Sửa xe", "chores"],
+      ["Dọn nhà", "chores"], ["Giặt đồ", "chores"], ["Mua sữa", "errand"], ["Rút tiền", "chores"], ["In tài liệu", "errand"], ["Trả sách", "chores"], ["Tưới cây", "chores"], ["Sửa xe", "chores"],
       ["Cà phê với Quang", "social"], ["Hẹn Lan", "social"], ["Gặp thầy", "social"], ["Gọi điện cho mẹ", "social"], ["Sinh nhật Nam", "social"], ["Đi chơi", "social"],
     ] as const) expect(kindOf(title), title).toBe(kind);
   });

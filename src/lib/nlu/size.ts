@@ -62,6 +62,7 @@ export const T: Record<TaskClass, Row> = {
   bill: { shape: "errand", base: 30, per: 0 },
   budget: { shape: "project", base: 120, per: 60, days: 7 },
   tax: { shape: "project", base: 180, per: 60, days: 7 },
+  print: { shape: "errand", base: 20, per: 0, days: 2 },
   paperwork: { shape: "errand", base: 60, per: 0, days: 7 },
   call: { shape: "errand", base: 30, per: 0, days: 1 },
   email: { shape: "errand", base: 30, per: 0, days: 1 },

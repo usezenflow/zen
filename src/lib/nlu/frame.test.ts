@@ -238,4 +238,12 @@ describe("frameOf reads, flags and stakes", () => {
     expect(frameOf("học bơi").cls).toBe("workout_swim");
     expect(frameOf("học bơi lội").cls).toBe("skill");
   });
+
+  it("in is printing, not writing; English in/on stay out of it", () => {
+    expect(frameOf("In báo cáo ktpm").cls).toBe("print");
+    expect(frameOf("in tài liệu").cls).toBe("print");
+    expect(frameOf("check in the report").cls).not.toBe("print");
+    expect(frameOf("Call mom on Sunday").cls).toBe("call");
+    expect(frameOf("Đặt đồ ăn").cls).toBe("shop");
+  });
 });

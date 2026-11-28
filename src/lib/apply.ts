@@ -799,8 +799,12 @@ export const preview = (id: string, e: LiveEdit, now = Date.now()) => transact(n
 export const retime = (id: string, start: number, minutes?: number, now = Date.now(), rest?: number) => liveEdit(id, { when: start, effortMinutes: minutes }, now, rest);
 
 export const swipeDone = (id: string, now = Date.now()) => transact(now, (w) => act(w, { op: "done", target: id }), { cause: "early-done", text: (_, w) => w.toast });
-export const swipeLater = (id: string, now = Date.now()) =>
-  transact(now, (w) => { const tk = w.tasks.get(id); if (tk?.fixed) return; if (tk) w.log("later", tk); w.toast = t("later"); }, { cause: "user-task", plan: { later: id, only: [id] } }); // a class or busy block never moves: nothing to learn, nothing said
+export const swipeLater = (id: string, now = Date.now()) => {
+  let was: number | undefined;
+  // The planner may put it back where it was (a full day): say so, not "moved". A class or busy block never moves: nothing to learn, nothing said.
+  return transact(now, (w) => { const tk = w.tasks.get(id); if (tk?.fixed) return; if (tk) { was = tk.start; w.log("later", tk); } w.toast = t("later"); },
+    { cause: "user-task", plan: { later: id, only: [id] }, text: (_, w) => (was !== undefined && w.tasks.get(id)?.start === was ? t("laterStay") : w.toast) });
+};
 
 /** Starts the suggested gap task now. */
 export const take = (id: string, start: number, end: number, now = Date.now()) =>
