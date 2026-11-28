@@ -116,6 +116,7 @@ const S = {
   stats: "Chia sẻ số liệu ẩn danh",
   back: "Quay lại",
   next: "Tiếp",
+  askEsc: "Chạm ra ngoài để bỏ qua",
   anchorAsk: "Ý bạn là việc nào?",
   theme: "Giao diện",
   themeSystem: "Hệ thống",

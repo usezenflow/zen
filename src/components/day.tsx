@@ -523,7 +523,7 @@ const s = StyleSheet.create({
   plBlk: { alignSelf: "stretch", height: 44, paddingHorizontal: 18, flexDirection: "row", justifyContent: "flex-start", gap: 12 }, // name left, day right: every pill shares both edges
   nm: { flex: 1, minWidth: 0 },
   pl: { height: 40, paddingHorizontal: 16, borderRadius: 99, alignItems: "center", justifyContent: "center", flexShrink: 1, minWidth: 0 },
-  plt: { fontSize: font.sub, fontFamily: ff("500") },
+  plt: { fontSize: font.sub, lineHeight: 22, fontFamily: ff("500") },
   rest: { marginTop: 18, borderRadius: 28, padding: 20 },
   restArt: { borderRadius: 34, overflow: "hidden" }, // calm.html .art: 34px radius
   restLf: { position: "absolute", top: 18, right: 18 },

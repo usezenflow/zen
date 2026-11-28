@@ -28,7 +28,7 @@ export function boundsOf(m: Model): Bounds {
   const days = all.filter((d) => d.day > latest - 14 * 86_400_000); // one crunch week of late nights fades instead of widening the window for a month
   if (days.length < MIN_DAYS) return { parts, from: WAKE_FROM, to: WAKE_TO };
   // the awake window only expands: it stops forbidding hours the user really works in. shortcut: awake end capped at 24:00, since a piece never crosses midnight (place.ts).
-  const from = Math.min(WAKE_FROM, clamp(q(days.map((d) => d.first), 0.1) - PAD, 5 * 60, 24 * 60 - 1));
+  const from = Math.min(WAKE_FROM, clamp(q(days.map((d) => d.first), 0.1) - PAD, 6 * 60, 24 * 60 - 1));
   const to = Math.max(WAKE_TO, clamp(q(days.map((d) => d.last), 0.9) + PAD, 5 * 60, 24 * 60));
   return { parts, from, to };
 }

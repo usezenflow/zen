@@ -29,7 +29,7 @@ export function AskSheet({ qs, onClose }: { qs: AskQ[]; onClose: () => void }) {
     </Pressable>
   );
   return (
-    <Reanimated.View entering={SlideInDown.duration(240)} exiting={SlideOutDown.duration(160)} accessibilityViewIsModal style={[s.sheet, { backgroundColor: th.bg, borderColor: th.line, paddingBottom: bottom + 16 }]}>
+    <Reanimated.View entering={SlideInDown.duration(240)} exiting={SlideOutDown.duration(160)} accessibilityViewIsModal style={[s.sheet, { backgroundColor: th.bg, borderColor: th.line, paddingBottom: bottom || 34 }]}>
       {many && (
         <View style={s.nav}>
           {arrow(-1, i > 0)}
@@ -43,35 +43,37 @@ export function AskSheet({ qs, onClose }: { qs: AskQ[]; onClose: () => void }) {
         {q.options.map((o, k) => {
           const on = picks[i] !== undefined ? picks[i] === k : !!o.on;
           return (
-            <Pressable key={o.label + k} onPress={() => pick(k)} accessibilityRole="button" style={[q.row ? s.pill : s.opt, { borderColor: on ? th.ink : th.line, backgroundColor: on ? th.ink : th.chip }]}>
+            <Pressable key={o.label + k} onPress={() => pick(k)} accessibilityRole="button" style={[q.row ? s.pill : s.opt, { backgroundColor: on ? th.ink : th.chip }]}>
               {!q.row && <View style={[s.n, { backgroundColor: th.bg }]}><Text style={[s.nT, { color: th.ink }]}>{k + 1}</Text></View>}
               <View style={s.tx}>
-                <Text style={[s.t, { color: on ? th.bg : th.ink, fontFamily: ff(on ? "600" : "500") }]} numberOfLines={q.row ? 1 : 3}>{o.label}</Text>
-                {o.detail && <Text style={[s.d, { color: on ? th.bg : th.muted }]} numberOfLines={1}>{o.detail}</Text>}
+                <Text style={[s.t, { color: on ? th.bg : th.ink, fontFamily: ff(on ? "600" : "500") }]}>{o.label}</Text>
+                {o.detail && <Text style={[s.d, { color: on ? th.bg : th.ink }]}>{o.detail}</Text>}
               </View>
             </Pressable>
           );
         })}
       </View>
+      <Pressable onPress={onClose} accessibilityRole="button"><Text style={[s.esc, { color: th.muted }]}>{t("askEsc")}</Text></Pressable>
     </Reanimated.View>
   );
 }
 
 const s = StyleSheet.create({
+  esc: { marginTop: 12, textAlign: "center", fontSize: 13, lineHeight: 18, fontFamily: ff("400") },
   sheet: { position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 31, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderBottomWidth: 0, paddingTop: 16, paddingHorizontal: 20, shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 30, shadowOffset: { width: 0, height: -10 }, elevation: 12 },
   nav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
   arrow: { width: 52, height: 52, alignItems: "center", justifyContent: "center" },
   step: { fontSize: 14, lineHeight: 20, fontFamily: ff("500"), fontVariant: ["tabular-nums"] },
-  ask: { fontSize: 18, lineHeight: 25, fontFamily: ff("500") },
-  sub: { marginTop: 6, fontSize: 15, lineHeight: 21, fontFamily: ff("400") },
-  col: { marginTop: 14, gap: 8 },
+  ask: { fontSize: 20, lineHeight: 25, letterSpacing: -0.2, fontFamily: ff("600") },
+  sub: { marginTop: 4, fontSize: 14.5, lineHeight: 20.3, fontFamily: ff("400") },
+  col: { marginTop: 0, gap: 0 },
   row: { marginTop: 14, flexDirection: "row", gap: 8 },
   // Column rows hold their text at its natural height (no flex:1 on a vertical axis: it squeezed titles to a clipped line).
-  opt: { minHeight: 58, flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, paddingHorizontal: 18, borderRadius: 16, borderWidth: 1 },
+  opt: { minHeight: 58, flexDirection: "row", alignItems: "center", gap: 12, marginTop: 8, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 18 },
   pill: { height: 44, flexShrink: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 16, borderRadius: 99, borderWidth: 1 },
-  tx: { flexShrink: 1, gap: 2 },
+  tx: { flex: 1, minWidth: 0, gap: 2 },
   n: { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  nT: { fontSize: 13, lineHeight: 18, fontFamily: fd("700"), fontVariant: ["tabular-nums"] },
-  t: { fontSize: 16, lineHeight: 22 },
-  d: { fontSize: 14, lineHeight: 20, opacity: 0.7, fontFamily: fd("500"), fontVariant: ["tabular-nums"] },
+  nT: { fontSize: 13, lineHeight: 18, fontFamily: ff("600") },
+  t: { fontSize: 16, lineHeight: 20.8 },
+  d: { fontSize: 14, lineHeight: 18, opacity: 0.65, fontFamily: fd("500"), fontVariant: ["tabular-nums"] },
 });

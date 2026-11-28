@@ -28,7 +28,7 @@ export interface SizeOpts {
 }
 
 /** Words an exam and a course title share no meaning in: "ôn thi giải tích" names "Giải tích". */
-const STOP = new Set(["thi", "tap", "kiem", "tra", "hoc", "bai", "ngay", "mid", "final", "quiz", "giua", "cuoi"]);
+const STOP = new Set(["thi", "tap", "kiem", "tra", "hoc", "bai", "ngay", "mid", "final", "quiz", "giua", "cuoi", "tieng", "lap", "trinh", "kinh", "thuat"]);
 const words = (s: string) => new Set(fold(s).text.split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !STOP.has(w)));
 
 /** The day of the first synced exam whose course the title names, else undefined. */

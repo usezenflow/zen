@@ -114,7 +114,7 @@
 .acard .opt .n { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 600; background: var(--bg); color: var(--ink); }
 .acard .opt.on .n { background: var(--bg); }
 .acard .opt .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.acard .opt .nm { min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.acard .opt .nm { min-width: 0; }
 .acard .opt .dy { font-family: var(--display); font-size: 14px; opacity: .65; font-variant-numeric: tabular-nums; }
 .acard .esc { margin-top: 12px; text-align: center; font-size: 13px; color: var(--muted); }
 </style>
@@ -290,7 +290,7 @@ const orderDetail = `${dtop}
 const orderToast = chrome(toast("Đã thêm 2 việc", "Học lý thuyết Giải tích, rồi Làm bài tập Giải tích", [["Hoàn tác"]], { art: "lagoonC" }) + DAY, { dock: "think" });
 
 // Anchors: "ôn trước kỳ thi Toán" with two Toán exams ahead.
-const anchorPick = chrome(`${DAY}${pick("Kỳ thi Toán nào?", [["Thi Giải tích", "T5 26/11 7:30"], ["Thi Đại số tuyến tính", "T3 1/12 9:30"]])}`, { dock: null });
+const anchorPick = chrome(`${DAY}${pick("Ý bạn là việc nào?", [["Thi Giải tích", "T5 26/11 7:30"], ["Thi Đại số tuyến tính", "T3 1/12 9:30"]])}`, { dock: null });
 const anchorOk = chrome(toast("Đã thêm Đọc code outline", "Trước buổi thi 1/12", [["Hoàn tác"]], { art: "duskC" }) + DAY, { dock: "think" });
 // Every instance, not the first: sittings each on a line (the first four, then +n); a repeat says its pattern.
 const sittingsToast = chrome(toast("Đã thêm Viết báo cáo", `<span class="ls">T5 9:30<br>T6 14:00<br>T2 20:00</span>`, [["Hoàn tác"]], { art: "lagoonC" }) + DAY, { dock: "think" });
@@ -362,7 +362,7 @@ mount([
   { tag: "Now, with a forecast", sub: "How likely this block gets done, from your own history, in three steps. The track record on the Lá số keeps it honest.", html: chrome(oddsCard, { dock: "idle", time: "8:40" }) },
   { tag: "Command, one match", sub: 'Said "xoá giặt đồ": one task clearly matches, so it is gone at once. Hoàn tác brings it back.', html: cmdDone },
   { tag: "Command, move", sub: 'Said "dời họp sang 3h": the one Họp nhóm moves to 15:00. Same Undo.', html: cmdMove },
-  { tag: "Command, which one", sub: 'Said "huỷ gym" with two Gym tasks: the day steps back under a veil and a question sheet rises from the bottom edge, like a multiple-choice prompt, within thumb reach. Big numbered options (a number can be said too): pick one, remove both (Xoá cả hai, with Undo), or keep the words as a new task. A tap outside puts it away; nothing happens until a pick.', html: cmdWhich },
+  { tag: "Command, which one", sub: 'Said "huỷ gym" with two Gym tasks: the day steps back under a veil and a question sheet rises from the bottom edge, like a multiple-choice prompt, within thumb reach. Big numbered options (a number can be said too): pick one, remove both (Xoá cả hai, with Undo), or keep the words as a new task. A long title wraps in full, never cut. A tap outside puts it away; nothing happens until a pick.', html: cmdWhich },
   { tag: "Command or new task", sub: 'A typo ("xoa gym") or a weak match never acts by itself: the same veil and card, the likely reading first, a new task always the other choice.', html: cmdOrNew },
   { tag: "Command, many at once", sub: '"Xoá hết tiết tuần này" names a count and asks first. A bulk change never happens silently.', html: cmdBulk },
   { tag: "Not a command", sub: '"Bỏ rác" is a chore, not a delete: no task is called Rác, so it is added as usual.', html: createKept },
