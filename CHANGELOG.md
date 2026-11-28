@@ -1,13 +1,5 @@
 # zen
 
-## 26.1.8
-
-### Patch Changes
-
-- Còn ít ngày thì ít buổi hơn nhưng mỗi buổi dài hơn (khoảng một buổi mỗi một ngày rưỡi, tổng thời lượng giữ nguyên): còn 4 ngày là 2 buổi thay vì 3
-- Buổi làm việc luôn chừa khoảng đệm trước hạn, không dồn sát ngày nộp
-- Nhiều chỗ chưa rõ trong một câu lệnh hiện thành nhiều câu hỏi liên tiếp trong cùng một bảng, có mũi tên quay lại và tiếp theo
-
 ## 26.1.7
 
 ### Patch Changes
@@ -18,8 +10,13 @@
 - "In báo cáo", "in tài liệu" là việc in ấn ngắn (khoảng 20 phút), không còn bị tính là viết báo cáo 4 tiếng rưỡi chia 3 buổi
 - Không nhầm "on" tiếng Anh ("Call mom on Sunday") thành ôn thi, "đặt đồ ăn" thành đồ án, hay "học về" thành học vẽ
 - Các buổi của một việc có hạn được rải ra nhiều ngày thay vì dồn vào một ngày
-- "Chuyển việc" không còn báo đã dời khi planner giữ nguyên giờ cũ vì không có chỗ trống hơn; báo rõ lý do
+- "Chuyển việc" không còn báo đã dời khi zen không tìm được chỗ nào hợp hơn và giữ nguyên giờ cũ vì không có chỗ trống hơn; báo rõ lý do
 - Ghi chú dài cuộn bên trong ô thay vì tràn ra ngoài, dễ sửa hơn
+- Còn ít ngày thì ít buổi hơn nhưng mỗi buổi dài hơn (khoảng một buổi mỗi một ngày rưỡi, tổng thời lượng giữ nguyên): còn 4 ngày là 2 buổi thay vì 3
+- Buổi làm việc luôn chừa khoảng đệm trước hạn, không dồn sát ngày nộp
+- Nhiều chỗ chưa rõ trong một câu lệnh hiện thành nhiều câu hỏi liên tiếp trong cùng một bảng, có mũi tên quay lại và tiếp theo
+- Sau khi bạn sửa tên, độ dài, hạn, nơi hay loại của một việc, thông báo nói rõ zen đã nhớ chỉnh sửa đó cho lần sau thay vì chỉ báo "đã cập nhật"
+- Viết lại vài câu thông báo cho tự nhiên hơn
 
 ## 26.1.6
 

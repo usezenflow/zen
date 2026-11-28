@@ -450,10 +450,11 @@ async function act(w: Work, a: Action, refs = new Map<string, string>()) {
       w.log("edit", next);
       if (!w.quiet && !taughtNlu && tk.source === "user") {
         taughtNlu = true;
+        let taught: "learnTitle" | "learnLength" | "learnDue" | "learnPlace" | "learnKind" | undefined;
         const root = tk.parentId ? w.tasks.get(tk.parentId) ?? tk : tk;
         const ctx = { id: root.id, title: next.title, note: next.note, cls: next.cls ?? root.cls, kind: next.kind, guessMin: root.guessMin };
         if (a.title && a.title.trim() && a.title.trim() !== tk.title) {
-          learnTitle(w.nlu(), tk.title, a.title.trim(), root.repairs, now);
+          learnTitle(w.nlu(), tk.title, a.title.trim(), root.repairs, now); taught = "learnTitle";
           refreshSampleContext(w.nlu(), root.id, next.title, next.note, now);
         } else if (a.note !== undefined && a.note !== (tk.note ?? "")) {
           refreshSampleContext(w.nlu(), root.id, next.title, next.note, now);
@@ -462,20 +463,22 @@ async function act(w: Work, a: Action, refs = new Map<string, string>()) {
           const total = tk.parentId
             ? [...w.tasks.values()].filter((c) => c.parentId === tk.parentId && !c.deletedAt).reduce((s, c) => s + (c.id === tk.id ? a.effortMinutes! : c.effort), 0)
             : a.effortMinutes;
-          learnDuration(w.nlu(), ctx, total, tk.parentId ? a.effortMinutes : next.maxSitting, now);
+          learnDuration(w.nlu(), ctx, total, tk.parentId ? a.effortMinutes : next.maxSitting, now); taught = "learnLength";
         }
         if (a.deadline === "" && root.deadline !== undefined) {
-          learnDeadline(w.nlu(), ctx, null, now);
+          learnDeadline(w.nlu(), ctx, null, now); taught = "learnDue";
         } else if (dl && dl !== root.deadline) {
           const base = root.notBefore && root.notBefore > root.createdAt ? root.notBefore : root.createdAt;
-          learnDeadline(w.nlu(), ctx, Math.max(0.5, (dl - base) / DAY), now);
+          learnDeadline(w.nlu(), ctx, Math.max(0.5, (dl - base) / DAY), now); taught = "learnDue";
         }
         if (a.location !== undefined && (a.location.trim() || undefined) !== root.location) {
-          learnLocation(w.nlu(), ctx, a.location.trim() || null, root.location, now);
+          learnLocation(w.nlu(), ctx, a.location.trim() || null, root.location, now); taught = "learnPlace";
         }
         if (a.kind && a.kind !== root.kind) {
-          learnKind(w.nlu(), ctx, a.kind as Kind, now);
+          learnKind(w.nlu(), ctx, a.kind as Kind, now); taught = "learnKind";
         }
+        // Say it: a correction is a lesson, not just "updated to X" (a sub already set by a move's own learning stays).
+        if (taught) w.sub ??= t(taught);
       }
     }
   }

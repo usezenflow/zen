@@ -54,7 +54,7 @@ describe("a refused password", () => {
     fake.exams.mockRejectedValue(new CampusLoginError("portal"));
     await runPart("ex");
     expect(await loginError()).toBe("portal");
-    expect(notices()).toEqual([{ title: "Online không nhận mật khẩu", body: "Bạn có đổi mật khẩu chưa? Hãy kiểm tra lại.", sound: "zenflow_urgent.wav", data: { route: "/settings" } }]);
+    expect(notices()).toEqual([{ title: "Online không cho đăng nhập", body: "Bạn đổi mật khẩu chưa? Kiểm tra lại giúp mình nhé.", sound: "zenflow_urgent.wav", data: { route: "/settings" } }]);
     await runPart("ex");
     expect(notices()).toHaveLength(1);
   });
@@ -62,7 +62,7 @@ describe("a refused password", () => {
   it("says the LMS one for the LMS account", async () => {
     fake.lms.mockRejectedValue(new CampusLoginError("lms"));
     await runPart("lms");
-    expect(notices()).toEqual([expect.objectContaining({ title: "LMS không nhận mật khẩu", data: { route: "/settings" } })]);
+    expect(notices()).toEqual([expect.objectContaining({ title: "LMS không cho đăng nhập", data: { route: "/settings" } })]);
     expect(await loginError()).toBe("lms");
   });
 
