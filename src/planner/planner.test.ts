@@ -152,12 +152,11 @@ describe("split and deadline", () => {
   it("lands every sitting before the deadline in order", () => {
     const deadline = at(4, 18);
     const { diff } = plan([task("essay", { effort: 300, deadline })], [], newModel(now), now);
-    expect(diff.split[0].ids).toHaveLength(3);
-    expect(diff.placed).toHaveLength(3);
+    expect(diff.split[0].ids).toHaveLength(2); // 4 days is a few: two longer sittings, not three short ones
+    expect(diff.placed).toHaveLength(2);
     const ps = diff.split[0].ids.map((id) => diff.placed.find((p) => p.id === id)!);
     for (const p of ps) expect(p.end).toBeLessThanOrEqual(deadline);
     expect(ps[0].start).toBeLessThan(ps[1].start);
-    expect(ps[1].start).toBeLessThan(ps[2].start);
   });
 
   it("a said due within 30 days aims at ~75% of the window, not its last day", () => {
@@ -452,10 +451,11 @@ describe("first move, maxSitting, typeOf, alt", () => {
     expect(p.end).toBeLessThanOrEqual(now + 30 * DAY);
   });
 
-  it("a tight deadline gets fewer, longer sittings: one per whole day left, one under a day", () => {
+  it("a tight deadline gets fewer, longer sittings: one per day and a half left, one under that", () => {
     const prep = (due: number) => plan([task("p", { effort: 120, maxSitting: 45, deadline: due })], [], newModel(now), now).diff;
     expect(prep(at(5, 18)).split[0].ids).toHaveLength(3); // plenty of time: the usual three
-    expect(prep(at(2, 18)).split[0].ids).toHaveLength(2); // 2.4 days: two
+    expect(prep(at(4, 18)).split[0].ids).toHaveLength(2); // 4 days: two, one per day and a half
+    expect(prep(at(2, 18)).split).toHaveLength(0); // 2.4 days: one
     const lone = prep(now + 20 * HOUR); // under a day: one sitting, no split, longer than 45
     expect(lone.split).toHaveLength(0);
     const p = lone.placed.find((x) => x.id === "p")!;

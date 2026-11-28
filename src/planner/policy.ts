@@ -240,13 +240,14 @@ function planOnce(tasks: Task[], busy: Busy[], model: Model, now: number, opts: 
     if (old && left <= 0) continue;
     let eff = sized(t, left);
     let cap = t.maxSitting ?? 120;
-    // A tight deadline gets fewer sittings, one per whole day left (under a day: one), not a full set crammed in.
+    // A tight deadline gets fewer sittings, one per day and a half left (under a day: one), not a full set crammed in.
     // Exam prep (maxSitting) shrinks its total a little with them (halfway to proportional); other work keeps its size, in sittings of at most 3 h.
-    const natural = Math.ceil(eff / cap), room = endOf(t) === undefined ? natural : Math.max(1, Math.floor((endOf(t)! - now) / DAY));
+    const natural = Math.ceil(eff / cap), room = endOf(t) === undefined ? natural : Math.max(1, Math.floor((endOf(t)! - now) / (1.5 * DAY))); // one sitting per day and a half: 4 days left is 2, not 3
+    const roomDays = endOf(t) === undefined ? natural : Math.max(1, Math.floor((endOf(t)! - now) / DAY)); // fewer sittings never means less work: sizes shrink by whole days only
     // A guessed length gives way to a said due: "mai làm đồ án" is what fits by tomorrow (a long sitting a day), not 30 h that fit nowhere.
     const guess = eff;
-    if (natural > room && t.effortGuessed) { eff = Math.min(eff, room * LONG_SITTING); cap = Math.max(cap, Math.min(Math.ceil(eff / room / 30) * 30, LONG_SITTING)); }
-    else if (natural > room && t.maxSitting !== undefined) { eff = sized(t, (eff * (natural + room)) / (2 * natural)); cap = Math.min(Math.ceil(eff / room / 30) * 30, LONG_SITTING); }
+    if (natural > room && t.effortGuessed) { eff = Math.min(eff, roomDays * LONG_SITTING); cap = Math.max(cap, Math.min(Math.ceil(eff / room / 30) * 30, LONG_SITTING)); }
+    else if (natural > room && t.maxSitting !== undefined) { if (natural > roomDays) eff = sized(t, (eff * (natural + roomDays)) / (2 * natural)); cap = Math.min(Math.ceil(eff / room / 30) * 30, LONG_SITTING); }
     else if (natural > room) cap = Math.max(cap, Math.min(Math.ceil(eff / room / 30) * 30, LONG_SITTING));
     // What was asked bends to what is free, never past sense. A guessed length (no length said) shrinks to the longest free stretch of its
     // window, not below what the work needs (an errand 15 min, deep work 1h30); a said length never shrinks. A window too packed for that

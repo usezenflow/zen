@@ -590,7 +590,7 @@ export default function Home() {
       if (read?.items.length) store.kvSet("nlu.committed", JSON.stringify(committedRows(read.items, old))).catch(() => {});
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       const titles = [...new Set(actions.filter((a) => a.op === "create" && a.title).map((a) => a.title!))];
-      const anchor = actions.find((a) => a.flags?.includes("anchor-ambiguous") && a.alternatives?.length);
+      const anchors = actions.filter((a) => a.flags?.includes("anchor-ambiguous") && a.alternatives?.length);
       // Show where the new work landed: the day of its earliest placed piece, not today.
       const after = await store.allTasks(); // one read after the apply, shared by the three checks below
       const made = after.filter((x) => x.createdAt === now && x.source === "user" && !x.deletedAt && x.start !== undefined);
@@ -605,12 +605,14 @@ export default function Home() {
       const far = Math.max(0, ...after.filter((x) => x.createdAt === now && x.source === "user" && !x.deletedAt && x.deadline !== undefined && x.deadline > addDays(now, 7)).map((x) => x.deadline!));
       const farSub = far ? t("farDue", { date: dayLabel(far).slice(4) }) : undefined; // dayLabel: "T6, 21/11" → "21/11"
       // An anchor the reader could not pin ("ôn trước kỳ thi Toán" with two Toán exams): the chips pick one, and its start becomes the deadline.
-      if (anchor) {
+      // Every anchor the reader could not pin is its own question in one sheet (back/next between them); the answers apply together on the last.
+      const asks: AskQ[] = anchors.flatMap((anchor) => {
         const target = mine.find((x) => x.title === anchor.title);
         const how = anchor.flags!.find((f) => f.startsWith("anchor:"))?.split(":") ?? []; // the cue said: before or after a task, class or exam
         const options = anchor.alternatives!.flatMap((id) => { const c = all.find((x) => x.id === id); return c?.start !== undefined ? [c] : []; });
-        if (target && options.length) setChips({ ask: t("anchorAsk"), options: options.map((c) => ({ label: c.title, detail: dayLabel(c.start!), run: () => void applyCommand([{ op: "edit", target: target.id, ...anchorPatch(how, c) }]) })) });
-      }
+        return target && options.length ? [{ ask: t("anchorAsk"), sub: target.title, options: options.map((c) => ({ label: c.title, detail: dayLabel(c.start!), run: () => void applyCommand([{ op: "edit", target: target.id, ...anchorPatch(how, c) }]) })) }] : [];
+      });
+      if (asks.length) setChips({ ...asks[0], next: asks.slice(1) });
       const playing = (r.steps ?? []).some((st) => st.id); // the shuffle picks the day itself
       if (!playing && titles.length && Number.isFinite(firstAt)) setSel(startOfDay(firstAt));
       // The sized sub (exam, shared end, span or due with sittings) names what the sizer did; else the time of the first piece.

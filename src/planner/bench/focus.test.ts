@@ -27,8 +27,9 @@ const METRICS: Record<FocusName, Spec[]> = {
   load: [{ key: "overloadDays", dir: "rise", tol: 0.1, best: 0 }, { key: "keepRate", dir: "drop", tol: 0.02 }],
   // Perfect: no overload by true length, and guessed lengths equal the true ones (0 minutes off).
   fallacy: [{ key: "overloadDays", dir: "rise", tol: 0.1, best: 0 }, { key: "lenErrMin", dir: "rise", tol: 5 }],
-  // Perfect: every dated placement in the first 80% of its window; no dated task left late.
-  lead: [{ key: "leadShare", dir: "drop", tol: 0.02, best: 1 }, { key: "keepDated", dir: "drop", tol: 0.02 }, { key: "lateRate", dir: "rise", tol: 0.02 }],
+  // Every dated placement in the first 80% of its window; no dated task left late. No `best`: with the early buffer every placement already is
+  // (leadShare 1), so it is kept as a regression gate only.
+  lead: [{ key: "leadShare", dir: "drop", tol: 0.02 }, { key: "keepDated", dir: "drop", tol: 0.02 }, { key: "lateRate", dir: "rise", tol: 0.02 }],
   // Perfect: no placement inside the 40 min rest after class.
   buffer: [{ key: "bufferShare", dir: "rise", tol: 0.02, best: 0 }, { key: "keepRate", dir: "drop", tol: 0.02 }],
   // Perfect: every errand kept, because each is placed next to another.

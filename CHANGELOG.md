@@ -1,5 +1,13 @@
 # zen
 
+## 26.1.8
+
+### Patch Changes
+
+- Còn ít ngày thì ít buổi hơn nhưng mỗi buổi dài hơn (khoảng một buổi mỗi một ngày rưỡi, tổng thời lượng giữ nguyên): còn 4 ngày là 2 buổi thay vì 3
+- Buổi làm việc luôn chừa khoảng đệm trước hạn, không dồn sát ngày nộp
+- Nhiều chỗ chưa rõ trong một câu lệnh hiện thành nhiều câu hỏi liên tiếp trong cùng một bảng, có mũi tên quay lại và tiếp theo
+
 ## 26.1.7
 
 ### Patch Changes
